@@ -290,7 +290,7 @@ Layer height, bottom layer count, bottom and normal exposure, light-off delay, l
 
 ### 9.3 `.pwmx` writer
 
-Implements the header, preview images, layer table and RLE layer data per the UVtools specification. Validation: every exported file in the test suite is opened with UVtools and compared to golden images. The writer sits behind `IPrinterFileWriter` so further formats are additive.
+Writes format version 516 (file mark, HEADER, PREVIEW, grey table, LAYERDEF, EXTRA, MACHINE, then pw0Img run-length layer images). Layer images are mirrored in X per the published Mono X profiles; the first print of an asymmetric test part confirms or flips this. Validation: every exported file in the test suite is opened with UVtools and compared to golden images. The writer sits behind `IPrinterFileWriter` so further formats are additive.
 
 ## 10. Project file
 

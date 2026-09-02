@@ -1,4 +1,7 @@
+using System.Windows.Input;
 using Avalonia.Controls;
+using CommunityToolkit.Mvvm.Input;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Danslicer.App.Controls;
@@ -8,9 +11,16 @@ namespace Danslicer.App.Views;
 
 public partial class MainWindow : Window
 {
+    public ICommand ImportCommand { get; }
+    public ICommand ExportCommand { get; }
+
     public MainWindow()
     {
+        ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
+        ExportCommand = new RelayCommand(() => OnExportClick(this, new RoutedEventArgs()));
         InitializeComponent();
+        KeyBindings.Add(new KeyBinding { Gesture = KeyGesture.Parse("Ctrl+I"), Command = ImportCommand });
+        KeyBindings.Add(new KeyBinding { Gesture = KeyGesture.Parse("Ctrl+E"), Command = ExportCommand });
         Viewport.PropertyChanged += (_, e) =>
         {
             if (e.Property == ViewportControl.StatusTextProperty && DataContext is MainViewModel vm)
@@ -50,6 +60,26 @@ public partial class MainWindow : Window
         }
         Viewport.FrameAll();
         Viewport.Focus();
+    }
+
+    private async void OnExportClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null) return;
+        var printer = ViewModel.Document.Printer;
+        var suggested = ViewModel.Document.Scene.Objects.FirstOrDefault()?.Name ?? "print";
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = $"Export for {printer.Name}",
+            SuggestedFileName = $"{suggested}.{printer.FileExtension}",
+            DefaultExtension = printer.FileExtension,
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType(printer.Name) { Patterns = new[] { $"*.{printer.FileExtension}" } },
+            },
+        });
+        var path = file?.TryGetLocalPath();
+        if (path is null) return;
+        await ViewModel.ExportAsync(path);
     }
 
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();

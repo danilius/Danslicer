@@ -16,22 +16,22 @@ public sealed partial class NumericField : ObservableObject
     private double _value;
     private string _text = "";
 
-    public NumericField(string label, UnitKind kind, string format, Action<double> apply)
+    public NumericField(string label, UnitKind kind, string format, Action<double> apply, string? suffix = null)
     {
         Label = label;
         _kind = kind;
         _format = format;
         _apply = apply;
+        Suffix = suffix ?? kind switch
+        {
+            UnitKind.Length => "mm",
+            UnitKind.Angle => "°",
+            _ => "",
+        };
     }
 
     public string Label { get; }
-
-    public string Suffix => _kind switch
-    {
-        UnitKind.Length => "mm",
-        UnitKind.Angle => "°",
-        _ => "",
-    };
+    public string Suffix { get; }
 
     public string Text
     {
@@ -58,15 +58,8 @@ public sealed partial class NumericField : ObservableObject
         if (Math.Abs(value) < 1e-9) value = 0; // avoid "-0"
         _value = value;
         var text = value.ToString(_format, CultureInfo.InvariantCulture);
-        if (text != _text)
-        {
-            _text = text;
-            OnPropertyChanged(nameof(Text));
-        }
-        else
-        {
-            // Force the view to refresh even when identical, e.g. after a rejected edit.
-            OnPropertyChanged(nameof(Text));
-        }
+        _text = text;
+        // Always notify so the view refreshes even after a rejected edit left stale text in the box.
+        OnPropertyChanged(nameof(Text));
     }
 }
