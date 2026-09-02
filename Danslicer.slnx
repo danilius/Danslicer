@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Danslicer.App/Danslicer.App.csproj" />
+    <Project Path="src/Danslicer.Cli/Danslicer.Cli.csproj" />
+    <Project Path="src/Danslicer.Core/Danslicer.Core.csproj" />
+    <Project Path="src/Danslicer.Render/Danslicer.Render.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Danslicer.Tests/Danslicer.Tests.csproj" />
+  </Folder>
+</Solution>
