@@ -39,9 +39,9 @@ Layer bitmaps are 8-bit greyscale, run-length encoded per the `.pwmx` specificat
 | Concern | Choice | Notes |
 | --- | --- | --- |
 | Language and runtime | C# on .NET 10 LTS | |
-| UI | Avalonia 11 | Cross-platform. Windows first, Linux and macOS should work with no design changes. |
+| UI | Avalonia 12 | Cross-platform. Windows first, Linux and macOS should work with no design changes. |
 | MVVM | CommunityToolkit.Mvvm | |
-| 3D rendering | Silk.NET OpenGL 4.x on Avalonia `OpenGlControlBase` | Own renderer. See section 6. |
+| 3D rendering | Silk.NET OpenGL on Avalonia `OpenGlControlBase` | Own renderer. Shaders written for GL 3.3 core and GL ES 3.0, since Avalonia on Windows runs on ANGLE by default. See section 6. |
 | 2D polygon operations | Clipper2Lib | Offsetting, booleans, contour cleanup. |
 | Rasterisation | Own scanline rasteriser, SkiaSharp as fallback | SkiaSharp already ships with Avalonia. |
 | Maths | System.Numerics | Single precision in the renderer, double precision in geometry and slicing. |
@@ -141,6 +141,9 @@ Read the ID buffer under the cursor. No CPU ray casting for picking. Box and las
 
 Blender-style conventions: middle mouse orbit, `Shift` pan, wheel zoom, orbit about the point under the cursor, numpad views, `Home` frame all, `.` frame selection. Everything has a keyboard shortcut and the shortcut is shown in the menu. Keymap is a data file and editable.
 
+- **Projection.** Perspective and orthographic, toggled with numpad `5`. Axis-aligned numpad views switch to orthographic automatically when auto-perspective is on, as in Blender. Orthographic is the mode for checking alignment and support spacing; perspective for reading shape.
+- **View cube.** A small interactive cube in the viewport corner, drawn in the overlay pass. Faces, edges and corners are clickable and snap the camera to that view with a short animated transition. Dragging it orbits. It doubles as the orientation indicator and shows the projection mode.
+
 ### 7.2 SpaceMouse
 
 `ISixAxisInput` delivers six axes plus buttons at device rate. Two backends:
@@ -221,7 +224,7 @@ Rules are data. Adding a rule means adding a class implementing `IGrowthRule` an
 
 ### 8.6 Constraints and existing supports
 
-Every pass runs against a collision structure containing the model and every existing support element, regardless of origin. Existing elements are obstacles always, and attachment candidates when the profile allows. Keep-clean regions are hard constraints for tips and soft constraints (clearance rule) for pillars. Manual placement respects the same constraints, with an override modifier key.
+Every pass runs against a collision structure containing every object in the scene, not only the one being supported, plus every existing support element regardless of origin. Supports for one object therefore never pass through or land on another object, and pillars from neighbouring objects avoid each other. Existing elements are obstacles always, and attachment candidates when the profile allows. Keep-clean regions are hard constraints for tips and soft constraints (clearance rule) for pillars. Manual placement respects the same constraints, with an override modifier key.
 
 ### 8.7 Determinism and incremental regeneration
 
@@ -246,6 +249,8 @@ All operate on the current selection through the command layer:
 - Delete, pin, unpin.
 - Convert generated to manual (pins and clears origin).
 - Re-route selected tips with a chosen profile.
+- **Area painting.** Paint a region with the brush and generate into it immediately with the active profile, as one command. The fastest way to say "supports here".
+- **Support lines.** Select an existing support, then click a second point on the model. Tips are placed at the profile's spacing along the surface path between the two and routed with the active profile. Also works between two existing supports, and from a support along a picked sharp edge.
 
 ### 8.9 Selection and visibility
 
@@ -254,6 +259,15 @@ All operate on the current selection through the command layer:
 - Select all of type, select by region, select by pass, select connected, invert.
 - `H` hide selected, `Shift+H` hide unselected, `Alt+H` unhide all. Hidden is a per-element flag, so hiding all bracing, or everything except one tree, is one action.
 - Hidden elements are still sliced. A separate `disabled` flag excludes an element from slicing without deleting it.
+
+## 8.10 Print checks
+
+Analyses that run on demand or after generation and report into the outliner and the viewport as coloured overlays. None of them modify geometry.
+
+- **Suction cups.** Closed or nearly closed cavities that open downward trap resin and pull on the FEP during lift. Detected from the layer stack: a region of a layer that is enclosed by material and whose enclosed volume grows upward without an opening to the outside. Reported with the enclosed volume and the layer range, and highlighted on the model. The fix, a drain hole or reorientation, is left to the user since mesh editing is out of scope.
+- **Proximity.** Supports too close to each other, supports too close to the model surface they do not touch, and objects too close to each other, each with its own threshold. Reported as pairs with the distance and highlighted in the viewport.
+- **Islands.** Layers containing material with nothing beneath it. Already computed during slicing, surfaced here as a check.
+- **Below plate and outside volume.** Objects or supports outside the build volume.
 
 ## 9. Slicing and export
 
@@ -288,7 +302,7 @@ The support graph is stored fully. Derived data is never stored. Version field a
 
 ## 11. User interface
 
-Dense, keyboard-first, no wizards. Layout:
+Blender, not Word. Dense, keyboard-first, no wizards, no confirmation dialogs for undoable actions, no simplified mode. Modal tools with live numeric readout in the status bar, everything reachable by shortcut and by the command palette, panels that show data rather than explain it. Layout:
 
 - **Viewport** centre, with header bar for shading popover, selection filter mask, snapping and transform orientation.
 - **Outliner** left: objects, regions per object, support passes per region, with visibility and selectability toggles.
@@ -302,9 +316,9 @@ Every numeric field accepts units and expressions and can be dragged. Every pane
 
 Each milestone ends in something usable.
 
-1. **Skeleton.** Solution layout, Document and command stack, STL import, Avalonia window with an OpenGL viewport showing a mesh with studio lighting, orbit, pan, zoom. Object move, rotate, scale with gizmos and numeric entry.
+1. **Skeleton.** Solution layout, Document and command stack, STL import, Avalonia window with an OpenGL viewport showing a mesh with studio lighting, orbit, pan, zoom, perspective and orthographic projection, numpad views. Object move, rotate, scale with modal tools and numeric entry.
 2. **First print.** Slicer, `.pwmx` writer, print settings panel, layer preview. A test model exported and printed on the Mono X, validated with UVtools. No supports yet.
-3. **Readable viewport.** G-buffer pipeline, MatCap, screen cavity, outlines, overhang tint, FXAA, ID-buffer picking, render states. Lay flat and rotate about face.
+3. **Readable viewport.** G-buffer pipeline, MatCap, screen cavity, outlines, overhang tint, FXAA, ID-buffer picking, render states, view cube. Lay flat and rotate about face.
 4. **Support graph and manual supports.** Graph model, derived render and slice meshes, manual add, move, connect, delete, undo, selection filter, hide and unhide. Print a manually supported model.
 5. **Regions and generation.** Region selection tools, profiles, overhang and island tip placement, top-down routing, keep-clean, determinism and incremental regeneration.
 6. **Rules and grids.** Growth rule framework, grid bottom-up routing, bracing, reinforce rule, attach to existing.
