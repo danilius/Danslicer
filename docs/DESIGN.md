@@ -147,6 +147,8 @@ Blender-style conventions: middle mouse orbit, `Shift` pan, wheel zoom, orbit ab
 
 ### 7.2 SpaceMouse
 
+Primary development device is a SpaceMouse Pro with the 3DxWare driver installed, so the COM backend is built and tested first. The Pro has fifteen buttons (Menu, Fit, T, R, F, Rotation lock, 1 to 4, Esc, Alt, Shift, Ctrl) that map naturally onto framing, the numpad views and the modal tool modifiers.
+
 `ISixAxisInput` delivers six axes plus buttons at device rate. Two backends:
 
 - **3DxWare COM** (`TDxInput`) on Windows when the driver is installed. Gives access to the driver's own sensitivity and axis mapping.
@@ -319,14 +321,14 @@ Each milestone ends in something usable.
 
 1. **Skeleton.** Solution layout, Document and command stack, STL import, Avalonia window with an OpenGL viewport showing a mesh with studio lighting, orbit, pan, zoom, perspective and orthographic projection, numpad views. Object move, rotate, scale with modal tools and numeric entry.
 2. **First print.** Slicer, `.pwmx` writer, print settings panel, layer preview. A test model exported and printed on the Mono X, validated with UVtools. No supports yet.
-3. **Readable viewport.** G-buffer pipeline, MatCap, screen cavity, outlines, overhang tint, FXAA, ID-buffer picking, render states, view cube. Lay flat and rotate about face.
-4. **Support graph and manual supports.** Graph model, derived render and slice meshes, manual add, move, connect, delete, undo, selection filter, hide and unhide. Print a manually supported model.
-5. **Regions and generation.** Region selection tools, profiles, overhang and island tip placement, top-down routing, keep-clean, determinism and incremental regeneration.
-6. **Rules and grids.** Growth rule framework, grid bottom-up routing, bracing, reinforce rule, attach to existing.
-7. **SpaceMouse.** COM and HID backends, navigation modes, button binding.
+3. **SpaceMouse.** COM backend for the SpaceMouse Pro, navigation modes, button binding, HID backend as a stretch goal. Pulled forward because navigation is used from day one and nothing else depends on it.
+4. **Readable viewport.** G-buffer pipeline, MatCap, screen cavity, outlines, overhang tint, FXAA, ID-buffer picking, render states, view cube. Lay flat and rotate about face.
+5. **Support graph and manual supports.** Graph model, derived render and slice meshes, manual add, move, connect, delete, undo, selection filter, hide and unhide. Print a manually supported model.
+6. **Regions and generation.** Region selection tools, profiles, overhang and island tip placement, top-down routing, keep-clean, determinism and incremental regeneration.
+7. **Rules and grids.** Growth rule framework, grid bottom-up routing, bracing, reinforce rule, attach to existing.
 8. **Polish.** Project file, presets, keymap editing, CLI, cross-platform builds.
 
-Milestones 3 and 4 can be developed in parallel since they touch different projects.
+Milestones 4 and 5 can be developed in parallel since they touch different projects.
 
 ## 13. Risks and open questions
 
