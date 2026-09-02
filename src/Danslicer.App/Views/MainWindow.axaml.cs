@@ -26,6 +26,9 @@ public partial class MainWindow : Window
             if (e.Property == ViewportControl.StatusTextProperty && DataContext is MainViewModel vm)
                 vm.ViewportStatus = Viewport.StatusText;
         };
+        Viewport.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
+        LayerView.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
+        LayerView.LayerStepRequested += delta => ViewModel?.StepLayer(delta);
         Opened += (_, _) => Viewport.FrameAll();
     }
 
