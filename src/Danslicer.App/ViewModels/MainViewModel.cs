@@ -222,9 +222,9 @@ public partial class MainViewModel : ViewModelBase
 
     private static float Component(Vector3 v, int i) => i switch { 0 => v.X, 1 => v.Y, _ => v.Z };
 
-    public void ImportStl(string path)
+    public void ImportMesh(string path)
     {
-        var mesh = StlReader.Read(path);
+        var mesh = MeshFile.Read(path);
         var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), mesh);
         var b = mesh.Bounds;
         obj.Transform = Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, -b.Min.Z) };
