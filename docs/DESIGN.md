@@ -141,10 +141,13 @@ Read the ID buffer under the cursor. No CPU ray casting for picking. Box and las
 
 Blender-style conventions: middle mouse orbit, `Shift` pan, wheel zoom, orbit about the point under the cursor, numpad views, `Home` frame all, `.` frame selection. Everything has a keyboard shortcut and the shortcut is shown in the menu. Keymap is a data file and editable.
 
-- **Projection.** Perspective and orthographic, toggled with numpad `5`. Axis-aligned numpad views switch to orthographic automatically when auto-perspective is on, as in Blender. Orthographic is the mode for checking alignment and support spacing; perspective for reading shape.
+- **Numpad emulation.** Every numpad binding also exists on the main digit row, so `1`, `3`, `7` and `5` switch views on keyboards without a numpad. Digits only mean numeric entry while a modal tool is active. On by default; the keymap file can rebind.
+- **Projection.** Perspective and orthographic, toggled with numpad `5` or `5`. Axis-aligned numpad views switch to orthographic automatically when auto-perspective is on, as in Blender. Orthographic is the mode for checking alignment and support spacing; perspective for reading shape.
 - **View cube.** A small interactive cube in the viewport corner, drawn in the overlay pass. Faces, edges and corners are clickable and snap the camera to that view with a short animated transition. Dragging it orbits. It doubles as the orientation indicator and shows the projection mode.
 
 ### 7.2 SpaceMouse
+
+Primary development device is a SpaceMouse Pro with the 3DxWare driver installed, so the COM backend is built and tested first. The Pro has fifteen buttons (Menu, Fit, T, R, F, Rotation lock, 1 to 4, Esc, Alt, Shift, Ctrl) that map naturally onto framing, the numpad views and the modal tool modifiers.
 
 `ISixAxisInput` delivers six axes plus buttons at device rate. Two backends:
 
@@ -318,14 +321,14 @@ Each milestone ends in something usable.
 
 1. **Skeleton.** Solution layout, Document and command stack, STL import, Avalonia window with an OpenGL viewport showing a mesh with studio lighting, orbit, pan, zoom, perspective and orthographic projection, numpad views. Object move, rotate, scale with modal tools and numeric entry.
 2. **First print.** Slicer, `.pwmx` writer, print settings panel, layer preview. A test model exported and printed on the Mono X, validated with UVtools. No supports yet.
-3. **Readable viewport.** G-buffer pipeline, MatCap, screen cavity, outlines, overhang tint, FXAA, ID-buffer picking, render states, view cube. Lay flat and rotate about face.
-4. **Support graph and manual supports.** Graph model, derived render and slice meshes, manual add, move, connect, delete, undo, selection filter, hide and unhide. Print a manually supported model.
-5. **Regions and generation.** Region selection tools, profiles, overhang and island tip placement, top-down routing, keep-clean, determinism and incremental regeneration.
-6. **Rules and grids.** Growth rule framework, grid bottom-up routing, bracing, reinforce rule, attach to existing.
-7. **SpaceMouse.** COM and HID backends, navigation modes, button binding.
+3. **SpaceMouse.** COM backend for the SpaceMouse Pro, navigation modes, button binding, HID backend as a stretch goal. Pulled forward because navigation is used from day one and nothing else depends on it.
+4. **Readable viewport.** G-buffer pipeline, MatCap, screen cavity, outlines, overhang tint, FXAA, ID-buffer picking, render states, view cube. Lay flat and rotate about face.
+5. **Support graph and manual supports.** Graph model, derived render and slice meshes, manual add, move, connect, delete, undo, selection filter, hide and unhide. Print a manually supported model.
+6. **Regions and generation.** Region selection tools, profiles, overhang and island tip placement, top-down routing, keep-clean, determinism and incremental regeneration.
+7. **Rules and grids.** Growth rule framework, grid bottom-up routing, bracing, reinforce rule, attach to existing.
 8. **Polish.** Project file, presets, keymap editing, CLI, cross-platform builds.
 
-Milestones 3 and 4 can be developed in parallel since they touch different projects.
+Milestones 4 and 5 can be developed in parallel since they touch different projects.
 
 ## 13. Risks and open questions
 

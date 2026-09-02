@@ -55,11 +55,11 @@
                 <MenuItem Header="Frame _All" Click="OnFrameAllClick" InputGesture="Home" />
                 <MenuItem Header="Frame _Selected" Click="OnFrameSelectedClick" InputGesture="OemPeriod" />
                 <Separator />
-                <MenuItem Header="_Front" Click="OnViewFrontClick" InputGesture="NumPad1" />
-                <MenuItem Header="_Right" Click="OnViewRightClick" InputGesture="NumPad3" />
-                <MenuItem Header="_Top" Click="OnViewTopClick" InputGesture="NumPad7" />
+                <MenuItem Header="_Front" Click="OnViewFrontClick" InputGesture="D1" />
+                <MenuItem Header="_Right" Click="OnViewRightClick" InputGesture="D3" />
+                <MenuItem Header="_Top" Click="OnViewTopClick" InputGesture="D7" />
                 <Separator />
-                <MenuItem Header="Toggle _Perspective/Orthographic" Click="OnToggleProjectionClick" InputGesture="NumPad5" />
+                <MenuItem Header="Toggle _Perspective/Orthographic" Click="OnToggleProjectionClick" InputGesture="D5" />
             </MenuItem>
         </Menu>
 
