@@ -141,7 +141,8 @@ Read the ID buffer under the cursor. No CPU ray casting for picking. Box and las
 
 Blender-style conventions: middle mouse orbit, `Shift` pan, wheel zoom, orbit about the point under the cursor, numpad views, `Home` frame all, `.` frame selection. Everything has a keyboard shortcut and the shortcut is shown in the menu. Keymap is a data file and editable.
 
-- **Projection.** Perspective and orthographic, toggled with numpad `5`. Axis-aligned numpad views switch to orthographic automatically when auto-perspective is on, as in Blender. Orthographic is the mode for checking alignment and support spacing; perspective for reading shape.
+- **Numpad emulation.** Every numpad binding also exists on the main digit row, so `1`, `3`, `7` and `5` switch views on keyboards without a numpad. Digits only mean numeric entry while a modal tool is active. On by default; the keymap file can rebind.
+- **Projection.** Perspective and orthographic, toggled with numpad `5` or `5`. Axis-aligned numpad views switch to orthographic automatically when auto-perspective is on, as in Blender. Orthographic is the mode for checking alignment and support spacing; perspective for reading shape.
 - **View cube.** A small interactive cube in the viewport corner, drawn in the overlay pass. Faces, edges and corners are clickable and snap the camera to that view with a short animated transition. Dragging it orbits. It doubles as the orientation indicator and shows the projection mode.
 
 ### 7.2 SpaceMouse

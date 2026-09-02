@@ -354,10 +354,12 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.Escape: Document.ClearSelection(); break;
                 case Key.Home: FrameAll(); break;
                 case Key.OemPeriod: case Key.Decimal: FrameSelected(); break;
-                case Key.NumPad1: SetView(c => { if (ctrl) c.ViewBack(); else c.ViewFront(); }); break;
-                case Key.NumPad3: SetView(c => { if (ctrl) c.ViewLeft(); else c.ViewRight(); }); break;
-                case Key.NumPad7: SetView(c => { if (ctrl) c.ViewBottom(); else c.ViewTop(); }); break;
-                case Key.NumPad5: ToggleProjection(); break;
+                // Numpad views, with the main digit row as an always-available fallback for keyboards
+                // without a numpad (Blender's "emulate numpad"). Digits only mean numbers inside a modal tool.
+                case Key.NumPad1: case Key.D1: SetView(c => { if (ctrl) c.ViewBack(); else c.ViewFront(); }); break;
+                case Key.NumPad3: case Key.D3: SetView(c => { if (ctrl) c.ViewLeft(); else c.ViewRight(); }); break;
+                case Key.NumPad7: case Key.D7: SetView(c => { if (ctrl) c.ViewBottom(); else c.ViewTop(); }); break;
+                case Key.NumPad5: case Key.D5: ToggleProjection(); break;
                 default: handled = false; break;
             }
         }
@@ -377,7 +379,7 @@ public sealed class ViewportControl : OpenGlControlBase
             return;
         }
         var projection = Camera.Orthographic ? "Ortho" : "Persp";
-        StatusText = $"{projection}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select · G/R/S transform · Home frame all · Numpad 1/3/7 views · Numpad 5 projection";
+        StatusText = $"{projection}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select · G/R/S transform · Home frame all · 1/3/7 views (Ctrl for opposite) · 5 projection";
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
