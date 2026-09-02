@@ -97,12 +97,13 @@ public static class MeshSlicer
     public static void CollectSegments(PreparedMesh mesh, IReadOnlyList<int>? triangles, double z, List<Segment> output)
     {
         if (triangles is null) return;
+        // stackalloc must stay outside the loop: stack space is reclaimed on return, not per iteration.
+        Span<(double x, double y)> pts = stackalloc (double, double)[3];
         foreach (var t in triangles)
         {
             if (z <= mesh.TriMinZ[t] || z >= mesh.TriMaxZ[t]) continue;
             int ia = mesh.Indices[t * 3], ib = mesh.Indices[t * 3 + 1], ic = mesh.Indices[t * 3 + 2];
 
-            Span<(double x, double y)> pts = stackalloc (double, double)[3];
             var count = 0;
             Cross(mesh, ia, ib, z, pts, ref count);
             Cross(mesh, ib, ic, z, pts, ref count);
