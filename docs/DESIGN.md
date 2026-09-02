@@ -89,7 +89,11 @@ An object is a mesh reference plus a transform (translation, rotation as a quate
 
 ### 5.3 Transform tools
 
-Blender-style modal transforms with gizmos and numeric entry:
+Blender-style modal transforms with gizmos and numeric entry. The pivot for moving, rotating and scaling is always the centre of the selection's world bounding box.
+
+- **Gizmos.** Move arrows with plane squares, rotation rings and scale cubes, individually toggleable in the viewport header and drawn at a constant screen size at the pivot. Dragging a handle runs the same modal transform as the keyboard, so typed values, axis keys and the status readout work mid-drag.
+- **Snapping.** Two modes, free and snapping, toggled in the header or with `Shift+Tab`. Holding `Ctrl` inverts the mode for the duration of a drag, as in Blender. Steps: 1 mm, 5 degrees, 0.1 scale.
+
 
 - `G` move, `R` rotate, `S` scale. Axis constraint by `X`, `Y`, `Z`, plane constraint by `Shift` plus axis. Type a number to enter a value directly. Numeric fields accept units and expressions.
 - Rotate about an arbitrary axis: pick a face, the axis is its normal through the pick point. Pick an edge, the axis is the edge.
@@ -307,7 +311,7 @@ The support graph is stored fully. Derived data is never stored. Version field a
 
 Blender, not Word. Dense, keyboard-first, no wizards, no confirmation dialogs for undoable actions, no simplified mode. Modal tools with live numeric readout in the status bar, everything reachable by shortcut and by the command palette, panels that show data rather than explain it. Layout:
 
-- **Viewport** centre, with header bar for shading popover, selection filter mask, snapping and transform orientation.
+- **Main area** centre, used for everything spatial: positioning, support editing, slicing results and the layer preview. A header strip holds the gizmo and snapping toggles and the mode switch. Modes so far are the 3D model view and the 2D layer view (`Tab` toggles; slicing switches to layers, any geometry change drops the stale slice and returns to the model). Later modes add the shading popover, selection filter mask and transform orientation here.
 - **Outliner** left: objects, regions per object, support passes per region, with visibility and selectability toggles.
 - **Properties** right, tabbed: object transform, active region and profile, selected support elements, print settings.
 - **Status bar**: current mode, live hints for the modal tool, generation and slicing progress, cancel.

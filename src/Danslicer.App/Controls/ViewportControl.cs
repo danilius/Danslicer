@@ -2,21 +2,22 @@ using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.OpenGL;
 using Avalonia.OpenGL.Controls;
 using Avalonia.Threading;
 using Danslicer.App.Editing;
 using Danslicer.Core;
+using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Render;
 
 namespace Danslicer.App.Controls;
 
 /// <summary>
-/// The 3D viewport. Owns the camera and the renderer, translates pointer and keyboard input into
-/// camera navigation, selection and modal transforms.
+/// The 3D viewport. Owns the camera, the renderer, the transform gizmo and the modal transform tool,
+/// and translates pointer and keyboard input into camera navigation, selection and transforms.
 /// </summary>
 public sealed class ViewportControl : OpenGlControlBase
 {
@@ -26,15 +27,36 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<string> StatusTextProperty =
         AvaloniaProperty.Register<ViewportControl, string>(nameof(StatusText), "");
 
+    public static readonly StyledProperty<bool> ShowMoveGizmoProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(ShowMoveGizmo), true);
+
+    public static readonly StyledProperty<bool> ShowRotateGizmoProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(ShowRotateGizmo));
+
+    public static readonly StyledProperty<bool> ShowScaleGizmoProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(ShowScaleGizmo));
+
+    public static readonly StyledProperty<bool> SnapEnabledProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(SnapEnabled), defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
+
+    private static readonly bool Trace = Environment.GetEnvironmentVariable("DANSLICER_TRACE") == "1";
+    private static void Log(string message) { if (Trace) Console.Error.WriteLine($"[viewport] {message}"); }
+
     private SceneRenderer? _renderer;
     private ModalTransform? _modal;
     private Document? _subscribed;
+    private readonly Gizmo _gizmo = new();
     private Point _lastPointer;
     private bool _orbiting;
     private bool _panning;
+    private bool _gizmoDragging;
+    private bool _ctrlHeld;
     private readonly List<OverlayLine> _overlay = new();
 
     public Camera Camera { get; } = new();
+
+    /// <summary>Raised on Tab so the host can switch between the model and layer views.</summary>
+    public event Action? ToggleViewRequested;
 
     public Document? Document
     {
@@ -49,9 +71,10 @@ public sealed class ViewportControl : OpenGlControlBase
         private set => SetValue(StatusTextProperty, value);
     }
 
-
-    private static readonly bool Trace = Environment.GetEnvironmentVariable("DANSLICER_TRACE") == "1";
-    private static void Log(string message) { if (Trace) Console.Error.WriteLine($"[viewport] {message}"); }
+    public bool ShowMoveGizmo { get => GetValue(ShowMoveGizmoProperty); set => SetValue(ShowMoveGizmoProperty, value); }
+    public bool ShowRotateGizmo { get => GetValue(ShowRotateGizmoProperty); set => SetValue(ShowRotateGizmoProperty, value); }
+    public bool ShowScaleGizmo { get => GetValue(ShowScaleGizmoProperty); set => SetValue(ShowScaleGizmoProperty, value); }
+    public bool SnapEnabled { get => GetValue(SnapEnabledProperty); set => SetValue(SnapEnabledProperty, value); }
 
     public ViewportControl()
     {
@@ -95,6 +118,19 @@ public sealed class ViewportControl : OpenGlControlBase
             }
             Redraw();
         }
+        else if (change.Property == ShowMoveGizmoProperty || change.Property == ShowRotateGizmoProperty ||
+                 change.Property == ShowScaleGizmoProperty)
+        {
+            _gizmo.ShowMove = ShowMoveGizmo;
+            _gizmo.ShowRotate = ShowRotateGizmo;
+            _gizmo.ShowScale = ShowScaleGizmo;
+            Redraw();
+        }
+        else if (change.Property == SnapEnabledProperty)
+        {
+            ApplySnap();
+            UpdateStatus();
+        }
     }
 
     private void Redraw()
@@ -126,6 +162,9 @@ public sealed class ViewportControl : OpenGlControlBase
 
         _overlay.Clear();
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
+        UpdateGizmo();
+        // Hide the gizmo during keyboard-driven modals; keep it while dragging a handle.
+        if (_modal is not { IsActive: true } || _gizmoDragging) _gizmo.AppendLines(Camera, _overlay);
 
         _renderer.Render(new RenderFrame
         {
@@ -140,6 +179,14 @@ public sealed class ViewportControl : OpenGlControlBase
         });
     }
 
+    private void UpdateGizmo()
+    {
+        if (Document is null) return;
+        var bounds = Aabb.Empty;
+        foreach (var o in Document.Selection) bounds = bounds.Union(o.WorldBounds);
+        _gizmo.Update(Camera, bounds, (float)Bounds.Height);
+    }
+
     // ----- Camera commands -----
 
     public void FrameAll()
@@ -149,7 +196,7 @@ public sealed class ViewportControl : OpenGlControlBase
         if (bounds.IsEmpty)
         {
             var v = Document.Printer.BuildVolume;
-            bounds = new Core.Geometry.Aabb(new Vector3(-v.X / 2, -v.Y / 2, 0), new Vector3(v.X / 2, v.Y / 2, v.Z * 0.3f));
+            bounds = new Aabb(new Vector3(-v.X / 2, -v.Y / 2, 0), new Vector3(v.X / 2, v.Y / 2, v.Z * 0.3f));
         }
         Camera.Frame(bounds);
         Redraw();
@@ -158,7 +205,7 @@ public sealed class ViewportControl : OpenGlControlBase
     public void FrameSelected()
     {
         if (Document is null || Document.Selection.Count == 0) { FrameAll(); return; }
-        var bounds = Core.Geometry.Aabb.Empty;
+        var bounds = Aabb.Empty;
         foreach (var o in Document.Selection) bounds = bounds.Union(o.WorldBounds);
         Camera.Frame(bounds);
         Redraw();
@@ -213,14 +260,34 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (props.IsLeftButtonPressed) _modal.Confirm();
             else if (props.IsRightButtonPressed) _modal.Cancel();
+            _gizmoDragging = false;
             UpdateStatus();
             e.Handled = true;
             return;
         }
 
-        if (props.IsLeftButtonPressed && Document is not null)
+        if (props.IsLeftButtonPressed && Document is not null && _modal is not null)
         {
             var m = MouseVector(e);
+
+            // Gizmo handle: start a constrained modal that ends on release.
+            UpdateGizmo();
+            var handle = _gizmo.HitTest(Camera, m, (float)Bounds.Width, (float)Bounds.Height);
+            if (handle != GizmoHandle.None && Document.Selection.Count > 0)
+            {
+                var (mode, axis, plane) = Gizmo.ToTransform(handle);
+                ApplySnap(e.KeyModifiers);
+                if (_modal.Begin(mode, m, (float)Bounds.Width, (float)Bounds.Height, axis, plane))
+                {
+                    _gizmo.Active = handle;
+                    _gizmoDragging = true;
+                    e.Pointer.Capture(this);
+                    UpdateStatus();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             var hit = PickObject(m);
             var additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
             if (hit is null)
@@ -259,8 +326,25 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         else if (_modal is { IsActive: true })
         {
+            ApplySnap(e.KeyModifiers);
             _modal.Update(MouseVector(e));
             UpdateStatus();
+        }
+        else if (Document is not null && Document.Selection.Count > 0)
+        {
+            UpdateGizmo();
+            var handle = _gizmo.HitTest(Camera, MouseVector(e), (float)Bounds.Width, (float)Bounds.Height);
+            if (handle != _gizmo.Hovered)
+            {
+                _gizmo.Hovered = handle;
+                Cursor = handle == GizmoHandle.None ? Cursor.Default : new Cursor(StandardCursorType.Hand);
+                Redraw();
+            }
+        }
+        else if (_gizmo.Hovered != GizmoHandle.None)
+        {
+            _gizmo.Hovered = GizmoHandle.None;
+            Cursor = Cursor.Default;
         }
     }
 
@@ -271,6 +355,14 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             _orbiting = _panning = false;
             e.Pointer.Capture(null);
+        }
+        else if (_gizmoDragging)
+        {
+            _gizmoDragging = false;
+            _gizmo.Active = GizmoHandle.None;
+            _modal?.Confirm();
+            e.Pointer.Capture(null);
+            UpdateStatus();
         }
     }
 
@@ -295,7 +387,6 @@ public sealed class ViewportControl : OpenGlControlBase
             if (!Matrix4x4.Invert(world, out var toLocal)) continue;
             var local = ray.Transform(toLocal);
             if (local.IntersectMesh(obj.Mesh, out _) is not { } t) continue;
-            // Distance in world units: transform the hit point back.
             var hitWorld = Vector3.Transform(local.At(t), world);
             var d = Vector3.Distance(ray.Origin, hitWorld);
             if (d < bestDistance)
@@ -305,6 +396,21 @@ public sealed class ViewportControl : OpenGlControlBase
             }
         }
         return best;
+    }
+
+    // ----- Snapping -----
+
+    /// <summary>Snap mode is the toggle, inverted while Ctrl is held, as in Blender.</summary>
+    private void ApplySnap(KeyModifiers? modifiers = null)
+    {
+        if (modifiers is { } m) _ctrlHeld = m.HasFlag(KeyModifiers.Control);
+        if (_modal is null) return;
+        var snap = SnapEnabled ^ _ctrlHeld;
+        if (_modal.Snap != snap)
+        {
+            _modal.Snap = snap;
+            _modal.Refresh();
+        }
     }
 
     // ----- Keyboard input -----
@@ -319,6 +425,13 @@ public sealed class ViewportControl : OpenGlControlBase
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         var handled = true;
 
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+        {
+            ApplySnap(e.KeyModifiers | KeyModifiers.Control);
+            UpdateStatus();
+            return;
+        }
+
         if (_modal.IsActive)
         {
             switch (e.Key)
@@ -329,8 +442,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.G: _modal.SwitchMode(TransformMode.Move); break;
                 case Key.R: _modal.SwitchMode(TransformMode.Rotate); break;
                 case Key.S: _modal.SwitchMode(TransformMode.Scale); break;
-                case Key.Enter: case Key.Space: _modal.Confirm(); break;
-                case Key.Escape: _modal.Cancel(); break;
+                case Key.Enter: case Key.Space: _modal.Confirm(); _gizmoDragging = false; break;
+                case Key.Escape: _modal.Cancel(); _gizmoDragging = false; break;
                 case Key.Back: _modal.Backspace(); break;
                 case Key.OemPeriod: case Key.Decimal: _modal.TypeCharacter('.'); break;
                 case Key.OemMinus: case Key.Subtract: _modal.TypeCharacter('-'); break;
@@ -346,14 +459,16 @@ public sealed class ViewportControl : OpenGlControlBase
             var h = (float)Bounds.Height;
             switch (e.Key)
             {
-                case Key.G when !ctrl: _modal.Begin(TransformMode.Move, mouse, w, h); break;
-                case Key.R when !ctrl: _modal.Begin(TransformMode.Rotate, mouse, w, h); break;
-                case Key.S when !ctrl: _modal.Begin(TransformMode.Scale, mouse, w, h); break;
+                case Key.G when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Move, mouse, w, h); break;
+                case Key.R when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Rotate, mouse, w, h); break;
+                case Key.S when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Scale, mouse, w, h); break;
                 case Key.A when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.ClearSelection(); break;
                 case Key.A when !ctrl: Document.SelectAll(); break;
                 case Key.Escape: Document.ClearSelection(); break;
                 case Key.Home: FrameAll(); break;
                 case Key.OemPeriod: case Key.Decimal: FrameSelected(); break;
+                case Key.Tab when shift: SnapEnabled = !SnapEnabled; break;
+                case Key.Tab: ToggleViewRequested?.Invoke(); break;
                 // Numpad views, with the main digit row as an always-available fallback for keyboards
                 // without a numpad (Blender's "emulate numpad"). Digits only mean numbers inside a modal tool.
                 case Key.NumPad1: case Key.D1: SetView(c => { if (ctrl) c.ViewBack(); else c.ViewFront(); }); break;
@@ -371,6 +486,16 @@ public sealed class ViewportControl : OpenGlControlBase
         }
     }
 
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+        {
+            ApplySnap(e.KeyModifiers & ~KeyModifiers.Control);
+            UpdateStatus();
+        }
+    }
+
     private void UpdateStatus()
     {
         if (_modal is { IsActive: true })
@@ -379,12 +504,16 @@ public sealed class ViewportControl : OpenGlControlBase
             return;
         }
         var projection = Camera.Orthographic ? "Ortho" : "Persp";
-        StatusText = $"{projection}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select · G/R/S transform · Home frame all · 1/3/7 views (Ctrl for opposite) · 5 projection";
+        var snap = SnapEnabled ? "Snap on" : "Snap off";
+        StatusText = $"{projection} · {snap}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _gizmo.ShowMove = ShowMoveGizmo;
+        _gizmo.ShowRotate = ShowRotateGizmo;
+        _gizmo.ShowScale = ShowScaleGizmo;
         UpdateStatus();
     }
 }

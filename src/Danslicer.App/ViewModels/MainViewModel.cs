@@ -14,9 +14,10 @@ using Danslicer.Core.Utilities;
 
 namespace Danslicer.App.ViewModels;
 
+public enum ViewMode { Model, Layers }
+
 public partial class MainViewModel : ViewModelBase
 {
-    private const int PreviewScale = 4;
     private bool _syncingSelection;
     private CancellationTokenSource? _sliceCancellation;
 
@@ -44,6 +45,36 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string TriangleText { get; set; } = "";
 
+    // ----- Viewport tools -----
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayersView))]
+    public partial ViewMode ViewMode { get; set; } = ViewMode.Model;
+
+    public bool IsModelView
+    {
+        get => ViewMode == ViewMode.Model;
+        set { if (value) ViewMode = ViewMode.Model; }
+    }
+
+    public bool IsLayersView
+    {
+        get => ViewMode == ViewMode.Layers;
+        set { if (value) ViewMode = ViewMode.Layers; }
+    }
+
+    [ObservableProperty]
+    public partial bool ShowMoveGizmo { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowRotateGizmo { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowScaleGizmo { get; set; }
+
+    [ObservableProperty]
+    public partial bool SnapEnabled { get; set; }
+
     // ----- Slicing -----
 
     [ObservableProperty]
@@ -53,7 +84,10 @@ public partial class MainViewModel : ViewModelBase
     public partial double SliceProgress { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSlice))]
     public partial SliceResult? LastSlice { get; set; }
+
+    public bool HasSlice => LastSlice is not null;
 
     [ObservableProperty]
     public partial string SliceSummary { get; set; } = "Not sliced yet.";
@@ -157,6 +191,9 @@ public partial class MainViewModel : ViewModelBase
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         SliceCommand.NotifyCanExecuteChanged();
+
+        // Geometry changed: the slice no longer matches the scene.
+        if (LastSlice is not null && !IsSlicing) InvalidateSlice();
     }
 
     private void RefreshFields()
@@ -211,6 +248,18 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void SelectAll() => Document.SelectAll();
 
+    [RelayCommand]
+    private void ToggleView() => ViewMode = ViewMode == ViewMode.Model ? ViewMode.Layers : ViewMode.Model;
+
+    [RelayCommand]
+    private void ToggleSnap() => SnapEnabled = !SnapEnabled;
+
+    public void StepLayer(int delta)
+    {
+        if (LastSlice is null) return;
+        PreviewLayer = Math.Clamp(PreviewLayer + delta, 0, PreviewLayerMax);
+    }
+
     private bool HasSelection() => Document.Selection.Count > 0;
 
     // ----- Slicing -----
@@ -248,7 +297,8 @@ public partial class MainViewModel : ViewModelBase
             PreviewLayerMax = Math.Max(0, result.LayerCount - 1);
             PreviewLayer = Math.Min(PreviewLayer, PreviewLayerMax);
             UpdatePreview();
-            ViewportStatus = $"Sliced {result.LayerCount} layers.";
+            ViewMode = ViewMode.Layers;
+            ViewportStatus = $"Sliced {result.LayerCount} layers.  Tab returns to the model view · Page Up/Down or Ctrl+wheel steps layers · wheel zooms · drag pans";
             return result;
         }
         catch (OperationCanceledException)
@@ -293,10 +343,14 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Any document change may invalidate the last slice; the export path re-slices when settings differ.</summary>
+    /// <summary>Drops a stale slice and returns to the model view.</summary>
     public void InvalidateSlice()
     {
         LastSlice = null;
+        PreviewImage = null;
+        PreviewLayerText = "";
+        SliceSummary = "Scene changed since the last slice.";
+        if (ViewMode == ViewMode.Layers) ViewMode = ViewMode.Model;
     }
 
     partial void OnPreviewLayerChanged(int value) => UpdatePreview();
@@ -315,38 +369,26 @@ public partial class MainViewModel : ViewModelBase
         var layer = result.Layers[index];
         var w = result.Printer.ResolutionX;
         var h = result.Printer.ResolutionY;
-        var pixels = new byte[w * h];
-        layer.Decode(w, h, pixels);
 
-        // Downsample by max over blocks so thin features stay visible.
-        var pw = w / PreviewScale;
-        var ph = h / PreviewScale;
         var bitmap = PreviewImage;
-        if (bitmap is null || bitmap.PixelSize.Width != pw || bitmap.PixelSize.Height != ph)
-            bitmap = new WriteableBitmap(new PixelSize(pw, ph), new Avalonia.Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+        if (bitmap is null || bitmap.PixelSize.Width != w || bitmap.PixelSize.Height != h)
+            bitmap = new WriteableBitmap(new PixelSize(w, h), new Avalonia.Vector(96, 96), PixelFormats.Gray8, AlphaFormat.Opaque);
 
         using (var fb = bitmap.Lock())
         {
             unsafe
             {
                 var dst = (byte*)fb.Address;
-                for (int y = 0; y < ph; y++)
+                if (fb.RowBytes == w)
                 {
-                    var row = dst + y * fb.RowBytes;
-                    for (int x = 0; x < pw; x++)
-                    {
-                        byte m = 0;
-                        for (int sy = 0; sy < PreviewScale; sy++)
-                        {
-                            var src = (y * PreviewScale + sy) * w + x * PreviewScale;
-                            for (int sx = 0; sx < PreviewScale; sx++)
-                                if (pixels[src + sx] > m) m = pixels[src + sx];
-                        }
-                        row[x * 4] = m;
-                        row[x * 4 + 1] = m;
-                        row[x * 4 + 2] = m;
-                        row[x * 4 + 3] = 255;
-                    }
+                    layer.Decode(w, h, new Span<byte>(dst, w * h));
+                }
+                else
+                {
+                    var pixels = new byte[w * h];
+                    layer.Decode(w, h, pixels);
+                    for (int y = 0; y < h; y++)
+                        pixels.AsSpan(y * w, w).CopyTo(new Span<byte>(dst + y * fb.RowBytes, w));
                 }
             }
         }

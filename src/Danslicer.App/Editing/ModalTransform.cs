@@ -1,7 +1,7 @@
-using System.Globalization;
 using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Commands;
+using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Utilities;
 using Danslicer.Render;
@@ -13,10 +13,10 @@ public enum TransformMode { Move, Rotate, Scale }
 public enum AxisConstraint { None, X, Y, Z }
 
 /// <summary>
-/// Blender-style modal transform: G/R/S starts it, mouse movement drives it, X/Y/Z constrain,
-/// typed numbers override, Enter or click confirms, Escape or right click cancels.
-/// Applies transforms live and commits a single undo step on confirm.
-/// Has no UI dependencies so it can be unit tested.
+/// Blender-style modal transform: G/R/S or a gizmo handle starts it, mouse movement drives it,
+/// X/Y/Z constrain, typed numbers override, Enter or click confirms, Escape or right click cancels.
+/// The pivot is the centre of the selection's world bounding box. Applies transforms live and
+/// commits a single undo step on confirm. Has no UI dependencies so it can be unit tested.
 /// </summary>
 public sealed class ModalTransform
 {
@@ -41,23 +41,34 @@ public sealed class ModalTransform
     public AxisConstraint Axis { get; private set; }
     public bool PlaneConstraint { get; private set; }
     public string Numeric { get; private set; } = "";
+    public Vector3 Pivot => _pivot;
 
-    public bool Begin(TransformMode mode, Vector2 mouse, float width, float height)
+    /// <summary>Snap mouse-driven values to <see cref="MoveStep"/>, <see cref="RotateStepDegrees"/>, <see cref="ScaleStep"/>.</summary>
+    public bool Snap { get; set; }
+    public float MoveStep { get; set; } = 1f;
+    public float RotateStepDegrees { get; set; } = 5f;
+    public float ScaleStep { get; set; } = 0.1f;
+
+    /// <summary>Centre of the world bounding box of all selected objects.</summary>
+    public static Vector3 SelectionPivot(Document document)
+    {
+        var bounds = Aabb.Empty;
+        foreach (var obj in document.Selection) bounds = bounds.Union(obj.WorldBounds);
+        return bounds.IsEmpty ? Vector3.Zero : bounds.Center;
+    }
+
+    public bool Begin(TransformMode mode, Vector2 mouse, float width, float height,
+        AxisConstraint axis = AxisConstraint.None, bool plane = false)
     {
         if (_document.Selection.Count == 0) return false;
 
         _items.Clear();
-        var pivot = Vector3.Zero;
-        foreach (var obj in _document.Selection)
-        {
-            _items.Add((obj, obj.Transform));
-            pivot += obj.Transform.Translation;
-        }
-        _pivot = pivot / _items.Count;
+        foreach (var obj in _document.Selection) _items.Add((obj, obj.Transform));
+        _pivot = SelectionPivot(_document);
 
         Mode = mode;
-        Axis = AxisConstraint.None;
-        PlaneConstraint = false;
+        Axis = axis;
+        PlaneConstraint = plane && axis != AxisConstraint.None;
         Numeric = "";
         _startMouse = _mouse = mouse;
         _width = width;
@@ -98,13 +109,9 @@ public sealed class ModalTransform
     {
         if (!IsActive) return;
         if (c == '-')
-        {
             Numeric = Numeric.StartsWith('-') ? Numeric[1..] : "-" + Numeric;
-        }
         else if (char.IsDigit(c) || c == '.')
-        {
             Numeric += c;
-        }
         Apply();
     }
 
@@ -120,6 +127,12 @@ public sealed class ModalTransform
         if (!IsActive) return;
         _mouse = mouse;
         Apply();
+    }
+
+    /// <summary>Re-evaluates with the current mouse position, e.g. after the snap flag changed.</summary>
+    public void Refresh()
+    {
+        if (IsActive) Apply();
     }
 
     public void Confirm()
@@ -161,13 +174,14 @@ public sealed class ModalTransform
             if (!IsActive) return "";
             var constraint = Axis == AxisConstraint.None ? "" : PlaneConstraint ? $" (plane ⟂{Axis})" : $" {Axis}";
             var typed = Numeric.Length > 0 ? $"  [{Numeric}]" : "";
+            var snap = Snap ? "  snap" : "";
             var value = Mode switch
             {
                 TransformMode.Move => $"{_liveValue:0.00} mm",
                 TransformMode.Rotate => $"{_liveValue:0.0}°",
                 _ => $"×{_liveValue:0.000}",
             };
-            return $"{ModeName}{constraint}: {value}{typed}    X/Y/Z axis · Shift+axis plane · type value · Enter/LMB confirm · Esc/RMB cancel";
+            return $"{ModeName}{constraint}: {value}{typed}{snap}    X/Y/Z axis · Shift+axis plane · type value · Ctrl toggles snap · Enter/LMB confirm · Esc/RMB cancel";
         }
     }
 
@@ -188,14 +202,14 @@ public sealed class ModalTransform
         }
     }
 
-    private static Vector3 AxisVector(AxisConstraint axis) => axis switch
+    public static Vector3 AxisVector(AxisConstraint axis) => axis switch
     {
         AxisConstraint.X => Vector3.UnitX,
         AxisConstraint.Y => Vector3.UnitY,
         _ => Vector3.UnitZ,
     };
 
-    private static Vector4 AxisColor(AxisConstraint axis) => axis switch
+    public static Vector4 AxisColor(AxisConstraint axis) => axis switch
     {
         AxisConstraint.X => new Vector4(0.95f, 0.30f, 0.30f, 0.9f),
         AxisConstraint.Y => new Vector4(0.45f, 0.85f, 0.35f, 0.9f),
@@ -210,6 +224,8 @@ public sealed class ModalTransform
         value = (float)d;
         return true;
     }
+
+    private static float SnapTo(float value, float step) => step <= 0 ? value : MathF.Round(value / step) * step;
 
     private void Apply()
     {
@@ -240,7 +256,9 @@ public sealed class ModalTransform
                 var a = AxisVector(Axis);
                 var s0 = ray0.ClosestParameterOnLine(_pivot, a);
                 var s1 = ray1.ClosestParameterOnLine(_pivot, a);
-                delta = a * (s1 - s0);
+                var s = s1 - s0;
+                if (Snap) s = SnapTo(s, MoveStep);
+                delta = a * s;
             }
             else
             {
@@ -248,6 +266,8 @@ public sealed class ModalTransform
                 var t0 = ray0.IntersectPlane(_pivot, normal);
                 var t1 = ray1.IntersectPlane(_pivot, normal);
                 delta = t0 is { } a0 && t1 is { } a1 ? ray1.At(a1) - ray0.At(a0) : Vector3.Zero;
+                if (Snap)
+                    delta = new Vector3(SnapTo(delta.X, MoveStep), SnapTo(delta.Y, MoveStep), SnapTo(delta.Z, MoveStep));
             }
         }
 
@@ -274,6 +294,7 @@ public sealed class ModalTransform
             // Counter-clockwise about an axis pointing at the viewer is positive.
             var towardsViewer = Vector3.Dot(axis, -_camera.ViewDirection) >= 0;
             angle = towardsViewer ? -screenDelta : screenDelta;
+            if (Snap) angle = SnapTo(angle * 180f / MathF.PI, RotateStepDegrees) * MathF.PI / 180f;
         }
 
         _liveValue = angle * 180f / MathF.PI;
@@ -302,10 +323,11 @@ public sealed class ModalTransform
             var d0 = Vector2.Distance(_startMouse, pivotScreen);
             var d1 = Vector2.Distance(_mouse, pivotScreen);
             factor = d0 > 1e-3f ? d1 / d0 : 1f;
+            if (Snap) factor = MathF.Max(SnapTo(factor, ScaleStep), ScaleStep);
         }
 
         _liveValue = factor;
-        var scale = Vector3.One;
+        Vector3 scale;
         if (Axis == AxisConstraint.None)
             scale = new Vector3(factor);
         else if (PlaneConstraint)

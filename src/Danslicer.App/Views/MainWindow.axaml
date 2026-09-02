@@ -64,6 +64,18 @@
             <Setter Property="MinHeight" Value="28" />
             <Setter Property="Padding" Value="10,4" />
         </Style>
+        <Style Selector="ToggleButton.tool">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+        <Style Selector="TextBlock.headerSep">
+            <Setter Property="Text" Value="│" />
+            <Setter Property="Foreground" Value="#444" />
+            <Setter Property="Margin" Value="6,0,10,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
@@ -83,12 +95,19 @@
             </MenuItem>
             <MenuItem Header="_Object">
                 <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" InputGesture="Ctrl+D" />
+                <Separator />
+                <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo}" />
+                <MenuItem Header="_Rotate Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowRotateGizmo}" />
+                <MenuItem Header="_Scale Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowScaleGizmo}" />
+                <MenuItem Header="S_napping" ToggleType="CheckBox" IsChecked="{Binding SnapEnabled}" InputGesture="Shift+Tab" />
             </MenuItem>
             <MenuItem Header="_Print">
                 <MenuItem Header="_Slice" Command="{Binding SliceCommand}" InputGesture="Ctrl+R" />
                 <MenuItem Header="_Export Print File..." Click="OnExportClick" InputGesture="Ctrl+E" />
             </MenuItem>
             <MenuItem Header="_View">
+                <MenuItem Header="Toggle Model / _Layers" Command="{Binding ToggleViewCommand}" InputGesture="Tab" />
+                <Separator />
                 <MenuItem Header="Frame _All" Click="OnFrameAllClick" InputGesture="Home" />
                 <MenuItem Header="Frame _Selected" Click="OnFrameSelectedClick" InputGesture="OemPeriod" />
                 <Separator />
@@ -161,20 +180,48 @@
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
-
-                <TabItem Header="Layers">
-                    <DockPanel IsEnabled="{Binding LastSlice, Converter={x:Static ObjectConverters.IsNotNull}}">
-                        <TextBlock DockPanel.Dock="Top" Text="{Binding PreviewLayerText}" Classes="label" Margin="0,8,0,4" TextWrapping="Wrap" />
-                        <Slider DockPanel.Dock="Top" Minimum="0" Maximum="{Binding PreviewLayerMax}" Value="{Binding PreviewLayer}"
-                                TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,8" />
-                        <Border Background="#111" BorderBrush="#333" BorderThickness="1">
-                            <Image Source="{Binding PreviewImage}" Stretch="Uniform" />
-                        </Border>
-                    </DockPanel>
-                </TabItem>
             </TabControl>
         </Border>
 
-        <controls:ViewportControl x:Name="Viewport" Document="{Binding Document}" />
+        <!-- Main area: header strip, then either the 3D model view or the layer view. -->
+        <DockPanel>
+            <Border DockPanel.Dock="Top" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,0,1" Padding="8,3">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsModelView}">
+                        <TextBlock Text="Gizmo" Classes="label" Margin="0,0,8,0" />
+                        <ToggleButton Classes="tool" Content="Move" IsChecked="{Binding ShowMoveGizmo}" ToolTip.Tip="Show move gizmo" />
+                        <ToggleButton Classes="tool" Content="Rotate" IsChecked="{Binding ShowRotateGizmo}" ToolTip.Tip="Show rotate gizmo" />
+                        <ToggleButton Classes="tool" Content="Scale" IsChecked="{Binding ShowScaleGizmo}" ToolTip.Tip="Show scale gizmo" />
+                        <TextBlock Classes="headerSep" />
+                        <ToggleButton Classes="tool" Content="Snap" IsChecked="{Binding SnapEnabled}" ToolTip.Tip="Snapping (Shift+Tab). Ctrl inverts while dragging. 1 mm, 5°, 0.1×" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <TextBlock Text="View" Classes="label" Margin="0,0,8,0" />
+                        <ToggleButton Classes="tool" Content="Model" IsChecked="{Binding IsModelView}" ToolTip.Tip="3D model view (Tab)" />
+                        <ToggleButton Classes="tool" Content="Layers" IsChecked="{Binding IsLayersView}" IsEnabled="{Binding HasSlice}" ToolTip.Tip="Sliced layer view (Tab)" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid>
+                <controls:ViewportControl x:Name="Viewport" Document="{Binding Document}"
+                                          IsVisible="{Binding IsModelView}"
+                                          ShowMoveGizmo="{Binding ShowMoveGizmo}"
+                                          ShowRotateGizmo="{Binding ShowRotateGizmo}"
+                                          ShowScaleGizmo="{Binding ShowScaleGizmo}"
+                                          SnapEnabled="{Binding SnapEnabled, Mode=TwoWay}" />
+
+                <DockPanel IsVisible="{Binding IsLayersView}">
+                    <Border DockPanel.Dock="Bottom" Background="#1F2124" BorderBrush="#111" BorderThickness="0,1,0,0" Padding="10,4">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Slider Minimum="0" Maximum="{Binding PreviewLayerMax}" Value="{Binding PreviewLayer}"
+                                    TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding PreviewLayerText}" Classes="label" Margin="16,0,0,0" MinWidth="360" />
+                        </Grid>
+                    </Border>
+                    <controls:LayerPreviewControl x:Name="LayerView" Bitmap="{Binding PreviewImage}" />
+                </DockPanel>
+            </Grid>
+        </DockPanel>
     </DockPanel>
 </Window>
