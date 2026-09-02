@@ -14,6 +14,33 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
+    <!-- Explicit bindings: MenuItem.HotKey only registers once a sub-menu has been opened. -->
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
+        <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
+        <KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}" />
+        <KeyBinding Gesture="Ctrl+D" Command="{Binding DropToPlateCommand}" />
+        <KeyBinding Gesture="Ctrl+R" Command="{Binding SliceCommand}" />
+    </Window.KeyBindings>
+
+    <Window.Resources>
+        <DataTemplate x:Key="FieldTemplate" x:DataType="vm:NumericField">
+            <Grid ColumnDefinitions="18,*,28" Margin="0,2">
+                <TextBlock Text="{Binding Label}" Classes="label" />
+                <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay}" />
+                <TextBlock Grid.Column="2" Text="{Binding Suffix}" Classes="label" Margin="6,0,0,0" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="WideFieldTemplate" x:DataType="vm:NumericField">
+            <Grid ColumnDefinitions="120,*,48" Margin="0,2">
+                <TextBlock Text="{Binding Label}" Classes="label" />
+                <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay}" />
+                <TextBlock Grid.Column="2" Text="{Binding Suffix}" Classes="label" Margin="6,0,0,0" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
     <Window.Styles>
         <Style Selector="TextBlock.label">
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -32,24 +59,34 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="HorizontalContentAlignment" Value="Right" />
         </Style>
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="10,4" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_Import STL..." Click="OnImportClick" InputGesture="Ctrl+I" HotKey="Ctrl+I" />
+                <MenuItem Header="_Import STL..." Click="OnImportClick" InputGesture="Ctrl+I" />
+                <MenuItem Header="_Export Print File..." Click="OnExportClick" InputGesture="Ctrl+E" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" HotKey="Ctrl+Z" />
-                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGesture="Ctrl+Shift+Z" HotKey="Ctrl+Shift+Z" />
+                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
+                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGesture="Ctrl+Shift+Z" />
                 <Separator />
                 <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" InputGesture="A" />
-                <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" InputGesture="Delete" HotKey="Delete" />
+                <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" InputGesture="Delete" />
             </MenuItem>
             <MenuItem Header="_Object">
-                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" InputGesture="Ctrl+D" HotKey="Ctrl+D" />
+                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" InputGesture="Ctrl+D" />
+            </MenuItem>
+            <MenuItem Header="_Print">
+                <MenuItem Header="_Slice" Command="{Binding SliceCommand}" InputGesture="Ctrl+R" />
+                <MenuItem Header="_Export Print File..." Click="OnExportClick" InputGesture="Ctrl+E" />
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Frame _All" Click="OnFrameAllClick" InputGesture="Home" />
@@ -64,9 +101,11 @@
         </Menu>
 
         <Border DockPanel.Dock="Bottom" Background="#1B1D20" Padding="8,3">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Text="{Binding ViewportStatus}" Classes="label" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="1" Text="{Binding HistoryStatus}" Classes="label" Margin="16,0,0,0" />
+                <ProgressBar Grid.Column="1" Width="160" Height="8" Margin="12,0" Minimum="0" Maximum="1"
+                             Value="{Binding SliceProgress}" IsVisible="{Binding IsSlicing}" />
+                <TextBlock Grid.Column="2" Text="{Binding HistoryStatus}" Classes="label" Margin="16,0,0,0" />
             </Grid>
         </Border>
 
@@ -84,36 +123,58 @@
             </DockPanel>
         </Border>
 
-        <Border DockPanel.Dock="Right" Width="270" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0">
-            <ScrollViewer>
-                <StackPanel Margin="10,4" IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <TextBlock Text="Object" Classes="section" />
-                    <TextBlock Text="{Binding SelectedObject.Name, FallbackValue=''}" FontSize="13" />
-                    <TextBlock Text="{Binding TriangleText}" Classes="label" />
-                    <TextBlock Text="{Binding DimensionsText}" Classes="label" />
+        <Border DockPanel.Dock="Right" Width="320" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0">
+            <TabControl Padding="10,4">
+                <TabItem Header="Object">
+                    <ScrollViewer>
+                        <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <TextBlock Text="Object" Classes="section" />
+                            <TextBlock Text="{Binding SelectedObject.Name, FallbackValue=''}" FontSize="13" />
+                            <TextBlock Text="{Binding TriangleText}" Classes="label" />
+                            <TextBlock Text="{Binding DimensionsText}" Classes="label" />
 
-                    <TextBlock Text="Position" Classes="section" />
-                    <ItemsControl ItemsSource="{Binding Position}" ItemTemplate="{StaticResource FieldTemplate}" />
+                            <TextBlock Text="Position" Classes="section" />
+                            <ItemsControl ItemsSource="{Binding Position}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                    <TextBlock Text="Rotation" Classes="section" />
-                    <ItemsControl ItemsSource="{Binding Rotation}" ItemTemplate="{StaticResource FieldTemplate}" />
+                            <TextBlock Text="Rotation" Classes="section" />
+                            <ItemsControl ItemsSource="{Binding Rotation}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                    <TextBlock Text="Scale" Classes="section" />
-                    <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
-                </StackPanel>
-            </ScrollViewer>
+                            <TextBlock Text="Scale" Classes="section" />
+                            <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Print">
+                    <ScrollViewer>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Document.Printer.Name}" Classes="section" />
+                            <ItemsControl ItemsSource="{Binding PrintSettings.Fields}" ItemTemplate="{StaticResource WideFieldTemplate}" />
+                            <CheckBox Content="Anti-aliasing (16 levels)" IsChecked="{Binding PrintSettings.AntiAliasing}" Margin="0,6,0,0" FontSize="12" />
+
+                            <TextBlock Text="Slice" Classes="section" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Slice" Command="{Binding SliceCommand}" MinWidth="80" />
+                                <Button Content="Export…" Click="OnExportClick" MinWidth="80" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding SliceSummary}" Classes="label" Margin="0,8,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <TabItem Header="Layers">
+                    <DockPanel IsEnabled="{Binding LastSlice, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding PreviewLayerText}" Classes="label" Margin="0,8,0,4" TextWrapping="Wrap" />
+                        <Slider DockPanel.Dock="Top" Minimum="0" Maximum="{Binding PreviewLayerMax}" Value="{Binding PreviewLayer}"
+                                TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,0,0,8" />
+                        <Border Background="#111" BorderBrush="#333" BorderThickness="1">
+                            <Image Source="{Binding PreviewImage}" Stretch="Uniform" />
+                        </Border>
+                    </DockPanel>
+                </TabItem>
+            </TabControl>
         </Border>
 
         <controls:ViewportControl x:Name="Viewport" Document="{Binding Document}" />
     </DockPanel>
-
-    <Window.Resources>
-        <DataTemplate x:Key="FieldTemplate" x:DataType="vm:NumericField">
-            <Grid ColumnDefinitions="18,*,28" Margin="0,2">
-                <TextBlock Text="{Binding Label}" Classes="label" />
-                <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay}" />
-                <TextBlock Grid.Column="2" Text="{Binding Suffix}" Classes="label" Margin="6,0,0,0" />
-            </Grid>
-        </DataTemplate>
-    </Window.Resources>
 </Window>

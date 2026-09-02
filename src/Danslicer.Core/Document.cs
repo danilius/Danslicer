@@ -1,6 +1,7 @@
 using Danslicer.Core.Commands;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
+using Danslicer.Core.Slicing;
 
 namespace Danslicer.Core;
 
@@ -15,6 +16,7 @@ public sealed class Document
     public Scene.Scene Scene { get; } = new();
     public UndoStack History { get; } = new();
     public PrinterDefinition Printer { get; set; } = PrinterDefinition.PhotonMonoX;
+    public PrintSettings PrintSettings { get; set; } = PrintSettings.Default;
 
     public IReadOnlyCollection<SceneObject> Selection => _selection;
 

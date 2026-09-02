@@ -1,22 +1,30 @@
 using System.Collections.ObjectModel;
 using System.Numerics;
+using Avalonia;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Danslicer.Core;
 using Danslicer.Core.Commands;
 using Danslicer.Core.IO;
 using Danslicer.Core.Scene;
+using Danslicer.Core.Slicing;
 using Danslicer.Core.Utilities;
 
 namespace Danslicer.App.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
+    private const int PreviewScale = 4;
     private bool _syncingSelection;
+    private CancellationTokenSource? _sliceCancellation;
 
     public Document Document { get; } = new();
 
     public ObservableCollection<SceneObject> Objects { get; } = new();
+
+    public PrintSettingsViewModel PrintSettings { get; }
 
     [ObservableProperty]
     public partial SceneObject? SelectedObject { get; set; }
@@ -36,17 +44,44 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string TriangleText { get; set; } = "";
 
+    // ----- Slicing -----
+
+    [ObservableProperty]
+    public partial bool IsSlicing { get; set; }
+
+    [ObservableProperty]
+    public partial double SliceProgress { get; set; }
+
+    [ObservableProperty]
+    public partial SliceResult? LastSlice { get; set; }
+
+    [ObservableProperty]
+    public partial string SliceSummary { get; set; } = "Not sliced yet.";
+
+    [ObservableProperty]
+    public partial int PreviewLayer { get; set; }
+
+    [ObservableProperty]
+    public partial int PreviewLayerMax { get; set; }
+
+    [ObservableProperty]
+    public partial string PreviewLayerText { get; set; } = "";
+
+    [ObservableProperty]
+    public partial WriteableBitmap? PreviewImage { get; set; }
+
     public NumericField[] Position { get; }
     public NumericField[] Rotation { get; }
     public NumericField[] Scale { get; }
 
     public MainViewModel()
     {
+        PrintSettings = new PrintSettingsViewModel(Document);
         Position = MakeAxisFields(UnitKind.Length, "0.###", (t, axis, v) => t with { Translation = SetAxis(t.Translation, axis, (float)v) });
         Rotation = MakeAxisFields(UnitKind.Angle, "0.##", (t, axis, v) => t with { EulerDegrees = SetAxis(t.EulerDegrees, axis, (float)v) });
         Scale = MakeAxisFields(UnitKind.Scalar, "0.####", (t, axis, v) => t with { Scale = SetAxis(t.Scale, axis, (float)v) });
 
-        Document.Scene.ObjectAdded += o => { Objects.Add(o); Title = "Danslicer"; };
+        Document.Scene.ObjectAdded += o => Objects.Add(o);
         Document.Scene.ObjectRemoved += o => Objects.Remove(o);
         Document.SelectionChanged += OnDocumentSelectionChanged;
         Document.Changed += OnDocumentChanged;
@@ -121,6 +156,7 @@ public partial class MainViewModel : ViewModelBase
         HistoryStatus = (undo is null ? "" : $"Undo: {undo}") + (redo is null ? "" : $"   Redo: {redo}");
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
+        SliceCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshFields()
@@ -153,7 +189,6 @@ public partial class MainViewModel : ViewModelBase
     {
         var mesh = StlReader.Read(path);
         var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), mesh);
-        // Place on the plate, centred in XY.
         var b = mesh.Bounds;
         obj.Transform = Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, -b.Min.Z) };
         Document.AddObject(obj);
@@ -177,4 +212,148 @@ public partial class MainViewModel : ViewModelBase
     private void SelectAll() => Document.SelectAll();
 
     private bool HasSelection() => Document.Selection.Count > 0;
+
+    // ----- Slicing -----
+
+    private bool CanSlice() => !IsSlicing && Document.Scene.Objects.Any(o => o.RenderState != RenderState.Hidden);
+
+    /// <summary>Slices the scene in the background. Returns the result, or null on failure or cancel.</summary>
+    [RelayCommand(CanExecute = nameof(CanSlice))]
+    private async Task<SliceResult?> Slice()
+    {
+        if (IsSlicing) return null;
+        IsSlicing = true;
+        SliceProgress = 0;
+        SliceCommand.NotifyCanExecuteChanged();
+        _sliceCancellation = new CancellationTokenSource();
+        var token = _sliceCancellation.Token;
+        var objects = Document.Scene.Objects.ToList();
+        var printer = Document.Printer;
+        var settings = Document.PrintSettings;
+        var progress = new Progress<double>(p =>
+        {
+            SliceProgress = p;
+            ViewportStatus = $"Slicing… {p * 100:0}%";
+        });
+
+        try
+        {
+            var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token), token);
+            LastSlice = result;
+            SliceSummary =
+                $"{result.LayerCount} layers × {settings.LayerHeight:0.###} mm = {result.PrintHeight:0.##} mm\n" +
+                $"{result.VolumeMl:0.##} ml resin\n" +
+                $"≈ {TimeSpan.FromSeconds(result.EstimatedSeconds):h\\:mm\\:ss}\n" +
+                $"footprint X {result.MinX:0.#}…{result.MaxX:0.#}  Y {result.MinY:0.#}…{result.MaxY:0.#} mm";
+            PreviewLayerMax = Math.Max(0, result.LayerCount - 1);
+            PreviewLayer = Math.Min(PreviewLayer, PreviewLayerMax);
+            UpdatePreview();
+            ViewportStatus = $"Sliced {result.LayerCount} layers.";
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            ViewportStatus = "Slicing cancelled.";
+            return null;
+        }
+        catch (Exception ex)
+        {
+            ViewportStatus = $"Slicing failed: {ex.Message}";
+            SliceSummary = ex.Message;
+            return null;
+        }
+        finally
+        {
+            IsSlicing = false;
+            _sliceCancellation = null;
+            SliceCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    public void CancelSlice() => _sliceCancellation?.Cancel();
+
+    /// <summary>Slices if needed, then writes the printer file.</summary>
+    public async Task<bool> ExportAsync(string path)
+    {
+        var result = LastSlice;
+        if (result is null || result.Settings != Document.PrintSettings)
+            result = await Slice();
+        if (result is null) return false;
+
+        try
+        {
+            await Task.Run(() => PhotonWorkshopWriter.Write(result, path));
+            ViewportStatus = $"Exported {System.IO.Path.GetFileName(path)}: {result.LayerCount} layers, {result.VolumeMl:0.##} ml.";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ViewportStatus = $"Export failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>Any document change may invalidate the last slice; the export path re-slices when settings differ.</summary>
+    public void InvalidateSlice()
+    {
+        LastSlice = null;
+    }
+
+    partial void OnPreviewLayerChanged(int value) => UpdatePreview();
+
+    private void UpdatePreview()
+    {
+        var result = LastSlice;
+        if (result is null || result.LayerCount == 0)
+        {
+            PreviewImage = null;
+            PreviewLayerText = "";
+            return;
+        }
+
+        var index = Math.Clamp(PreviewLayer, 0, result.LayerCount - 1);
+        var layer = result.Layers[index];
+        var w = result.Printer.ResolutionX;
+        var h = result.Printer.ResolutionY;
+        var pixels = new byte[w * h];
+        layer.Decode(w, h, pixels);
+
+        // Downsample by max over blocks so thin features stay visible.
+        var pw = w / PreviewScale;
+        var ph = h / PreviewScale;
+        var bitmap = PreviewImage;
+        if (bitmap is null || bitmap.PixelSize.Width != pw || bitmap.PixelSize.Height != ph)
+            bitmap = new WriteableBitmap(new PixelSize(pw, ph), new Avalonia.Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+
+        using (var fb = bitmap.Lock())
+        {
+            unsafe
+            {
+                var dst = (byte*)fb.Address;
+                for (int y = 0; y < ph; y++)
+                {
+                    var row = dst + y * fb.RowBytes;
+                    for (int x = 0; x < pw; x++)
+                    {
+                        byte m = 0;
+                        for (int sy = 0; sy < PreviewScale; sy++)
+                        {
+                            var src = (y * PreviewScale + sy) * w + x * PreviewScale;
+                            for (int sx = 0; sx < PreviewScale; sx++)
+                                if (pixels[src + sx] > m) m = pixels[src + sx];
+                        }
+                        row[x * 4] = m;
+                        row[x * 4 + 1] = m;
+                        row[x * 4 + 2] = m;
+                        row[x * 4 + 3] = 255;
+                    }
+                }
+            }
+        }
+
+        // Re-assign so bindings see a change even when the same bitmap instance was reused.
+        PreviewImage = null;
+        PreviewImage = bitmap;
+        PreviewLayerText = $"Layer {index + 1} / {result.LayerCount}   Z {layer.Z:0.###} mm   {layer.AreaMm2:0.#} mm²   {result.Settings.ExposureForLayer(index):0.##} s";
+    }
 }
