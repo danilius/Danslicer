@@ -16,6 +16,10 @@ public sealed class RenderFrame
     public required Func<SceneObject, bool> IsSelected { get; init; }
     public required PrinterDefinition Printer { get; init; }
     public IReadOnlyList<OverlayLine> Overlay { get; init; } = Array.Empty<OverlayLine>();
+    /// <summary>Tint faces that overhang more than <see cref="OverhangAngleDegrees"/> from vertical.</summary>
+    public bool ShowOverhangs { get; init; }
+    /// <summary>Overhang threshold measured from the vertical wall: 45 tints anything steeper.</summary>
+    public float OverhangAngleDegrees { get; init; } = 45f;
 }
 
 /// <summary>
@@ -91,7 +95,7 @@ public sealed class SceneRenderer : IDisposable
 
         // Sit just under Z = 0 so grid lines on the plane do not fight it.
         var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
-        BindMeshShader(model, view, projection, PlateColor, opacity: 1f, backfaceTint: 0f, warnBelowPlate: false);
+        BindMeshShader(model, view, projection, PlateColor, opacity: 1f, backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f);
         _plate.Draw();
     }
 
@@ -121,7 +125,11 @@ public sealed class SceneRenderer : IDisposable
                 : obj.RenderState == RenderState.Highlighted ? Vector3.Lerp(ObjectColor, SelectedColor, 0.4f)
                 : ObjectColor;
 
-            BindMeshShader(obj.Transform.ToMatrix(), view, projection, color, ghosted ? 0.25f : 1f, backfaceTint: 1f, warnBelowPlate: true);
+            // dot(normal, down) equals sin(lean-from-vertical), so the threshold enters as a sine.
+            var overhangCos = frame.ShowOverhangs
+                ? MathF.Sin(Math.Clamp(frame.OverhangAngleDegrees, 1f, 89f) * MathF.PI / 180f)
+                : 2f;
+            BindMeshShader(obj.Transform.ToMatrix(), view, projection, color, ghosted ? 0.25f : 1f, backfaceTint: 1f, warnBelowPlate: true, overhangCos);
             gpu.Draw();
         }
 
@@ -132,20 +140,24 @@ public sealed class SceneRenderer : IDisposable
         }
     }
 
-    private void BindMeshShader(in Matrix4x4 model, in Matrix4x4 view, in Matrix4x4 projection, Vector3 color, float opacity, float backfaceTint, bool warnBelowPlate)
+    private void BindMeshShader(in Matrix4x4 model, in Matrix4x4 view, in Matrix4x4 projection, Vector3 color, float opacity, float backfaceTint, bool warnBelowPlate, float overhangCos)
     {
         Matrix4x4.Invert(model * view, out var inverse);
         var normalMatrix = Matrix4x4.Transpose(inverse);
+        Matrix4x4.Invert(model, out var modelInverse);
+        var modelNormalMatrix = Matrix4x4.Transpose(modelInverse);
 
         _meshShader.Use();
         _meshShader.Set("uModel", model);
         _meshShader.Set("uView", view);
         _meshShader.Set("uProjection", projection);
         _meshShader.Set("uNormalMatrix", normalMatrix);
+        _meshShader.Set("uModelNormalMatrix", modelNormalMatrix);
         _meshShader.Set("uColor", color);
         _meshShader.Set("uOpacity", opacity);
         _meshShader.Set("uBackfaceTint", backfaceTint);
         _meshShader.Set("uWarnBelowPlate", warnBelowPlate ? 1f : 0f);
+        _meshShader.Set("uOverhangCos", overhangCos);
     }
 
     private void DrawLines(RenderFrame frame, in Matrix4x4 viewProjection)
