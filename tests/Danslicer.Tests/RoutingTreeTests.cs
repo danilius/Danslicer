@@ -176,6 +176,45 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void BaseDiscShrinksToClearNearbyModelGeometry()
+    {
+        // A low wall 1.2 mm from the drop line: the trunk clears it but the full 2 mm-radius
+        // disc cannot. The disc must shrink, not sink into the model and not refuse the drop.
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(1.2f, -3, 0), new(1.2f, 3, 0), new(1.2f, 0, 2));
+
+        var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
+            scene: scene);
+
+        Assert.Empty(result.Failures);
+        var baseNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
+        Assert.Equal(SupportBaseShape.Disc, baseNode.BaseShape);
+        Assert.True(baseNode.BaseDiameter < 4f, $"disc did not shrink: {baseNode.BaseDiameter}");
+        // The fitted disc really clears the wall (plus the 0.25 model clearance).
+        Assert.True(baseNode.BaseDiameter * 0.5f + 0.25f <= 1.2f + 1e-3f,
+            $"fitted diameter {baseNode.BaseDiameter} still overlaps the wall");
+    }
+
+    [Fact]
+    public void BaseShrinksToMemberWidthInTightSpots()
+    {
+        // Walls 0.7 mm away on both sides: only a member-width disc fits (the trunk itself
+        // proved that width clear). A disc always survives at least at the member diameter.
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(0.7f, -3, 0), new(0.7f, 3, 0), new(0.7f, 0, 2));
+        scene.AddTriangle(new(-0.7f, -3, 0), new(-0.7f, 3, 0), new(-0.7f, 0, 2));
+
+        var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { TrunkDiameter = 0.6f, BranchDiameter = 0.6f },
+            scene);
+
+        Assert.Empty(result.Failures);
+        var baseNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
+        Assert.Equal(SupportBaseShape.Disc, baseNode.BaseShape);
+        Assert.Equal(0.6f, baseNode.BaseDiameter, 3);
+    }
+
+    [Fact]
     public void SameSeedProducesIdenticalGraphs()
     {
         var tips = new[]
