@@ -73,9 +73,10 @@ using the lowest point of the mesh in its current orientation. Three modes:
    (edit box for the distance).
 3. *Off*: the object stays wherever it is put (today's behaviour).
 
-Design notes: with auto-drop on, a G/Z move is immediately overridden — decide whether to
-suppress the Z axis in move tools while the mode is active or simply let the drop win on
-commit. Ctrl+D (Drop to Plate) remains as the manual one-shot. The drop must be part of the
+Design notes (user decision 2026-09-03): the drop applies after ANY transform commit,
+including a G/Z move — the move happens exactly per the user's input, then the object snaps
+back to the correct level; rotation likewise commits first, then drops. Never suppress an
+axis. Ctrl+D (Drop to Plate) remains as the manual one-shot. The drop must be part of the
 same undo step as the transform that triggered it.
 
 ## What this is
