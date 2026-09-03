@@ -1,6 +1,34 @@
 # Danslicer handover
 
-Written 2026-09-03 for a fresh conversation. Read this, then `docs/DESIGN.md` for the full design.
+Written 2026-09-03 for a fresh conversation, updated overnight 2026-09-03. Read this, then
+`docs/DESIGN.md` for the full design.
+
+## Overnight session 2026-09-03 (while the user slept)
+
+The user tested the gizmo branch, approved commit/merge/push; `gizmos-and-layer-view` is merged to
+`main`. **Push is blocked**: no git remote exists and the permission classifier refused `gh repo create`,
+so the user must create the remote (a private repo was intended) and push.
+
+Three new branches, each built, tested and verified, all merging cleanly (proven on
+`overnight-integration`, which is `main` + all three, 58 tests passing — the user can merge that
+or the branches individually; merges are the user's call):
+
+1. `fix-slicing-stack-overflow` — the crash the user hit slicing a large file: `stackalloc` inside
+   the per-triangle loop in `MeshSlicer.CollectSegments` blew the 1 MB worker stack (0xC00000FD).
+   Hoisted out of the loop. Both ~1M-triangle test STLs now slice (53 MB knocker dragon 18.6 s,
+   47 MB Drogon 5.1 s).
+2. `obj-import` — Wavefront OBJ reader (v/f lines, v/vt/vn and negative indices, fan triangulation),
+   `MeshFile` extension dispatch, file picker/CLI/argument import accept both formats,
+   `ImportStl` renamed `ImportMesh`. Verified with `test files/roof gripper T2.obj`.
+3. `lay-flat-on-face` — press F over a face (or Object > Lay Flat on Face, then click): the picked
+   triangle grows into a connected cluster within 3° of its normal, the model rotates so that face
+   points down and rests exactly on the plate. One undo step. Verified on screen: Viper shell
+   flipped 180°; roof gripper fin face gave a compound rotation with the face planted.
+
+A `test files/` folder (gitignored) holds the user's large STLs and the roof gripper OBJ.
+
+Known issue spotted, not fixed: slicing does not warn when the model exceeds the build volume
+(knocker dragon footprint is 158×263 mm against the Mono X's 192×120 mm plate yet slices happily).
 
 ## What this is
 
