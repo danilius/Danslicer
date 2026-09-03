@@ -9,6 +9,16 @@ internal static class RoutingUtilities
     public static Vector3 SafeInwardNormal(Vector3 normal) => normal.LengthSquared() > 1e-12f
         ? Vector3.Normalize(normal) : Vector3.UnitZ;
 
+    public static void ApplyContact(SupportNode node, RoutingTip tip)
+    {
+        node.SurfaceNormal = -SafeInwardNormal(tip.InwardSurfaceNormal);
+        node.TipDiameter = tip.TipDiameter;
+        node.ContactObjectId = tip.ContactObjectId;
+        node.TipShape = tip.TipShape;
+        node.ConeLength = tip.ConeLength;
+        node.BallDiameter = tip.BallDiameter;
+    }
+
     public static IReadOnlyList<RoutingTip> AddReinforcementTips(IEnumerable<RoutingTip> tips,
         GrowthRuleSet rules, ICollisionScene obstacles, int seed)
     {

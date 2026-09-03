@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Danslicer.Core.IO;
 using Danslicer.Core.Supports.Generation;
 
@@ -14,12 +15,14 @@ internal static class AreasCommand
     {
         string? path = null;
         var json = false;
+        var seat = false;
         var parameters = SupportAreaParameters.Default;
         for (int i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
                 case "--json": json = true; break;
+                case "--seat": seat = true; break;
                 case "--overhang": parameters = parameters with { OverhangAngleDegrees = F(args[++i]) }; break;
                 case "--min-area": parameters = parameters with { MinAreaMm2 = F(args[++i]) }; break;
                 case "--layer": parameters = parameters with { LayerHeightMm = F(args[++i]) }; break;
@@ -39,21 +42,34 @@ internal static class AreasCommand
         if (path is null)
         {
             Console.Error.WriteLine("Usage:");
-            Console.Error.WriteLine("  danslicer areas <file.stl|file.obj> [--json] [--overhang 45] [--min-area 0.5]");
+            Console.Error.WriteLine("  danslicer areas <file.stl|file.obj> [--json] [--seat] [--overhang 45] [--min-area 0.5]");
             Console.Error.WriteLine("                  [--layer 0.05] [--min-island 0.5] [--sharp-edge 30]");
             return 1;
         }
 
         var mesh = MeshFile.Read(path);
+        float[]? seatOffset = null;
+        if (seat)
+        {
+            var seated = MeshSeat.Apply(mesh);
+            mesh = seated.Mesh;
+            seatOffset = MeshSeat.Json(seated.Offset);
+        }
         var faces = Enumerable.Range(0, mesh.TriangleCount).ToHashSet();
         var areas = SupportAreaDetector.Detect(mesh, faces, parameters);
 
         if (json)
         {
-            var opts = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            var opts = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            };
             Console.WriteLine(JsonSerializer.Serialize(new
             {
                 file = path,
+                seatOffset,
                 count = areas.Count,
                 totalAreaMm2 = areas.Sum(a => a.AreaMm2),
                 bySeverity = areas.GroupBy(a => a.Severity.ToString()).ToDictionary(g => g.Key, g => g.Count()),
@@ -78,6 +94,8 @@ internal static class AreasCommand
 
         Console.WriteLine($"File:        {path}");
         Console.WriteLine($"Triangles:   {mesh.TriangleCount.ToString("N0", Ci)}");
+        if (seat && seatOffset is { } o)
+            Console.WriteLine($"Seat offset:  {Fmt(o[0])}, {Fmt(o[1])}, {Fmt(o[2])}");
         Console.WriteLine($"Areas:       {areas.Count}");
         Console.WriteLine($"Total mm2:   {Fmt(areas.Sum(a => a.AreaMm2))}");
         foreach (var severity in Enum.GetValues<SupportAreaSeverity>())

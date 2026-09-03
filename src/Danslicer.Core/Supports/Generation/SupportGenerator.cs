@@ -43,7 +43,8 @@ public static class SupportGenerator
         var tips = candidates.Select(c => new RoutingTip(c.Point, c.InwardNormal, c.TipDiameter,
             IsObjectLowest: lowestRegion is { } lowestObject &&
                 MathF.Abs(lowestObject.Point.Z - mesh.Bounds.Min.Z) <= 1e-4f && c.Equals(lowestObject),
-            IsRegionLowest: lowestRegion is { } lowest && c.Equals(lowest)));
+            IsRegionLowest: lowestRegion is { } lowest && c.Equals(lowest),
+            TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter));
 
         var router = new GridSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed }, existingGraph);

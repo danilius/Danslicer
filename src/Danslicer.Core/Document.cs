@@ -372,6 +372,7 @@ public sealed class Document
             Pinned = node.Pinned, Hidden = node.Hidden, Disabled = node.Disabled,
             SurfaceNormal = node.SurfaceNormal, TipDiameter = node.TipDiameter,
             PenetrationDepth = node.PenetrationDepth, ContactObjectId = node.ContactObjectId,
+            TipShape = node.TipShape, ConeLength = node.ConeLength, BallDiameter = node.BallDiameter,
         }).ToList();
         var segments = generated.Routing.Graph.Segments.Select(segment => new SupportSegment
         {

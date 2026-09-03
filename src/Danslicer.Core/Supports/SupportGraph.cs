@@ -12,6 +12,19 @@ public enum SupportNodeType
     Base,
 }
 
+/// <summary>How a tip meets the model. Defaults to a capsule end so existing graphs slice unchanged.</summary>
+public enum SupportTipShape
+{
+    /// <summary>Neck is a capsule; the contact is the hemispherical cap. Today's behaviour.</summary>
+    Capsule = 0,
+    /// <summary>
+    /// Cone from the neck diameter down to <see cref="SupportNode.TipDiameter"/> over
+    /// <see cref="SupportNode.ConeLength"/>, optionally with a snap-off ball of
+    /// <see cref="SupportNode.BallDiameter"/>.
+    /// </summary>
+    Cone = 1,
+}
+
 public enum SupportSegmentType
 {
     /// <summary>Tip to first junction. Thin, tapered.</summary>
@@ -55,6 +68,35 @@ public sealed class SupportNode
     public float PenetrationDepth { get; set; } = 0.2f;
     /// <summary>The scene object a tip contacts (or a base lands on when landing on the model).</summary>
     public Guid? ContactObjectId { get; set; }
+
+    /// <summary>Contact geometry. Default <see cref="SupportTipShape.Capsule"/> slices as before.</summary>
+    public SupportTipShape TipShape { get; set; } = SupportTipShape.Capsule;
+    /// <summary>
+    /// Length of the cone along the neck, millimetres. Unused when <see cref="TipShape"/> is Capsule.
+    /// Matches the default taper neck length so a cone-shaped tip has a printable run.
+    /// </summary>
+    public float ConeLength { get; set; } = 2f;
+    /// <summary>
+    /// Snap-off ball diameter at the contact, millimetres. Zero means no ball. Unused when
+    /// <see cref="TipShape"/> is Capsule. May exceed the neck diameter (the extra sphere is then
+    /// a collision obstacle).
+    /// </summary>
+    public float BallDiameter { get; set; } = 0f;
+
+    /// <summary>
+    /// Centre of the optional contact ball: the surface point pushed into the model along the
+    /// inward normal by <see cref="PenetrationDepth"/>.
+    /// </summary>
+    public Vector3 ContactBallCenter
+    {
+        get
+        {
+            var n = SurfaceNormal;
+            var lenSq = n.LengthSquared();
+            if (lenSq < 1e-12f) return Position;
+            return Position - n * (PenetrationDepth / MathF.Sqrt(lenSq));
+        }
+    }
 }
 
 /// <summary>A member joining two nodes. Mutable; all mutation goes through commands.</summary>
@@ -190,5 +232,23 @@ public sealed class SupportGraph
         var nodes = _nodes.Values.Where(n => !n.Pinned && !n.Origin.IsManual && n.Origin.RegionId == regionId).ToList();
         var segments = _segments.Values.Where(s => !s.Pinned && !s.Origin.IsManual && s.Origin.RegionId == regionId).ToList();
         return (nodes, segments);
+    }
+
+    /// <summary>
+    /// Contact balls whose diameter exceeds every incident segment (the neck). Smaller balls sit
+    /// inside the neck capsule, so collision can ignore them; these must be extra sphere obstacles.
+    /// </summary>
+    public IEnumerable<(Vector3 Centre, float Radius, Guid Id)> ContactBallsExceedingNeck()
+    {
+        foreach (var node in _nodes.Values)
+        {
+            if (node.Disabled || node.Type != SupportNodeType.Tip) continue;
+            if (node.TipShape != SupportTipShape.Cone || node.BallDiameter <= 0) continue;
+            var neck = 0f;
+            foreach (var segment in _segmentsByNode[node.Id])
+                if (segment.Diameter > neck) neck = segment.Diameter;
+            if (node.BallDiameter <= neck) continue;
+            yield return (node.ContactBallCenter, node.BallDiameter * 0.5f, node.Id);
+        }
     }
 }

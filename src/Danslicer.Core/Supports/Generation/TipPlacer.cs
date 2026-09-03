@@ -136,7 +136,7 @@ public static class TipPlacer
         var inward = Inward(outward);
         var diameter = DiameterFor(parameters.TipDiameterMm, strategy);
         placedGrid.Add(point);
-        accepted.Add(new TipCandidate(point, inward, diameter, score, strategy, face));
+        accepted.Add(Candidate(point, inward, diameter, score, strategy, face, parameters));
     }
 
     private static List<TipCandidate> CollectOverhangSamples(
@@ -171,7 +171,7 @@ public static class TipPlacer
                 if (forceEdges && strategy == TipStrategy.Overhang) return;
                 var score = Score(p, outward, t, strategy, parameters, features, patchArea, graphGrid, spacing, edgePref);
                 var diameter = DiameterFor(parameters.TipDiameterMm, strategy);
-                list.Add(new TipCandidate(p, Inward(outward), diameter, score, strategy, t));
+                list.Add(Candidate(p, Inward(outward), diameter, score, strategy, t, parameters));
             }
 
             // Vertices and centroid are deterministic and catch CAD corners even at seed 0.
@@ -236,7 +236,7 @@ public static class TipPlacer
                 if (strategy == TipStrategy.Overhang) strategy = TipStrategy.Edge;
                 var score = Score(p, outward, face, strategy, parameters, features, patchArea, graphGrid, spacing, edgePref);
                 var diameter = DiameterFor(parameters.TipDiameterMm, strategy);
-                list.Add(new TipCandidate(p, Inward(outward), diameter, score, strategy, face));
+                list.Add(Candidate(p, Inward(outward), diameter, score, strategy, face, parameters));
             }
         }
     }
@@ -362,7 +362,7 @@ public static class TipPlacer
             var feature = features.FeatureAt(p, face, edgeEpsilon);
             if (forceEdges && feature == TipStrategy.Overhang) continue;
             var score = Score(p, outward, face, feature, parameters, features, patchArea, graphGrid, spacing, edgePref);
-            list.Add(new TipCandidate(p, Inward(outward), parameters.TipDiameterMm, score, TipStrategy.GridProjection, face));
+            list.Add(Candidate(p, Inward(outward), parameters.TipDiameterMm, score, TipStrategy.GridProjection, face, parameters));
         }
 
         return list;
@@ -398,6 +398,12 @@ public static class TipPlacer
         var len = n.Length();
         return len > 1e-12f ? n / len : -Vector3.UnitZ;
     }
+
+    private static TipCandidate Candidate(
+        Vector3 point, Vector3 inward, float diameter, float score, TipStrategy strategy, int face,
+        TipPlacementParameters parameters) =>
+        new(point, inward, diameter, score, strategy, face,
+            parameters.TipShape, parameters.ConeLengthMm, parameters.BallDiameterMm);
 
     private static float DiameterFor(float baseDiameter, TipStrategy strategy) => strategy switch
     {

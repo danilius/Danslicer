@@ -381,9 +381,7 @@ public sealed class TopDownSupportRouter
         ref float maxLean)
     {
         var tipNode = Node(ids, SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
-        tipNode.SurfaceNormal = -RoutingUtilities.SafeInwardNormal(tip.InwardSurfaceNormal);
-        tipNode.TipDiameter = tip.TipDiameter;
-        tipNode.ContactObjectId = tip.ContactObjectId;
+        RoutingUtilities.ApplyContact(tipNode, tip);
         graph.AddNode(tipNode);
 
         SupportNode? previous = tipNode;

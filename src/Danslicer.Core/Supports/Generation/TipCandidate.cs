@@ -32,4 +32,7 @@ public readonly record struct TipCandidate(
     float TipDiameter,
     float Score,
     TipStrategy Strategy,
-    int FaceIndex);
+    int FaceIndex,
+    SupportTipShape TipShape = SupportTipShape.Capsule,
+    float ConeLength = 2f,
+    float BallDiameter = 0f);

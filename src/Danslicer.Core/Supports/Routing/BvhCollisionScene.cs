@@ -14,12 +14,14 @@ public sealed class BvhCollisionScene : ICollisionScene
     private const int LeafSize = 8;
     private readonly List<TriangleObstacle> _triangles = new();
     private readonly List<CapsuleObstacle> _capsules = new();
+    private readonly List<SphereObstacle> _spheres = new();
     private Primitive[] _ordered = Array.Empty<Primitive>();
     private Node? _root;
     private bool _dirty = true;
 
     public int TriangleCount => _triangles.Count;
     public int CapsuleCount => _capsules.Count;
+    public int SphereCount => _spheres.Count;
 
     public void AddMesh(Mesh mesh, Matrix4x4 transform, object? tag = null)
     {
@@ -47,11 +49,20 @@ public sealed class BvhCollisionScene : ICollisionScene
         _dirty = true;
     }
 
+    public void AddSphere(Vector3 centre, float radius, object? tag = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(radius);
+        _spheres.Add(new SphereObstacle(centre, radius, SphereBounds(centre, radius), tag));
+        _dirty = true;
+    }
+
     public void AddSupportGraph(SupportGraph graph)
     {
         foreach (var segment in graph.Segments.Where(segment => !segment.Disabled))
             AddCapsule(graph.GetNode(segment.NodeA).Position, graph.GetNode(segment.NodeB).Position,
                 segment.Diameter * 0.5f, segment.Id);
+        foreach (var (centre, radius, id) in graph.ContactBallsExceedingNeck())
+            AddSphere(centre, radius, id);
     }
 
     public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
@@ -142,9 +153,11 @@ public sealed class BvhCollisionScene : ICollisionScene
     {
         if (!_dirty) return;
         _ordered = _triangles.Select((triangle, index) =>
-                new Primitive(true, index, triangle.Bounds, Center(triangle.Bounds)))
+                new Primitive(PrimitiveKind.Triangle, index, triangle.Bounds, Center(triangle.Bounds)))
             .Concat(_capsules.Select((capsule, index) =>
-                new Primitive(false, index, capsule.Bounds, Center(capsule.Bounds))))
+                new Primitive(PrimitiveKind.Capsule, index, capsule.Bounds, Center(capsule.Bounds))))
+            .Concat(_spheres.Select((sphere, index) =>
+                new Primitive(PrimitiveKind.Sphere, index, sphere.Bounds, sphere.Centre)))
             .ToArray();
         _root = _ordered.Length == 0 ? null : Build(0, _ordered.Length);
         _dirty = false;
@@ -169,7 +182,7 @@ public sealed class BvhCollisionScene : ICollisionScene
         {
             var comparison = Axis(a.Centroid, axis).CompareTo(Axis(b.Centroid, axis));
             if (comparison != 0) return comparison;
-            comparison = a.IsTriangle.CompareTo(b.IsTriangle);
+            comparison = a.Kind.CompareTo(b.Kind);
             return comparison != 0 ? comparison : a.Index.CompareTo(b.Index);
         }));
         var leftCount = count / 2;
@@ -178,46 +191,79 @@ public sealed class BvhCollisionScene : ICollisionScene
 
     private bool Intersects(Primitive primitive, Vector3 start, Vector3 end, float radius)
     {
-        if (primitive.IsTriangle)
+        switch (primitive.Kind)
         {
-            var triangle = _triangles[primitive.Index];
-            return GeometryDistance.SegmentTriangleSquared(start, end,
-                triangle.A, triangle.B, triangle.C) <= radius * radius;
+            case PrimitiveKind.Triangle:
+            {
+                var triangle = _triangles[primitive.Index];
+                return GeometryDistance.SegmentTriangleSquared(start, end,
+                    triangle.A, triangle.B, triangle.C) <= radius * radius;
+            }
+            case PrimitiveKind.Capsule:
+            {
+                var capsule = _capsules[primitive.Index];
+                var sum = radius + capsule.Radius;
+                return GeometryDistance.SegmentSegmentSquared(start, end, capsule.Start, capsule.End)
+                       <= sum * sum;
+            }
+            default:
+            {
+                var sphere = _spheres[primitive.Index];
+                var closest = GeometryDistance.ClosestPointOnSegment(sphere.Centre, start, end);
+                var sum = radius + sphere.Radius;
+                return Vector3.DistanceSquared(closest, sphere.Centre) <= sum * sum;
+            }
         }
-        var capsule = _capsules[primitive.Index];
-        var sum = radius + capsule.Radius;
-        return GeometryDistance.SegmentSegmentSquared(start, end, capsule.Start, capsule.End)
-               <= sum * sum;
     }
 
     private bool Included(Primitive primitive, Func<object?, bool>? obstacleFilter)
     {
         if (obstacleFilter is null) return true;
-        var tag = primitive.IsTriangle
-            ? _triangles[primitive.Index].Tag
-            : _capsules[primitive.Index].Tag;
+        var tag = primitive.Kind switch
+        {
+            PrimitiveKind.Triangle => _triangles[primitive.Index].Tag,
+            PrimitiveKind.Capsule => _capsules[primitive.Index].Tag,
+            _ => _spheres[primitive.Index].Tag,
+        };
         return obstacleFilter(tag);
     }
 
     private void Consider(Primitive primitive, Vector3 point, ref ObstacleNearestPoint? nearest)
     {
-        if (primitive.IsTriangle)
+        switch (primitive.Kind)
         {
-            var triangle = _triangles[primitive.Index];
-            var candidate = GeometryDistance.ClosestPointOnTriangle(point,
-                triangle.A, triangle.B, triangle.C);
-            Update(candidate, Vector3.Distance(point, candidate), triangle.Tag, ref nearest);
-            return;
+            case PrimitiveKind.Triangle:
+            {
+                var triangle = _triangles[primitive.Index];
+                var candidate = GeometryDistance.ClosestPointOnTriangle(point,
+                    triangle.A, triangle.B, triangle.C);
+                Update(candidate, Vector3.Distance(point, candidate), triangle.Tag, ref nearest);
+                return;
+            }
+            case PrimitiveKind.Capsule:
+            {
+                var capsule = _capsules[primitive.Index];
+                var axisPoint = GeometryDistance.ClosestPointOnSegment(point, capsule.Start, capsule.End);
+                var delta = point - axisPoint;
+                var length = delta.Length();
+                var surface = length > 1e-7f
+                    ? axisPoint + delta * (capsule.Radius / length)
+                    : axisPoint + Vector3.UnitX * capsule.Radius;
+                Update(surface, MathF.Max(0, length - capsule.Radius), capsule.Tag, ref nearest);
+                return;
+            }
+            default:
+            {
+                var sphere = _spheres[primitive.Index];
+                var delta = point - sphere.Centre;
+                var length = delta.Length();
+                var surface = length > 1e-7f
+                    ? sphere.Centre + delta * (sphere.Radius / length)
+                    : sphere.Centre + Vector3.UnitX * sphere.Radius;
+                Update(surface, MathF.Max(0, length - sphere.Radius), sphere.Tag, ref nearest);
+                return;
+            }
         }
-
-        var capsule = _capsules[primitive.Index];
-        var axisPoint = GeometryDistance.ClosestPointOnSegment(point, capsule.Start, capsule.End);
-        var delta = point - axisPoint;
-        var length = delta.Length();
-        var surface = length > 1e-7f
-            ? axisPoint + delta * (capsule.Radius / length)
-            : axisPoint + Vector3.UnitX * capsule.Radius;
-        Update(surface, MathF.Max(0, length - capsule.Radius), capsule.Tag, ref nearest);
     }
 
     private static void Update(Vector3 point, float distance, object? tag,
@@ -234,6 +280,12 @@ public sealed class BvhCollisionScene : ICollisionScene
     {
         var r = new Vector3(radius);
         return new Aabb(Vector3.Min(a, b) - r, Vector3.Max(a, b) + r);
+    }
+
+    private static Aabb SphereBounds(Vector3 centre, float radius)
+    {
+        var r = new Vector3(radius);
+        return new Aabb(centre - r, centre + r);
     }
 
     private static Aabb Union(Aabb a, Aabb b) =>
@@ -253,9 +305,11 @@ public sealed class BvhCollisionScene : ICollisionScene
         return Vector3.DistanceSquared(point, closest);
     }
 
-    private readonly record struct Primitive(bool IsTriangle, int Index, Aabb Bounds, Vector3 Centroid);
+    private enum PrimitiveKind { Triangle, Capsule, Sphere }
+    private readonly record struct Primitive(PrimitiveKind Kind, int Index, Aabb Bounds, Vector3 Centroid);
     private readonly record struct TriangleObstacle(Vector3 A, Vector3 B, Vector3 C, Aabb Bounds, object? Tag);
     private readonly record struct CapsuleObstacle(Vector3 Start, Vector3 End, float Radius, Aabb Bounds, object? Tag);
+    private readonly record struct SphereObstacle(Vector3 Centre, float Radius, Aabb Bounds, object? Tag);
 
     private sealed record Node(Aabb Bounds, int Start, int Count, Node? Left, Node? Right)
     {

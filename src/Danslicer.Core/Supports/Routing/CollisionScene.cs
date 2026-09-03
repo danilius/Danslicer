@@ -30,9 +30,11 @@ public sealed class LinearCollisionScene : ICollisionScene
 {
     private readonly List<TriangleObstacle> _triangles = new();
     private readonly List<CapsuleObstacle> _capsules = new();
+    private readonly List<SphereObstacle> _spheres = new();
 
     public int TriangleCount => _triangles.Count;
     public int CapsuleCount => _capsules.Count;
+    public int SphereCount => _spheres.Count;
 
     public void AddMesh(Mesh mesh, Matrix4x4 transform, object? tag = null)
     {
@@ -56,6 +58,12 @@ public sealed class LinearCollisionScene : ICollisionScene
         _capsules.Add(new CapsuleObstacle(start, end, radius, CapsuleBounds(start, end, radius), tag));
     }
 
+    public void AddSphere(Vector3 centre, float radius, object? tag = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(radius);
+        _spheres.Add(new SphereObstacle(centre, radius, SphereBounds(centre, radius), tag));
+    }
+
     public void AddSupportGraph(SupportGraph graph)
     {
         foreach (var segment in graph.Segments.Where(segment => !segment.Disabled))
@@ -63,6 +71,8 @@ public sealed class LinearCollisionScene : ICollisionScene
             AddCapsule(graph.GetNode(segment.NodeA).Position, graph.GetNode(segment.NodeB).Position,
                 segment.Diameter * 0.5f, segment.Id);
         }
+        foreach (var (centre, radius, id) in graph.ContactBallsExceedingNeck())
+            AddSphere(centre, radius, id);
     }
 
     public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
@@ -89,6 +99,15 @@ public sealed class LinearCollisionScene : ICollisionScene
                 <= sum * sum) return true;
         }
 
+        foreach (var sphere in _spheres)
+        {
+            if (obstacleFilter is not null && !obstacleFilter(sphere.Tag)) continue;
+            if (!Overlaps(bounds, sphere.Bounds)) continue;
+            var closest = GeometryDistance.ClosestPointOnSegment(sphere.Centre, start, end);
+            var sum = radius + sphere.Radius;
+            if (Vector3.DistanceSquared(closest, sphere.Centre) <= sum * sum) return true;
+        }
+
         return false;
     }
 
@@ -113,6 +132,17 @@ public sealed class LinearCollisionScene : ICollisionScene
                 ? axisPoint + delta * (capsule.Radius / length)
                 : axisPoint + Vector3.UnitX * capsule.Radius;
             Consider(surface, MathF.Max(0, length - capsule.Radius), capsule.Tag, ref nearest);
+        }
+
+        foreach (var sphere in _spheres)
+        {
+            if (obstacleFilter is not null && !obstacleFilter(sphere.Tag)) continue;
+            var delta = point - sphere.Centre;
+            var length = delta.Length();
+            var surface = length > 1e-7f
+                ? sphere.Centre + delta * (sphere.Radius / length)
+                : sphere.Centre + Vector3.UnitX * sphere.Radius;
+            Consider(surface, MathF.Max(0, length - sphere.Radius), sphere.Tag, ref nearest);
         }
 
         return nearest;
@@ -160,6 +190,12 @@ public sealed class LinearCollisionScene : ICollisionScene
         return new Aabb(Vector3.Min(a, b) - r, Vector3.Max(a, b) + r);
     }
 
+    private static Aabb SphereBounds(Vector3 centre, float radius)
+    {
+        var r = new Vector3(radius);
+        return new Aabb(centre - r, centre + r);
+    }
+
     private static bool Overlaps(Aabb a, Aabb b) =>
         a.Min.X <= b.Max.X && a.Max.X >= b.Min.X &&
         a.Min.Y <= b.Max.Y && a.Max.Y >= b.Min.Y &&
@@ -169,6 +205,8 @@ public sealed class LinearCollisionScene : ICollisionScene
         Vector3 A, Vector3 B, Vector3 C, Aabb Bounds, object? Tag);
     private readonly record struct CapsuleObstacle(
         Vector3 Start, Vector3 End, float Radius, Aabb Bounds, object? Tag);
+    private readonly record struct SphereObstacle(
+        Vector3 Centre, float Radius, Aabb Bounds, object? Tag);
 }
 
 internal static class GeometryDistance

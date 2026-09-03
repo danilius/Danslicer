@@ -4,7 +4,9 @@ namespace Danslicer.Core.Supports.Routing;
 
 public readonly record struct RoutingTip(Vector3 SurfacePoint, Vector3 InwardSurfaceNormal,
     float TipDiameter, Guid? ContactObjectId = null, bool IsCritical = false,
-    bool IsObjectLowest = false, bool IsRegionLowest = false);
+    bool IsObjectLowest = false, bool IsRegionLowest = false,
+    SupportTipShape TipShape = SupportTipShape.Capsule,
+    float ConeLength = 2f, float BallDiameter = 0f);
 
 public enum BaseLatticeType
 {
@@ -188,9 +190,7 @@ public sealed class GridSupportRouter
         GridRoutingOptions options, DeterministicIds ids, ref float maxLean)
     {
         var tipNode = Node(ids, SupportNodeType.Tip, attachment.Tip.SurfacePoint, options.Origin);
-        tipNode.SurfaceNormal = -RoutingUtilities.SafeInwardNormal(attachment.Tip.InwardSurfaceNormal);
-        tipNode.TipDiameter = attachment.Tip.TipDiameter;
-        tipNode.ContactObjectId = attachment.Tip.ContactObjectId;
+        RoutingUtilities.ApplyContact(tipNode, attachment.Tip);
         var junction = Node(ids, SupportNodeType.Junction, attachment.Junction, options.Origin);
         graph.AddNode(tipNode);
         graph.AddNode(junction);
@@ -321,9 +321,7 @@ public sealed class GridSupportRouter
 
             var tipNode = Node(ids, SupportNodeType.Tip, route.Tip.SurfacePoint, options.Origin);
             // Routing input normals point into the model; graph contact normals point outward.
-            tipNode.SurfaceNormal = -RoutingUtilities.SafeInwardNormal(route.Tip.InwardSurfaceNormal);
-            tipNode.TipDiameter = route.Tip.TipDiameter;
-            tipNode.ContactObjectId = route.Tip.ContactObjectId;
+            RoutingUtilities.ApplyContact(tipNode, route.Tip);
             graph.AddNode(tipNode);
             graph.AddSegment(Segment(ids, SupportSegmentType.Neck, junction.Id, tipNode.Id,
                 route.NeckDiameter, options.Origin));

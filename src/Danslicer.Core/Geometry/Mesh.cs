@@ -65,6 +65,30 @@ public sealed class Mesh
     }
 
     /// <summary>
+    /// Translation that sits the lowest point at Z = 0 and the XY AABB centre at the origin.
+    /// No rotation or scaling. Empty meshes yield zero.
+    /// </summary>
+    public Vector3 SeatTranslation
+    {
+        get
+        {
+            if (VertexCount == 0) return Vector3.Zero;
+            var b = Bounds;
+            return new Vector3(-b.Center.X, -b.Center.Y, -b.Min.Z);
+        }
+    }
+
+    /// <summary>New mesh with every vertex shifted by <paramref name="delta"/>. Shares indices.</summary>
+    public Mesh Translated(Vector3 delta)
+    {
+        if (delta == Vector3.Zero) return this;
+        var positions = new Vector3[Positions.Length];
+        for (int i = 0; i < Positions.Length; i++)
+            positions[i] = Positions[i] + delta;
+        return new Mesh(positions, Indices);
+    }
+
+    /// <summary>
     /// Builds a mesh from a triangle soup, welding vertices that are exactly equal.
     /// </summary>
     public static Mesh FromTriangleSoup(ReadOnlySpan<Vector3> vertices)
