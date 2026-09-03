@@ -14,9 +14,11 @@ internal static class Shaders
         uniform mat4 uModel;
         uniform mat4 uView;
         uniform mat4 uProjection;
-        uniform mat4 uNormalMatrix; // transpose(inverse(model * view)), see ShaderProgram.Set
+        uniform mat4 uNormalMatrix;      // transpose(inverse(model * view)), see ShaderProgram.Set
+        uniform mat4 uModelNormalMatrix; // transpose(inverse(model)), for world-space normals
 
         out vec3 vViewNormal;
+        out vec3 vWorldNormal;
         out vec3 vWorldPosition;
         out vec3 vViewPosition;
 
@@ -27,6 +29,7 @@ internal static class Shaders
             vWorldPosition = world.xyz;
             vViewPosition = view.xyz;
             vViewNormal = normalize(mat3(uNormalMatrix) * aNormal);
+            vWorldNormal = normalize(mat3(uModelNormalMatrix) * aNormal);
             gl_Position = uProjection * view;
         }
         """;
@@ -37,6 +40,7 @@ internal static class Shaders
     /// </summary>
     public const string MeshFragment = """
         in vec3 vViewNormal;
+        in vec3 vWorldNormal;
         in vec3 vWorldPosition;
         in vec3 vViewPosition;
 
@@ -44,6 +48,7 @@ internal static class Shaders
         uniform float uBackfaceTint;   // 1 = tint back faces to reveal inverted normals
         uniform float uOpacity;
         uniform float uWarnBelowPlate; // 1 = tint geometry below Z = 0
+        uniform float uOverhangCos;    // cos of the overhang angle from straight down; 2 disables
 
         out vec4 fragColor;
 
@@ -74,6 +79,21 @@ internal static class Shaders
 
             vec3 color = uColor;
             if (back) color = mix(color, vec3(0.85, 0.30, 0.55), uBackfaceTint * 0.6);
+
+            // Overhang tint: surfaces facing downward within the threshold of straight down.
+            // Severity runs yellow at the threshold to red on flat undersides, with a soft edge.
+            if (uOverhangCos < 1.5)
+            {
+                float down = dot(normalize(vWorldNormal), vec3(0.0, 0.0, -1.0));
+                float over = smoothstep(uOverhangCos - 0.06, uOverhangCos + 0.02, down);
+                if (over > 0.0)
+                {
+                    float severity = clamp((down - uOverhangCos) / max(1.0 - uOverhangCos, 1e-3), 0.0, 1.0);
+                    vec3 warn = mix(vec3(0.98, 0.80, 0.15), vec3(0.90, 0.12, 0.10), severity);
+                    color = mix(color, warn, over * 0.75);
+                }
+            }
+
             if (uWarnBelowPlate > 0.5 && vWorldPosition.z < -0.001) color = mix(color, vec3(0.95, 0.15, 0.10), 0.6);
 
             vec3 lit = color * (diffuse + 0.08) + vec3(spec) + vec3(edge);

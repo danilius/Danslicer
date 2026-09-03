@@ -75,6 +75,9 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool SnapEnabled { get; set; }
 
+    [ObservableProperty]
+    public partial bool ShowOverhangs { get; set; }
+
     // ----- Slicing -----
 
     [ObservableProperty]

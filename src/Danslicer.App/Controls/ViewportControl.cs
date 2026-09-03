@@ -40,6 +40,9 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> SnapEnabledProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(SnapEnabled), defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
+    public static readonly StyledProperty<bool> ShowOverhangsProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(ShowOverhangs));
+
     private static readonly bool Trace = Environment.GetEnvironmentVariable("DANSLICER_TRACE") == "1";
     private static void Log(string message) { if (Trace) Console.Error.WriteLine($"[viewport] {message}"); }
 
@@ -78,6 +81,7 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool ShowRotateGizmo { get => GetValue(ShowRotateGizmoProperty); set => SetValue(ShowRotateGizmoProperty, value); }
     public bool ShowScaleGizmo { get => GetValue(ShowScaleGizmoProperty); set => SetValue(ShowScaleGizmoProperty, value); }
     public bool SnapEnabled { get => GetValue(SnapEnabledProperty); set => SetValue(SnapEnabledProperty, value); }
+    public bool ShowOverhangs { get => GetValue(ShowOverhangsProperty); set => SetValue(ShowOverhangsProperty, value); }
 
     public ViewportControl()
     {
@@ -134,6 +138,10 @@ public sealed class ViewportControl : OpenGlControlBase
             ApplySnap();
             UpdateStatus();
         }
+        else if (change.Property == ShowOverhangsProperty)
+        {
+            Redraw();
+        }
     }
 
     private void Redraw()
@@ -179,6 +187,7 @@ public sealed class ViewportControl : OpenGlControlBase
             IsSelected = Document.IsSelected,
             Printer = Document.Printer,
             Overlay = _overlay,
+            ShowOverhangs = ShowOverhangs,
         });
     }
 
