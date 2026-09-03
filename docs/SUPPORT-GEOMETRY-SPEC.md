@@ -61,10 +61,38 @@ Default angle for all angled elements: **45°**. Everything above is configurabl
   no default path enables it. (Reversal of the brief-5-era padded-landing behaviour,
   after screen testing showed pad blobs on the Drogon's toes.)
 
+## Bases and structure (user decisions, 2026-09-03 late night screen test)
+
+- **Bases sit on an imaginary grid** with a configurable pitch: at 20 mm, every base
+  centre is 20 mm from the next. This resolves the earlier "still open" question — it IS
+  a bases-on-grid-points rule, not merely a recipe parameter.
+- **Branch-first**: a new support first looks for an existing trunk within branch range
+  and joins it; only when none is reachable does it create its own base and trunk (on a
+  grid point). Both the preference and the range are configurable.
+- **Bases never shrink to fit.** A base that would collide with the model is placed
+  further away instead (a shrunken base is likely to fail on the plate). The configured
+  base diameter is a guarantee, not a maximum.
+- **DiscCone tops match their member**: the cone (and any rounded transition) where a
+  trunk or branch meets its base must have exactly the diameter of that member.
+- **Configurability directive**: anything that can be configured should be exposed in the
+  support configuration.
+
+## Mini-supports (user dictation, 2026-09-03 late night)
+
+Very fine support is important — teeth, barbs and other fine detail need it:
+
+- **Mini-supports** are very fine rods (canonical name).
+- Several mini-supports may **fan out from one branch end**.
+- They have a **configurable maximum length**; past it, a new branch or trunk is
+  required to carry them.
+
 ## Still open
 
-- Base grid: assumed to be the existing routing lattice surfaced as a recipe
-  parameter, unless the user meant a stricter bases-only-on-grid-points rule.
 - Embedding depth: assumed measured along the tip axis past the contact point.
 - Rafts are not implemented yet; "no base under raft" is recorded for when they
   are.
+- Base grid details assumed pending the user's confirmation (offered a Blender
+  mock-up): square grid aligned to the plate origin; a new trunk takes the nearest
+  reachable grid point; a blocked grid point falls through to the next nearest.
+- Mini-support geometry defaults (rod and tip diameter, max length, fan count)
+  are implementation proposals until screen-tested.

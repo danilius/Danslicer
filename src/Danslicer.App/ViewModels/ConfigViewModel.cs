@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Danslicer.App.Configuration;
 using Danslicer.Core.Config;
+using Danslicer.Core.Supports;
 
 namespace Danslicer.App.ViewModels;
 
@@ -13,6 +14,10 @@ public sealed class ConfigViewModel : ViewModelBase
 {
     private SpaceMouseConfig SpaceMouse => AppConfig.Current.SpaceMouse;
     private ViewportConfig Viewport => AppConfig.Current.Viewport;
+    private SupportConfig Supports => AppConfig.Current.Supports;
+
+    public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
+        Enum.GetValues<SupportBaseShape>();
 
     /// <summary>Raised after every persisted change, so hosts can refresh what they draw.</summary>
     public event Action? Saved;
@@ -64,6 +69,107 @@ public sealed class ConfigViewModel : ViewModelBase
         get => Viewport.OverhangCheckerSizeMm;
         set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
     }
+
+    // Supports
+
+    public float SupportTipDiameter
+    {
+        get => Supports.TipDiameter;
+        set => Update(() => Supports.TipDiameter = Clamp(value, 0.01f, 100f, 0.4f));
+    }
+
+    public float SupportConeLength
+    {
+        get => Supports.ConeLength;
+        set => Update(() => Supports.ConeLength = Clamp(value, 0.01f, 100f, 2f));
+    }
+
+    public float SupportBallDiameter
+    {
+        get => Supports.BallDiameter;
+        set => Update(() => Supports.BallDiameter = Clamp(value, 0f, 100f, 0f));
+    }
+
+    public float SupportPenetrationDepth
+    {
+        get => Supports.PenetrationDepth;
+        set => Update(() => Supports.PenetrationDepth = Clamp(value, 0f, 100f, 0f));
+    }
+
+    public float SupportTrunkDiameter
+    {
+        get => Supports.TrunkDiameter;
+        set => Update(() => Supports.TrunkDiameter = Clamp(value, 0.01f, 100f, 1.2f));
+    }
+
+    public float SupportBranchDiameter
+    {
+        get => Supports.BranchDiameter;
+        set => Update(() => Supports.BranchDiameter = Clamp(value, 0.01f, 100f, 1.2f));
+    }
+
+    public float SupportMemberAngleDegrees
+    {
+        get => Supports.MemberAngleDegrees;
+        set => Update(() => Supports.MemberAngleDegrees = Clamp(value, 1f, 89f, 45f));
+    }
+
+    public float SupportTipMemberLength
+    {
+        get => Supports.TipMemberLength;
+        set => Update(() => Supports.TipMemberLength = Clamp(value, 0.01f, 100f, 2f));
+    }
+
+    public float SupportMaxBranchLength
+    {
+        get => Supports.MaxBranchLength;
+        set => Update(() => Supports.MaxBranchLength = Clamp(value, 0.01f, 1000f, 8f));
+    }
+
+    public SupportBaseShape SupportBaseShapeValue
+    {
+        get => Supports.BaseShape;
+        set => Update(() => Supports.BaseShape = Enum.IsDefined(value) ? value : SupportBaseShape.Disc);
+    }
+
+    public float SupportBaseDiameter
+    {
+        get => Supports.BaseDiameter;
+        set => Update(() => Supports.BaseDiameter = Clamp(value, 0.01f, 100f, 4f));
+    }
+
+    public float SupportBaseHeight
+    {
+        get => Supports.BaseHeight;
+        set => Update(() => Supports.BaseHeight = Clamp(value, 0f, 100f, 0.8f));
+    }
+
+    public float SupportBaseConeHeight
+    {
+        get => Supports.BaseConeHeight;
+        set => Update(() => Supports.BaseConeHeight = Clamp(value, 0f, 100f, 2f));
+    }
+
+    public float SupportSpacing
+    {
+        get => Supports.Spacing;
+        set => Update(() => Supports.Spacing = Clamp(value, 0.01f, 1000f, 2.5f));
+    }
+
+    public float SupportOverhangAngleDegrees
+    {
+        get => Supports.OverhangAngleDegrees;
+        set => Update(() => Supports.OverhangAngleDegrees = Clamp(value, 0f, 90f, 45f));
+    }
+
+    public float SupportMinIslandAreaMm2
+    {
+        get => Supports.MinIslandAreaMm2;
+        set => Update(() => Supports.MinIslandAreaMm2 = Clamp(value, 0f, 1_000_000f, 0.5f));
+    }
+
+    private static float Clamp(float value, float minimum, float maximum, float fallback) =>
+        float.IsFinite(value) ? Math.Clamp(value, minimum, maximum) : fallback;
 
     // SpaceMouse
 
