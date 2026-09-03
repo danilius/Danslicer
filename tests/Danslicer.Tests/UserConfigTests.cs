@@ -206,6 +206,96 @@ public sealed class UserConfigTests : IDisposable
     }
 
     [Fact]
+    public void SupportPresetsRoundTripAsVersionedIndependentSnapshots()
+    {
+        var config = new UserConfig();
+        config.Supports.TipDiameter = 0.23f;
+        config.Supports.UseBaseGrid = false;
+        config.Supports.MiniSupportMaxFanPerBranchEnd = 7;
+        Assert.True(config.SaveSupportPresetAs("Delicate teeth"));
+        var path = PathFor("support-presets.json");
+
+        config.Save(path);
+        var loaded = UserConfig.Load(path);
+
+        var preset = Assert.Single(loaded.SupportPresets,
+            candidate => candidate.Name == "Delicate teeth");
+        Assert.Equal(SupportPreset.CurrentVersion, preset.Version);
+        Assert.Equal(0.23f, preset.Settings.TipDiameter);
+        Assert.False(preset.Settings.UseBaseGrid);
+        Assert.Equal(7, preset.Settings.MiniSupportMaxFanPerBranchEnd);
+        Assert.Equal("Delicate teeth", loaded.ActiveSupportPresetName);
+        Assert.NotSame(loaded.Supports, preset.Settings);
+    }
+
+    [Fact]
+    public void ApplyingSupportPresetReplacesTheWholeLiveBundleWithACopy()
+    {
+        var config = new UserConfig();
+        config.Supports = new SupportConfig
+        {
+            TipDiameter = 0.72f, ConeLength = 3.4f, TrunkDiameter = 2.1f,
+            PreferExistingTrunks = false, UseBaseGrid = false, BaseGridPitch = 13f,
+            RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.08f,
+            BaseShape = SupportBaseShape.DiscCone, Spacing = 1.7f,
+        };
+        Assert.True(config.SaveSupportPresetAs("Heavy"));
+        var snapshot = config.FindSupportPreset("Heavy")!.Settings;
+        config.Supports = new SupportConfig { TipDiameter = 0.11f, BaseGridPitch = 99f };
+
+        Assert.True(config.ApplySupportPreset("heavy"));
+
+        Assert.Equal(snapshot, config.Supports);
+        Assert.NotSame(snapshot, config.Supports);
+        config.Supports.TipDiameter = 9f;
+        Assert.Equal(0.72f, snapshot.TipDiameter);
+    }
+
+    [Fact]
+    public void SupportPresetsCanBeSavedRenamedAndDeleted()
+    {
+        var config = new UserConfig();
+        config.Supports.TipDiameter = 0.31f;
+        Assert.True(config.SaveSupportPresetAs("Working copy"));
+        config.Supports.TipDiameter = 0.44f;
+
+        Assert.True(config.SaveSupportPreset("working COPY"));
+        Assert.Equal(0.44f, config.FindSupportPreset("Working copy")!.Settings.TipDiameter);
+        Assert.True(config.RenameSupportPreset("Working copy", "Fine detail"));
+        Assert.Equal("Fine detail", config.ActiveSupportPresetName);
+        Assert.False(config.RenameSupportPreset("Fine detail", UserConfig.CadCleanSupportPresetName));
+        Assert.True(config.DeleteSupportPreset("fine detail"));
+        Assert.Null(config.FindSupportPreset("Fine detail"));
+        Assert.Equal(UserConfig.CadCleanSupportPresetName, config.ActiveSupportPresetName);
+    }
+
+    [Fact]
+    public void MissingBuiltInSupportPresetsAreRecreatedOnLoad()
+    {
+        var path = PathFor("missing-built-ins.json");
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(path, """
+            {
+              "SupportPresets": [
+                { "Version": 1, "Name": "Custom", "Settings": { "TipDiameter": 0.3 } }
+              ],
+              "ActiveSupportPresetName": "missing"
+            }
+            """);
+
+        var loaded = UserConfig.Load(path);
+
+        Assert.NotNull(loaded.FindSupportPreset(UserConfig.CadCleanSupportPresetName));
+        Assert.NotNull(loaded.FindSupportPreset(UserConfig.OrganicDenseSupportPresetName));
+        Assert.NotNull(loaded.FindSupportPreset("Custom"));
+        Assert.Equal(UserConfig.CadCleanSupportPresetName, loaded.ActiveSupportPresetName);
+        Assert.Equal(new SupportConfig(),
+            loaded.FindSupportPreset(UserConfig.CadCleanSupportPresetName)!.Settings);
+        Assert.Equal(new SupportConfig(),
+            loaded.FindSupportPreset(UserConfig.OrganicDenseSupportPresetName)!.Settings);
+    }
+
+    [Fact]
     public void FreshSupportSettingsMatchGenerationDefaults()
     {
         var supports = new UserConfig().Supports;

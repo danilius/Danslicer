@@ -169,6 +169,20 @@ public sealed record SupportConfig
         float.IsFinite(value) ? MathF.Max(0, value) : 0;
 }
 
+/// <summary>
+/// A named snapshot of the complete support-generation settings bundle. The record version is
+/// independent of the user-config schema so recipes and richer profile metadata can be added
+/// later without changing the meaning of existing snapshots.
+/// </summary>
+public sealed record SupportPreset
+{
+    public const int CurrentVersion = 1;
+
+    public int Version { get; set; } = CurrentVersion;
+    public string Name { get; set; } = "";
+    public SupportConfig Settings { get; set; } = new();
+}
+
 /// <summary>Saved placement of one window, in screen pixels.</summary>
 public sealed class WindowStateConfig
 {
@@ -189,10 +203,15 @@ public sealed class WindowStateConfig
 /// </summary>
 public sealed class UserConfig
 {
+    public const string CadCleanSupportPresetName = "CAD clean";
+    public const string OrganicDenseSupportPresetName = "Organic dense";
+
     public SpaceMouseConfig SpaceMouse { get; set; } = new();
     public ViewportConfig Viewport { get; set; } = new();
     public PlacementConfig Placement { get; set; } = new();
     public SupportConfig Supports { get; set; } = new();
+    public List<SupportPreset> SupportPresets { get; set; } = CreateBuiltInSupportPresets();
+    public string ActiveSupportPresetName { get; set; } = CadCleanSupportPresetName;
 
     /// <summary>Window placements keyed by a stable window name ("main", "preferences").</summary>
     public Dictionary<string, WindowStateConfig> Windows { get; set; } = new();
@@ -224,6 +243,7 @@ public sealed class UserConfig
             config.Placement ??= new PlacementConfig();
             config.Supports ??= new SupportConfig();
             config.Supports.Normalize();
+            config.NormalizeSupportPresets();
             config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
                 ? MathF.Max(0, config.Placement.HeightMm)
                 : 0;
@@ -245,5 +265,103 @@ public sealed class UserConfig
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
         File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOptions));
+    }
+
+    public SupportPreset? FindSupportPreset(string name) => SupportPresets.FirstOrDefault(
+        preset => string.Equals(preset.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Replaces the live settings with an independent copy of the named preset.</summary>
+    public bool ApplySupportPreset(string name)
+    {
+        var preset = FindSupportPreset(name);
+        if (preset is null) return false;
+        Supports = preset.Settings with { };
+        ActiveSupportPresetName = preset.Name;
+        return true;
+    }
+
+    /// <summary>Overwrites an existing preset from the live settings.</summary>
+    public bool SaveSupportPreset(string name)
+    {
+        var preset = FindSupportPreset(name);
+        if (preset is null) return false;
+        preset.Settings = Supports with { };
+        ActiveSupportPresetName = preset.Name;
+        return true;
+    }
+
+    public bool SaveSupportPresetAs(string name)
+    {
+        var normalizedName = name.Trim();
+        if (normalizedName.Length == 0 || FindSupportPreset(normalizedName) is not null)
+            return false;
+        SupportPresets.Add(new SupportPreset
+        {
+            Name = normalizedName,
+            Settings = Supports with { },
+        });
+        ActiveSupportPresetName = normalizedName;
+        return true;
+    }
+
+    public bool RenameSupportPreset(string oldName, string newName)
+    {
+        var preset = FindSupportPreset(oldName);
+        var normalizedName = newName.Trim();
+        if (preset is null || normalizedName.Length == 0 || SupportPresets.Any(other =>
+                !ReferenceEquals(other, preset) &&
+                string.Equals(other.Name, normalizedName, StringComparison.OrdinalIgnoreCase)))
+            return false;
+        preset.Name = normalizedName;
+        if (string.Equals(ActiveSupportPresetName, oldName, StringComparison.OrdinalIgnoreCase))
+            ActiveSupportPresetName = normalizedName;
+        return true;
+    }
+
+    public bool DeleteSupportPreset(string name)
+    {
+        var preset = FindSupportPreset(name);
+        if (preset is null) return false;
+        SupportPresets.Remove(preset);
+        if (string.Equals(ActiveSupportPresetName, preset.Name, StringComparison.OrdinalIgnoreCase))
+            ActiveSupportPresetName = SupportPresets.FirstOrDefault()?.Name ?? "";
+        return true;
+    }
+
+    private static List<SupportPreset> CreateBuiltInSupportPresets() =>
+    [
+        new() { Name = CadCleanSupportPresetName, Settings = new SupportConfig() },
+        new() { Name = OrganicDenseSupportPresetName, Settings = new SupportConfig() },
+    ];
+
+    private void NormalizeSupportPresets()
+    {
+        SupportPresets ??= [];
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = SupportPresets.Count - 1; i >= 0; i--)
+        {
+            var preset = SupportPresets[i];
+            if (preset is null || string.IsNullOrWhiteSpace(preset.Name))
+            {
+                SupportPresets.RemoveAt(i);
+                continue;
+            }
+            preset.Name = preset.Name.Trim();
+            if (!names.Add(preset.Name))
+            {
+                SupportPresets.RemoveAt(i);
+                continue;
+            }
+            preset.Version = Math.Max(1, preset.Version);
+            preset.Settings ??= new SupportConfig();
+            preset.Settings.Normalize();
+        }
+
+        foreach (var builtIn in CreateBuiltInSupportPresets())
+            if (FindSupportPreset(builtIn.Name) is null)
+                SupportPresets.Add(builtIn);
+
+        var active = FindSupportPreset(ActiveSupportPresetName);
+        ActiveSupportPresetName = active?.Name ?? CadCleanSupportPresetName;
     }
 }
