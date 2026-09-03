@@ -343,3 +343,28 @@ continues to a plate base (747 bases).
    190 → 237 while branches fall 576 → 488; gripper bases rise 129 → 141 while branches fall
    245 → 231. That moves the topology toward the mined Lychee reference's dense, freely placed
    near-vertical trunks, at the cost of plate density that the user should judge on screen.
+
+---
+
+## 2026-09-03 overnight — flush tip junction geometry
+
+- Branch: `grid-routing-prototype` at `7b94636`; cone-tip render and slice geometry now transitions
+  from the taper-rule body diameter to the exact incident branch/trunk diameter at the junction.
+- Config: Debug, net10.0; same machine and single-process conditions as the preceding runs.
+- The unchanged seated 1961-candidate Drogon and 482-candidate gripper tip files were rerouted with
+  `route --seat --strategy tree --base-grid on --json`. Reusing the fixed inputs isolates the
+  geometry-only change from placement variation.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `route` | `--seat --strategy tree --base-grid on --json` | 8.832 | 2 | nodes 363, segs 346 (tip 85, mini-support 105, branch 85, trunk 71), **unrouted 1771 / 1961**, bases **17**, max lean 73.8°, collisionFree **true** | Bit-identical to the branch-shaping grid-on reference. Refusals: ContactBlocked 34, NoClearStep 389, NoReachableGridPoint 1086, NoBranchEndInRange 262. |
+| gripper | `route` | `--seat --strategy tree --base-grid on --json` | 0.520 | 2 | nodes 243, segs 226 (tip 76, mini-support 6, branch 76, trunk 68), **unrouted 400 / 482**, bases **17**, max lean 45.0°, collisionFree **true** | Bit-identical to the branch-shaping grid-on reference. Refusals: ContactBlocked 7, NoClearStep 36, NoReachableGridPoint 342, NoBranchEndInRange 15. |
+
+### Observations
+
+1. Both routing summaries are bit-identical to the pre-change grid-on reference: node and segment
+   counts, segment taxonomy, refusals, base count, maximum lean and collision status all match.
+2. The changed defaults are derived render/slice surfaces only. Routing topology, configured graph
+   diameters and collision decisions remain unchanged; both canonical graphs remain collision-free.
