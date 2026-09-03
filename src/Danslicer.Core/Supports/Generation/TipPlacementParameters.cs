@@ -31,6 +31,11 @@ public sealed record TipPlacementParameters
     /// </summary>
     public float MinIslandAreaMm2 { get; init; } = 0.1f;
 
+    /// <summary>When enabled, below-threshold islands are retained as mini-support-only contacts.</summary>
+    public bool EnableMiniSupports { get; init; }
+    public float MiniSupportTipDiameterMm { get; init; } = 0.25f;
+    public float MiniSupportConeLengthMm { get; init; } = 1f;
+
     /// <summary>
     /// Dedup radius between island tips. Every island physically needs its own support — two
     /// separate islands are disconnected until higher layers join them — so island tips are

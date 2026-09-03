@@ -520,6 +520,9 @@ public sealed class Document
                 IslandSpacingMm = request.Settings.IslandSpacingMm,
                 OverhangAngleDegrees = request.Settings.OverhangAngleDegrees,
                 MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
+                EnableMiniSupports = true,
+                MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
+                MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
             },
             new TreeRoutingOptions
             {

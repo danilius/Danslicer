@@ -65,6 +65,24 @@ public class TipPlacementTests
     }
 
     [Fact]
+    public void SubThresholdIslandIsHandedToMiniSupportPassWithFineContactGeometry()
+    {
+        var mesh = Meshes.Box(0.2f, 0.2f, 3, new Vector3(0, 0, 5));
+        var parameters = P(minIsland: 0.1f) with
+        {
+            EnableMiniSupports = true,
+            MiniSupportTipDiameterMm = 0.23f,
+            MiniSupportConeLengthMm = 0.9f,
+        };
+
+        var mini = Assert.Single(Place(mesh, parameters),
+            candidate => candidate.Strategy == TipStrategy.MiniIsland);
+        Assert.Equal(0.23f, mini.TipDiameter);
+        Assert.Equal(SupportTipShape.Cone, mini.TipShape);
+        Assert.Equal(0.9f, mini.ConeLength);
+    }
+
+    [Fact]
     public void CoincidentIslandTipsStillDedup()
     {
         // The island exemption is not a duplicate generator: two tips of the same island
