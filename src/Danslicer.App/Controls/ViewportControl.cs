@@ -174,8 +174,23 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void Redraw()
     {
-        if (Dispatcher.UIThread.CheckAccess()) RequestNextFrameRendering();
-        else Dispatcher.UIThread.Post(RequestNextFrameRendering);
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            RequestNextFrameRendering();
+#pragma warning disable CS0618 // Required to invalidate the Avalonia overlay drawn by Render().
+            InvalidateVisual();
+#pragma warning restore CS0618
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                RequestNextFrameRendering();
+#pragma warning disable CS0618 // Required to invalidate the Avalonia overlay drawn by Render().
+                InvalidateVisual();
+#pragma warning restore CS0618
+            });
+        }
     }
 
     // ----- OpenGL lifecycle -----
