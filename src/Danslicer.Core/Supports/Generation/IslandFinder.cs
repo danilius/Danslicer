@@ -5,7 +5,7 @@ using Danslicer.Core.Slicing;
 
 namespace Danslicer.Core.Supports.Generation;
 
-internal readonly record struct Island(Vector3 Centroid, float AreaMm2, float Z);
+internal readonly record struct Island(Vector3 Centroid, float AreaMm2, float Z, int LayerIndex);
 
 /// <summary>
 /// Layer islands via <see cref="MeshSlicer"/>'s public API: a region of a layer whose XY does
@@ -17,36 +17,31 @@ internal static class IslandFinder
     public static List<Island> Find(
         Mesh mesh, float layerHeight, float minAreaMm2, float plateZ, float overhangAngleDegrees = 45f)
     {
+        var layers = LayerStack.Slice(mesh, layerHeight);
+        return Find(layers, mesh.Bounds.Min.Z, layerHeight, minAreaMm2, plateZ, overhangAngleDegrees);
+    }
+
+    public static List<Island> Find(
+        IReadOnlyList<SliceLayer> layers,
+        float meshMinZ,
+        float layerHeight,
+        float minAreaMm2,
+        float plateZ,
+        float overhangAngleDegrees = 45f)
+    {
         var result = new List<Island>();
-        if (layerHeight <= 1e-6f) return result;
+        if (layers.Count == 0) return result;
 
-        var prepared = new MeshSlicer.PreparedMesh(mesh, Matrix4x4.Identity);
-        var h = (double)layerHeight;
-        if (prepared.MaxZ <= plateZ + 1e-6) return result;
-
-        var layerCount = (int)Math.Ceiling(prepared.MaxZ / h - 1e-6);
-        if (layerCount <= 0) return result;
-
-        // Inflate the previous layer by the XY growth of a slope at the overhang threshold so
-        // self-supporting rims are not reported as islands; true gaps (table tops, cantilevers)
-        // remain. A 20 µm floor swallows Clipper quantisation slivers.
         var theta = Math.Clamp(overhangAngleDegrees, 1f, 89f) * Math.PI / 180.0;
         var inflateMm = layerHeight * Math.Tan(theta) + 0.02;
-
-        var buckets = MeshSlicer.BucketTriangles(prepared, h, layerCount);
-        var segments = new List<MeshSlicer.Segment>();
+        var sitsOnPlate = meshMinZ <= plateZ + layerHeight + 1e-4;
         Paths64? previous = null;
-        var sitsOnPlate = prepared.MinZ <= plateZ + layerHeight + 1e-4;
 
-        for (int i = 0; i < layerCount; i++)
+        foreach (var layer in layers)
         {
-            var z = (i + 0.5) * h;
-            segments.Clear();
-            MeshSlicer.CollectSegments(prepared, buckets[i], z, segments);
-            var polygons = MeshSlicer.Finish(MeshSlicer.ChainSegments(segments), 0);
-
+            var polygons = layer.Polygons;
             Paths64 newborn;
-            if (i == 0 && sitsOnPlate)
+            if (layer.Index == 0 && sitsOnPlate)
             {
                 newborn = new Paths64();
             }
@@ -61,7 +56,7 @@ internal static class IslandFinder
                 newborn = Clipper.Difference(polygons, supported, FillRule.NonZero);
             }
 
-            CollectIslands(newborn, minAreaMm2, (float)z, result);
+            CollectIslands(newborn, minAreaMm2, layer.Z, layer.Index, result);
             previous = polygons;
         }
 
@@ -72,7 +67,7 @@ internal static class IslandFinder
     /// Difference returns outers (positive area) and holes (negative). Net area of each outer
     /// minus its holes is the island; the centroid is rejected if it falls in a hole.
     /// </summary>
-    private static void CollectIslands(Paths64 paths, float minAreaMm2, float z, List<Island> result)
+    private static void CollectIslands(Paths64 paths, float minAreaMm2, float z, int layerIndex, List<Island> result)
     {
         if (paths.Count == 0) return;
         var scale = MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm;
@@ -100,7 +95,7 @@ internal static class IslandFinder
             if (areaMm2 < minAreaMm2) continue;
 
             var c = CentroidOnSolid(outer, mine);
-            result.Add(new Island(new Vector3(c.X, c.Y, z), (float)areaMm2, z));
+            result.Add(new Island(new Vector3(c.X, c.Y, z), (float)areaMm2, z, layerIndex));
         }
     }
 
