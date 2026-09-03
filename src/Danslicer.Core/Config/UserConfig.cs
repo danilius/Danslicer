@@ -75,6 +75,7 @@ public sealed record SupportConfig
     public float MiniSupportTipDiameter { get; set; } = 0.25f;
     public float MiniSupportConeLength { get; set; } = 1f;
     public float MiniSupportMaxLength { get; set; } = 5f;
+    public float MiniSupportMaxAngleDegrees { get; set; } = 75f;
     public int MiniSupportMaxFanPerBranchEnd { get; set; } = 4;
     public bool RefusedTipsFallBackToMini { get; set; }
     public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
@@ -109,6 +110,8 @@ public sealed record SupportConfig
         MiniSupportTipDiameter = Positive(MiniSupportTipDiameter, 0.25f);
         MiniSupportConeLength = Positive(MiniSupportConeLength, 1f);
         MiniSupportMaxLength = Positive(MiniSupportMaxLength, 5f);
+        MiniSupportMaxAngleDegrees = float.IsFinite(MiniSupportMaxAngleDegrees)
+            ? Math.Clamp(MiniSupportMaxAngleDegrees, 1f, 89f) : 75f;
         MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
         BaseGridPitch = Positive(BaseGridPitch, 20f);
         if (!Enum.IsDefined(BaseShape)) BaseShape = SupportBaseShape.Disc;

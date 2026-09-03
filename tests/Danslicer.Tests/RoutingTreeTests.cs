@@ -134,6 +134,25 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void NearTiedExistingTrunksPreferTheTipsLeanDirection()
+    {
+        var result = Route(new[]
+        {
+            new RoutingTip(new(-5, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(5, 0, 13), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(-2, 0, 10), Vector3.Normalize(new Vector3(-1, 0, 1)), 0.4f),
+        }, new TreeRoutingOptions { UseBaseGrid = false });
+
+        Assert.Empty(result.Failures);
+        var leanedTip = result.Graph.Nodes.Single(node =>
+            node.Type == SupportNodeType.Tip && node.Position.X == -2);
+        var component = result.Graph.Component(leanedTip.Id);
+        var supportBase = Assert.Single(component.Nodes.Select(result.Graph.GetNode),
+            node => node.Type == SupportNodeType.Base);
+        Assert.Equal(5f, supportBase.Position.X, 3);
+    }
+
+    [Fact]
     public void MiniSupportsFanFromBranchEndWithConfiguredGeometryAndLimits()
     {
         var regular = new[]
@@ -196,6 +215,27 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void MiniSupportAngleLimitRejectsANearHorizontalRod()
+    {
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(8, 0, 10.2f), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+        };
+
+        var limited = Route(tips, new TreeRoutingOptions { MiniSupportMaxAngleDegrees = 75f });
+        var generous = Route(tips, new TreeRoutingOptions { MiniSupportMaxAngleDegrees = 89f });
+
+        Assert.Single(limited.Failures);
+        Assert.DoesNotContain(limited.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+        Assert.Empty(generous.Failures);
+        Assert.Single(generous.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+    }
+
+    [Fact]
     public void RefusedRegularTipsOnlyFallBackToMiniWhenExplicitlyEnabled()
     {
         var tips = new[]
@@ -203,13 +243,14 @@ public sealed class RoutingTreeTests
             // Creates a reachable grid trunk and a branch end at (5, 0, 12).
             new RoutingTip(new(5, 0, 14), Vector3.UnitZ, 0.4f),
             // Its own junction cannot reach the 20 mm grid, but its contact can reach that end.
-            new RoutingTip(new(9, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(9, 0, 12.2f), Vector3.UnitZ, 0.4f),
         };
         var options = new TreeRoutingOptions
         {
             BaseGridPitch = 20f,
             MaxBranchLength = 8f,
             PreferExistingTrunks = false,
+            MiniSupportMaxAngleDegrees = 89f,
         };
 
         var honest = Route(tips, options);
@@ -313,6 +354,36 @@ public sealed class RoutingTreeTests
         var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
             * 180 / MathF.PI;
         Assert.Equal(30f, lean, 2);
+    }
+
+    [Fact]
+    public void FreeBranchFanPrefersTheShortestShallowCandidate()
+    {
+        var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { UseBaseGrid = false }, new SteepBranchBlockScene());
+
+        Assert.Empty(result.Failures);
+        var branch = Assert.Single(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.Branch);
+        var a = result.Graph.GetNode(branch.NodeA).Position;
+        var b = result.Graph.GetNode(branch.NodeB).Position;
+        var delta = b - a;
+        var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
+            * 180 / MathF.PI;
+        Assert.Equal(2f, delta.Length(), 3);
+        Assert.Equal(15f, lean, 2);
+    }
+
+    [Fact]
+    public void ProjectedBranchNearPassCatchesAnXAtDifferentHeights()
+    {
+        var crossing = TreeSupportRouter.ProjectedSegmentsPassTooClose(
+            new(-2, -2, 10), new(2, 2, 8), new(-2, 2, 5), new(2, -2, 3), 1.2f);
+        var separated = TreeSupportRouter.ProjectedSegmentsPassTooClose(
+            new(-2, -2, 10), new(2, 2, 8), new(2, -2, 5), new(5, -5, 3), 1.2f);
+
+        Assert.True(crossing); // Collision-clear in 3D, but visually forms an X in XY.
+        Assert.False(separated);
     }
 
     private sealed class SteepBranchBlockScene : ICollisionScene
