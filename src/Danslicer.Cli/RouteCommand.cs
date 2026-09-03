@@ -155,7 +155,7 @@ internal static class RouteCommand
             var start = graph.GetNode(segment.NodeA).Position;
             var end = graph.GetNode(segment.NodeB).Position;
             var radius = segment.Diameter * 0.5f;
-            if (segment.Type == SupportSegmentType.Neck)
+            if (segment.Type == SupportSegmentType.Tip)
             {
                 var nodeA = graph.GetNode(segment.NodeA);
                 var nodeB = graph.GetNode(segment.NodeB);

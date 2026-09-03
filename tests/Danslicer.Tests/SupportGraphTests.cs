@@ -8,7 +8,7 @@ public class SupportGraphTests
     private static SupportNode Node(SupportNodeType type, float x = 0, float z = 0) =>
         new() { Type = type, Position = new Vector3(x, 0, z) };
 
-    private static SupportSegment Join(SupportNode a, SupportNode b, SupportSegmentType type = SupportSegmentType.Pillar) =>
+    private static SupportSegment Join(SupportNode a, SupportNode b, SupportSegmentType type = SupportSegmentType.Branch) =>
         new() { Type = type, NodeA = a.Id, NodeB = b.Id };
 
     /// <summary>Base - pillar - junction, then necks to two tips: one small tree.</summary>
@@ -21,8 +21,8 @@ public class SupportGraphTests
         var t2 = Node(SupportNodeType.Tip, x: 2, z: 15);
         g.AddNode(b); g.AddNode(j); g.AddNode(t1); g.AddNode(t2);
         g.AddSegment(Join(b, j));
-        g.AddSegment(Join(j, t1, SupportSegmentType.Neck));
-        g.AddSegment(Join(j, t2, SupportSegmentType.Neck));
+        g.AddSegment(Join(j, t1, SupportSegmentType.Tip));
+        g.AddSegment(Join(j, t2, SupportSegmentType.Tip));
         return (g, b, j, t1, t2);
     }
 
@@ -73,9 +73,9 @@ public class SupportGraphTests
         var a = Node(SupportNodeType.Base);
         g.AddNode(a);
         Assert.Throws<InvalidOperationException>(() =>
-            g.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = Guid.NewGuid() }));
+            g.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = Guid.NewGuid() }));
         Assert.Throws<InvalidOperationException>(() =>
-            g.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = a.Id }));
+            g.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = a.Id }));
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class SupportGraphTests
 
         // Deleting the pillar strands both remaining fragments (a tipless base, a baseless tip
         // stub), so residue pruning takes the whole tree in one undoable step.
-        var pillar = doc.Supports.Segments.Single(s => s.Type == SupportSegmentType.Pillar);
+        var pillar = doc.Supports.Segments.Single(s => s.Type == SupportSegmentType.Branch);
         doc.SelectSupportElement(pillar.Id);
         doc.DeleteSupportSelection();
         Assert.Equal(0, doc.Supports.NodeCount);
@@ -202,7 +202,7 @@ public class SupportGraphTests
         });
 
         var pillar = doc.Supports.SegmentsAt(junctions[0].Id)
-            .Single(s => s.Type == SupportSegmentType.Pillar);
+            .Single(s => s.Type == SupportSegmentType.Branch);
         doc.SelectSupportComponent(pillar.Id);
         Assert.Equal(5, doc.SupportSelection.Count); // 3 nodes + neck + pillar of one tree only
         Assert.DoesNotContain(junctions[1].Id, doc.SupportSelection);

@@ -14,7 +14,7 @@ public class SupportRenderMeshTests
         var bottom = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
         graph.AddNode(top);
         graph.AddNode(bottom);
-        segment = new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = top.Id, NodeB = bottom.Id, Diameter = diameter };
+        segment = new SupportSegment { Type = SupportSegmentType.Branch, NodeA = top.Id, NodeB = bottom.Id, Diameter = diameter };
         graph.AddSegment(segment);
         return graph;
     }
@@ -47,7 +47,7 @@ public class SupportRenderMeshTests
         var parts = SupportRenderMesh.Build(graph);
 
         var part = Assert.Single(parts);
-        Assert.Equal(SupportRenderKind.Pillar, part.Kind);
+        Assert.Equal(SupportRenderKind.Branch, part.Kind);
         Assert.False(part.Selected);
         Assert.False(part.Disabled);
         Assert.Equal(SupportRenderMesh.TrianglesPerCapsule, part.Mesh.TriangleCount);
@@ -93,7 +93,7 @@ public class SupportRenderMeshTests
         var b = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(3, 4, 5) };
         graph.AddNode(a);
         graph.AddNode(b);
-        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = b.Id, Diameter = 1f });
+        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = b.Id, Diameter = 1f });
 
         var mesh = Assert.Single(SupportRenderMesh.Build(graph)).Mesh;
         Assert.Equal(SupportRenderMesh.TrianglesPerSphere, mesh.TriangleCount);
@@ -124,9 +124,9 @@ public class SupportRenderMeshTests
             nodes[i] = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(i * 5, 0, i % 2 * 8) };
             graph.AddNode(nodes[i]);
         }
-        var plain = new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = nodes[0].Id, NodeB = nodes[1].Id };
-        var selected = new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = nodes[1].Id, NodeB = nodes[2].Id };
-        var disabled = new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = nodes[2].Id, NodeB = nodes[3].Id, Disabled = true };
+        var plain = new SupportSegment { Type = SupportSegmentType.Branch, NodeA = nodes[0].Id, NodeB = nodes[1].Id };
+        var selected = new SupportSegment { Type = SupportSegmentType.Branch, NodeA = nodes[1].Id, NodeB = nodes[2].Id };
+        var disabled = new SupportSegment { Type = SupportSegmentType.Branch, NodeA = nodes[2].Id, NodeB = nodes[3].Id, Disabled = true };
         graph.AddSegment(plain);
         graph.AddSegment(selected);
         graph.AddSegment(disabled);
@@ -134,7 +134,7 @@ public class SupportRenderMeshTests
         var parts = SupportRenderMesh.Build(graph, id => id == selected.Id);
 
         Assert.Equal(3, parts.Count);
-        Assert.All(parts, p => Assert.Equal(SupportRenderKind.Pillar, p.Kind));
+        Assert.All(parts, p => Assert.Equal(SupportRenderKind.Branch, p.Kind));
         Assert.Single(parts, p => p.Selected && !p.Disabled);
         Assert.Single(parts, p => !p.Selected && p.Disabled);
         Assert.Single(parts, p => !p.Selected && !p.Disabled);
@@ -150,8 +150,8 @@ public class SupportRenderMeshTests
             nodes[i] = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(i * 4, i * 3, i * 2 + 1) };
             graph.AddNode(nodes[i]);
         }
-        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Neck, NodeA = nodes[0].Id, NodeB = nodes[1].Id });
-        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = nodes[1].Id, NodeB = nodes[2].Id });
+        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Tip, NodeA = nodes[0].Id, NodeB = nodes[1].Id });
+        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = nodes[1].Id, NodeB = nodes[2].Id });
         graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Trunk, NodeA = nodes[2].Id, NodeB = nodes[3].Id });
         graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Bracing, NodeA = nodes[3].Id, NodeB = nodes[4].Id });
 
@@ -167,7 +167,7 @@ public class SupportRenderMeshTests
         var b = new SupportNode { Type = SupportNodeType.Base, Position = new Vector3(7, -4, 0.5f) };
         graph.AddNode(a);
         graph.AddNode(b);
-        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = b.Id, Diameter = 0.8f });
+        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = b.Id, Diameter = 0.8f });
 
         var mesh = Assert.Single(SupportRenderMesh.Build(graph)).Mesh;
         AssertClosed(mesh);

@@ -43,7 +43,7 @@ public sealed class WorkspaceSelectionTests
         graph.AddNode(outside);
         graph.AddNode(hidden);
         var segment = new SupportSegment
-            { Type = SupportSegmentType.Pillar, NodeA = inside.Id, NodeB = outside.Id };
+            { Type = SupportSegmentType.Branch, NodeA = inside.Id, NodeB = outside.Id };
         graph.AddSegment(segment);
 
         var selected = SupportMarqueeSelection.ElementsInside(graph,

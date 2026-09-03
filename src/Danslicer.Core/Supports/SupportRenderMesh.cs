@@ -6,8 +6,8 @@ namespace Danslicer.Core.Supports;
 /// <summary>Which colour bucket a render part belongs to. Mirrors the segment taxonomy.</summary>
 public enum SupportRenderKind
 {
-    Neck,
-    Pillar,
+    Tip,
+    Branch,
     Trunk,
     Bracing,
 }
@@ -56,10 +56,10 @@ public static class SupportRenderMesh
 
             var kind = segment.Type switch
             {
-                SupportSegmentType.Neck => SupportRenderKind.Neck,
+                SupportSegmentType.Tip => SupportRenderKind.Tip,
                 SupportSegmentType.Trunk => SupportRenderKind.Trunk,
                 SupportSegmentType.Bracing => SupportRenderKind.Bracing,
-                _ => SupportRenderKind.Pillar,
+                _ => SupportRenderKind.Branch,
             };
             var disabled = segment.Disabled || a.Disabled || b.Disabled;
             var key = (kind, isSelected?.Invoke(segment.Id) ?? false, disabled);

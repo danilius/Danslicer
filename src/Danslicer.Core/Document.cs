@@ -492,18 +492,18 @@ public sealed class Document
             nodes.Add(junction);
             segments.Add(new SupportSegment
             {
-                Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = neckDiameter,
+                Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = neckDiameter,
             });
             segments.Add(new SupportSegment
             {
-                Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
+                Type = SupportSegmentType.Branch, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
             });
         }
         else
         {
             segments.Add(new SupportSegment
             {
-                Type = SupportSegmentType.Pillar, NodeA = tip.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
+                Type = SupportSegmentType.Branch, NodeA = tip.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
             });
         }
 

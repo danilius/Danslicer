@@ -79,7 +79,7 @@ public class SupportSliceGeometryTests
         var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(20, 0, 10) };
         graph.AddNode(bottom);
         graph.AddNode(top);
-        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = bottom.Id, NodeB = top.Id, Diameter = 2f });
+        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = bottom.Id, NodeB = top.Id, Diameter = 2f });
 
         var settings = Danslicer.Core.Slicing.PrintSettings.Default with { LayerHeight = 0.5f };
         var plain = Danslicer.Core.Slicing.Slicer.Slice(new[] { obj }, Danslicer.Core.Printers.PrinterDefinition.PhotonMonoX, settings);
@@ -105,7 +105,7 @@ public class SupportSliceGeometryTests
         var b = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 20) };
         g.AddNode(a);
         g.AddNode(b);
-        var s = new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = b.Id, Diameter = 2.0f };
+        var s = new SupportSegment { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = b.Id, Diameter = 2.0f };
         g.AddSegment(s);
 
         s.Hidden = true;
@@ -236,8 +236,8 @@ public class SupportSliceGeometryTests
         var junction = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 8) };
         var baseNode = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
         g.AddNode(tip); g.AddNode(junction); g.AddNode(baseNode);
-        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f });
-        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = 1.2f });
+        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f });
+        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = 1.2f });
 
         var zs = new[] { -0.5, 0, 4, 8, 9, 10, 10.5, 11 };
         var baseline = zs.Select(z => Copy(SupportSliceGeometry.SectionsAt(g, z))).ToList();
@@ -284,7 +284,7 @@ public class SupportSliceGeometryTests
         g.AddNode(junction);
         g.AddSegment(new SupportSegment
         {
-            Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
         });
     }
 
@@ -294,7 +294,7 @@ public class SupportSliceGeometryTests
         var b = new SupportNode { Type = SupportNodeType.Junction, Position = to };
         g.AddNode(a);
         g.AddNode(b);
-        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = b.Id, Diameter = diameter });
+        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = b.Id, Diameter = diameter });
     }
 
     private static Paths64 Copy(Paths64 paths)

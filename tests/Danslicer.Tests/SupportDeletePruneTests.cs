@@ -21,9 +21,9 @@ public sealed class SupportDeletePruneTests
         document.Supports.AddNode(junction);
         document.Supports.AddNode(baseNode);
         document.Supports.AddSegment(new SupportSegment
-            { Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id });
+            { Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id });
         document.Supports.AddSegment(new SupportSegment
-            { Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id });
+            { Type = SupportSegmentType.Branch, NodeA = junction.Id, NodeB = baseNode.Id });
         return (document, tip, junction, baseNode);
     }
 
@@ -72,7 +72,7 @@ public sealed class SupportDeletePruneTests
         var secondTip = new SupportNode { Type = SupportNodeType.Tip, Position = new Vector3(1, 0, 10) };
         document.Supports.AddNode(secondTip);
         document.Supports.AddSegment(new SupportSegment
-            { Type = SupportSegmentType.Neck, NodeA = secondTip.Id, NodeB = junction.Id });
+            { Type = SupportSegmentType.Tip, NodeA = secondTip.Id, NodeB = junction.Id });
 
         document.SelectSupportElement(tip.Id);
         document.DeleteSupportSelection();
@@ -96,9 +96,9 @@ public sealed class SupportDeletePruneTests
         document.Supports.AddNode(junction2);
         document.Supports.AddNode(base2);
         document.Supports.AddSegment(new SupportSegment
-            { Type = SupportSegmentType.Neck, NodeA = tip2.Id, NodeB = junction2.Id });
+            { Type = SupportSegmentType.Tip, NodeA = tip2.Id, NodeB = junction2.Id });
         document.Supports.AddSegment(new SupportSegment
-            { Type = SupportSegmentType.Pillar, NodeA = junction2.Id, NodeB = base2.Id });
+            { Type = SupportSegmentType.Branch, NodeA = junction2.Id, NodeB = base2.Id });
         document.Supports.AddSegment(new SupportSegment
             { Type = SupportSegmentType.Bracing, NodeA = junction.Id, NodeB = junction2.Id });
 

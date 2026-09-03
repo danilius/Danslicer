@@ -8,7 +8,7 @@ public enum GrowthOperation
     Branch,
     Merge,
     Brace,
-    Neck,
+    Tip,
     Land,
     Reinforce,
 }
@@ -30,7 +30,7 @@ public sealed class GrowthContext
     public bool Allowed { get; set; } = true;
     public bool AllowModelLanding { get; set; }
     public float LandingPadDiameter { get; set; }
-    public float NeckLength { get; set; }
+    public float TipLength { get; set; }
 }
 
 /// <summary>A serializable-style growth policy. Rules are evaluated in list order.</summary>
@@ -126,7 +126,7 @@ public sealed class LeanGrowthRule : IGrowthRule
 
     public void Evaluate(GrowthContext context)
     {
-        if (context.Operation is not (GrowthOperation.Grow or GrowthOperation.Branch or GrowthOperation.Neck))
+        if (context.Operation is not (GrowthOperation.Grow or GrowthOperation.Branch or GrowthOperation.Tip))
             return;
         var delta = context.DesiredEnd - context.Start;
         var vertical = MathF.Abs(delta.Z);
@@ -182,13 +182,13 @@ public sealed class TaperGrowthRule : IGrowthRule
 {
     public string Name => "Taper";
     public bool Enabled { get; set; } = true;
-    public float NeckLength { get; set; } = 2;
+    public float TipLength { get; set; } = 2;
     public float TipToPillarDiameterRatio { get; set; } = 0.65f;
 
     public void Evaluate(GrowthContext context)
     {
-        if (context.Operation != GrowthOperation.Neck) return;
-        context.NeckLength = NeckLength;
+        if (context.Operation != GrowthOperation.Tip) return;
+        context.TipLength = TipLength;
         context.Diameter *= TipToPillarDiameterRatio;
     }
 }

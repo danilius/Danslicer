@@ -94,7 +94,7 @@ public sealed class TopDownSupportRouter
 
         var taper = new GrowthContext
         {
-            Operation = GrowthOperation.Neck,
+            Operation = GrowthOperation.Tip,
             Start = tip.SurfacePoint,
             DesiredEnd = tip.SurfacePoint,
             End = tip.SurfacePoint,
@@ -102,7 +102,7 @@ public sealed class TopDownSupportRouter
         };
         _rules.Evaluate(taper);
         var neckDiameter = MathF.Max(0.05f, taper.Diameter);
-        var neckLength = MathF.Max(0.1f, taper.NeckLength);
+        var neckLength = MathF.Max(0.1f, taper.TipLength);
         var outward = -RoutingUtilities.SafeInwardNormal(tip.InwardSurfaceNormal);
         // Down-facing steep contacts must leave along the surface normal before turning toward
         // the plate. A vertical departure embeds the neck capsule in the contact face. Up-facing
@@ -393,7 +393,7 @@ public sealed class TopDownSupportRouter
             if (isPlate && route.Landing is not null && route.Landing.Hit.Tag is Guid objectId)
                 node.ContactObjectId = objectId;
             graph.AddNode(node);
-            var type = index == 0 ? SupportSegmentType.Neck : SupportSegmentType.Pillar;
+            var type = index == 0 ? SupportSegmentType.Tip : SupportSegmentType.Branch;
             var diameter = index == 0
                 ? route.NeckDiameter
                 : index == route.Points.Count - 1 && route.Landing is not null
@@ -408,7 +408,7 @@ public sealed class TopDownSupportRouter
 
         if (route.MergeTarget is not null)
         {
-            AddSegment(graph, ids, previous!, route.MergeTarget.Node, SupportSegmentType.Pillar,
+            AddSegment(graph, ids, previous!, route.MergeTarget.Node, SupportSegmentType.Branch,
                 options.PillarDiameter, options.Origin, generatedCapsules, true, ref maxLean);
             if (!route.MergeTarget.Existing)
                 PromoteDownstream(graph, route.MergeTarget.Node, tip.SurfacePoint.Z, lowestTipByNode,
@@ -430,7 +430,7 @@ public sealed class TopDownSupportRouter
             var node = stack.Pop();
             lowestTipByNode[node.Id] = MathF.Min(lowestTipByNode[node.Id], newTipZ);
             foreach (var segment in graph.SegmentsAt(node.Id)
-                         .Where(segment => segment.Type is SupportSegmentType.Pillar or SupportSegmentType.Trunk))
+                         .Where(segment => segment.Type is SupportSegmentType.Branch or SupportSegmentType.Trunk))
             {
                 var otherId = segment.NodeA == node.Id ? segment.NodeB : segment.NodeA;
                 var other = graph.GetNode(otherId);

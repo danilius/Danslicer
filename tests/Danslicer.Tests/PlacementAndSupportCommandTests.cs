@@ -74,7 +74,7 @@ public sealed class PlacementAndSupportCommandTests
         var other = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
         var unrelated = new SupportNode { Type = SupportNodeType.Base, Position = new(5, 0, 0) };
         var segment = new SupportSegment
-            { Type = SupportSegmentType.Pillar, NodeA = selected.Id, NodeB = other.Id };
+            { Type = SupportSegmentType.Branch, NodeA = selected.Id, NodeB = other.Id };
         doc.Supports.AddNode(selected);
         doc.Supports.AddNode(other);
         doc.Supports.AddNode(unrelated);
@@ -109,10 +109,10 @@ public sealed class PlacementAndSupportCommandTests
         var junction = new SupportNode { Type = SupportNodeType.Junction, Position = new(0, 0, 3) };
         var unrelated = new SupportNode { Type = SupportNodeType.Base, Position = new(5, 0, 0) };
         var selected = new SupportSegment
-            { Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id };
+            { Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id };
         var baseNode = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
         var trunk = new SupportSegment
-            { Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id };
+            { Type = SupportSegmentType.Branch, NodeA = junction.Id, NodeB = baseNode.Id };
         doc.Supports.AddNode(tip);
         doc.Supports.AddNode(junction);
         doc.Supports.AddNode(baseNode);

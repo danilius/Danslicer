@@ -25,15 +25,19 @@ public enum SupportTipShape
     Cone = 1,
 }
 
+/// <summary>
+/// Canonical member vocabulary (user decision 2026-09-03): base / trunk / branch / tip + brace.
+/// The old neck and pillar fold into tip and branch respectively.
+/// </summary>
 public enum SupportSegmentType
 {
-    /// <summary>Tip to first junction. Thin, tapered.</summary>
-    Neck,
-    /// <summary>Ordinary vertical or leaning member.</summary>
-    Pillar,
-    /// <summary>Merged pillar of larger diameter.</summary>
+    /// <summary>Contact member from the tip node to the first junction. Thin, tapered, carries the cone.</summary>
+    Tip,
+    /// <summary>Angled member spanning from a trunk or junction toward a tip.</summary>
+    Branch,
+    /// <summary>Vertical (or merged main) member rising from the base.</summary>
     Trunk,
-    /// <summary>Cross-member between two pillars or trunks. Never part of a whole-support selection.</summary>
+    /// <summary>Cross-member between two trunks or branches. Never part of a whole-support selection.</summary>
     Bracing,
 }
 

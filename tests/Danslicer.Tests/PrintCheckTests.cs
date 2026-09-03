@@ -97,8 +97,8 @@ public class PrintCheckTests
     public void TwoCloseSupportsAreReported()
     {
         var g = new SupportGraph();
-        var a1 = Pillar(g, new Vector3(0, 0, 0), new Vector3(0, 0, 10), 1.2f);
-        var a2 = Pillar(g, new Vector3(1.5f, 0, 0), new Vector3(1.5f, 0, 10), 1.2f);
+        var a1 = BranchMember(g, new Vector3(0, 0, 0), new Vector3(0, 0, 10), 1.2f);
+        var a2 = BranchMember(g, new Vector3(1.5f, 0, 0), new Vector3(1.5f, 0, 10), 1.2f);
         _ = a1; _ = a2;
         var findings = PrintChecker.Check([Meshes.Box(1, 1, 1, new Vector3(50, 50, 0))], g, P(support: 1.0f));
         var hits = findings.Where(f => f.Kind == CheckKind.SupportProximity).ToList();
@@ -116,8 +116,8 @@ public class PrintCheckTests
         var j = Node(SupportNodeType.Junction, 0, 0, 8);
         var t = Node(SupportNodeType.Tip, 0, 0, 10);
         g.AddNode(baseN); g.AddNode(j); g.AddNode(t);
-        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = baseN.Id, NodeB = j.Id, Diameter = 1.2f });
-        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Neck, NodeA = j.Id, NodeB = t.Id, Diameter = 0.8f });
+        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = baseN.Id, NodeB = j.Id, Diameter = 1.2f });
+        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Tip, NodeA = j.Id, NodeB = t.Id, Diameter = 0.8f });
         var findings = PrintChecker.Check([Meshes.Box(1, 1, 1, new Vector3(40, 40, 0))], g, P(support: 5f));
         Assert.DoesNotContain(findings, f => f.Kind == CheckKind.SupportProximity);
     }
@@ -128,7 +128,7 @@ public class PrintCheckTests
         var cube = Meshes.Box(10, 10, 10, new Vector3(0, 0, 2));
         var g = new SupportGraph();
         // Pillar 0.3 mm from the +X face (x=10), not a tip contact.
-        Pillar(g, new Vector3(10.3f, 5, 0), new Vector3(10.3f, 5, 8), 0.4f);
+        BranchMember(g, new Vector3(10.3f, 5, 0), new Vector3(10.3f, 5, 8), 0.4f);
         var close = PrintChecker.Check([cube], g, P(model: 1.0f));
         Assert.Contains(close, f => f.Kind == CheckKind.SupportModelProximity);
 
@@ -138,8 +138,8 @@ public class PrintCheckTests
         var junction = Node(SupportNodeType.Junction, 5, 5, 0.5f);
         var b = Node(SupportNodeType.Base, 5, 5, 0);
         gTip.AddNode(tip); gTip.AddNode(junction); gTip.AddNode(b);
-        gTip.AddSegment(new SupportSegment { Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 0.8f });
-        gTip.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = b.Id, Diameter = 1.2f });
+        gTip.AddSegment(new SupportSegment { Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = 0.8f });
+        gTip.AddSegment(new SupportSegment { Type = SupportSegmentType.Branch, NodeA = junction.Id, NodeB = b.Id, Diameter = 1.2f });
         var atTip = PrintChecker.Check([cube], gTip, P(model: 1.0f));
         Assert.DoesNotContain(atTip, f => f.Kind == CheckKind.SupportModelProximity);
     }
@@ -187,7 +187,7 @@ public class PrintCheckTests
     {
         var cube = Meshes.Box(10, 10, 10, new Vector3(0, 0, 2));
         var g = new SupportGraph();
-        Pillar(g, new Vector3(10.3f, 5, 0), new Vector3(10.3f, 5, 8), 0.4f);
+        BranchMember(g, new Vector3(10.3f, 5, 0), new Vector3(10.3f, 5, 8), 0.4f);
 
         var bvh = MeshAnalysis.For(cube).Bvh;
         var brute = new MeshDistanceQuery(cube);
@@ -217,13 +217,13 @@ public class PrintCheckTests
     private static SupportNode Node(SupportNodeType type, float x, float y, float z) =>
         new() { Type = type, Position = new Vector3(x, y, z) };
 
-    private static SupportSegment Pillar(SupportGraph g, Vector3 from, Vector3 to, float diameter)
+    private static SupportSegment BranchMember(SupportGraph g, Vector3 from, Vector3 to, float diameter)
     {
         var a = new SupportNode { Type = SupportNodeType.Base, Position = from };
         var b = new SupportNode { Type = SupportNodeType.Junction, Position = to };
         g.AddNode(a);
         g.AddNode(b);
-        var s = new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = b.Id, Diameter = diameter };
+        var s = new SupportSegment { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = b.Id, Diameter = diameter };
         g.AddSegment(s);
         return s;
     }

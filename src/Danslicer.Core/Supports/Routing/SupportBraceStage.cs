@@ -99,7 +99,7 @@ public sealed class SupportBraceStage
     private static float NodeSlenderness(SupportGraph graph, SupportNode node)
     {
         var members = graph.SegmentsAt(node.Id)
-            .Where(segment => segment.Type is SupportSegmentType.Pillar or SupportSegmentType.Trunk)
+            .Where(segment => segment.Type is SupportSegmentType.Branch or SupportSegmentType.Trunk)
             .ToList();
         if (members.Count == 0) return 0;
         return members.Max(segment =>

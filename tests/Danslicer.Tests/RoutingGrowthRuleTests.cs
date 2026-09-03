@@ -61,13 +61,13 @@ public sealed class RoutingGrowthRuleTests
     [Fact]
     public void TaperShapesOnlyNecks()
     {
-        var rule = new TaperGrowthRule { NeckLength = 3, TipToPillarDiameterRatio = 0.5f };
-        var context = Context(GrowthOperation.Neck);
+        var rule = new TaperGrowthRule { TipLength = 3, TipToPillarDiameterRatio = 0.5f };
+        var context = Context(GrowthOperation.Tip);
         context.Diameter = 0.6f;
 
         rule.Evaluate(context);
 
-        Assert.Equal(3, context.NeckLength);
+        Assert.Equal(3, context.TipLength);
         Assert.Equal(0.3f, context.Diameter, 4);
     }
 
