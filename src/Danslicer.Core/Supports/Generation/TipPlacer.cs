@@ -62,23 +62,28 @@ public static class TipPlacer
         var placedGrid = new PointGrid(MathF.Min(spacing, minSpacing));
         var accepted = new List<TipCandidate>();
 
-        var islandFloor = parameters.EnableMiniSupports ? 0f : parameters.MinIslandAreaMm2;
-        foreach (var island in IslandFinder.Find(
+        var miniContactRadius = parameters.MiniSupportTipDiameterMm * 0.5f;
+        var miniIslandFloor = MathF.PI * miniContactRadius * miniContactRadius;
+        var islandFloor = parameters.EnableMiniSupports
+            ? MathF.Min(parameters.MinIslandAreaMm2, miniIslandFloor)
+            : parameters.MinIslandAreaMm2;
+        var islands = IslandFinder.Find(
                      mesh, parameters.LayerHeightMm, islandFloor, parameters.PlateZ,
                      parameters.OverhangAngleDegrees)
                      .OrderByDescending(i => i.AreaMm2)
                      .ThenBy(i => i.Z)
                      .ThenBy(i => i.Centroid.X)
-                     .ThenBy(i => i.Centroid.Y))
+                     .ThenBy(i => i.Centroid.Y)
+                     .ToList();
+        foreach (var island in islands.Where(i => i.AreaMm2 >= parameters.MinIslandAreaMm2))
         {
             if (!TryProjectToRegion(mesh, bvh, region, island.Centroid, parameters, out var point, out var outward, out var face))
                 continue;
-            var mini = parameters.EnableMiniSupports && island.AreaMm2 < parameters.MinIslandAreaMm2;
             var score = 10f + MathF.Log(1f + island.AreaMm2);
             TryAcceptRequired(
                 keepClean, keepCleanBvh, keepCleanDistance,
                 graphGrid, placedGrid, accepted, minSpacing, parameters,
-                point, outward, face, score, mini ? TipStrategy.MiniIsland : TipStrategy.Island);
+                point, outward, face, score, TipStrategy.Island);
         }
 
         foreach (var (vertex, position, outward, face) in features.LocalMinima(region, parameters.PlateZ, parameters.LayerHeightMm))
@@ -110,6 +115,40 @@ public static class TipPlacer
             if (placedGrid.AnyWithin(sample.Point, limit)) continue;
             placedGrid.Add(sample.Point);
             accepted.Add(sample);
+        }
+
+        // Fine islands are deliberately last: they fill otherwise unsupported detail without
+        // displacing ordinary required tips or the main overhang distribution.
+        if (parameters.EnableMiniSupports)
+        {
+            foreach (var island in islands.Where(i => i.AreaMm2 < parameters.MinIslandAreaMm2))
+            {
+                if (!TryProjectToRegion(mesh, bvh, region, island.Centroid, parameters,
+                        out var point, out var outward, out var face)) continue;
+                var score = 10f + MathF.Log(1f + island.AreaMm2);
+                var effectiveSpacing = MathF.Min(minSpacing,
+                    MathF.Max(parameters.IslandSpacingMm, 1e-4f));
+                var existingIndex = accepted.FindIndex(candidate =>
+                    Vector3.DistanceSquared(candidate.Point, point) <
+                    effectiveSpacing * effectiveSpacing);
+                if (existingIndex >= 0)
+                {
+                    // A local minimum at the same fine feature is the island's natural contact;
+                    // retain the point but type it for the mini pass instead of duplicating it.
+                    if (accepted[existingIndex].Strategy == TipStrategy.LocalMinimum &&
+                        !ViolatesKeepClean(face, point, keepClean, keepCleanBvh, keepCleanDistance))
+                    {
+                        accepted[existingIndex] = Candidate(point, Inward(outward),
+                            parameters.MiniSupportTipDiameterMm, score,
+                            TipStrategy.MiniIsland, face, parameters);
+                    }
+                    continue;
+                }
+                TryAcceptRequired(
+                    keepClean, keepCleanBvh, keepCleanDistance,
+                    graphGrid, placedGrid, accepted, minSpacing, parameters,
+                    point, outward, face, score, TipStrategy.MiniIsland);
+            }
         }
 
         return accepted;

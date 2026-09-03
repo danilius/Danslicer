@@ -67,7 +67,7 @@ public class TipPlacementTests
     [Fact]
     public void SubThresholdIslandIsHandedToMiniSupportPassWithFineContactGeometry()
     {
-        var mesh = Meshes.Box(0.2f, 0.2f, 3, new Vector3(0, 0, 5));
+        var mesh = Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5));
         var parameters = P(minIsland: 0.1f) with
         {
             EnableMiniSupports = true,
