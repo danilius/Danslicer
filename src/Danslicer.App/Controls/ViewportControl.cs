@@ -745,20 +745,36 @@ public sealed class ViewportControl : OpenGlControlBase
             cameraDistance = Vector3.Distance(eye, Vector3.Lerp(a.Position, b.Position, t));
         }
 
-        // Bases pick anywhere inside their projected disc. Their score is the distance to the
-        // disc centre, so a thin member crossing the disc still wins near its own line.
+        // A member line within the ordinary pick radius has an unambiguous, consistently sized
+        // target and wins over the much larger base surface behind it.
+        if (best is not null) return best;
+
+        // Project the complete horizontal rim. A world +X radius alone is not the screen-space
+        // radius in oblique views; the ordered samples cover the actual projected ellipse/conic.
         foreach (var node in supports.Nodes)
         {
             if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Base) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
-            var radiusPixels = (float)SupportPickRadiusPixels;
-            if (node.BaseShape != Danslicer.Core.Supports.SupportBaseShape.None &&
-                Camera.WorldToScreen(node.Position + new Vector3(node.BaseDiameter * 0.5f, 0, 0),
-                    w, h) is { } rim)
-                radiusPixels = MathF.Max(radiusPixels, Vector2.Distance(p, rim));
             var d = Vector2.Distance(mouse, p);
-            if (d > radiusPixels || d >= bestScore) continue;
-            bestScore = d;
+            float? score = d <= SupportPickRadiusPixels ? d / SupportPickRadiusPixels : null;
+            if (node.BaseShape != Danslicer.Core.Supports.SupportBaseShape.None)
+            {
+                const int rimSamples = 24;
+                var rim = new List<Vector2>(rimSamples);
+                var radius = node.BaseDiameter * 0.5f;
+                for (var index = 0; index < rimSamples; index++)
+                {
+                    var angle = index * MathF.Tau / rimSamples;
+                    var world = node.Position + new Vector3(
+                        MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0);
+                    if (Camera.WorldToScreen(world, w, h) is { } projected) rim.Add(projected);
+                }
+                var discScore = Danslicer.Core.Supports.SupportDiscPicking.NormalizedScore(
+                    mouse, p, rim);
+                if (discScore is not null) score = discScore;
+            }
+            if (score is null || score.Value >= bestScore) continue;
+            bestScore = score.Value;
             best = node.Id;
             cameraDistance = Vector3.Distance(eye, node.Position);
         }
