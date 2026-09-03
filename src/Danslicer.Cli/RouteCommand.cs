@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using Danslicer.Core.IO;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 using Danslicer.Cli;
 
@@ -156,7 +157,9 @@ internal static class RouteCommand
                 TipShape: ParseShape(tip.TipShape),
                 ConeLength: tip.ConeLength > 0 ? tip.ConeLength : 2f,
                 BallDiameter: tip.BallDiameter,
-                PenetrationDepth: Math.Max(tip.PenetrationDepth, 0f));
+                PenetrationDepth: Math.Max(tip.PenetrationDepth, 0f),
+                MiniSupportOnly: string.Equals(tip.Strategy, nameof(TipStrategy.MiniIsland),
+                    StringComparison.OrdinalIgnoreCase));
         }).ToList();
     }
 
@@ -167,7 +170,7 @@ internal static class RouteCommand
             var start = graph.GetNode(segment.NodeA).Position;
             var end = graph.GetNode(segment.NodeB).Position;
             var radius = segment.Diameter * 0.5f;
-            if (segment.Type == SupportSegmentType.Tip)
+            if (segment.Type is SupportSegmentType.Tip or SupportSegmentType.MiniSupport)
             {
                 var nodeA = graph.GetNode(segment.NodeA);
                 var nodeB = graph.GetNode(segment.NodeB);
@@ -283,5 +286,6 @@ internal static class RouteCommand
         public float ConeLength { get; set; }
         public float BallDiameter { get; set; }
         public float PenetrationDepth { get; set; }
+        public string? Strategy { get; set; }
     }
 }
