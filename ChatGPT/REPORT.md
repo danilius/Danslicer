@@ -18,6 +18,18 @@ Hypothesis (b) was ruled out: `PickSurface` ray-tests only visible scene objects
 plate is not a `SceneObject`, so empty plate/background space yields both `hitObj == null` and no
 support hit, correctly arming the marquee.
 
+### 2. Text-input key gesture arbitration
+
+All application-level bindings now pass through one focus-aware command wrapper. When a `TextBox`
+(including the numeric `ExpressionBox`) has keyboard focus, the wrapper reports that the application
+command cannot execute, so the key event remains available to the editor.
+
+Every gesture formerly declared in `MainWindow.axaml` was affected by the same preemption class and
+is guarded: Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y, Delete, Ctrl+D, Ctrl+G, Ctrl+A, Shift+H and Ctrl+R. The
+programmatic Ctrl+I, Ctrl+E and Ctrl+, bindings use the same central path as a preventative measure.
+This is especially visible for Ctrl+A, Delete, undo/redo and literal uppercase H entry, but yielding
+all application shortcuts is the consistent rule while a text editor owns focus.
+
 ## Brief 10 — screen-test fixes
 
 The reported diagnosis matched the code, so no divergent finding was required before work.

@@ -14,19 +14,6 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <!-- Explicit bindings: MenuItem.HotKey only registers once a sub-menu has been opened. -->
-    <Window.KeyBindings>
-        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
-        <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
-        <KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}" />
-        <KeyBinding Gesture="Ctrl+D" Command="{Binding DropToPlateCommand}" />
-        <KeyBinding Gesture="Ctrl+G" Command="{Binding GenerateSupportsCommand}" />
-        <KeyBinding Gesture="Ctrl+A" Command="{Binding SelectAllCommand}" />
-        <KeyBinding Gesture="Shift+H" Command="{Binding HideUnselectedSupportsCommand}" />
-        <KeyBinding Gesture="Ctrl+R" Command="{Binding SliceCommand}" />
-    </Window.KeyBindings>
-
     <Window.Resources>
         <DataTemplate x:Key="FieldTemplate" x:DataType="vm:NumericField">
             <Grid ColumnDefinitions="18,*,28" Margin="0,2">
