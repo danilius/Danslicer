@@ -39,6 +39,39 @@ public sealed class ViewportConfig
 
     /// <summary>Edge length of the overhang checker squares, millimetres.</summary>
     public float OverhangCheckerSizeMm { get; set; } = 2f;
+
+    /// <summary>Viewport-only support presentation. This never changes slice geometry.</summary>
+    public SupportDisplayConfig SupportDisplay { get; set; } = new();
+}
+
+public enum SupportDisplayMode
+{
+    Full,
+    ContactPoints,
+    Lines,
+    Tips,
+    Transparent,
+}
+
+/// <summary>
+/// Persisted support viewport presentation. Element switches intentionally apply only to the
+/// Full and Transparent modes; the focused Contact points, Lines and Tips modes have fixed scope.
+/// </summary>
+public sealed record SupportDisplayConfig
+{
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public SupportDisplayMode Mode { get; init; } = SupportDisplayMode.Full;
+    public bool ShowContactPointsInTransparent { get; init; } = true;
+    public bool ShowTips { get; init; } = true;
+    public bool ShowMiniSupports { get; init; } = true;
+    public bool ShowBranches { get; init; } = true;
+    public bool ShowTrunks { get; init; } = true;
+    public bool ShowBases { get; init; } = true;
+    public bool ShowBracing { get; init; } = true;
+
+    internal SupportDisplayConfig Normalize() => Enum.IsDefined(Mode)
+        ? this
+        : this with { Mode = SupportDisplayMode.Full };
 }
 
 public enum PlacementMode
@@ -186,6 +219,8 @@ public sealed class UserConfig
             // Explicit nulls from hand-edited or older files are treated like missing sections.
             config.SpaceMouse ??= new SpaceMouseConfig();
             config.Viewport ??= new ViewportConfig();
+            config.Viewport.SupportDisplay =
+                (config.Viewport.SupportDisplay ?? new SupportDisplayConfig()).Normalize();
             config.Placement ??= new PlacementConfig();
             config.Supports ??= new SupportConfig();
             config.Supports.Normalize();

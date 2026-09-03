@@ -202,6 +202,25 @@
                 <ScrollViewer IsVisible="{Binding IsSupportView}">
                     <StackPanel>
                         <TextBlock Text="Support" Classes="section" />
+                        <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
+                            <TextBlock Text="Display" Classes="label" />
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding SupportSettings.SupportDisplayModes}"
+                                      SelectedIndex="{Binding SupportSettings.SupportDisplayModeIndex, Mode=TwoWay}" />
+                        </Grid>
+                        <WrapPanel Margin="0,2,0,4"
+                                   IsEnabled="{Binding SupportSettings.IsSupportElementVisibilityAvailable}">
+                            <CheckBox Content="Tips" IsChecked="{Binding SupportSettings.ShowSupportTips}" Margin="0,0,8,0" />
+                            <CheckBox Content="Minis" IsChecked="{Binding SupportSettings.ShowMiniSupports}" Margin="0,0,8,0" />
+                            <CheckBox Content="Branches" IsChecked="{Binding SupportSettings.ShowSupportBranches}" Margin="0,0,8,0" />
+                            <CheckBox Content="Trunks" IsChecked="{Binding SupportSettings.ShowSupportTrunks}" Margin="0,0,8,0" />
+                            <CheckBox Content="Bases" IsChecked="{Binding SupportSettings.ShowSupportBases}" Margin="0,0,8,0" />
+                            <CheckBox Content="Bracing" IsChecked="{Binding SupportSettings.ShowSupportBracing}" />
+                        </WrapPanel>
+                        <CheckBox Content="Contact points over transparent supports"
+                                  IsChecked="{Binding SupportSettings.ShowContactPointsInTransparent}"
+                                  IsVisible="{Binding SupportSettings.IsTransparentSupportDisplay}"
+                                  Margin="0,0,0,4" />
                         <ToggleButton Content="Select Through" IsChecked="{Binding SelectThroughSupports}"
                                       HorizontalAlignment="Stretch"
                                       ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
@@ -262,6 +281,7 @@
                                           IsVisible="{Binding IsModelView}"
                                           SupportSelectionMode="{Binding IsSupportView}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
+                                          SupportDisplay="{Binding SupportSettings.SupportDisplay}"
                                           ShowMoveGizmo="{Binding ShowMoveGizmo}"
                                           ShowRotateGizmo="{Binding ShowRotateGizmo}"
                                           ShowScaleGizmo="{Binding ShowScaleGizmo}"

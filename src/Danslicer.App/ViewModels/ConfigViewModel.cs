@@ -16,6 +16,11 @@ public sealed class ConfigViewModel : ViewModelBase
     private ViewportConfig Viewport => AppConfig.Current.Viewport;
     private SupportConfig Supports => AppConfig.Current.Supports;
 
+    public SupportDisplayConfig SupportDisplay => Viewport.SupportDisplay;
+
+    public IReadOnlyList<string> SupportDisplayModes { get; } =
+        ["Full", "Contact points", "Lines", "Tips", "Transparent"];
+
     public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
         Enum.GetValues<SupportBaseShape>();
 
@@ -27,6 +32,18 @@ public sealed class ConfigViewModel : ViewModelBase
         apply();
         AppConfig.Save();
         OnPropertyChanged(property);
+        Saved?.Invoke();
+    }
+
+    private void UpdateSupportDisplay(Func<SupportDisplayConfig, SupportDisplayConfig> apply,
+        [CallerMemberName] string? property = null)
+    {
+        Viewport.SupportDisplay = apply(Viewport.SupportDisplay);
+        AppConfig.Save();
+        OnPropertyChanged(property);
+        OnPropertyChanged(nameof(SupportDisplay));
+        OnPropertyChanged(nameof(IsSupportElementVisibilityAvailable));
+        OnPropertyChanged(nameof(IsTransparentSupportDisplay));
         Saved?.Invoke();
     }
 
@@ -68,6 +85,66 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Viewport.OverhangCheckerSizeMm;
         set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
+    }
+
+    public int SupportDisplayModeIndex
+    {
+        get => (int)SupportDisplay.Mode;
+        set => UpdateSupportDisplay(display => display with
+        {
+            Mode = Enum.IsDefined((SupportDisplayMode)value)
+                ? (SupportDisplayMode)value
+                : SupportDisplayMode.Full,
+        });
+    }
+
+    public bool IsSupportElementVisibilityAvailable =>
+        SupportDisplay.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent;
+
+    public bool IsTransparentSupportDisplay =>
+        SupportDisplay.Mode == SupportDisplayMode.Transparent;
+
+    public bool ShowContactPointsInTransparent
+    {
+        get => SupportDisplay.ShowContactPointsInTransparent;
+        set => UpdateSupportDisplay(display => display with
+            { ShowContactPointsInTransparent = value });
+    }
+
+    public bool ShowSupportTips
+    {
+        get => SupportDisplay.ShowTips;
+        set => UpdateSupportDisplay(display => display with { ShowTips = value });
+    }
+
+    public bool ShowMiniSupports
+    {
+        get => SupportDisplay.ShowMiniSupports;
+        set => UpdateSupportDisplay(display => display with { ShowMiniSupports = value });
+    }
+
+    public bool ShowSupportBranches
+    {
+        get => SupportDisplay.ShowBranches;
+        set => UpdateSupportDisplay(display => display with { ShowBranches = value });
+    }
+
+    public bool ShowSupportTrunks
+    {
+        get => SupportDisplay.ShowTrunks;
+        set => UpdateSupportDisplay(display => display with { ShowTrunks = value });
+    }
+
+    public bool ShowSupportBases
+    {
+        get => SupportDisplay.ShowBases;
+        set => UpdateSupportDisplay(display => display with { ShowBases = value });
+    }
+
+    public bool ShowSupportBracing
+    {
+        get => SupportDisplay.ShowBracing;
+        set => UpdateSupportDisplay(display => display with { ShowBracing = value });
     }
 
     // Supports
