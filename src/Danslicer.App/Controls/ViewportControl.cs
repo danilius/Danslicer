@@ -270,6 +270,15 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             var m = MouseVector(e);
 
+            if (_layFlatPick)
+            {
+                _layFlatPick = false;
+                TryLayFlat(m);
+                UpdateStatus();
+                e.Handled = true;
+                return;
+            }
+
             // Gizmo handle: start a constrained modal that ends on release.
             UpdateGizmo();
             var handle = _gizmo.HitTest(Camera, m, (float)Bounds.Width, (float)Bounds.Height);
@@ -374,8 +383,11 @@ public sealed class ViewportControl : OpenGlControlBase
         e.Handled = true;
     }
 
-    private SceneObject? PickObject(Vector2 mouse)
+    private SceneObject? PickObject(Vector2 mouse) => PickFace(mouse, out _);
+
+    private SceneObject? PickFace(Vector2 mouse, out int triangle)
     {
+        triangle = -1;
         if (Document is null) return null;
         var ray = Camera.ScreenToRay(mouse.X, mouse.Y, (float)Bounds.Width, (float)Bounds.Height);
         SceneObject? best = null;
@@ -386,16 +398,38 @@ public sealed class ViewportControl : OpenGlControlBase
             var world = obj.Transform.ToMatrix();
             if (!Matrix4x4.Invert(world, out var toLocal)) continue;
             var local = ray.Transform(toLocal);
-            if (local.IntersectMesh(obj.Mesh, out _) is not { } t) continue;
+            if (local.IntersectMesh(obj.Mesh, out var tri) is not { } t) continue;
             var hitWorld = Vector3.Transform(local.At(t), world);
             var d = Vector3.Distance(ray.Origin, hitWorld);
             if (d < bestDistance)
             {
                 bestDistance = d;
                 best = obj;
+                triangle = tri;
             }
         }
         return best;
+    }
+
+    // ----- Lay flat on face -----
+
+    private bool _layFlatPick;
+
+    /// <summary>Arms lay-flat: the next left click on a face lays the object on it.</summary>
+    public void BeginLayFlatPick()
+    {
+        _layFlatPick = true;
+        UpdateStatus();
+    }
+
+    private bool TryLayFlat(Vector2 mouse)
+    {
+        if (Document is null) return false;
+        var hit = PickFace(mouse, out var triangle);
+        if (hit is null || triangle < 0) return false;
+        Document.Select(hit);
+        Document.LayFlatOnFace(hit, triangle);
+        return true;
     }
 
     // ----- Snapping -----
@@ -464,6 +498,9 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.S when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Scale, mouse, w, h); break;
                 case Key.A when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.ClearSelection(); break;
                 case Key.A when !ctrl: Document.SelectAll(); break;
+                // Lay flat on the face under the cursor; with nothing under it, arm a click pick.
+                case Key.F when !ctrl: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
+                case Key.Escape when _layFlatPick: _layFlatPick = false; break;
                 case Key.Escape: Document.ClearSelection(); break;
                 case Key.Home: FrameAll(); break;
                 case Key.OemPeriod: case Key.Decimal: FrameSelected(); break;
@@ -503,9 +540,14 @@ public sealed class ViewportControl : OpenGlControlBase
             StatusText = _modal.StatusText;
             return;
         }
+        if (_layFlatPick)
+        {
+            StatusText = "Lay flat: click a face to rest it on the plate · Esc cancel";
+            return;
+        }
         var projection = Camera.Orthographic ? "Ortho" : "Persp";
         var snap = SnapEnabled ? "Snap on" : "Snap off";
-        StatusText = $"{projection} · {snap}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
+        StatusText = $"{projection} · {snap}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)

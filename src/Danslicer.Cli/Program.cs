@@ -30,15 +30,15 @@ switch (args[0])
 void Usage()
 {
     Console.Error.WriteLine("Usage:");
-    Console.Error.WriteLine("  danslicer info <file.stl>");
-    Console.Error.WriteLine("  danslicer slice <file.stl>... -o <out.pwmx> [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
+    Console.Error.WriteLine("  danslicer info <file.stl|file.obj>");
+    Console.Error.WriteLine("  danslicer slice <file.stl|file.obj>... -o <out.pwmx> [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
     Console.Error.WriteLine("  danslicer inspect <file.pwmx>");
 }
 
 int Info(string[] a)
 {
     if (a.Length < 1) { Usage(); return 1; }
-    var mesh = StlReader.Read(a[0]);
+    var mesh = MeshFile.Read(a[0]);
     var b = mesh.Bounds;
     var size = b.Size;
     Console.WriteLine($"File:      {a[0]}");
@@ -75,7 +75,7 @@ int Slice(string[] a)
     var objects = new List<SceneObject>();
     foreach (var path in inputs)
     {
-        var mesh = StlReader.Read(path);
+        var mesh = MeshFile.Read(path);
         var obj = new SceneObject(Path.GetFileNameWithoutExtension(path), mesh);
         var b = mesh.Bounds;
         obj.Transform = Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, -b.Min.Z) };

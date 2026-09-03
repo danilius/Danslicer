@@ -1,3 +1,4 @@
+using System.Numerics;
 using Danslicer.Core.Commands;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
@@ -96,5 +97,39 @@ public sealed class Document
             commands.Add(new SetTransformCommand(o, before, after, "Drop to plate"));
         }
         if (commands.Count > 0) Execute(new CompositeCommand("Drop to plate", commands));
+    }
+
+    /// <summary>
+    /// Rotates the object so the picked face (grown into its near-coplanar cluster) points straight
+    /// down, then rests it on the plate. One undo step. Rotation pivots on the world-bounds centre.
+    /// </summary>
+    public void LayFlatOnFace(SceneObject obj, int seedTriangle)
+    {
+        var mesh = obj.Mesh;
+        var before = obj.Transform;
+        var cluster = Geometry.LayFlat.Cluster(mesh, seedTriangle);
+        var normal = Geometry.LayFlat.ClusterWorldNormal(mesh, cluster, before.ToMatrix());
+        var arc = Geometry.LayFlat.RotationToPlate(normal);
+
+        var pivot = obj.WorldBounds.Center;
+        var after = before with
+        {
+            Rotation = Rotations.Compose(before.Rotation, arc),
+            Translation = Vector3.Transform(before.Translation - pivot, arc) + pivot,
+        };
+
+        // Exact drop: the axis-aligned WorldBounds of a rotated box overestimates, which would leave
+        // the face floating above the plate, so scan the vertices under the new matrix.
+        var m = after.ToMatrix();
+        var minZ = float.PositiveInfinity;
+        foreach (var p in mesh.Positions)
+        {
+            var z = Vector3.Transform(p, m).Z;
+            if (z < minZ) minZ = z;
+        }
+        after = after with { Translation = after.Translation with { Z = after.Translation.Z - minZ } };
+
+        if (after == before) return;
+        Execute(new SetTransformCommand(obj, before, after, "Lay flat on face"));
     }
 }

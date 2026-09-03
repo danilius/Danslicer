@@ -39,11 +39,13 @@ public partial class MainWindow : Window
         if (ViewModel is null) return;
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Import STL",
+            Title = "Import mesh",
             AllowMultiple = true,
             FileTypeFilter = new[]
             {
+                new FilePickerFileType("Meshes") { Patterns = new[] { "*.stl", "*.obj" } },
                 new FilePickerFileType("STL meshes") { Patterns = new[] { "*.stl" } },
+                new FilePickerFileType("OBJ meshes") { Patterns = new[] { "*.obj" } },
                 FilePickerFileTypes.All,
             },
         });
@@ -54,7 +56,7 @@ public partial class MainWindow : Window
             if (path is null) continue;
             try
             {
-                ViewModel.ImportStl(path);
+                ViewModel.ImportMesh(path);
             }
             catch (Exception ex)
             {
@@ -83,6 +85,12 @@ public partial class MainWindow : Window
         var path = file?.TryGetLocalPath();
         if (path is null) return;
         await ViewModel.ExportAsync(path);
+    }
+
+    private void OnLayFlatClick(object? sender, RoutedEventArgs e)
+    {
+        Viewport.BeginLayFlatPick();
+        Viewport.Focus();
     }
 
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
