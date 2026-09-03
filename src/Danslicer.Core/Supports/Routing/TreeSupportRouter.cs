@@ -26,6 +26,11 @@ public sealed record TreeRoutingOptions
     public float MiniSupportConeLength { get; init; } = 1f;
     public float MiniSupportMaxLength { get; init; } = 5f;
     public int MiniSupportMaxFanPerBranchEnd { get; init; } = 4;
+    /// <summary>
+    /// When true, a refused regular tip may be retried as a mini support. Disabled by default so
+    /// structurally required regular contacts remain visible as honest refusals.
+    /// </summary>
+    public bool RefusedTipsFallBackToMini { get; init; }
     /// <summary>Pitch of the plate-origin-aligned square base grid.</summary>
     public float BaseGridPitch { get; init; } = 20f;
     /// <summary>Directions tried when a branch must swing around an obstacle or reach a trunk.</summary>
@@ -94,7 +99,13 @@ public sealed class TreeSupportRouter
             var reason = RoutingFailureReason.NoClearStep;
             if (!item.Tip.MiniSupportOnly && RouteOne(item.Tip, options, state, out reason))
                 continue;
-            pendingMini.Add((item.Tip, item.Index, reason));
+            if (item.Tip.MiniSupportOnly || options.RefusedTipsFallBackToMini)
+                pendingMini.Add((item.Tip, item.Index, reason));
+            else
+            {
+                unrouted.Add(item.Tip);
+                failures.Add(new RoutingFailure(item.Tip, reason));
+            }
         }
         foreach (var pending in pendingMini.OrderByDescending(item => item.Tip.SurfacePoint.Z)
                      .ThenBy(item => item.Index))
