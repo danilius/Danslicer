@@ -20,6 +20,11 @@ Deliberately NOT queued: viewport G-buffer pass (needs interactive screen checks
 anything touching the user's pending decisions (grid/pitch verdict, island tweaks,
 recipes design).
 
+**Qwen lane CLOSED for the night** (user shut down Unsloth ~01:00 2026-09-04 after
+7 merged test files; the API at 127.0.0.1:8888 is DOWN — do not call it until the
+user restarts Unsloth; driver scripts and the hardened-brief pattern live in
+`Danslicer-qwen\Qwen\qwen_overnight.py`).
+
 **Later that night the user EXTENDED the queue** (supersedes the older "do not brief
 printer/resin editors" note): 012b preset editor with live 3D preview pane, sample
 shapes incl. current selection, stats strip (user liked Claude's additions); 015
