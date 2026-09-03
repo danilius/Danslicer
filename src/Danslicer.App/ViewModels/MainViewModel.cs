@@ -50,6 +50,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial string Title { get; set; } = "Danslicer";
 
+    public string? ProjectPath { get; private set; }
+
     [ObservableProperty]
     public partial string ViewportStatus { get; set; } = "";
 
@@ -375,6 +377,31 @@ public partial class MainViewModel : ViewModelBase
         var b = mesh.Bounds;
         obj.Transform = Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, -b.Min.Z) };
         Document.AddObject(obj);
+    }
+
+    public void SaveProject(string path, ProjectViewState viewState)
+    {
+        ProjectFile.Save(path, Document, viewState);
+        ProjectPath = System.IO.Path.GetFullPath(path);
+        Title = $"{System.IO.Path.GetFileNameWithoutExtension(ProjectPath)} — Danslicer";
+        ViewportStatus = $"Saved {System.IO.Path.GetFileName(ProjectPath)}.";
+    }
+
+    public ProjectViewState OpenProject(string path)
+    {
+        var loaded = ProjectFile.Load(path);
+        Document.ReplaceWith(loaded.Document);
+        PrintSettings.Refresh();
+        SelectedObject = null;
+        LastSlice = null;
+        PreviewImage = null;
+        PreviewLayerText = "";
+        SliceSummary = "Not sliced yet.";
+        ViewMode = loaded.ViewState.WorkspaceMode;
+        ProjectPath = System.IO.Path.GetFullPath(path);
+        Title = $"{System.IO.Path.GetFileNameWithoutExtension(ProjectPath)} — Danslicer";
+        ViewportStatus = $"Opened {System.IO.Path.GetFileName(ProjectPath)}.";
+        return loaded.ViewState;
     }
 
     [RelayCommand(CanExecute = nameof(CanUndo))]

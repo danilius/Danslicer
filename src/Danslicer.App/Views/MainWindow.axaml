@@ -71,6 +71,10 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
+                <MenuItem Header="_Open Project..." Click="OnOpenProjectClick" InputGesture="Ctrl+O" />
+                <MenuItem Header="_Save Project" Click="OnSaveProjectClick" InputGesture="Ctrl+S" />
+                <MenuItem Header="Save Project _As..." Click="OnSaveProjectAsClick" InputGesture="Ctrl+Shift+S" />
+                <Separator />
                 <MenuItem Header="_Import STL..." Click="OnImportClick" />
                 <MenuItem Header="_Export Print File..." Click="OnExportClick"
                           IsVisible="{Binding IsLayersView}" />

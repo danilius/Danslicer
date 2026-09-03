@@ -237,6 +237,31 @@ public sealed class SupportGraph
         Changed?.Invoke();
     }
 
+    internal void ReplaceWith(IEnumerable<SupportNode> nodes, IEnumerable<SupportSegment> segments)
+    {
+        _nodes.Clear();
+        _segments.Clear();
+        _segmentsByNode.Clear();
+        foreach (var node in nodes)
+        {
+            if (!_nodes.TryAdd(node.Id, node))
+                throw new InvalidOperationException($"Node {node.Id} is duplicated in the graph.");
+            _segmentsByNode.Add(node.Id, []);
+        }
+        foreach (var segment in segments)
+        {
+            if (segment.NodeA == segment.NodeB)
+                throw new InvalidOperationException("A segment cannot join a node to itself.");
+            if (!_nodes.ContainsKey(segment.NodeA) || !_nodes.ContainsKey(segment.NodeB))
+                throw new InvalidOperationException("Both segment endpoints must be in the graph.");
+            if (!_segments.TryAdd(segment.Id, segment))
+                throw new InvalidOperationException($"Segment {segment.Id} is duplicated in the graph.");
+            _segmentsByNode[segment.NodeA].Add(segment);
+            _segmentsByNode[segment.NodeB].Add(segment);
+        }
+        Changed?.Invoke();
+    }
+
     public void RemoveSegment(Guid id)
     {
         RemoveSegmentInternal(id);

@@ -73,6 +73,33 @@ public sealed class Document
     public bool Undo() => History.Undo();
     public bool Redo() => History.Redo();
 
+    /// <summary>
+    /// Replaces the persisted contents while retaining this document instance and its UI event
+    /// subscriptions. Selection and undo history are intentionally fresh after an open.
+    /// User-level support-generation preferences are not project state and remain unchanged.
+    /// </summary>
+    public void ReplaceWith(Document source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        _selection.Clear();
+        _supportSelection.Clear();
+        SelectionChanged?.Invoke();
+        SupportSelectionChanged?.Invoke();
+
+        PrintSettings = source.PrintSettings;
+        Printer = source.Printer;
+        Scene.ReplaceWith(source.Scene.Objects.Select(obj => new SceneObject(obj.Name, obj.Mesh, obj.Id)
+        {
+            Transform = obj.Transform,
+            RenderState = obj.RenderState,
+        }));
+        Supports.ReplaceWith(source.Supports.Nodes.Select(node => node.Clone()),
+            source.Supports.Segments.Select(segment => segment.Clone()));
+        _meshObstacleCache = null;
+        _meshObstacleSignature = null;
+        History.Clear();
+    }
+
     /// <summary>Raise Changed for transient edits (e.g. live drag) that bypass the command stack.</summary>
     public void NotifyTransientChange() => Changed?.Invoke();
 
