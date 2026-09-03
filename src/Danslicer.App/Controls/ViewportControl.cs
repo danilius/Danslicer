@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Danslicer.App.Editing;
 using Danslicer.App.Input;
 using Danslicer.Core;
+using Danslicer.Core.Commands;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Render;
@@ -274,6 +275,14 @@ public sealed class ViewportControl : OpenGlControlBase
             return;
         }
 
+        if (_tipDrag is not null)
+        {
+            if (props.IsLeftButtonPressed) CommitTipDrag();
+            else if (props.IsRightButtonPressed) CancelTipDrag();
+            e.Handled = true;
+            return;
+        }
+
         if (_modal is { IsActive: true })
         {
             if (props.IsLeftButtonPressed) _modal.Confirm();
@@ -360,6 +369,10 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             Camera.Pan(dx, dy, (float)Bounds.Height);
             Redraw();
+        }
+        else if (_tipDrag is not null)
+        {
+            UpdateTipDrag(MouseVector(e));
         }
         else if (_modal is { IsActive: true })
         {
@@ -485,6 +498,71 @@ public sealed class ViewportControl : OpenGlControlBase
         if (hit is null) return false;
         Document.AddManualSupport(hit, point, normal);
         return true;
+    }
+
+    // ----- Tip move (G with a single tip selected) -----
+
+    private Guid? _tipDrag;
+    private List<(Danslicer.Core.Supports.SupportNode Node, Vector3 Position, Vector3 Normal)>? _tipDragBefore;
+
+    private Guid? SelectedTip()
+    {
+        if (Document is null || Document.SupportSelection.Count != 1) return null;
+        var id = Document.SupportSelection.First();
+        return Document.Supports.TryGetNode(id, out var node) && node.Type == Danslicer.Core.Supports.SupportNodeType.Tip
+            ? id : null;
+    }
+
+    private void BeginTipDrag(Guid tipId)
+    {
+        if (Document is null) return;
+        _tipDragBefore = Danslicer.Core.Supports.SupportEditing.AffectedByTipMove(Document.Supports, tipId)
+            .Select(n => (n, n.Position, n.SurfaceNormal)).ToList();
+        _tipDrag = tipId;
+        UpdateStatus();
+    }
+
+    private void UpdateTipDrag(Vector2 mouse)
+    {
+        if (Document is null || _tipDrag is not { } tipId) return;
+        var tip = Document.Supports.GetNode(tipId);
+        var hit = PickSurface(mouse, out _, out var point, out var normal);
+        if (hit is null) return;
+        // Constrained to the mesh the tip contacts; a tip without a recorded contact takes any.
+        if (tip.ContactObjectId is { } contactId && hit.Id != contactId) return;
+        Danslicer.Core.Supports.SupportEditing.MoveTipVertical(Document.Supports, tipId, point, normal);
+    }
+
+    private void CommitTipDrag()
+    {
+        if (Document is not null && _tipDrag is not null && _tipDragBefore is not null)
+        {
+            var entries = _tipDragBefore
+                .Select(b => new SetSupportPositionsCommand.Entry(b.Node, b.Position, b.Normal, b.Node.Position, b.Node.SurfaceNormal))
+                .Where(e => e.BeforePosition != e.AfterPosition || e.BeforeNormal != e.AfterNormal)
+                .ToList();
+            if (entries.Count > 0)
+                Document.Execute(new SetSupportPositionsCommand(Document.Supports, entries, "Move tip"));
+        }
+        _tipDrag = null;
+        _tipDragBefore = null;
+        UpdateStatus();
+    }
+
+    private void CancelTipDrag()
+    {
+        if (Document is not null && _tipDragBefore is not null)
+        {
+            foreach (var (node, position, normal) in _tipDragBefore)
+            {
+                node.Position = position;
+                node.SurfaceNormal = normal;
+            }
+            Document.Supports.NotifyChanged();
+        }
+        _tipDrag = null;
+        _tipDragBefore = null;
+        UpdateStatus();
     }
 
     private const float SupportPickRadiusPixels = 8f;
@@ -632,6 +710,10 @@ public sealed class ViewportControl : OpenGlControlBase
             var h = (float)Bounds.Height;
             switch (e.Key)
             {
+                case Key.Enter when _tipDrag is not null: CommitTipDrag(); break;
+                case Key.Escape when _tipDrag is not null: CancelTipDrag(); break;
+                // G with one tip selected moves the tip along the surface; otherwise the object modal.
+                case Key.G when !ctrl && SelectedTip() is { } tipId: BeginTipDrag(tipId); break;
                 case Key.G when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Move, mouse, w, h); break;
                 case Key.R when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Rotate, mouse, w, h); break;
                 case Key.S when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Scale, mouse, w, h); break;
@@ -683,6 +765,11 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_modal is { IsActive: true })
         {
             StatusText = _modal.StatusText;
+            return;
+        }
+        if (_tipDrag is not null)
+        {
+            StatusText = "Move tip: drag over the surface · LMB/Enter confirm · RMB/Esc cancel";
             return;
         }
         if (_layFlatPick)
