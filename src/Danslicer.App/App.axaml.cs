@@ -23,8 +23,8 @@ public partial class App : Application
             // Allow `Danslicer.App model.stl` for quick testing.
             foreach (var arg in desktop.Args ?? Array.Empty<string>())
             {
-                if (File.Exists(arg) && arg.EndsWith(".stl", StringComparison.OrdinalIgnoreCase))
-                    vm.ImportStl(arg);
+                if (File.Exists(arg) && Danslicer.Core.IO.MeshFile.IsSupported(arg))
+                    vm.ImportMesh(arg);
             }
         }
 
