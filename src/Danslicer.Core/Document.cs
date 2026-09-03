@@ -366,6 +366,12 @@ public sealed class Document
         return _meshObstacleCache;
     }
 
+    /// <summary>Raycasts the cached world-space mesh BVH, optionally restricting object ids.</summary>
+    public ObstacleRayHit? RaycastMeshes(Vector3 origin, Vector3 direction, float maxDistance,
+        IReadOnlySet<Guid>? includedObjectIds = null) =>
+        MeshObstacles().Raycast(origin, direction, maxDistance,
+            includedObjectIds is null ? null : tag => tag is Guid id && includedObjectIds.Contains(id));
+
     /// <summary>
     /// Adds a manual support at a picked surface point, routed by the tree router into the spec
     /// anatomy (cone tip, optional branch, vertical trunk, disc base) against every object and

@@ -503,12 +503,16 @@ public sealed class ViewportControl : OpenGlControlBase
             {
                 var w = (float)Bounds.Width;
                 var h = (float)Bounds.Height;
+                var visibleObjectIds = Document.Scene.Objects
+                    .Where(obj => obj.RenderState != RenderState.Hidden)
+                    .Select(obj => obj.Id)
+                    .ToHashSet();
                 var ids = Danslicer.Core.Supports.SupportMarqueeSelection.ElementsInside(
                     Document.Supports,
                     point => Camera.WorldToScreen(point, w, h),
                     new Vector2((float)start.X, (float)start.Y),
                     new Vector2((float)end.X, (float)end.Y),
-                    SelectThroughSupports ? null : IsSupportPointVisible);
+                    SelectThroughSupports ? null : point => IsSupportPointVisible(point, visibleObjectIds));
                 Document.SelectSupportElements(ids, _marqueeAdditive);
             }
             else if (Document is not null && _pendingClickSupport is { } element)
@@ -768,14 +772,16 @@ public sealed class ViewportControl : OpenGlControlBase
         return Math.Sqrt(dx * dx + dy * dy);
     }
 
-    private bool IsSupportPointVisible(Vector3 point)
+    private bool IsSupportPointVisible(Vector3 point, IReadOnlySet<Guid> visibleObjectIds)
     {
+        if (Document is null) return false;
         var w = (float)Bounds.Width;
         var h = (float)Bounds.Height;
         if (Camera.WorldToScreen(point, w, h) is not { } screen) return false;
-        var hit = PickSurface(screen, out _, out var surface, out _);
-        return hit is null || Vector3.Distance(Camera.Eye, point) <=
-            Vector3.Distance(Camera.Eye, surface) + 0.5f;
+        var ray = Camera.ScreenToRay(screen.X, screen.Y, w, h);
+        var hit = Document.RaycastMeshes(ray.Origin, ray.Direction, float.PositiveInfinity,
+            visibleObjectIds);
+        return hit is null || Vector3.Distance(Camera.Eye, point) <= hit.Value.Distance + 0.5f;
     }
 
     private static readonly Vector4 SupportSelectedColor = new(1f, 1f, 1f, 1f);

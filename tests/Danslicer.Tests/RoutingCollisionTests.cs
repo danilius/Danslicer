@@ -29,6 +29,35 @@ public sealed class RoutingCollisionTests
     }
 
     [Fact]
+    public void BvhRaycastAgreesWithLinearSceneAndHonoursFilter()
+    {
+        var random = new Random(16092026);
+        var linear = new LinearCollisionScene();
+        var bvh = new BvhCollisionScene();
+        for (var i = 0; i < 200; i++)
+        {
+            var centre = Point(random);
+            var a = centre + new Vector3(-0.7f, -0.5f, 0);
+            var b = centre + new Vector3(0.8f, -0.4f, 0.1f);
+            var c = centre + new Vector3(0, 0.9f, -0.1f);
+            var tag = i % 2 == 0 ? "even" : "odd";
+            linear.AddTriangle(a, b, c, tag);
+            bvh.AddTriangle(a, b, c, tag);
+        }
+
+        for (var i = 0; i < 250; i++)
+        {
+            var origin = Point(random);
+            var direction = Direction(random);
+            if (direction.LengthSquared() < 1e-6f) direction = Vector3.UnitZ;
+            AssertRayHitsEqual(linear.Raycast(origin, direction, 50),
+                bvh.Raycast(origin, direction, 50));
+            AssertRayHitsEqual(linear.Raycast(origin, direction, 50, tag => Equals(tag, "even")),
+                bvh.Raycast(origin, direction, 50, tag => Equals(tag, "even")));
+        }
+    }
+
+    [Fact]
     public void CapsuleDetectsTriangleFaceAndMissesOutsideRadius()
     {
         var scene = new LinearCollisionScene();
@@ -210,4 +239,13 @@ public sealed class RoutingCollisionTests
         random.NextSingle() * 2 - 1,
         random.NextSingle() * 2 - 1,
         random.NextSingle() * 2 - 1);
+
+    private static void AssertRayHitsEqual(ObstacleRayHit? expected, ObstacleRayHit? actual)
+    {
+        Assert.Equal(expected is null, actual is null);
+        if (expected is not { } expectedHit || actual is not { } actualHit) return;
+        Assert.Equal(expectedHit.Tag, actualHit.Tag);
+        Assert.Equal(expectedHit.Distance, actualHit.Distance, 4);
+        Assert.InRange(Vector3.Distance(expectedHit.Point, actualHit.Point), 0, 0.0001f);
+    }
 }

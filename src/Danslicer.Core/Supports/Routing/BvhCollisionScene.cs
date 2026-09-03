@@ -135,16 +135,41 @@ public sealed class BvhCollisionScene : ICollisionScene
         if (direction.LengthSquared() <= 1e-12f)
             throw new ArgumentException("Ray direction must be non-zero.", nameof(direction));
         direction = Vector3.Normalize(direction);
+        EnsureBuilt();
+        if (_root is null) return null;
+
+        var ray = new Ray(origin, direction);
         ObstacleRayHit? nearest = null;
-        foreach (var triangle in _triangles)
+        var nearestDistance = maxDistance;
+        var nearestTriangleIndex = int.MaxValue;
+        var stack = new Stack<Node>();
+        stack.Push(_root);
+        while (stack.Count > 0)
         {
-            if (obstacleFilter is not null && !obstacleFilter(triangle.Tag)) continue;
-            if (!GeometryDistance.RaycastTriangle(origin, direction, triangle.A, triangle.B,
-                    triangle.C, out var distance) || distance > maxDistance) continue;
-            if (nearest is not null && nearest.Value.Distance <= distance) continue;
-            var normal = Vector3.Cross(triangle.B - triangle.A, triangle.C - triangle.A);
-            normal = normal.LengthSquared() > 1e-12f ? Vector3.Normalize(normal) : Vector3.UnitZ;
-            nearest = new ObstacleRayHit(origin + direction * distance, normal, distance, triangle.Tag);
+            var node = stack.Pop();
+            if (!node.Bounds.IntersectsRay(ray, out var enter, out _) || enter > nearestDistance) continue;
+            if (!node.IsLeaf)
+            {
+                stack.Push(node.Left!);
+                stack.Push(node.Right!);
+                continue;
+            }
+
+            for (var i = node.Start; i < node.Start + node.Count; i++)
+            {
+                var primitive = _ordered[i];
+                if (primitive.Kind != PrimitiveKind.Triangle) continue;
+                var triangle = _triangles[primitive.Index];
+                if (obstacleFilter is not null && !obstacleFilter(triangle.Tag)) continue;
+                if (!GeometryDistance.RaycastTriangle(origin, direction, triangle.A, triangle.B,
+                        triangle.C, out var distance) || distance > nearestDistance) continue;
+                if (distance == nearestDistance && primitive.Index >= nearestTriangleIndex) continue;
+                var normal = Vector3.Cross(triangle.B - triangle.A, triangle.C - triangle.A);
+                normal = normal.LengthSquared() > 1e-12f ? Vector3.Normalize(normal) : Vector3.UnitZ;
+                nearestDistance = distance;
+                nearestTriangleIndex = primitive.Index;
+                nearest = new ObstacleRayHit(origin + direction * distance, normal, distance, triangle.Tag);
+            }
         }
         return nearest;
     }
