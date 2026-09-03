@@ -150,6 +150,33 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void HideSelectedSupportElementsIsOneUndoableCommand()
+    {
+        var doc = new Document();
+        var a = new SupportNode { Type = SupportNodeType.Tip, Position = Vector3.UnitZ };
+        var b = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        var segment = new SupportSegment
+            { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = b.Id };
+        doc.Supports.AddNode(a);
+        doc.Supports.AddNode(b);
+        doc.Supports.AddSegment(segment);
+        doc.SelectSupportElements([a.Id, segment.Id]);
+
+        doc.HideSelectedSupportElements();
+
+        Assert.True(a.Hidden);
+        Assert.True(segment.Hidden);
+        Assert.False(b.Hidden);
+        Assert.Empty(doc.SupportSelection);
+        Assert.Equal("Hide 2 support elements", doc.History.UndoName);
+
+        doc.Undo();
+        Assert.False(a.Hidden);
+        Assert.False(segment.Hidden);
+        Assert.False(b.Hidden);
+    }
+
+    [Fact]
     public void HideUnselectedSupportsKeepsTheSelectedElementsWholeTreeVisible()
     {
         var doc = new Document();

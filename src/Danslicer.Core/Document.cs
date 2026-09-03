@@ -599,6 +599,24 @@ public sealed class Document
         Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Hide {commands.Count} objects", commands));
     }
 
+    /// <summary>Hides exactly the selected support elements and deselects them. One undo step.</summary>
+    public void HideSelectedSupportElements()
+    {
+        if (_supportSelection.Count == 0) return;
+        var entries = new List<SetSupportHiddenCommand.Entry>();
+        foreach (var id in _supportSelection)
+        {
+            if (Supports.TryGetNode(id, out var node) && !node.Hidden)
+                entries.Add(new SetSupportHiddenCommand.Entry(value => node.Hidden = value, false, true));
+            else if (Supports.TryGetSegment(id, out var segment) && !segment.Hidden)
+                entries.Add(new SetSupportHiddenCommand.Entry(value => segment.Hidden = value, false, true));
+        }
+        ClearSupportSelection();
+        if (entries.Count > 0)
+            Execute(new SetSupportHiddenCommand(Supports, entries,
+                entries.Count == 1 ? "Hide support element" : $"Hide {entries.Count} support elements"));
+    }
+
     /// <summary>
     /// Hides every unselected support tree when support elements are selected. Selecting any node
     /// or segment retains its complete non-bracing connected component, because a support is one

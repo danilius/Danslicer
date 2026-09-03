@@ -74,6 +74,13 @@ Document selection APIs were also hardened: single-element, multi-element, whole
 paths all reject hidden nodes, hidden segments, and segments whose endpoint is hidden. Tests cover
 depth-filter bypass and every document-level hidden-element selection route.
 
+### 6. Support-mode H
+
+H is now mode-dependent: Layout hides selected objects exactly as before; Support hides exactly the
+selected support nodes/segments, clears their selection, and records all visibility changes as one
+undoable command. Shift+H remains Support mode's hide-unselected-trees operation and Alt+H remains
+the shared unhide-all operation. A core test covers exact-element scope, deselection and undo.
+
 ## Brief 10 — screen-test fixes
 
 The reported diagnosis matched the code, so no divergent finding was required before work.
@@ -139,5 +146,5 @@ UI structure.
 ## Verification
 
 - `dotnet build --no-restore`: clean, 0 warnings / 0 errors.
-- `dotnet test --no-restore`: **242 passed** after the final added tests (update if final run differs).
+- `dotnet test --no-restore`: **252 passed** after the final added tests.
 - No app launch, per the briefs; progress bar and marquee remain for user screen verification.

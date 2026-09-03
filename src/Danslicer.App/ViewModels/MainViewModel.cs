@@ -197,6 +197,7 @@ public partial class MainViewModel : ViewModelBase
         {
             HideUnselectedSupportsCommand.NotifyCanExecuteChanged();
             DeleteCommand.NotifyCanExecuteChanged();
+            HideCommand.NotifyCanExecuteChanged();
         };
         Document.Changed += OnDocumentChanged;
         OnDocumentChanged();
@@ -361,8 +362,19 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void DropToPlate() => Document.DropSelectionToPlate();
 
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void Hide() => Document.HideSelection();
+    [RelayCommand(CanExecute = nameof(CanHide))]
+    private void Hide()
+    {
+        if (ViewMode == WorkspaceMode.Layout) Document.HideSelection();
+        else if (ViewMode == WorkspaceMode.Support) Document.HideSelectedSupportElements();
+    }
+
+    private bool CanHide() => ViewMode switch
+    {
+        WorkspaceMode.Layout => HasSelection(),
+        WorkspaceMode.Support => HasSupportSelection(),
+        _ => false,
+    };
 
     [RelayCommand]
     private void UnhideAll() => Document.UnhideAll();
