@@ -130,8 +130,13 @@ public static class TipPlacer
     {
         if (ViolatesKeepClean(face, point, keepClean, keepCleanBvh, keepCleanDistance)) return;
         if (IsOnPlate(point, parameters)) return;
-        if (graphGrid.AnyWithin(point, minSpacing)) return;
-        if (placedGrid.AnyWithin(point, minSpacing)) return;
+        // Islands are exempt from general spacing: each island needs its own support, however
+        // close its neighbour is (teeth). They only dedup against a tip within IslandSpacingMm.
+        var effectiveSpacing = strategy == TipStrategy.Island
+            ? MathF.Min(minSpacing, MathF.Max(parameters.IslandSpacingMm, 1e-4f))
+            : minSpacing;
+        if (graphGrid.AnyWithin(point, effectiveSpacing)) return;
+        if (placedGrid.AnyWithin(point, effectiveSpacing)) return;
 
         var inward = Inward(outward);
         var diameter = DiameterFor(parameters.TipDiameterMm, strategy);

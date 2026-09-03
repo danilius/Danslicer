@@ -49,6 +49,37 @@ public class TipPlacementTests
     }
 
     [Fact]
+    public void AdjacentIslandsEachKeepTheirOwnTip()
+    {
+        // Two floating teeth 2 mm apart: separate newborn islands closer than MinSpacingMm.
+        // Each island physically needs its own support, so spacing must never cost an island
+        // its only tip (user screen test 2026-09-03: Drogon's teeth had no supports).
+        var mesh = Meshes.Merge(
+            Meshes.Box(0.5f, 0.5f, 3, new Vector3(0, 0, 5)),
+            Meshes.Box(0.5f, 0.5f, 3, new Vector3(2, 0, 5)));
+
+        var islands = Place(mesh, P(minIsland: 0.1f))
+            .Where(c => c.Strategy == TipStrategy.Island).ToList();
+
+        Assert.Equal(2, islands.Count);
+    }
+
+    [Fact]
+    public void CoincidentIslandTipsStillDedup()
+    {
+        // The island exemption is not a duplicate generator: two tips of the same island
+        // cluster (closer than IslandSpacingMm) collapse to one.
+        var mesh = Meshes.Merge(
+            Meshes.Box(0.5f, 0.5f, 3, new Vector3(0, 0, 5)),
+            Meshes.Box(0.5f, 0.5f, 3, new Vector3(0.2f, 0, 5)));
+
+        var islands = Place(mesh, P(minIsland: 0.05f))
+            .Where(c => c.Strategy == TipStrategy.Island).ToList();
+
+        Assert.Single(islands);
+    }
+
+    [Fact]
     public void SeedChangesOverhangSamplesButNotRequiredTips()
     {
         var mesh = Meshes.FloatingBox(10, 10, 10, z: 5);
