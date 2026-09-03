@@ -6,6 +6,9 @@ using Silk.NET.OpenGL;
 
 namespace Danslicer.Render;
 
+/// <summary>A derived mesh drawn in world space with a flat colour (e.g. support capsules).</summary>
+public readonly record struct AuxMeshDraw(Mesh Mesh, Vector3 Color, float Opacity);
+
 public sealed class RenderFrame
 {
     public required int Framebuffer { get; init; }
@@ -18,6 +21,8 @@ public sealed class RenderFrame
     public IReadOnlyList<OverlayLine> Overlay { get; init; } = Array.Empty<OverlayLine>();
     /// <summary>Lines drawn with depth testing, so scene geometry occludes them (e.g. supports).</summary>
     public IReadOnlyList<OverlayLine> DepthOverlay { get; init; } = Array.Empty<OverlayLine>();
+    /// <summary>Derived world-space meshes, e.g. support capsules. Drawn between the opaque and ghosted passes.</summary>
+    public IReadOnlyList<AuxMeshDraw> AuxMeshes { get; init; } = Array.Empty<AuxMeshDraw>();
     /// <summary>Tint faces that overhang more than <see cref="OverhangAngleDegrees"/> from vertical.</summary>
     public bool ShowOverhangs { get; init; }
     /// <summary>Overhang threshold measured from the vertical wall: 45 tints anything steeper.</summary>
@@ -76,9 +81,10 @@ public sealed class SceneRenderer : IDisposable
         var view = frame.Camera.View;
         var projection = frame.Camera.Projection(aspect);
 
-        PruneMeshCache(frame.Scene);
+        PruneMeshCache(frame);
         DrawPlate(frame.Printer, view, projection);
         DrawObjects(frame, view, projection, ghosted: false);
+        DrawAuxMeshes(frame, view, projection);
         DrawObjects(frame, view, projection, ghosted: true);
         DrawLines(frame, view * projection);
 
@@ -139,6 +145,35 @@ public sealed class SceneRenderer : IDisposable
         {
             gl.Disable(EnableCap.Blend);
             gl.DepthMask(true);
+        }
+    }
+
+    private void DrawAuxMeshes(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection)
+    {
+        if (frame.AuxMeshes.Count == 0) return;
+        var gl = _gl;
+        foreach (var draw in frame.AuxMeshes)
+        {
+            if (!_meshes.TryGetValue(draw.Mesh, out var gpu))
+            {
+                gpu = new GpuMesh(gl, draw.Mesh);
+                _meshes[draw.Mesh] = gpu;
+            }
+
+            var faded = draw.Opacity < 1f;
+            if (faded)
+            {
+                gl.Enable(EnableCap.Blend);
+                gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+                gl.DepthMask(false);
+            }
+            BindMeshShader(Matrix4x4.Identity, view, projection, draw.Color, draw.Opacity, backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f);
+            gpu.Draw();
+            if (faded)
+            {
+                gl.Disable(EnableCap.Blend);
+                gl.DepthMask(true);
+            }
         }
     }
 
@@ -227,10 +262,11 @@ public sealed class SceneRenderer : IDisposable
         _depthLines.Add(Vector3.Zero, new Vector3(0, 0, 20f), new Vector4(0.35f, 0.55f, 0.95f, 0.9f));
     }
 
-    private void PruneMeshCache(Scene scene)
+    private void PruneMeshCache(RenderFrame frame)
     {
         if (_meshes.Count == 0) return;
-        var live = new HashSet<Mesh>(scene.Objects.Select(o => o.Mesh));
+        var live = new HashSet<Mesh>(frame.Scene.Objects.Select(o => o.Mesh));
+        foreach (var draw in frame.AuxMeshes) live.Add(draw.Mesh);
         foreach (var (mesh, gpu) in _meshes.ToList())
         {
             if (live.Contains(mesh)) continue;

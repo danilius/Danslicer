@@ -58,6 +58,8 @@ public sealed class ViewportControl : OpenGlControlBase
     private bool _ctrlHeld;
     private readonly List<OverlayLine> _overlay = new();
     private readonly List<OverlayLine> _depthOverlay = new();
+    private readonly List<AuxMeshDraw> _supportMeshes = new();
+    private bool _supportMeshesDirty = true;
     private ISixAxisInput? _sixAxis;
     private DispatcherTimer? _sixAxisTimer;
 
@@ -117,6 +119,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 _subscribed.Changed -= Redraw;
                 _subscribed.SelectionChanged -= Redraw;
                 _subscribed.SupportSelectionChanged -= Redraw;
+                _subscribed.SupportSelectionChanged -= MarkSupportMeshesDirty;
+                _subscribed.Supports.Changed -= MarkSupportMeshesDirty;
             }
             _subscribed = Document;
             _modal = null;
@@ -125,8 +129,11 @@ public sealed class ViewportControl : OpenGlControlBase
                 _subscribed.Changed += Redraw;
                 _subscribed.SelectionChanged += Redraw;
                 _subscribed.SupportSelectionChanged += Redraw;
+                _subscribed.SupportSelectionChanged += MarkSupportMeshesDirty;
+                _subscribed.Supports.Changed += MarkSupportMeshesDirty;
                 _modal = new ModalTransform(_subscribed, Camera);
             }
+            _supportMeshesDirty = true;
             Redraw();
         }
         else if (change.Property == ShowMoveGizmoProperty || change.Property == ShowRotateGizmoProperty ||
@@ -177,6 +184,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
         _overlay.Clear();
         _depthOverlay.Clear();
+        if (_supportMeshesDirty) RebuildSupportMeshes();
         AppendSupportLines(_depthOverlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         UpdateGizmo();
@@ -194,6 +202,7 @@ public sealed class ViewportControl : OpenGlControlBase
             Printer = Document.Printer,
             Overlay = _overlay,
             DepthOverlay = _depthOverlay,
+            AuxMeshes = _supportMeshes,
             ShowOverhangs = ShowOverhangs,
             OverhangAngleDegrees = Configuration.AppConfig.Current.Viewport.OverhangAngleDegrees,
         });
@@ -619,27 +628,45 @@ public sealed class ViewportControl : OpenGlControlBase
     }
 
     private static readonly Vector4 SupportSelectedColor = new(1f, 1f, 1f, 1f);
+    private const float DisabledSupportOpacity = 0.35f;
+
+    private void MarkSupportMeshesDirty()
+    {
+        _supportMeshesDirty = true;
+        Redraw();
+    }
+
+    /// <summary>
+    /// Rebuilds the capsule meshes for support segments — the shaded twin of the slice geometry.
+    /// Tips stay as overlay crosses: a sphere at true tip diameter would hide inside the neck.
+    /// </summary>
+    private void RebuildSupportMeshes()
+    {
+        _supportMeshesDirty = false;
+        _supportMeshes.Clear();
+        var supports = Document?.Supports;
+        if (Document is null || supports is null) return;
+
+        foreach (var part in Danslicer.Core.Supports.SupportRenderMesh.Build(supports, Document.IsSupportSelected))
+        {
+            var color = part.Selected ? SupportSelectedColor : part.Kind switch
+            {
+                Danslicer.Core.Supports.SupportRenderKind.Neck => NeckColor,
+                Danslicer.Core.Supports.SupportRenderKind.Trunk => TrunkColor,
+                Danslicer.Core.Supports.SupportRenderKind.Bracing => BracingColor,
+                _ => PillarColor,
+            };
+            _supportMeshes.Add(new AuxMeshDraw(
+                part.Mesh,
+                new Vector3(color.X, color.Y, color.Z),
+                part.Disabled ? DisabledSupportOpacity : 1f));
+        }
+    }
 
     private void AppendSupportLines(List<OverlayLine> lines)
     {
         var supports = Document?.Supports;
         if (Document is null || supports is null) return;
-        foreach (var segment in supports.Segments)
-        {
-            if (segment.Hidden) continue;
-            var a = supports.GetNode(segment.NodeA);
-            var b = supports.GetNode(segment.NodeB);
-            if (a.Hidden || b.Hidden) continue;
-            var color = Document.IsSupportSelected(segment.Id) ? SupportSelectedColor : segment.Type switch
-            {
-                Danslicer.Core.Supports.SupportSegmentType.Neck => NeckColor,
-                Danslicer.Core.Supports.SupportSegmentType.Trunk => TrunkColor,
-                Danslicer.Core.Supports.SupportSegmentType.Bracing => BracingColor,
-                _ => PillarColor,
-            };
-            if (segment.Disabled) color.W = 0.35f;
-            lines.Add(new OverlayLine(a.Position, b.Position, color));
-        }
         foreach (var node in supports.Nodes)
         {
             if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip) continue;
