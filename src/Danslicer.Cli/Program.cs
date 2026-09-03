@@ -22,6 +22,12 @@ switch (args[0])
         return Slice(args.Skip(1).ToArray());
     case "inspect":
         return Inspect(args.Skip(1).ToArray());
+    case "route":
+        return RouteCommand.Run(args.Skip(1).ToArray());
+    case "tips":
+        return Danslicer.Cli.TipsCommand.Run(args.Skip(1).ToArray());
+    case "checks":
+        return Danslicer.Cli.ChecksCommand.Run(args.Skip(1).ToArray());
     default:
         Usage();
         return 1;
@@ -33,6 +39,13 @@ void Usage()
     Console.Error.WriteLine("  danslicer info <file.stl|file.obj>");
     Console.Error.WriteLine("  danslicer slice <file.stl|file.obj>... -o <out.pwmx> [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
     Console.Error.WriteLine("  danslicer inspect <file.pwmx>");
+    Console.Error.WriteLine("  danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--strategy grid|topdown] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+    Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--spacing 2.5] [--min-spacing 2.5]");
+    Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--layer 0.05] [--tip 0.4]");
+    Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
+    Console.Error.WriteLine("  danslicer checks <file.stl|file.obj>... [--json] [--layer 0.05] [--min-island 0.5]");
+    Console.Error.WriteLine("                   [--overhang 45] [--min-suction 5] [--drain 0.8]");
+    Console.Error.WriteLine("                   [--support-spacing 1] [--model-clearance 0.5] [--object-spacing 1]");
 }
 
 int Info(string[] a)
