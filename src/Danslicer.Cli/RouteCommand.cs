@@ -98,19 +98,26 @@ internal static class RouteCommand
 
     private static List<RoutingTip> ReadTips(string path)
     {
-        var records = JsonSerializer.Deserialize<List<TipJson>>(File.ReadAllText(path),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-            ?? throw new JsonException("tips file must contain a JSON array");
+        var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var text = File.ReadAllText(path);
+        using var doc = JsonDocument.Parse(text);
+        var records = doc.RootElement.ValueKind == JsonValueKind.Array
+            ? JsonSerializer.Deserialize<List<TipJson>>(text, opts)
+            : JsonSerializer.Deserialize<TipsFileJson>(text, opts)?.Candidates;
+        if (records is null)
+            throw new JsonException("tips file must contain a JSON array or a tips --json object with 'candidates'");
         return records.Select((tip, index) =>
         {
-            if (tip.SurfacePoint is not { Length: 3 })
-                throw new JsonException($"tip {index}: surfacePoint must contain three numbers");
-            if (tip.InwardSurfaceNormal is not { Length: 3 })
-                throw new JsonException($"tip {index}: inwardSurfaceNormal must contain three numbers");
-            if (tip.TipDiameter <= 0)
-                throw new JsonException($"tip {index}: tipDiameter must be positive");
-            return new RoutingTip(ToVector(tip.SurfacePoint), ToVector(tip.InwardSurfaceNormal),
-                tip.TipDiameter, tip.ContactObjectId);
+            var point = tip.SurfacePoint ?? tip.Point;
+            var normal = tip.InwardSurfaceNormal ?? tip.InwardNormal;
+            var diameter = tip.TipDiameter > 0 ? tip.TipDiameter : tip.Diameter;
+            if (point is not { Length: 3 })
+                throw new JsonException($"tip {index}: surfacePoint/point must contain three numbers");
+            if (normal is not { Length: 3 })
+                throw new JsonException($"tip {index}: inwardSurfaceNormal/inwardNormal must contain three numbers");
+            if (diameter <= 0)
+                throw new JsonException($"tip {index}: tipDiameter/diameter must be positive");
+            return new RoutingTip(ToVector(point), ToVector(normal), diameter, tip.ContactObjectId);
         }).ToList();
     }
 
@@ -186,11 +193,19 @@ internal static class RouteCommand
         return 1;
     }
 
+    private sealed class TipsFileJson
+    {
+        public List<TipJson>? Candidates { get; set; }
+    }
+
     private sealed class TipJson
     {
         public float[]? SurfacePoint { get; set; }
+        public float[]? Point { get; set; }
         public float[]? InwardSurfaceNormal { get; set; }
+        public float[]? InwardNormal { get; set; }
         public float TipDiameter { get; set; }
+        public float Diameter { get; set; }
         public Guid? ContactObjectId { get; set; }
     }
 }

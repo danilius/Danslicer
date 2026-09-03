@@ -254,4 +254,61 @@ public static class MeshSlicer
         foreach (var p in paths) sum += Clipper.Area(p);
         return Math.Abs(sum) / (UnitsPerMm * UnitsPerMm);
     }
+
+    /// <summary>
+    /// Contours at every layer mid-height from Z = 0 up to the mesh top. Empty layers are
+    /// included so indices match the slicer's numbering. No XY compensation.
+    /// Additive helper; does not change any existing member.
+    /// </summary>
+    public static List<Paths64> LayerPolygons(PreparedMesh mesh, double layerHeight)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        var result = new List<Paths64>();
+        if (layerHeight <= 1e-12 || mesh.MaxZ <= 1e-9) return result;
+
+        var layerCount = (int)Math.Ceiling(mesh.MaxZ / layerHeight - 1e-6);
+        if (layerCount <= 0) return result;
+
+        var buckets = BucketTriangles(mesh, layerHeight, layerCount);
+        var segments = new List<Segment>();
+        for (int i = 0; i < layerCount; i++)
+        {
+            var z = (i + 0.5) * layerHeight;
+            segments.Clear();
+            CollectSegments(mesh, buckets[i], z, segments);
+            result.Add(Finish(ChainSegments(segments), 0));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Per-layer XY that is not supported by the previous layer. The previous contours are
+    /// inflated by <paramref name="inflateMm"/> (overhang slope plus a sliver epsilon) before
+    /// the difference, so self-supporting rims are not islands. A layer with nothing below
+    /// it (including layer 0) is returned as-is. Plate-supported layer 0 is the caller's
+    /// decision — this helper does not know about the plate.
+    /// </summary>
+    public static List<Paths64> NewbornIslands(IReadOnlyList<Paths64> layers, double inflateMm)
+    {
+        ArgumentNullException.ThrowIfNull(layers);
+        var result = new List<Paths64>(layers.Count);
+        Paths64? previous = null;
+        foreach (var polygons in layers)
+        {
+            Paths64 newborn;
+            if (previous is null || previous.Count == 0)
+            {
+                newborn = polygons;
+            }
+            else
+            {
+                var supported = Clipper.InflatePaths(
+                    previous, inflateMm * UnitsPerMm, JoinType.Round, EndType.Polygon);
+                newborn = Clipper.Difference(polygons, supported, FillRule.NonZero);
+            }
+            result.Add(newborn);
+            previous = polygons;
+        }
+        return result;
+    }
 }

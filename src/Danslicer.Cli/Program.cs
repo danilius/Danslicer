@@ -28,6 +28,8 @@ switch (args[0])
         return Danslicer.Cli.TipsCommand.Run(args.Skip(1).ToArray());
     case "checks":
         return Danslicer.Cli.ChecksCommand.Run(args.Skip(1).ToArray());
+    case "areas":
+        return Danslicer.Cli.AreasCommand.Run(args.Skip(1).ToArray());
     default:
         Usage();
         return 1;
@@ -48,6 +50,8 @@ void Usage()
     Console.Error.WriteLine("  danslicer checks <file.stl|file.obj>... [--json] [--layer 0.05] [--min-island 0.5]");
     Console.Error.WriteLine("                   [--overhang 45] [--min-suction 5] [--drain 0.8]");
     Console.Error.WriteLine("                   [--support-spacing 1] [--model-clearance 0.5] [--object-spacing 1]");
+    Console.Error.WriteLine("  danslicer areas <file.stl|file.obj> [--json] [--overhang 45] [--min-area 0.5]");
+    Console.Error.WriteLine("                  [--layer 0.05] [--min-island 0.5] [--sharp-edge 30]");
 }
 
 int Info(string[] a)
