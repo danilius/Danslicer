@@ -68,6 +68,9 @@ public sealed class ViewportControl : OpenGlControlBase
     /// <summary>Raised on Tab so the host can switch between the model and layer views.</summary>
     public event Action? ToggleViewRequested;
 
+    /// <summary>Redraw on demand, e.g. after a config change that affects rendering.</summary>
+    public void RequestRedraw() => Redraw();
+
     public Document? Document
     {
         get => GetValue(DocumentProperty);
@@ -205,6 +208,7 @@ public sealed class ViewportControl : OpenGlControlBase
             AuxMeshes = _supportMeshes,
             ShowOverhangs = ShowOverhangs,
             OverhangAngleDegrees = Configuration.AppConfig.Current.Viewport.OverhangAngleDegrees,
+            PlateOpacityFromBelow = Configuration.AppConfig.Current.Viewport.PlateOpacityFromBelow,
         });
     }
 

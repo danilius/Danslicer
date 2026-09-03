@@ -140,21 +140,23 @@ public class SupportGraphTests
         doc.AddObject(obj);
         doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ); // tip, junction, base + neck, pillar
 
-        // Deleting the selected pillar leaves the nodes in place.
+        // Deleting the pillar strands both remaining fragments (a tipless base, a baseless tip
+        // stub), so residue pruning takes the whole tree in one undoable step.
         var pillar = doc.Supports.Segments.Single(s => s.Type == SupportSegmentType.Pillar);
         doc.SelectSupportElement(pillar.Id);
         doc.DeleteSupportSelection();
-        Assert.Equal(3, doc.Supports.NodeCount);
-        Assert.Equal(1, doc.Supports.SegmentCount);
+        Assert.Equal(0, doc.Supports.NodeCount);
+        Assert.Equal(0, doc.Supports.SegmentCount);
         Assert.Empty(doc.SupportSelection);
         doc.Undo();
+        Assert.Equal(3, doc.Supports.NodeCount);
         Assert.Equal(2, doc.Supports.SegmentCount);
 
-        // Deleting a selected node takes its segments; undo restores the exact structure.
+        // Deleting the junction likewise dissolves the tree; undo restores the exact structure.
         var junction = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Junction);
         doc.SelectSupportElement(junction.Id);
         doc.DeleteSupportSelection();
-        Assert.Equal(2, doc.Supports.NodeCount);
+        Assert.Equal(0, doc.Supports.NodeCount);
         Assert.Equal(0, doc.Supports.SegmentCount);
         doc.Undo();
         Assert.Equal(3, doc.Supports.NodeCount);

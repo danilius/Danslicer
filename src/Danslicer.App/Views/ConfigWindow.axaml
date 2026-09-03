@@ -62,6 +62,12 @@
                                 Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
                         <TextBlock Grid.Column="2" Classes="value" Text="{Binding OverhangAngleDegrees, StringFormat={}{0:0}°}" />
                     </Grid>
+                    <Grid Tag="viewport plate bed transparency opacity below underneath" ColumnDefinitions="190,*,52" Margin="0,2">
+                        <TextBlock Text="Plate opacity from below" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="0" Maximum="1"
+                                Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding PlateOpacityFromBelow, StringFormat={}{0:0%}}" />
+                    </Grid>
                 </StackPanel>
 
                 <StackPanel x:Name="SpaceMouseSection">

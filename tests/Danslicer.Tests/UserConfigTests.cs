@@ -29,6 +29,11 @@ public sealed class UserConfigTests : IDisposable
                 InvertZoom = true,
                 Deadzone = 0.02f,
             },
+            Viewport = new ViewportConfig
+            {
+                OverhangAngleDegrees = 30f,
+                PlateOpacityFromBelow = 0.6f,
+            },
         };
         var path = PathFor("config.json");
 
@@ -44,6 +49,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.True(loaded.SpaceMouse.InvertPanY);
         Assert.True(loaded.SpaceMouse.InvertZoom);
         Assert.Equal(0.02f, loaded.SpaceMouse.Deadzone);
+        Assert.Equal(30f, loaded.Viewport.OverhangAngleDegrees);
+        Assert.Equal(0.6f, loaded.Viewport.PlateOpacityFromBelow);
     }
 
     [Fact]

@@ -14,11 +14,15 @@ public sealed class ConfigViewModel : ViewModelBase
     private SpaceMouseConfig SpaceMouse => AppConfig.Current.SpaceMouse;
     private ViewportConfig Viewport => AppConfig.Current.Viewport;
 
+    /// <summary>Raised after every persisted change, so hosts can refresh what they draw.</summary>
+    public event Action? Saved;
+
     private void Update(Action apply, [CallerMemberName] string? property = null)
     {
         apply();
         AppConfig.Save();
         OnPropertyChanged(property);
+        Saved?.Invoke();
     }
 
     // Viewport
@@ -27,6 +31,12 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Viewport.OverhangAngleDegrees;
         set => Update(() => Viewport.OverhangAngleDegrees = Math.Clamp(value, 10f, 89f));
+    }
+
+    public float PlateOpacityFromBelow
+    {
+        get => Viewport.PlateOpacityFromBelow;
+        set => Update(() => Viewport.PlateOpacityFromBelow = Math.Clamp(value, 0f, 1f));
     }
 
     // SpaceMouse

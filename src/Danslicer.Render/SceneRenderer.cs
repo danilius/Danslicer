@@ -27,6 +27,8 @@ public sealed class RenderFrame
     public bool ShowOverhangs { get; init; }
     /// <summary>Overhang threshold measured from the vertical wall: 45 tints anything steeper.</summary>
     public float OverhangAngleDegrees { get; init; } = 45f;
+    /// <summary>Plate opacity when the camera is below it: 0 invisible, 1 opaque (no fade).</summary>
+    public float PlateOpacityFromBelow { get; init; } = 1f;
 }
 
 /// <summary>
@@ -82,9 +84,14 @@ public sealed class SceneRenderer : IDisposable
         var projection = frame.Camera.Projection(aspect);
 
         PruneMeshCache(frame);
-        DrawPlate(frame.Printer, view, projection);
+        // Looking up from under the plate, the plate fades to the configured opacity so the
+        // model stays visible; it then draws after the opaque passes so blending sees them.
+        var plateFaded = frame.Camera.Eye.Z < 0f && frame.PlateOpacityFromBelow < 1f;
+        if (!plateFaded) DrawPlate(frame.Printer, view, projection, 1f);
         DrawObjects(frame, view, projection, ghosted: false);
         DrawAuxMeshes(frame, view, projection);
+        if (plateFaded && frame.PlateOpacityFromBelow > 0.001f)
+            DrawPlate(frame.Printer, view, projection, frame.PlateOpacityFromBelow);
         DrawObjects(frame, view, projection, ghosted: true);
         DrawLines(frame, view * projection);
 
@@ -92,7 +99,7 @@ public sealed class SceneRenderer : IDisposable
         gl.UseProgram(0);
     }
 
-    private void DrawPlate(PrinterDefinition printer, in Matrix4x4 view, in Matrix4x4 projection)
+    private void DrawPlate(PrinterDefinition printer, in Matrix4x4 view, in Matrix4x4 projection, float opacity)
     {
         if (_plate is null || _plateSize != printer.BuildVolume)
         {
@@ -101,10 +108,23 @@ public sealed class SceneRenderer : IDisposable
             _plateSize = printer.BuildVolume;
         }
 
+        var gl = _gl;
+        var faded = opacity < 1f;
+        if (faded)
+        {
+            gl.Enable(EnableCap.Blend);
+            gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            gl.DepthMask(false);
+        }
         // Sit just under Z = 0 so grid lines on the plane do not fight it.
         var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
-        BindMeshShader(model, view, projection, PlateColor, opacity: 1f, backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f);
+        BindMeshShader(model, view, projection, PlateColor, opacity, backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f);
         _plate.Draw();
+        if (faded)
+        {
+            gl.Disable(EnableCap.Blend);
+            gl.DepthMask(true);
+        }
     }
 
     private void DrawObjects(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection, bool ghosted)

@@ -26,6 +26,9 @@ public sealed class ViewportConfig
 {
     /// <summary>Overhang tint threshold, degrees from the vertical wall.</summary>
     public float OverhangAngleDegrees { get; set; } = 45f;
+
+    /// <summary>Build-plate opacity when the camera is below it: 0 invisible, 1 fully opaque.</summary>
+    public float PlateOpacityFromBelow { get; set; } = 0.3f;
 }
 
 /// <summary>

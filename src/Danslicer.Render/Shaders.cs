@@ -82,6 +82,8 @@ internal static class Shaders
 
             // Overhang tint: surfaces facing downward within the threshold of straight down.
             // Severity runs yellow at the threshold to red on flat undersides, with a soft edge.
+            // A 2 mm world-space checker alternates tint strength so overhangs stay readable on
+            // any base colour, selection orange included.
             if (uOverhangCos < 1.5)
             {
                 float down = dot(normalize(vWorldNormal), vec3(0.0, 0.0, -1.0));
@@ -90,7 +92,9 @@ internal static class Shaders
                 {
                     float severity = clamp((down - uOverhangCos) / max(1.0 - uOverhangCos, 1e-3), 0.0, 1.0);
                     vec3 warn = mix(vec3(0.98, 0.80, 0.15), vec3(0.90, 0.12, 0.10), severity);
-                    color = mix(color, warn, over * 0.75);
+                    vec3 cells = floor(vWorldPosition / 2.0);
+                    float checker = mod(cells.x + cells.y + cells.z, 2.0);
+                    color = mix(color, warn, over * mix(0.40, 0.90, checker));
                 }
             }
 

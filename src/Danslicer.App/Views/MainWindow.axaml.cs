@@ -49,6 +49,8 @@ public partial class MainWindow : Window
             return;
         }
         _configWindow = new ConfigWindow();
+        if (_configWindow.DataContext is ConfigViewModel config)
+            config.Saved += Viewport.RequestRedraw;
         _configWindow.Closed += (_, _) => _configWindow = null;
         _configWindow.Show(this);
     }

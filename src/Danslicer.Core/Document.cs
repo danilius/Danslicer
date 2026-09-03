@@ -131,16 +131,61 @@ public sealed class Document
         SupportSelectionChanged?.Invoke();
     }
 
-    /// <summary>Deletes the selected support elements; a deleted node takes its segments. One undo step.</summary>
+    /// <summary>
+    /// Deletes the selected support elements; a deleted node takes its segments. Fragments left
+    /// with no tip or no base are useless residue (a pillar supporting nothing, a floating neck),
+    /// so they are pruned in the same command. One undo step. Revisit the no-base rule when bare
+    /// tips awaiting manual routing (DESIGN.md §8.8) become a feature.
+    /// </summary>
     public void DeleteSupportSelection()
     {
         if (_supportSelection.Count == 0) return;
-        var nodes = _supportSelection.Where(id => Supports.TryGetNode(id, out _)).ToList();
-        var segments = _supportSelection.Where(id => Supports.TryGetSegment(id, out _)).ToList();
+        var nodes = _supportSelection.Where(id => Supports.TryGetNode(id, out _)).ToHashSet();
+        var segments = _supportSelection.Where(id => Supports.TryGetSegment(id, out _)).ToHashSet();
         _supportSelection.Clear();
         SupportSelectionChanged?.Invoke();
         if (nodes.Count == 0 && segments.Count == 0) return;
+        AddOrphanedFragments(nodes, segments);
         Execute(new RemoveSupportElementsCommand(Supports, nodes, segments));
+    }
+
+    /// <summary>
+    /// Extends a support removal with every remaining fragment (bracing-excluded component of
+    /// what survives the removal) that would end up without a tip or without a base.
+    /// </summary>
+    private void AddOrphanedFragments(HashSet<Guid> nodes, HashSet<Guid> segments)
+    {
+        var removedSegments = new HashSet<Guid>(segments);
+        foreach (var id in nodes)
+            foreach (var attached in Supports.SegmentsAt(id))
+                removedSegments.Add(attached.Id);
+
+        var visited = new HashSet<Guid>();
+        foreach (var start in Supports.Nodes)
+        {
+            if (nodes.Contains(start.Id) || !visited.Add(start.Id)) continue;
+            var fragment = new List<SupportNode> { start };
+            var queue = new Queue<Guid>();
+            queue.Enqueue(start.Id);
+            while (queue.Count > 0)
+            {
+                foreach (var segment in Supports.SegmentsAt(queue.Dequeue()))
+                {
+                    if (removedSegments.Contains(segment.Id) ||
+                        segment.Type == SupportSegmentType.Bracing) continue;
+                    // Walk to whichever end we have not seen; ends on removed nodes are cut.
+                    foreach (var endId in new[] { segment.NodeA, segment.NodeB })
+                    {
+                        if (nodes.Contains(endId) || !visited.Add(endId)) continue;
+                        fragment.Add(Supports.GetNode(endId));
+                        queue.Enqueue(endId);
+                    }
+                }
+            }
+            if (fragment.Any(n => n.Type == SupportNodeType.Tip) &&
+                fragment.Any(n => n.Type == SupportNodeType.Base)) continue;
+            foreach (var orphan in fragment) nodes.Add(orphan.Id);
+        }
     }
 
     public void AddObject(SceneObject obj)
