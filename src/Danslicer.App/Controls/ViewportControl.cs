@@ -811,10 +811,11 @@ public sealed class ViewportControl : OpenGlControlBase
     // so the camera's own clamping applies. Signs follow 3Dconnexion camera mode: push forward to
     // zoom in, tilt forward to pitch down, twist to yaw. Roll is locked, as designed. The user
     // scales and flips these through the SpaceMouse section of the config window; settings are
-    // read every poll tick so tuning applies live.
-    private const float SpaceMouseOrbitPixels = 6f;
-    private const float SpaceMousePanPixels = 8f;
-    private const float SpaceMouseZoomSteps = 0.08f;
+    // read every poll tick so tuning applies live. Calibrated 2026-09-03 on the user's SpaceMouse
+    // Pro so that sensitivity 1.0 is their tuned feel (the original guesses were 50x too fast).
+    private const float SpaceMouseOrbitPixels = 0.12f;
+    private const float SpaceMousePanPixels = 0.16f;
+    private const float SpaceMouseZoomSteps = 0.0016f;
 
     private void ConnectSpaceMouse()
     {
