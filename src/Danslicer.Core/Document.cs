@@ -295,9 +295,9 @@ public sealed class Document
 
     /// <summary>
     /// Adds a manual support at a picked surface point. By default the support is routed by the
-    /// top-down router against every object and existing support, descending within lean limits
-    /// and detouring around obstacles (DESIGN.md §8.6); returns false when no clear path to the
-    /// plate exists, adding nothing. With <paramref name="routeAroundModel"/> false (the override
+    /// tree router into the spec anatomy (cone tip, optional branch, vertical trunk, disc base)
+    /// against every object and existing support; returns false when no clear path to the plate
+    /// exists, adding nothing. With <paramref name="routeAroundModel"/> false (the override
     /// gesture) the old straight vertical tree is placed blindly. One undo step either way.
     /// </summary>
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
@@ -317,12 +317,12 @@ public sealed class Document
         out RoutingFailureReason? failureReason)
     {
         var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
-        var rules = GrowthRuleSet.Default;
-        var router = new TopDownSupportRouter(obstacles, rules);
-        var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id);
+        var router = new TreeSupportRouter(obstacles, GrowthRuleSet.Default);
+        var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id,
+            TipShape: SupportTipShape.Cone);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
-        var options = new TopDownRoutingOptions
+        var options = new TreeRoutingOptions
         {
             Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
         };
@@ -334,8 +334,6 @@ public sealed class Document
         }
 
         failureReason = null;
-        // A straight descent emits a junction per step; collapse to the minimal shape.
-        SupportGraphSimplifier.CollapseCollinearJunctions(result.Graph);
         Execute(new AddSupportElementsCommand(Supports,
             result.Graph.Nodes.ToList(), result.Graph.Segments.ToList()));
         return true;
@@ -408,8 +406,11 @@ public sealed class Document
         var supportObstacles = new LinearCollisionScene();
         supportObstacles.AddSupportGraph(request.ExistingSupports);
         var obstacles = new CompositeCollisionScene(meshes, supportObstacles);
-        var generated = SupportGenerator.Generate(worldMesh, region, TipPlacementParameters.Default,
-            new GridRoutingOptions { Seed = request.Seed, Origin = origin }, GrowthRuleSet.Default,
+        // Spec-shaped generation: cone tips on trunk/branch trees with disc bases. The capsule
+        // grid/top-down paths remain available through the CLI for comparison.
+        var generated = SupportGenerator.GenerateTree(worldMesh, region,
+            TipPlacementParameters.Default with { TipShape = SupportTipShape.Cone },
+            new TreeRoutingOptions { Seed = request.Seed, Origin = origin }, GrowthRuleSet.Default,
             obstacles, request.ExistingSupports, seed: request.Seed, progress: progress);
         cancellationToken.ThrowIfCancellationRequested();
 
