@@ -13,6 +13,7 @@ namespace Danslicer.Core;
 
 public sealed record SupportGenerationSummary(int CandidateCount, int GeneratedTipCount,
     int UnroutedTipCount);
+public readonly record struct SupportPositionSnapshot(Vector3 Position, Vector3 SurfaceNormal);
 
 public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
 public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot Target,
@@ -107,14 +108,15 @@ public sealed class Document
 
     public void SelectSupportElement(Guid id, bool additive = false)
     {
+        var selectable = IsSupportElementVisible(id);
         if (additive)
         {
-            if (!_supportSelection.Remove(id)) _supportSelection.Add(id);
+            if (!_supportSelection.Remove(id) && selectable) _supportSelection.Add(id);
         }
         else
         {
             _supportSelection.Clear();
-            _supportSelection.Add(id);
+            if (selectable) _supportSelection.Add(id);
         }
         SupportSelectionChanged?.Invoke();
     }
@@ -132,8 +134,10 @@ public sealed class Document
 
         var (nodes, segments) = Supports.Component(seed);
         if (!additive) _supportSelection.Clear();
-        foreach (var id in nodes) _supportSelection.Add(id);
-        foreach (var id in segments) _supportSelection.Add(id);
+        foreach (var id in nodes)
+            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
+        foreach (var id in segments)
+            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
         SupportSelectionChanged?.Invoke();
     }
 
@@ -217,16 +221,16 @@ public sealed class Document
     /// <summary>Moves each selected object so its lowest point sits on the plate.</summary>
     public void DropSelectionToPlate()
     {
-        var commands = new List<IDocumentCommand>();
+        var transforms = new List<(SceneObject Object, Transform Before, Transform Requested)>();
         foreach (var o in _selection)
         {
             var minZ = o.WorldBounds.Min.Z;
             if (MathF.Abs(minZ) < 1e-6f) continue;
             var before = o.Transform;
             var after = before with { Translation = before.Translation with { Z = before.Translation.Z - minZ } };
-            commands.Add(new SetTransformCommand(o, before, after, "Drop to plate"));
+            transforms.Add((o, before, after));
         }
-        if (commands.Count > 0) Execute(new CompositeCommand("Drop to plate", commands));
+        if (transforms.Count > 0) CommitTransforms(transforms, "Drop to plate", applyPlacement: false);
     }
 
     /// <summary>Re-seats an input transform according to the configured placement mode.</summary>
@@ -249,21 +253,88 @@ public sealed class Document
 
     /// <summary>Commits a requested transform and its automatic placement as one undo step.</summary>
     public void CommitTransform(SceneObject obj, Transform before, Transform requested,
-        string name = "Transform") => CommitTransforms(new[] { (obj, before, requested) }, name);
+        string name = "Transform", bool applyPlacement = true) =>
+        CommitTransforms(new[] { (obj, before, requested) }, name, applyPlacement: applyPlacement);
 
     /// <summary>Multi-object transform commit used by both keyboard and gizmo modal edits.</summary>
     public void CommitTransforms(IEnumerable<(SceneObject Object, Transform Before, Transform Requested)> items,
-        string name = "Transform")
+        string name = "Transform", IReadOnlyDictionary<Guid, SupportPositionSnapshot>? supportBefore = null,
+        bool applyPlacement = true)
     {
+        var itemList = items.ToList();
+        supportBefore ??= CaptureAssociatedSupportPositions(itemList.Select(item => item.Object));
         var commands = new List<IDocumentCommand>();
-        foreach (var (obj, before, requested) in items)
+        var supportEntries = new List<SetSupportPositionsCommand.Entry>();
+        foreach (var (obj, before, requested) in itemList)
         {
-            var after = ApplyPlacement(obj, requested);
+            var after = applyPlacement ? ApplyPlacement(obj, requested) : requested;
             obj.Transform = after;
-            if (after != before) commands.Add(new SetTransformCommand(obj, before, after, name));
+            if (after == before) continue;
+            commands.Add(new SetTransformCommand(obj, before, after, name));
+            AppendAssociatedSupportTransform(obj, before, after, supportBefore, supportEntries);
         }
+        if (supportEntries.Count > 0)
+            commands.Add(new SetSupportPositionsCommand(Supports, supportEntries, name));
         if (commands.Count > 0) Execute(new CompositeCommand(name, commands));
         else NotifyTransientChange();
+    }
+
+    public IReadOnlyDictionary<Guid, SupportPositionSnapshot> CaptureAssociatedSupportPositions(
+        IEnumerable<SceneObject> objects)
+    {
+        var objectIds = objects.Select(obj => obj.Id).ToHashSet();
+        return Supports.Nodes
+            .Where(node => node.Origin.ObjectId is { } id && objectIds.Contains(id))
+            .ToDictionary(node => node.Id,
+                node => new SupportPositionSnapshot(node.Position, node.SurfaceNormal));
+    }
+
+    /// <summary>Moves owned supports during a live modal preview from the immutable start state.</summary>
+    public void ApplyAssociatedSupportTransformsTransient(
+        IEnumerable<(SceneObject Object, Transform Before)> items,
+        IReadOnlyDictionary<Guid, SupportPositionSnapshot> supportBefore)
+    {
+        var entries = new List<SetSupportPositionsCommand.Entry>();
+        foreach (var (obj, before) in items)
+            AppendAssociatedSupportTransform(obj, before, obj.Transform, supportBefore, entries);
+        if (entries.Count > 0) Supports.NotifyChanged();
+    }
+
+    public void RestoreSupportPositions(IReadOnlyDictionary<Guid, SupportPositionSnapshot> snapshots)
+    {
+        foreach (var (id, snapshot) in snapshots)
+        {
+            if (!Supports.TryGetNode(id, out var node)) continue;
+            node.Position = snapshot.Position;
+            node.SurfaceNormal = snapshot.SurfaceNormal;
+        }
+        if (snapshots.Count > 0) Supports.NotifyChanged();
+    }
+
+    private void AppendAssociatedSupportTransform(SceneObject obj, Transform before, Transform after,
+        IReadOnlyDictionary<Guid, SupportPositionSnapshot> supportBefore,
+        List<SetSupportPositionsCommand.Entry> entries)
+    {
+        if (!Matrix4x4.Invert(before.ToMatrix(), out var oldWorldToLocal)) return;
+        var worldDelta = oldWorldToLocal * after.ToMatrix();
+        var hasNormalTransform = Matrix4x4.Invert(worldDelta, out var inverseDelta);
+        var normalTransform = hasNormalTransform ? Matrix4x4.Transpose(inverseDelta) : Matrix4x4.Identity;
+        foreach (var node in Supports.Nodes)
+        {
+            if (node.Origin.ObjectId != obj.Id ||
+                !supportBefore.TryGetValue(node.Id, out var snapshot)) continue;
+            var position = Vector3.Transform(snapshot.Position, worldDelta);
+            // A zero target scale makes the normal transform undefined, but node positions still
+            // have a well-defined result and must continue to follow the object.
+            var normal = hasNormalTransform
+                ? Vector3.TransformNormal(snapshot.SurfaceNormal, normalTransform)
+                : snapshot.SurfaceNormal;
+            if (normal.LengthSquared() > 1e-12f) normal = Vector3.Normalize(normal);
+            node.Position = position;
+            node.SurfaceNormal = normal;
+            entries.Add(new SetSupportPositionsCommand.Entry(node, snapshot.Position,
+                snapshot.SurfaceNormal, position, normal));
+        }
     }
 
     /// <summary>
@@ -315,6 +386,7 @@ public sealed class Document
         var options = new TreeRoutingOptions
         {
             Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
+            Origin = SupportOrigin.ManualFor(obj.Id),
         };
         var result = router.Route(new[] { tip }, options);
         if (result.UnroutedTips.Count > 0)
@@ -364,10 +436,15 @@ public sealed class Document
     {
         if (!additive) _supportSelection.Clear();
         foreach (var id in ids)
-            if (Supports.TryGetNode(id, out var node) && !node.Hidden ||
-                Supports.TryGetSegment(id, out var segment) && !segment.Hidden)
-                _supportSelection.Add(id);
+            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
         SupportSelectionChanged?.Invoke();
+    }
+
+    private bool IsSupportElementVisible(Guid id)
+    {
+        if (Supports.TryGetNode(id, out var node)) return !node.Hidden;
+        if (!Supports.TryGetSegment(id, out var segment) || segment.Hidden) return false;
+        return !Supports.GetNode(segment.NodeA).Hidden && !Supports.GetNode(segment.NodeB).Hidden;
     }
 
     /// <summary>Captures the mutable document state needed by background generation.</summary>
@@ -386,7 +463,7 @@ public sealed class Document
         cancellationToken.ThrowIfCancellationRequested();
         var worldMesh = TransformMesh(request.Target);
         var region = Enumerable.Range(0, worldMesh.TriangleCount).ToHashSet();
-        var origin = new SupportOrigin(request.ObjectId, 1);
+        var origin = new SupportOrigin(request.ObjectId, 1, request.ObjectId);
         var meshes = new BvhCollisionScene();
         foreach (var snapshot in request.SceneMeshes)
         {
@@ -440,6 +517,24 @@ public sealed class Document
             .ToList();
         ClearSelection();
         Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Hide {commands.Count} objects", commands));
+    }
+
+    /// <summary>Hides exactly the selected support elements and deselects them. One undo step.</summary>
+    public void HideSelectedSupportElements()
+    {
+        if (_supportSelection.Count == 0) return;
+        var entries = new List<SetSupportHiddenCommand.Entry>();
+        foreach (var id in _supportSelection)
+        {
+            if (Supports.TryGetNode(id, out var node) && !node.Hidden)
+                entries.Add(new SetSupportHiddenCommand.Entry(value => node.Hidden = value, false, true));
+            else if (Supports.TryGetSegment(id, out var segment) && !segment.Hidden)
+                entries.Add(new SetSupportHiddenCommand.Entry(value => segment.Hidden = value, false, true));
+        }
+        ClearSupportSelection();
+        if (entries.Count > 0)
+            Execute(new SetSupportHiddenCommand(Supports, entries,
+                entries.Count == 1 ? "Hide support element" : $"Hide {entries.Count} support elements"));
     }
 
     /// <summary>
@@ -531,6 +626,6 @@ public sealed class Document
         after = after with { Translation = after.Translation with { Z = after.Translation.Z - minZ } };
 
         if (after == before) return;
-        Execute(new SetTransformCommand(obj, before, after, "Lay flat on face"));
+        CommitTransform(obj, before, after, "Lay flat on face", applyPlacement: false);
     }
 }

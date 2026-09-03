@@ -60,10 +60,12 @@ public enum SupportSegmentType
 /// Where an element came from: the region and generation pass that made it, or manual placement.
 /// Regeneration of a region deletes that region's unpinned elements by matching this tag.
 /// </summary>
-public readonly record struct SupportOrigin(Guid RegionId, int Pass)
+public readonly record struct SupportOrigin(Guid RegionId, int Pass, Guid? ObjectId = null)
 {
     public static SupportOrigin Manual => default;
     public bool IsManual => RegionId == Guid.Empty;
+
+    public static SupportOrigin ManualFor(Guid objectId) => new(Guid.Empty, 0, objectId);
 }
 
 /// <summary>A point of the support graph. Mutable; all mutation goes through commands.</summary>

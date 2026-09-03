@@ -19,14 +19,21 @@ public partial class MainWindow : Window
         ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
         ExportCommand = new RelayCommand(() => OnExportClick(this, new RoutedEventArgs()));
         InitializeComponent();
-        Configuration.WindowStatePersistence.Track(this, "main");
-        KeyBindings.Add(new KeyBinding { Gesture = KeyGesture.Parse("Ctrl+I"), Command = ImportCommand });
-        KeyBindings.Add(new KeyBinding { Gesture = KeyGesture.Parse("Ctrl+E"), Command = ExportCommand });
-        KeyBindings.Add(new KeyBinding
-        {
-            Gesture = KeyGesture.Parse("Ctrl+OemComma"),
-            Command = new RelayCommand(() => OnPreferencesClick(this, new RoutedEventArgs())),
-        });
+        Configuration.WindowStatePersistence.Track(this, "main",
+            WorkspaceGrid.ColumnDefinitions[0], WorkspaceGrid.ColumnDefinitions[4]);
+        AddWindowKeyBinding("Ctrl+Z", () => ViewModel?.UndoCommand);
+        AddWindowKeyBinding("Ctrl+Shift+Z", () => ViewModel?.RedoCommand);
+        AddWindowKeyBinding("Ctrl+Y", () => ViewModel?.RedoCommand);
+        AddWindowKeyBinding("Delete", () => ViewModel?.DeleteCommand);
+        AddWindowKeyBinding("Ctrl+D", () => ViewModel?.DropToPlateCommand);
+        AddWindowKeyBinding("Ctrl+G", () => ViewModel?.GenerateSupportsCommand);
+        AddWindowKeyBinding("Ctrl+A", () => ViewModel?.SelectAllCommand);
+        AddWindowKeyBinding("Shift+H", () => ViewModel?.HideUnselectedSupportsCommand);
+        AddWindowKeyBinding("Ctrl+R", () => ViewModel?.SliceCommand);
+        AddWindowKeyBinding("Ctrl+I", () => ImportCommand);
+        AddWindowKeyBinding("Ctrl+E", () => ExportCommand);
+        AddWindowKeyBinding("Ctrl+OemComma",
+            () => new RelayCommand(() => OnPreferencesClick(this, new RoutedEventArgs())));
         Viewport.PropertyChanged += (_, e) =>
         {
             if (e.Property == ViewportControl.StatusTextProperty && DataContext is MainViewModel vm)
@@ -40,6 +47,36 @@ public partial class MainWindow : Window
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
     private ConfigWindow? _configWindow;
+
+    /// <summary>
+    /// Registers application shortcuts in one place and lets focused text editors handle the same
+    /// gestures themselves. This avoids window-level KeyBindings preempting editing commands.
+    /// </summary>
+    private void AddWindowKeyBinding(string gesture, Func<ICommand?> command)
+    {
+        KeyBindings.Add(new KeyBinding
+        {
+            Gesture = KeyGesture.Parse(gesture),
+            Command = new TextInputGuardCommand(this, command),
+        });
+    }
+
+    private sealed class TextInputGuardCommand(Window owner, Func<ICommand?> command) : ICommand
+    {
+        public event EventHandler? CanExecuteChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public bool CanExecute(object? parameter)
+        {
+            if (owner.FocusManager?.GetFocusedElement() is TextBox) return false;
+            return command()?.CanExecute(parameter) == true;
+        }
+
+        public void Execute(object? parameter) => command()?.Execute(parameter);
+    }
 
     /// <summary>Preferences is non-modal so the viewport stays live while tuning; one instance.</summary>
     private void OnPreferencesClick(object? sender, RoutedEventArgs e)

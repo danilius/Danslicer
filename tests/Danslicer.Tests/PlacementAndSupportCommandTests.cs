@@ -46,6 +46,75 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void ObjectTransformCarriesOnlyItsOwnedSupportNodesInTheSameUndoStep()
+    {
+        var doc = new Document { PlacementMode = PlacementMode.Off };
+        var obj = new SceneObject("owned", Box(new(-1), new(1)));
+        var other = new SceneObject("other", Box(new(-1), new(1)));
+        doc.AddObject(obj);
+        doc.AddObject(other);
+        var owned = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = new(2, 0, 0),
+            SurfaceNormal = Vector3.UnitX,
+            Origin = SupportOrigin.ManualFor(obj.Id),
+        };
+        var untouched = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = new(9, 9, 9),
+            Origin = SupportOrigin.ManualFor(other.Id),
+        };
+        doc.Supports.AddNode(owned);
+        doc.Supports.AddNode(untouched);
+        var before = obj.Transform;
+        var requested = before with
+        {
+            Translation = new(10, 0, 0),
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2),
+            Scale = new(2),
+        };
+
+        doc.CommitTransform(obj, before, requested, "Move object and supports");
+
+        Assert.Equal(new Vector3(10, 4, 0), owned.Position, new Vector3Comparer(1e-5f));
+        Assert.Equal(Vector3.UnitY, owned.SurfaceNormal, new Vector3Comparer(1e-5f));
+        Assert.Equal(new Vector3(9, 9, 9), untouched.Position);
+        Assert.Equal("Move object and supports", doc.History.UndoName);
+
+        doc.Undo();
+        Assert.Equal(before, obj.Transform);
+        Assert.Equal(new Vector3(2, 0, 0), owned.Position);
+        Assert.Equal(new Vector3(9, 9, 9), untouched.Position);
+
+        doc.Redo();
+        Assert.Equal(requested, obj.Transform);
+        Assert.Equal(new Vector3(10, 4, 0), owned.Position, new Vector3Comparer(1e-5f));
+    }
+
+    [Fact]
+    public void ScalingObjectToZeroStillCarriesOwnedSupportPositions()
+    {
+        var doc = new Document { PlacementMode = PlacementMode.Off };
+        var obj = new SceneObject("owned", Box(new(-1), new(1)));
+        doc.AddObject(obj);
+        var node = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = new(3, 2, 1),
+            Origin = SupportOrigin.ManualFor(obj.Id),
+        };
+        doc.Supports.AddNode(node);
+
+        doc.CommitTransform(obj, obj.Transform, obj.Transform with { Scale = Vector3.Zero });
+
+        Assert.Equal(Vector3.Zero, node.Position);
+        doc.Undo();
+        Assert.Equal(new Vector3(3, 2, 1), node.Position);
+    }
+
+    [Fact]
     public void RaiseAndOffModesRespectTheRequestedTransform()
     {
         var doc = new Document();
@@ -64,6 +133,27 @@ public sealed class PlacementAndSupportCommandTests
         requested = before with { Translation = new Vector3(4, 5, 13) };
         doc.CommitTransform(obj, before, requested);
         Assert.Equal(requested, obj.Transform);
+    }
+
+    [Fact]
+    public void ExplicitDropToPlateIgnoresAutomaticPlacementOffset()
+    {
+        var doc = new Document
+        {
+            PlacementMode = PlacementMode.RaiseAbovePlate,
+            PlacementHeightMm = 8,
+        };
+        var obj = new SceneObject("box", Box(new(-1, -1, 0), new(1, 1, 2)))
+        {
+            Transform = Transform.Identity with { Translation = new(0, 0, 5) },
+        };
+        doc.AddObject(obj);
+
+        doc.DropSelectionToPlate();
+
+        Assert.Equal(0f, obj.WorldBounds.Min.Z, 5);
+        doc.Undo();
+        Assert.Equal(5f, obj.WorldBounds.Min.Z, 5);
     }
 
     [Fact]
@@ -99,6 +189,33 @@ public sealed class PlacementAndSupportCommandTests
         Assert.False(segment.Hidden);
         Assert.False(unrelated.Hidden);
         Assert.Equal("Unhide supports", doc.History.UndoName);
+    }
+
+    [Fact]
+    public void HideSelectedSupportElementsIsOneUndoableCommand()
+    {
+        var doc = new Document();
+        var a = new SupportNode { Type = SupportNodeType.Tip, Position = Vector3.UnitZ };
+        var b = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        var segment = new SupportSegment
+            { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = b.Id };
+        doc.Supports.AddNode(a);
+        doc.Supports.AddNode(b);
+        doc.Supports.AddSegment(segment);
+        doc.SelectSupportElements([a.Id, segment.Id]);
+
+        doc.HideSelectedSupportElements();
+
+        Assert.True(a.Hidden);
+        Assert.True(segment.Hidden);
+        Assert.False(b.Hidden);
+        Assert.Empty(doc.SupportSelection);
+        Assert.Equal("Hide 2 support elements", doc.History.UndoName);
+
+        doc.Undo();
+        Assert.False(a.Hidden);
+        Assert.False(segment.Hidden);
+        Assert.False(b.Hidden);
     }
 
     [Fact]
@@ -144,7 +261,15 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal("Generate supports", doc.History.UndoName);
         Assert.All(doc.Supports.Nodes, node => Assert.False(node.Origin.IsManual));
         Assert.All(doc.Supports.Segments, segment => Assert.False(segment.Origin.IsManual));
+        Assert.All(doc.Supports.Nodes, node => Assert.Equal(obj.Id, node.Origin.ObjectId));
+        Assert.All(doc.Supports.Segments, segment => Assert.Equal(obj.Id, segment.Origin.ObjectId));
         doc.Undo();
         Assert.Equal(0, doc.Supports.NodeCount);
+    }
+
+    private sealed class Vector3Comparer(float tolerance) : IEqualityComparer<Vector3>
+    {
+        public bool Equals(Vector3 x, Vector3 y) => Vector3.Distance(x, y) <= tolerance;
+        public int GetHashCode(Vector3 obj) => 0;
     }
 }

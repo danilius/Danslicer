@@ -22,6 +22,8 @@ public sealed class ModalTransform
     private readonly Document _document;
     private readonly Camera _camera;
     private readonly List<(SceneObject Object, Transform Start)> _items = new();
+    private IReadOnlyDictionary<Guid, SupportPositionSnapshot> _supportStart =
+        new Dictionary<Guid, SupportPositionSnapshot>();
     private Vector3 _pivot;
     private Vector2 _startMouse;
     private Vector2 _mouse;
@@ -63,6 +65,7 @@ public sealed class ModalTransform
 
         _items.Clear();
         foreach (var obj in _document.Selection) _items.Add((obj, obj.Transform));
+        _supportStart = _document.CaptureAssociatedSupportPositions(_items.Select(item => item.Object));
         _pivot = SelectionPivot(_document);
 
         Mode = mode;
@@ -139,7 +142,7 @@ public sealed class ModalTransform
         if (!IsActive) return;
         IsActive = false;
         _document.CommitTransforms(_items.Select(item =>
-            (item.Object, item.Start, Requested: item.Object.Transform)), ModeName);
+            (item.Object, item.Start, Requested: item.Object.Transform)), ModeName, _supportStart);
     }
 
     public void Cancel()
@@ -147,6 +150,7 @@ public sealed class ModalTransform
         if (!IsActive) return;
         IsActive = false;
         foreach (var (obj, start) in _items) obj.Transform = start;
+        _document.RestoreSupportPositions(_supportStart);
         _document.NotifyTransientChange();
     }
 
@@ -226,6 +230,7 @@ public sealed class ModalTransform
             case TransformMode.Rotate: ApplyRotate(); break;
             case TransformMode.Scale: ApplyScale(); break;
         }
+        _document.ApplyAssociatedSupportTransformsTransient(_items, _supportStart);
         _document.NotifyTransientChange();
     }
 

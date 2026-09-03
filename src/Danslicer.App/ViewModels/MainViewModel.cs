@@ -23,7 +23,7 @@ public partial class MainViewModel : ViewModelBase
     private CancellationTokenSource? _sliceCancellation;
     private CancellationTokenSource? _generationCancellation;
     private bool _applyingGenerationBatch;
-    private WorkspaceMode _lastModelMode = WorkspaceMode.Layout;
+    private bool _changingViewMode;
 
     public Document Document { get; } = new();
 
@@ -75,12 +75,32 @@ public partial class MainViewModel : ViewModelBase
     public bool IsLayersView
     {
         get => ViewMode == WorkspaceMode.Slicing;
-        set { if (value && HasSlice) ViewMode = WorkspaceMode.Slicing; }
+        set { if (value) ViewMode = WorkspaceMode.Slicing; }
     }
 
     partial void OnViewModeChanged(WorkspaceMode value)
     {
-        if (value != WorkspaceMode.Slicing) _lastModelMode = value;
+        _changingViewMode = true;
+        try
+        {
+            if (value == WorkspaceMode.Layout)
+            {
+                Document.ClearSupportSelection();
+                if (SelectedObject is { } target) Document.Select(target);
+            }
+            else
+            {
+                Document.ClearSelection();
+                if (value == WorkspaceMode.Slicing) Document.ClearSupportSelection();
+            }
+        }
+        finally
+        {
+            _changingViewMode = false;
+        }
+        DeleteCommand.NotifyCanExecuteChanged();
+        DropToPlateCommand.NotifyCanExecuteChanged();
+        HideCommand.NotifyCanExecuteChanged();
     }
 
     [ObservableProperty]
@@ -97,6 +117,9 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial bool ShowOverhangs { get; set; }
+
+    [ObservableProperty]
+    public partial bool SelectThroughSupports { get; set; }
 
     [ObservableProperty]
     public partial bool AutoDropEnabled { get; set; } = true;
@@ -170,7 +193,12 @@ public partial class MainViewModel : ViewModelBase
         Document.Scene.ObjectAdded += o => Objects.Add(o);
         Document.Scene.ObjectRemoved += o => Objects.Remove(o);
         Document.SelectionChanged += OnDocumentSelectionChanged;
-        Document.SupportSelectionChanged += () => HideUnselectedSupportsCommand.NotifyCanExecuteChanged();
+        Document.SupportSelectionChanged += () =>
+        {
+            HideUnselectedSupportsCommand.NotifyCanExecuteChanged();
+            DeleteCommand.NotifyCanExecuteChanged();
+            HideCommand.NotifyCanExecuteChanged();
+        };
         Document.Changed += OnDocumentChanged;
         OnDocumentChanged();
     }
@@ -208,7 +236,8 @@ public partial class MainViewModel : ViewModelBase
         _syncingSelection = true;
         try
         {
-            SelectedObject = Document.Selection.FirstOrDefault();
+            if (!_changingViewMode && ViewMode == WorkspaceMode.Layout)
+                SelectedObject = Document.Selection.FirstOrDefault();
         }
         finally
         {
@@ -227,8 +256,11 @@ public partial class MainViewModel : ViewModelBase
         _syncingSelection = true;
         try
         {
-            if (value is null) Document.ClearSelection();
-            else Document.Select(value);
+            if (ViewMode == WorkspaceMode.Layout)
+            {
+                if (value is null) Document.ClearSelection();
+                else Document.Select(value);
+            }
         }
         finally
         {
@@ -313,14 +345,36 @@ public partial class MainViewModel : ViewModelBase
     private void Redo() => Document.Redo();
     private bool CanRedo() => Document.History.CanRedo;
 
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void Delete() => Document.DeleteSelection();
+    [RelayCommand(CanExecute = nameof(CanDelete))]
+    private void Delete()
+    {
+        if (ViewMode == WorkspaceMode.Layout) Document.DeleteSelection();
+        else if (ViewMode == WorkspaceMode.Support) Document.DeleteSupportSelection();
+    }
+
+    private bool CanDelete() => ViewMode switch
+    {
+        WorkspaceMode.Layout => HasSelection(),
+        WorkspaceMode.Support => HasSupportSelection(),
+        _ => false,
+    };
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void DropToPlate() => Document.DropSelectionToPlate();
 
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void Hide() => Document.HideSelection();
+    [RelayCommand(CanExecute = nameof(CanHide))]
+    private void Hide()
+    {
+        if (ViewMode == WorkspaceMode.Layout) Document.HideSelection();
+        else if (ViewMode == WorkspaceMode.Support) Document.HideSelectedSupportElements();
+    }
+
+    private bool CanHide() => ViewMode switch
+    {
+        WorkspaceMode.Layout => HasSelection(),
+        WorkspaceMode.Support => HasSupportSelection(),
+        _ => false,
+    };
 
     [RelayCommand]
     private void UnhideAll() => Document.UnhideAll();
@@ -416,11 +470,7 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void ToggleView()
-    {
-        if (ViewMode == WorkspaceMode.Slicing) ViewMode = _lastModelMode;
-        else if (HasSlice) ViewMode = WorkspaceMode.Slicing;
-        else ViewMode = ViewMode == WorkspaceMode.Layout ? WorkspaceMode.Support : WorkspaceMode.Layout;
-    }
+        => ViewMode = WorkspaceNavigation.Next(ViewMode, HasSlice);
 
     [RelayCommand]
     private void ToggleSnap() => SnapEnabled = !SnapEnabled;
@@ -521,7 +571,6 @@ public partial class MainViewModel : ViewModelBase
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Scene changed since the last slice.";
-        if (ViewMode == WorkspaceMode.Slicing) ViewMode = _lastModelMode;
     }
 
     partial void OnPreviewLayerChanged(int value) => UpdatePreview();

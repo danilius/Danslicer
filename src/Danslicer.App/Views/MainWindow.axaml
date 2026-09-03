@@ -14,19 +14,6 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <!-- Explicit bindings: MenuItem.HotKey only registers once a sub-menu has been opened. -->
-    <Window.KeyBindings>
-        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
-        <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
-        <KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}" />
-        <KeyBinding Gesture="Ctrl+D" Command="{Binding DropToPlateCommand}" />
-        <KeyBinding Gesture="Ctrl+G" Command="{Binding GenerateSupportsCommand}" />
-        <KeyBinding Gesture="Ctrl+A" Command="{Binding SelectAllCommand}" />
-        <KeyBinding Gesture="Shift+H" Command="{Binding HideUnselectedSupportsCommand}" />
-        <KeyBinding Gesture="Ctrl+R" Command="{Binding SliceCommand}" />
-    </Window.KeyBindings>
-
     <Window.Resources>
         <DataTemplate x:Key="FieldTemplate" x:DataType="vm:NumericField">
             <Grid ColumnDefinitions="18,*,28" Margin="0,2">
@@ -84,29 +71,29 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_Import STL..." Click="OnImportClick" InputGesture="Ctrl+I" />
-                <MenuItem Header="_Export Print File..." Click="OnExportClick" InputGesture="Ctrl+E" />
+                <MenuItem Header="_Import STL..." Click="OnImportClick" />
+                <MenuItem Header="_Export Print File..." Click="OnExportClick" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
-                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGesture="Ctrl+Shift+Z" />
+                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" />
+                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" />
                 <Separator />
-                <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" InputGesture="Ctrl+A" />
-                <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" InputGesture="Delete" />
+                <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" />
+                <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" />
                 <Separator />
-                <MenuItem Header="_Preferences..." Click="OnPreferencesClick" InputGesture="Ctrl+OemComma" />
+                <MenuItem Header="_Preferences..." Click="OnPreferencesClick" />
             </MenuItem>
             <MenuItem Header="_Object">
-                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" InputGesture="Ctrl+D" />
+                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" />
                 <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F" />
                 <Separator />
                 <MenuItem Header="_Hide" Command="{Binding HideCommand}" InputGesture="H" />
-                <MenuItem Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsCommand}" InputGesture="Shift+H" />
+                <MenuItem Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsCommand}" />
                 <MenuItem Header="_Unhide All" Command="{Binding UnhideAllCommand}" InputGesture="Alt+H" />
                 <Separator />
-                <MenuItem Header="_Generate Supports" Command="{Binding GenerateSupportsCommand}" InputGesture="Ctrl+G" />
+                <MenuItem Header="_Generate Supports" Command="{Binding GenerateSupportsCommand}" />
                 <Separator />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
                 <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}" />
@@ -117,8 +104,8 @@
                 <MenuItem Header="Over_hang Tint" ToggleType="CheckBox" IsChecked="{Binding ShowOverhangs, Mode=TwoWay}" />
             </MenuItem>
             <MenuItem Header="_Print">
-                <MenuItem Header="_Slice" Command="{Binding SliceCommand}" InputGesture="Ctrl+R" />
-                <MenuItem Header="_Export Print File..." Click="OnExportClick" InputGesture="Ctrl+E" />
+                <MenuItem Header="_Slice" Command="{Binding SliceCommand}" />
+                <MenuItem Header="_Export Print File..." Click="OnExportClick" />
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Toggle Workspace / _Slicing" Command="{Binding ToggleViewCommand}" InputGesture="Tab" />
@@ -154,7 +141,16 @@
             </Grid>
         </Border>
 
-        <Border DockPanel.Dock="Left" Width="220" Background="#23262A" BorderBrush="#111" BorderThickness="0,0,1,0">
+        <Grid x:Name="WorkspaceGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" MinWidth="140" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" MinWidth="320" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="320" MinWidth="220" />
+            </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#23262A" BorderBrush="#111" BorderThickness="0,0,1,0">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top" Text="Objects" Classes="section" Margin="10,8,10,4" />
                 <ListBox ItemsSource="{Binding Objects}" SelectedItem="{Binding SelectedObject}"
@@ -168,53 +164,60 @@
             </DockPanel>
         </Border>
 
-        <Border DockPanel.Dock="Right" Width="320" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0">
-            <TabControl Padding="10,4">
-                <TabItem Header="Object">
-                    <ScrollViewer>
-                        <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
-                            <TextBlock Text="Object" Classes="section" />
-                            <TextBlock Text="{Binding SelectedObject.Name, FallbackValue=''}" FontSize="13" />
-                            <TextBlock Text="{Binding TriangleText}" Classes="label" />
-                            <TextBlock Text="{Binding DimensionsText}" Classes="label" />
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="#151719" />
 
-                            <TextBlock Text="Position" Classes="section" />
-                            <ItemsControl ItemsSource="{Binding Position}" ItemTemplate="{StaticResource FieldTemplate}" />
+        <Border Grid.Column="4" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0" Padding="10,4">
+            <Grid>
+                <ScrollViewer IsVisible="{Binding IsLayoutView}">
+                    <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <TextBlock Text="Object" Classes="section" />
+                        <TextBlock Text="{Binding SelectedObject.Name, FallbackValue=''}" FontSize="13" />
+                        <TextBlock Text="{Binding TriangleText}" Classes="label" />
+                        <TextBlock Text="{Binding DimensionsText}" Classes="label" />
 
-                            <TextBlock Text="Rotation" Classes="section" />
-                            <ItemsControl ItemsSource="{Binding Rotation}" ItemTemplate="{StaticResource FieldTemplate}" />
+                        <TextBlock Text="Position" Classes="section" />
+                        <ItemsControl ItemsSource="{Binding Position}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                            <TextBlock Text="Scale" Classes="section" />
-                            <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
+                        <TextBlock Text="Rotation" Classes="section" />
+                        <ItemsControl ItemsSource="{Binding Rotation}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                            <TextBlock Text="Supports" Classes="section" />
-                            <Button Content="Generate Supports" Command="{Binding GenerateSupportsCommand}"
-                                    HorizontalAlignment="Left" MinWidth="130" />
+                        <TextBlock Text="Scale" Classes="section" />
+                        <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
+
+                        <TextBlock Text="Supports" Classes="section" />
+                        <Button Content="Generate Supports" Command="{Binding GenerateSupportsCommand}"
+                                HorizontalAlignment="Left" MinWidth="130" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <StackPanel IsVisible="{Binding IsSupportView}">
+                    <TextBlock Text="Support" Classes="section" />
+                    <ToggleButton Content="Select Through" IsChecked="{Binding SelectThroughSupports}"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
+                </StackPanel>
+
+                <ScrollViewer IsVisible="{Binding IsLayersView}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Document.Printer.Name}" Classes="section" />
+                        <ItemsControl ItemsSource="{Binding PrintSettings.Fields}" ItemTemplate="{StaticResource WideFieldTemplate}" />
+                        <CheckBox Content="Anti-aliasing (16 levels)" IsChecked="{Binding PrintSettings.AntiAliasing}" Margin="0,6,0,0" FontSize="12" />
+
+                        <TextBlock Text="Slice" Classes="section" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Slice" Command="{Binding SliceCommand}" MinWidth="80" />
+                            <Button Content="Export…" Click="OnExportClick" MinWidth="80" />
                         </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-
-                <TabItem Header="Print">
-                    <ScrollViewer>
-                        <StackPanel>
-                            <TextBlock Text="{Binding Document.Printer.Name}" Classes="section" />
-                            <ItemsControl ItemsSource="{Binding PrintSettings.Fields}" ItemTemplate="{StaticResource WideFieldTemplate}" />
-                            <CheckBox Content="Anti-aliasing (16 levels)" IsChecked="{Binding PrintSettings.AntiAliasing}" Margin="0,6,0,0" FontSize="12" />
-
-                            <TextBlock Text="Slice" Classes="section" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Slice" Command="{Binding SliceCommand}" MinWidth="80" />
-                                <Button Content="Export…" Click="OnExportClick" MinWidth="80" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding SliceSummary}" Classes="label" Margin="0,8,0,0" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-            </TabControl>
+                        <TextBlock Text="{Binding SliceSummary}" Classes="label" Margin="0,8,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Border>
 
+        <GridSplitter Grid.Column="3" ResizeDirection="Columns" Background="#151719" />
+
         <!-- Main area: header strip, then either the 3D model view or the layer view. -->
-        <DockPanel>
+        <DockPanel Grid.Column="2">
             <Border DockPanel.Dock="Top" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,0,1" Padding="8,3">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsLayoutView}">
@@ -234,7 +237,7 @@
                         <TextBlock Text="Workspace" Classes="label" Margin="0,0,8,0" />
                         <ToggleButton Classes="tool" Content="Layout" IsChecked="{Binding IsLayoutView}" />
                         <ToggleButton Classes="tool" Content="Support" IsChecked="{Binding IsSupportView}" />
-                        <ToggleButton Classes="tool" Content="Slicing" IsChecked="{Binding IsLayersView}" IsEnabled="{Binding HasSlice}" />
+                        <ToggleButton Classes="tool" Content="Slicing" IsChecked="{Binding IsLayersView}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -243,6 +246,7 @@
                 <controls:ViewportControl x:Name="Viewport" Document="{Binding Document}"
                                           IsVisible="{Binding IsModelView}"
                                           SupportSelectionMode="{Binding IsSupportView}"
+                                          SelectThroughSupports="{Binding SelectThroughSupports}"
                                           ShowMoveGizmo="{Binding ShowMoveGizmo}"
                                           ShowRotateGizmo="{Binding ShowRotateGizmo}"
                                           ShowScaleGizmo="{Binding ShowScaleGizmo}"
@@ -261,5 +265,6 @@
                 </DockPanel>
             </Grid>
         </DockPanel>
+        </Grid>
     </DockPanel>
 </Window>

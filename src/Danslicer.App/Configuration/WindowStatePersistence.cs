@@ -12,7 +12,8 @@ namespace Danslicer.App.Configuration;
 /// </summary>
 public static class WindowStatePersistence
 {
-    public static void Track(Window window, string key)
+    public static void Track(Window window, string key,
+        ColumnDefinition? leftPanel = null, ColumnDefinition? rightPanel = null)
     {
         var saved = AppConfig.Current.Windows.TryGetValue(key, out var s) ? s : null;
         var normal = new WindowStateConfig
@@ -42,6 +43,11 @@ public static class WindowStatePersistence
             };
         }
 
+        if (leftPanel is not null && saved?.LeftPanelWidth >= leftPanel.MinWidth)
+            leftPanel.Width = new GridLength(saved.LeftPanelWidth);
+        if (rightPanel is not null && saved?.RightPanelWidth >= rightPanel.MinWidth)
+            rightPanel.Width = new GridLength(saved.RightPanelWidth);
+
         window.PositionChanged += (_, e) =>
         {
             if (window.WindowState != WindowState.Normal) return;
@@ -57,6 +63,8 @@ public static class WindowStatePersistence
         window.Closing += (_, _) =>
         {
             normal.Maximized = window.WindowState == WindowState.Maximized;
+            if (leftPanel is not null) normal.LeftPanelWidth = leftPanel.ActualWidth;
+            if (rightPanel is not null) normal.RightPanelWidth = rightPanel.ActualWidth;
             AppConfig.Current.Windows[key] = normal;
             AppConfig.Save();
         };

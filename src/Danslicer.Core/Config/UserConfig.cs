@@ -63,6 +63,8 @@ public sealed class WindowStateConfig
     public double Width { get; set; }
     public double Height { get; set; }
     public bool Maximized { get; set; }
+    public double LeftPanelWidth { get; set; }
+    public double RightPanelWidth { get; set; }
 }
 
 /// <summary>

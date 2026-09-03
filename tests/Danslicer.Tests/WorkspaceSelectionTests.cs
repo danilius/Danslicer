@@ -55,6 +55,63 @@ public sealed class WorkspaceSelectionTests
         Assert.DoesNotContain(hidden.Id, selected);
     }
 
+    [Fact]
+    public void SelectThroughSkipsDepthFilterButNeverHiddenElements()
+    {
+        var graph = new SupportGraph();
+        var visible = new SupportNode { Type = SupportNodeType.Tip, Position = new(5, 5, 0) };
+        var hidden = new SupportNode
+            { Type = SupportNodeType.Base, Position = new(6, 6, 0), Hidden = true };
+        graph.AddNode(visible);
+        graph.AddNode(hidden);
+
+        var depthFiltered = SupportMarqueeSelection.ElementsInside(graph, p => new(p.X, p.Y),
+            Vector2.Zero, new Vector2(10), _ => false);
+        var selectThrough = SupportMarqueeSelection.ElementsInside(graph, p => new(p.X, p.Y),
+            Vector2.Zero, new Vector2(10));
+
+        Assert.Empty(depthFiltered);
+        Assert.Contains(visible.Id, selectThrough);
+        Assert.DoesNotContain(hidden.Id, selectThrough);
+    }
+
+    [Fact]
+    public void HiddenSupportElementsCannotEnterSelectionThroughAnyDocumentApi()
+    {
+        var doc = new Document();
+        var visible = new SupportNode { Type = SupportNodeType.Tip, Position = Vector3.Zero };
+        var hidden = new SupportNode
+            { Type = SupportNodeType.Base, Position = Vector3.UnitZ, Hidden = true };
+        var segment = new SupportSegment
+            { Type = SupportSegmentType.Branch, NodeA = visible.Id, NodeB = hidden.Id };
+        doc.Supports.AddNode(visible);
+        doc.Supports.AddNode(hidden);
+        doc.Supports.AddSegment(segment);
+
+        doc.SelectSupportElement(hidden.Id);
+        Assert.Empty(doc.SupportSelection);
+        doc.SelectSupportElements([hidden.Id, segment.Id]);
+        Assert.Empty(doc.SupportSelection);
+        doc.SelectSupportComponent(visible.Id);
+        Assert.Contains(visible.Id, doc.SupportSelection);
+        Assert.DoesNotContain(hidden.Id, doc.SupportSelection);
+        Assert.DoesNotContain(segment.Id, doc.SupportSelection);
+        WorkspaceSelection.SelectAll(doc, WorkspaceMode.Support);
+        Assert.Contains(visible.Id, doc.SupportSelection);
+        Assert.DoesNotContain(hidden.Id, doc.SupportSelection);
+        Assert.DoesNotContain(segment.Id, doc.SupportSelection);
+    }
+
+    [Theory]
+    [InlineData(WorkspaceMode.Layout, false, WorkspaceMode.Support)]
+    [InlineData(WorkspaceMode.Support, false, WorkspaceMode.Layout)]
+    [InlineData(WorkspaceMode.Slicing, false, WorkspaceMode.Layout)]
+    [InlineData(WorkspaceMode.Layout, true, WorkspaceMode.Support)]
+    [InlineData(WorkspaceMode.Support, true, WorkspaceMode.Slicing)]
+    [InlineData(WorkspaceMode.Slicing, true, WorkspaceMode.Layout)]
+    public void TabCyclesWorkspaces(WorkspaceMode current, bool hasSlice, WorkspaceMode expected)
+        => Assert.Equal(expected, WorkspaceNavigation.Next(current, hasSlice));
+
     private static Mesh Triangle() => new(
         [Vector3.Zero, Vector3.UnitX, Vector3.UnitY], [0, 1, 2]);
 }
