@@ -60,6 +60,44 @@ public class SupportSliceGeometryTests
     }
 
     [Fact]
+    public void SlicerUnionsSupportSectionsIntoTheLayers()
+    {
+        // A 10 x 10 x 5 box beside a vertical pillar (diameter 2) reaching above the box: the
+        // sliced volume gains the pillar, and the pillar's cap extends the print height.
+        var p = new Vector3[8];
+        for (int i = 0; i < 8; i++) p[i] = new Vector3((i & 1) * 10, ((i >> 1) & 1) * 10, ((i >> 2) & 1) * 5);
+        int[] idx =
+        {
+            0, 2, 3, 0, 3, 1,  4, 5, 7, 4, 7, 6,  0, 1, 5, 0, 5, 4,
+            2, 6, 7, 2, 7, 3,  0, 4, 6, 0, 6, 2,  1, 3, 7, 1, 7, 5,
+        };
+        var obj = new Danslicer.Core.Scene.SceneObject("box", new Danslicer.Core.Geometry.Mesh(p, idx));
+        obj.Transform = Danslicer.Core.Scene.Transform.Identity with { Translation = new Vector3(-5, -5, 0) };
+
+        var graph = new SupportGraph();
+        var bottom = new SupportNode { Type = SupportNodeType.Base, Position = new Vector3(20, 0, 0) };
+        var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(20, 0, 10) };
+        graph.AddNode(bottom);
+        graph.AddNode(top);
+        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = bottom.Id, NodeB = top.Id, Diameter = 2f });
+
+        var settings = Danslicer.Core.Slicing.PrintSettings.Default with { LayerHeight = 0.5f };
+        var plain = Danslicer.Core.Slicing.Slicer.Slice(new[] { obj }, Danslicer.Core.Printers.PrinterDefinition.PhotonMonoX, settings);
+        var withSupports = Danslicer.Core.Slicing.Slicer.Slice(new[] { obj }, Danslicer.Core.Printers.PrinterDefinition.PhotonMonoX, settings, supports: graph);
+
+        // Print height now reaches the pillar's cap top (11 mm), not the box top (5 mm).
+        Assert.Equal(10, plain.LayerCount);
+        Assert.Equal(22, withSupports.LayerCount);
+
+        // Added volume is roughly the pillar's: pi * 1^2 * 11 ml/1000, within rasterisation slack.
+        var added = withSupports.VolumeMl - plain.VolumeMl;
+        Assert.InRange(added, 0.028, 0.040);
+
+        // The pillar shows up in the footprint.
+        Assert.True(withSupports.MaxX > 20.5);
+    }
+
+    [Fact]
     public void GraphSectionsSkipDisabledButNotHidden()
     {
         var g = new SupportGraph();
