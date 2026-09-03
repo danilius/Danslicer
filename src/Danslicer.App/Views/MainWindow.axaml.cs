@@ -87,6 +87,12 @@ public partial class MainWindow : Window
         await ViewModel.ExportAsync(path);
     }
 
+    private void OnLayFlatClick(object? sender, RoutedEventArgs e)
+    {
+        Viewport.BeginLayFlatPick();
+        Viewport.Focus();
+    }
+
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
     private void OnFrameAllClick(object? sender, RoutedEventArgs e) => Viewport.FrameAll();
     private void OnFrameSelectedClick(object? sender, RoutedEventArgs e) => Viewport.FrameSelected();
