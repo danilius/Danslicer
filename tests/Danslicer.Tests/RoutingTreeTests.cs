@@ -26,6 +26,17 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void BranchEnvelopeWithoutAGridPointReportsItsOwnRefusalReason()
+    {
+        var result = Route(new[] { new RoutingTip(new(10, 10, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { BaseGridPitch = 20f, MaxBranchLength = 8f });
+
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason);
+        Assert.Empty(result.Graph.Nodes);
+    }
+
+    [Fact]
     public void FlatUndersideTipBecomesTipTrunkAndDiscBase()
     {
         var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) });
@@ -163,6 +174,19 @@ public sealed class RoutingTreeTests
                     ? segment.NodeA : segment.NodeB)
             .Distinct().ToList();
         Assert.Single(branchEnds);
+    }
+
+    [Fact]
+    public void MiniSupportWithoutAReachableBranchEndReportsItsOwnRefusalReason()
+    {
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+        });
+
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(RoutingFailureReason.NoBranchEndInRange, failure.Reason);
+        Assert.Empty(result.Graph.Nodes);
     }
 
     [Fact]

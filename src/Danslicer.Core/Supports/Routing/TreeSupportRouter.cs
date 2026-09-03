@@ -99,9 +99,10 @@ public sealed class TreeSupportRouter
         foreach (var pending in pendingMini.OrderByDescending(item => item.Tip.SurfacePoint.Z)
                      .ThenBy(item => item.Index))
         {
-            if (TryRouteMiniSupport(pending.Tip, options, state)) continue;
+            if (TryRouteMiniSupport(pending.Tip, options, state, out var miniReason)) continue;
             unrouted.Add(pending.Tip);
-            failures.Add(new RoutingFailure(pending.Tip, pending.Reason));
+            failures.Add(new RoutingFailure(pending.Tip,
+                pending.Tip.MiniSupportOnly ? miniReason : pending.Reason));
         }
 
         var bases = graph.Nodes.Where(node => node.Type == SupportNodeType.Base)
@@ -109,16 +110,24 @@ public sealed class TreeSupportRouter
         return new RoutingResult(graph, unrouted, bases, state.MaxLean, failures);
     }
 
-    private bool TryRouteMiniSupport(RoutingTip tip, TreeRoutingOptions options, RouteState state)
+    private bool TryRouteMiniSupport(RoutingTip tip, TreeRoutingOptions options, RouteState state,
+        out RoutingFailureReason reason)
     {
-        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon) return false;
+        reason = RoutingFailureReason.NoClearStep;
+        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
+        {
+            reason = RoutingFailureReason.BelowPlate;
+            return false;
+        }
+        var hasBranchEndInRange = false;
         foreach (var branchEnd in state.BranchEnds
-                     .Where(node => state.MiniFanCount(node.Id) < options.MiniSupportMaxFanPerBranchEnd)
                      .OrderBy(node => Vector3.DistanceSquared(node.Position, tip.SurfacePoint))
                      .ThenBy(node => node.Id))
         {
             var length = Vector3.Distance(branchEnd.Position, tip.SurfacePoint);
             if (length > options.MiniSupportMaxLength + Epsilon || length <= Epsilon) continue;
+            hasBranchEndInRange = true;
+            if (state.MiniFanCount(branchEnd.Id) >= options.MiniSupportMaxFanPerBranchEnd) continue;
             var bodyRadius = options.MiniSupportDiameter * 0.5f;
             var queryRadius = bodyRadius + state.Clearance.ModelDistance;
             var delta = tip.SurfacePoint - branchEnd.Position;
@@ -146,6 +155,7 @@ public sealed class TreeSupportRouter
             state.IncrementMiniFan(branchEnd.Id);
             return true;
         }
+        if (!hasBranchEndInRange) reason = RoutingFailureReason.NoBranchEndInRange;
         return false;
     }
 
@@ -207,7 +217,8 @@ public sealed class TreeSupportRouter
 
         // The straight candidate was handled with trunk-derived tip geometry above. Every
         // remaining candidate introduces a branch, so both it and its tip use branch settings.
-        foreach (var trunkTop in TrunkTopCandidates(branchJunction.Value, options))
+        var trunkTops = TrunkTopCandidates(branchJunction.Value, options).ToList();
+        foreach (var trunkTop in trunkTops)
         {
             if (Vector2.DistanceSquared(new(branchJunction.Value.X, branchJunction.Value.Y),
                     new(trunkTop.X, trunkTop.Y)) <= Epsilon * Epsilon) continue;
@@ -222,6 +233,11 @@ public sealed class TreeSupportRouter
         if (!options.PreferExistingTrunks && branchJunction is { } fallbackJ1 &&
             fallbackJ1.Z > options.PlateZ + Epsilon &&
             TryAttachToTrunk(tip, fallbackJ1, options, state, branchTipDiameter)) return true;
+        var straightGridCandidateWasBlocked = trunkJunction is { } straightJunction &&
+                                              straightJunction.Z > options.PlateZ + Epsilon &&
+                                              IsOnBaseGrid(straightJunction, options);
+        if (!straightGridCandidateWasBlocked && trunkTops.Count == 0)
+            reason = RoutingFailureReason.NoReachableGridPoint;
         return false;
     }
 

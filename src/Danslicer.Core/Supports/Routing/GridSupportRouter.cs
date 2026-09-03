@@ -35,6 +35,8 @@ public enum RoutingFailureReason
 {
     ContactBlocked,
     NoClearStep,
+    NoReachableGridPoint,
+    NoBranchEndInRange,
     NoLanding,
     BelowPlate,
 }
