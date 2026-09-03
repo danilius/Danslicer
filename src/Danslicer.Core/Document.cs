@@ -106,6 +106,24 @@ public sealed class Document
         SupportSelectionChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Selects the whole support containing the element: its connected component with bracing
+    /// excluded, per the design's whole-support mode.
+    /// </summary>
+    public void SelectSupportComponent(Guid elementId, bool additive = false)
+    {
+        Guid seed;
+        if (Supports.TryGetNode(elementId, out var node)) seed = node.Id;
+        else if (Supports.TryGetSegment(elementId, out var segment)) seed = segment.NodeA;
+        else return;
+
+        var (nodes, segments) = Supports.Component(seed);
+        if (!additive) _supportSelection.Clear();
+        foreach (var id in nodes) _supportSelection.Add(id);
+        foreach (var id in segments) _supportSelection.Add(id);
+        SupportSelectionChanged?.Invoke();
+    }
+
     public void ClearSupportSelection()
     {
         if (_supportSelection.Count == 0) return;

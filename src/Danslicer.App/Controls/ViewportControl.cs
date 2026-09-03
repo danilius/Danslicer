@@ -332,7 +332,9 @@ public sealed class ViewportControl : OpenGlControlBase
             if (support is { } element && supportDistance <= objDistance + 0.5f)
             {
                 if (!additive) Document.ClearSelection();
-                Document.SelectSupportElement(element, additive);
+                // Double-click selects the whole support tree; single click the element.
+                if (e.ClickCount >= 2) Document.SelectSupportComponent(element, additive);
+                else Document.SelectSupportElement(element, additive);
             }
             else if (hitObj is null)
             {
