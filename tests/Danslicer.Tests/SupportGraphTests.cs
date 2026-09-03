@@ -180,6 +180,36 @@ public class SupportGraphTests
     }
 
     [Fact]
+    public void SelectSupportComponentTakesTheWholeTreeWithoutBracing()
+    {
+        var doc = new Danslicer.Core.Document();
+        var mesh = new Danslicer.Core.Geometry.Mesh(
+            new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
+        var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
+        doc.AddObject(obj);
+        doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(10, 0, 20), -Vector3.UnitZ);
+
+        // Brace the two trees together; the whole-support pick must still stop at the bracing.
+        var junctions = doc.Supports.Nodes.Where(n => n.Type == SupportNodeType.Junction).ToList();
+        doc.Supports.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Bracing, NodeA = junctions[0].Id, NodeB = junctions[1].Id,
+        });
+
+        var pillar = doc.Supports.SegmentsAt(junctions[0].Id)
+            .Single(s => s.Type == SupportSegmentType.Pillar);
+        doc.SelectSupportComponent(pillar.Id);
+        Assert.Equal(5, doc.SupportSelection.Count); // 3 nodes + neck + pillar of one tree only
+        Assert.DoesNotContain(junctions[1].Id, doc.SupportSelection);
+
+        // Deleting the whole selection removes one tree and leaves the other intact.
+        doc.DeleteSupportSelection();
+        Assert.Equal(3, doc.Supports.NodeCount);
+        Assert.Equal(2, doc.Supports.SegmentCount); // bracing went with its removed junction
+    }
+
+    [Fact]
     public void MoveTipVerticalRedropsTheSimpleTree()
     {
         var doc = new Danslicer.Core.Document();
