@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Danslicer.App.ViewModels"
+        xmlns:controls="using:Danslicer.App.Controls"
+        x:Class="Danslicer.App.Views.SupportPresetEditorWindow"
+        x:DataType="vm:SupportPresetEditorViewModel"
+        Width="1200" Height="760" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterOwner" Background="#23262A" Title="{Binding Title}">
+    <Grid RowDefinitions="*,Auto" ColumnDefinitions="360,5,*" Margin="10">
+        <Border Grid.Row="0" Grid.Column="0" Background="#1C1F22" Padding="10">
+            <ScrollViewer>
+                <controls:SupportSettingsView DataContext="{Binding Settings}" />
+            </ScrollViewer>
+        </Border>
+        <GridSplitter Grid.Row="0" Grid.Column="1" ResizeDirection="Columns" Background="#404348" />
+        <Grid Grid.Row="0" Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" Margin="10,0,0,0">
+            <Grid ColumnDefinitions="Auto,220,20,Auto,140" Margin="0,0,0,8">
+                <TextBlock Text="Sample" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding SampleNames}"
+                          SelectedIndex="{Binding SelectedSampleIndex, Mode=TwoWay}" />
+                <TextBlock Grid.Column="3" Text="Display" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox Grid.Column="4" ItemsSource="{Binding DisplayModes}"
+                          SelectedIndex="{Binding SelectedDisplayModeIndex, Mode=TwoWay}" />
+            </Grid>
+            <Border Grid.Row="1" Background="#17191C" BorderBrush="#404348" BorderThickness="1">
+                <controls:ViewportControl x:Name="PreviewViewport"
+                                          Document="{Binding PreviewDocument}"
+                                          SupportDisplay="{Binding PreviewSupportDisplay}"
+                                          ShowMoveGizmo="False" ShowRotateGizmo="False"
+                                          ShowScaleGizmo="False" />
+            </Border>
+            <ProgressBar Grid.Row="2" Minimum="0" Maximum="1" Value="{Binding GenerationProgress}"
+                         IsVisible="{Binding IsGenerating}" Height="4" Margin="0,6,0,0" />
+            <Border Grid.Row="3" Background="#1C1F22" Padding="8" Margin="0,6,0,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding StatisticsText}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding StatusText}" Foreground="#9AA0A6" FontSize="12"
+                               TextWrapping="Wrap" Margin="0,3,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Save" Command="{Binding SaveCommand}" MinWidth="90" Margin="0,0,8,0" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" MinWidth="90" />
+        </StackPanel>
+    </Grid>
+</Window>

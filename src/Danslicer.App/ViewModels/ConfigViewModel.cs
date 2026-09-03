@@ -15,9 +15,12 @@ public sealed class ConfigViewModel : ViewModelBase
 {
     private enum PresetNameOperation { None, SaveAs, Rename }
 
+    private readonly SupportConfig? _supportOverride;
+    private readonly bool _persistChanges;
+    private readonly Action? _supportChanged;
     private SpaceMouseConfig SpaceMouse => AppConfig.Current.SpaceMouse;
     private ViewportConfig Viewport => AppConfig.Current.Viewport;
-    private SupportConfig Supports => AppConfig.Current.Supports;
+    private SupportConfig Supports => _supportOverride ?? AppConfig.Current.Supports;
     private IReadOnlyList<string> _supportPresetDisplayNames = [];
     private int _selectedSupportPresetIndex = -1;
     private bool _isSupportPresetNameEditorVisible;
@@ -25,8 +28,21 @@ public sealed class ConfigViewModel : ViewModelBase
     private string _supportPresetValidationMessage = "";
     private PresetNameOperation _presetNameOperation;
 
-    public ConfigViewModel()
+    public ConfigViewModel() : this(null, persistChanges: true, null)
     {
+    }
+
+    internal ConfigViewModel(SupportConfig supportSettings, Action supportChanged)
+        : this(supportSettings, persistChanges: false, supportChanged)
+    {
+    }
+
+    private ConfigViewModel(SupportConfig? supportOverride, bool persistChanges,
+        Action? supportChanged)
+    {
+        _supportOverride = supportOverride;
+        _persistChanges = persistChanges;
+        _supportChanged = supportChanged;
         SaveSupportPresetCommand = new RelayCommand(SaveSupportPreset, HasSelectedSupportPreset);
         BeginSaveSupportPresetAsCommand = new RelayCommand(BeginSaveSupportPresetAs);
         BeginRenameSupportPresetCommand = new RelayCommand(
@@ -35,7 +51,9 @@ public sealed class ConfigViewModel : ViewModelBase
             DeleteSupportPreset, () => HasSelectedSupportPreset() && AppConfig.Current.SupportPresets.Count > 1);
         ConfirmSupportPresetNameCommand = new RelayCommand(ConfirmSupportPresetName);
         CancelSupportPresetNameCommand = new RelayCommand(CancelSupportPresetName);
-        RefreshSupportPresetOptions();
+        EditSupportPresetCommand = new RelayCommand(
+            () => EditSupportPresetRequested?.Invoke(), HasSelectedSupportPreset);
+        if (_persistChanges) RefreshSupportPresetOptions();
     }
 
     public SupportDisplayConfig SupportDisplay => Viewport.SupportDisplay;
@@ -52,6 +70,9 @@ public sealed class ConfigViewModel : ViewModelBase
     public IRelayCommand DeleteSupportPresetCommand { get; }
     public IRelayCommand ConfirmSupportPresetNameCommand { get; }
     public IRelayCommand CancelSupportPresetNameCommand { get; }
+    public IRelayCommand EditSupportPresetCommand { get; }
+
+    public bool ShowSupportPresetControls => _persistChanges;
 
     public IReadOnlyList<string> SupportPresetDisplayNames
     {
@@ -119,12 +140,21 @@ public sealed class ConfigViewModel : ViewModelBase
 
     /// <summary>Raised after every persisted change, so hosts can refresh what they draw.</summary>
     public event Action? Saved;
+    public event Action? EditSupportPresetRequested;
 
     private void Update(Action apply, [CallerMemberName] string? property = null)
     {
         apply();
-        AppConfig.Save();
+        if (_persistChanges) AppConfig.Save();
         OnPropertyChanged(property);
+        if (_persistChanges) RefreshSupportPresetOptions();
+        _supportChanged?.Invoke();
+        Saved?.Invoke();
+    }
+
+    internal void ApplyExternalSupportPresetChange()
+    {
+        OnPropertyChanged(string.Empty);
         RefreshSupportPresetOptions();
         Saved?.Invoke();
     }
@@ -146,6 +176,7 @@ public sealed class ConfigViewModel : ViewModelBase
         SaveSupportPresetCommand.NotifyCanExecuteChanged();
         BeginRenameSupportPresetCommand.NotifyCanExecuteChanged();
         DeleteSupportPresetCommand.NotifyCanExecuteChanged();
+        EditSupportPresetCommand.NotifyCanExecuteChanged();
     }
 
     private void SaveSupportPreset()
