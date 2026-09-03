@@ -15,6 +15,7 @@ public partial class ConfigWindow : Window
     {
         InitializeComponent();
         DataContext = new ConfigViewModel();
+        Configuration.WindowStatePersistence.Track(this, "preferences");
     }
 
     private void OnSearchChanged(object? sender, TextChangedEventArgs e)

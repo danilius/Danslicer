@@ -60,6 +60,25 @@ public sealed class UserConfigTests : IDisposable
     }
 
     [Fact]
+    public void WindowPlacementsRoundTrip()
+    {
+        var config = new UserConfig();
+        config.Windows["main"] = new WindowStateConfig
+            { X = -8, Y = 120, Width = 1400.5, Height = 900, Maximized = true };
+        var path = PathFor("windows.json");
+
+        config.Save(path);
+        var loaded = UserConfig.Load(path);
+
+        var main = loaded.Windows["main"];
+        Assert.Equal(-8, main.X);
+        Assert.Equal(120, main.Y);
+        Assert.Equal(1400.5, main.Width);
+        Assert.Equal(900, main.Height);
+        Assert.True(main.Maximized);
+    }
+
+    [Fact]
     public void MissingFileYieldsDefaults()
     {
         var loaded = UserConfig.Load(PathFor("nowhere.json"));

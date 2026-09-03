@@ -40,6 +40,16 @@ public sealed class ViewportConfig
     public float OverhangCheckerSizeMm { get; set; } = 2f;
 }
 
+/// <summary>Saved placement of one window, in screen pixels.</summary>
+public sealed class WindowStateConfig
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public bool Maximized { get; set; }
+}
+
 /// <summary>
 /// User configuration persisted as JSON in the user profile. Unknown properties in the file are
 /// ignored and missing ones keep their defaults, so the file survives version changes in both
@@ -50,6 +60,9 @@ public sealed class UserConfig
 {
     public SpaceMouseConfig SpaceMouse { get; set; } = new();
     public ViewportConfig Viewport { get; set; } = new();
+
+    /// <summary>Window placements keyed by a stable window name ("main", "preferences").</summary>
+    public Dictionary<string, WindowStateConfig> Windows { get; set; } = new();
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

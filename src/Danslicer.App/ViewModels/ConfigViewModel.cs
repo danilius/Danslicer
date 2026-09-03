@@ -39,31 +39,30 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Viewport.PlateOpacityFromBelow = Math.Clamp(value, 0f, 1f));
     }
 
-    public string OverhangColorA
+    public Avalonia.Media.Color OverhangColorA
     {
-        get => Viewport.OverhangColorA;
-        set { if (TryNormalizeColor(value, out var hex)) Update(() => Viewport.OverhangColorA = hex); }
+        get => ToColor(Viewport.OverhangColorA, Avalonia.Media.Color.FromRgb(0xFA, 0xCC, 0x26));
+        set => Update(() => Viewport.OverhangColorA = ToHex(value));
     }
 
-    public string OverhangColorB
+    public Avalonia.Media.Color OverhangColorB
     {
-        get => Viewport.OverhangColorB;
-        set { if (TryNormalizeColor(value, out var hex)) Update(() => Viewport.OverhangColorB = hex); }
+        get => ToColor(Viewport.OverhangColorB, Avalonia.Media.Color.FromRgb(0xE6, 0x1F, 0x1A));
+        set => Update(() => Viewport.OverhangColorB = ToHex(value));
     }
+
+    private static Avalonia.Media.Color ToColor(string? hex, Avalonia.Media.Color fallback)
+    {
+        var v = AppConfig.ParseColor(hex, new System.Numerics.Vector3(fallback.R, fallback.G, fallback.B) / 255f);
+        return Avalonia.Media.Color.FromRgb((byte)(v.X * 255f + 0.5f), (byte)(v.Y * 255f + 0.5f), (byte)(v.Z * 255f + 0.5f));
+    }
+
+    private static string ToHex(Avalonia.Media.Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
 
     public float OverhangCheckerSizeMm
     {
         get => Viewport.OverhangCheckerSizeMm;
         set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
-    }
-
-    /// <summary>Accepts "RRGGBB" with or without '#'; rejects anything else without saving.</summary>
-    private static bool TryNormalizeColor(string? input, out string hex)
-    {
-        var s = input?.Trim().TrimStart('#') ?? "";
-        var valid = s.Length == 6 && s.All(Uri.IsHexDigit);
-        hex = valid ? $"#{s.ToUpperInvariant()}" : "";
-        return valid;
     }
 
     // SpaceMouse

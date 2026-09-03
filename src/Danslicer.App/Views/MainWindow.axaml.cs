@@ -19,6 +19,7 @@ public partial class MainWindow : Window
         ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
         ExportCommand = new RelayCommand(() => OnExportClick(this, new RoutedEventArgs()));
         InitializeComponent();
+        Configuration.WindowStatePersistence.Track(this, "main");
         KeyBindings.Add(new KeyBinding { Gesture = KeyGesture.Parse("Ctrl+I"), Command = ImportCommand });
         KeyBindings.Add(new KeyBinding { Gesture = KeyGesture.Parse("Ctrl+E"), Command = ExportCommand });
         KeyBindings.Add(new KeyBinding

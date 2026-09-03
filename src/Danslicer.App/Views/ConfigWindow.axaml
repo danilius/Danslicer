@@ -34,6 +34,11 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="MinHeight" Value="24" />
         </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
@@ -56,31 +61,38 @@
 
                 <StackPanel x:Name="ViewportSection">
                     <TextBlock Text="Viewport" Classes="section" />
-                    <Grid Tag="viewport overhang tint angle threshold degrees" ColumnDefinitions="190,*,52" Margin="0,2">
+                    <Grid Tag="viewport overhang tint angle threshold degrees" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Overhang tint angle" Classes="label" />
                         <Slider Grid.Column="1" Minimum="10" Maximum="89" TickFrequency="1" IsSnapToTickEnabled="True"
                                 Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding OverhangAngleDegrees, StringFormat={}{0:0}°}" />
+                        <NumericUpDown Grid.Column="2" Minimum="10" Maximum="89" Increment="1" FormatString="0"
+                                       Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
                     </Grid>
-                    <Grid Tag="viewport plate bed transparency opacity below underneath" ColumnDefinitions="190,*,52" Margin="0,2">
+                    <Grid Tag="viewport plate bed transparency opacity below underneath" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Plate opacity from below" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0" Maximum="1"
                                 Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding PlateOpacityFromBelow, StringFormat={}{0:0%}}" />
+                        <NumericUpDown Grid.Column="2" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00"
+                                       Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
                     </Grid>
-                    <Grid Tag="viewport overhang checker colour color hex first" ColumnDefinitions="190,120,*" Margin="0,2">
+                    <Grid Tag="viewport overhang checker colour color picker first" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Overhang colour A" Classes="label" />
-                        <TextBox Grid.Column="1" FontSize="12" Text="{Binding OverhangColorA, Mode=TwoWay}" />
+                        <ColorPicker Grid.Column="1" HorizontalAlignment="Left" MinWidth="110"
+                                     IsAlphaEnabled="False" IsAlphaVisible="False"
+                                     Color="{Binding OverhangColorA, Mode=TwoWay}" />
                     </Grid>
-                    <Grid Tag="viewport overhang checker colour color hex second" ColumnDefinitions="190,120,*" Margin="0,2">
+                    <Grid Tag="viewport overhang checker colour color picker second" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Overhang colour B" Classes="label" />
-                        <TextBox Grid.Column="1" FontSize="12" Text="{Binding OverhangColorB, Mode=TwoWay}" />
+                        <ColorPicker Grid.Column="1" HorizontalAlignment="Left" MinWidth="110"
+                                     IsAlphaEnabled="False" IsAlphaVisible="False"
+                                     Color="{Binding OverhangColorB, Mode=TwoWay}" />
                     </Grid>
-                    <Grid Tag="viewport overhang checker chequer square cell size mm" ColumnDefinitions="190,*,52" Margin="0,2">
+                    <Grid Tag="viewport overhang checker chequer square cell size mm" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Overhang checker size" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0.5" Maximum="20" TickFrequency="0.5" IsSnapToTickEnabled="True"
                                 Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding OverhangCheckerSizeMm, StringFormat={}{0:0.0} mm}" />
+                        <NumericUpDown Grid.Column="2" Minimum="0.5" Maximum="20" Increment="0.5" FormatString="0.0"
+                                       Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
                     </Grid>
                 </StackPanel>
 
@@ -88,25 +100,29 @@
                     <TextBlock Text="SpaceMouse" Classes="section" />
                     <TextBlock Tag="spacemouse note live" Classes="label" TextWrapping="Wrap" Margin="0,0,0,6"
                                Text="Changes apply immediately — tune while moving the cap. Sensitivity 1.00 is the untuned default." />
-                    <Grid Tag="spacemouse orbit rotate sensitivity speed" ColumnDefinitions="190,*,52" Margin="0,2">
+                    <Grid Tag="spacemouse orbit rotate sensitivity speed" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Orbit sensitivity" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseOrbitSensitivity, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding SpaceMouseOrbitSensitivity, StringFormat={}{0:0.00}}" />
+                        <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
+                                       Value="{Binding SpaceMouseOrbitSensitivity, Mode=TwoWay}" />
                     </Grid>
-                    <Grid Tag="spacemouse pan slide sensitivity speed" ColumnDefinitions="190,*,52" Margin="0,2">
+                    <Grid Tag="spacemouse pan slide sensitivity speed" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Pan sensitivity" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMousePanSensitivity, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding SpaceMousePanSensitivity, StringFormat={}{0:0.00}}" />
+                        <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
+                                       Value="{Binding SpaceMousePanSensitivity, Mode=TwoWay}" />
                     </Grid>
-                    <Grid Tag="spacemouse zoom push sensitivity speed" ColumnDefinitions="190,*,52" Margin="0,2">
+                    <Grid Tag="spacemouse zoom push sensitivity speed" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Zoom sensitivity" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseZoomSensitivity, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding SpaceMouseZoomSensitivity, StringFormat={}{0:0.00}}" />
+                        <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
+                                       Value="{Binding SpaceMouseZoomSensitivity, Mode=TwoWay}" />
                     </Grid>
-                    <Grid Tag="spacemouse deadzone drift threshold" ColumnDefinitions="190,*,52" Margin="0,2">
+                    <Grid Tag="spacemouse deadzone drift threshold" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Deadzone" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0" Maximum="0.2" Value="{Binding SpaceMouseDeadzone, Mode=TwoWay}" />
-                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding SpaceMouseDeadzone, StringFormat={}{0:0.000}}" />
+                        <NumericUpDown Grid.Column="2" Minimum="0" Maximum="0.2" Increment="0.005" FormatString="0.000"
+                                       Value="{Binding SpaceMouseDeadzone, Mode=TwoWay}" />
                     </Grid>
                     <StackPanel Tag="spacemouse invert orbit yaw pitch direction flip" Orientation="Horizontal" Spacing="16" Margin="0,6,0,0">
                         <TextBlock Text="Invert orbit" Classes="label" Width="174" />
