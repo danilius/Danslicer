@@ -128,6 +128,34 @@ public sealed class SupportGeneratorTests
     }
 
     [Fact]
+    public void GridStrategyPlacesTipsOnLatticeVerticalsMatchingBases()
+    {
+        var mesh = Box(new Vector3(-5, -5, 5), new Vector3(5, 5, 15));
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddMesh(mesh, Matrix4x4.Identity);
+        var routing = new GridRoutingOptions { Spacing = 5f };
+        var placement = new TipPlacementParameters { SpacingMm = 5f, MinSpacingMm = 1f };
+
+        var result = SupportGenerator.Generate(
+            mesh, AllFaces(mesh), placement, routing, GrowthRuleSet.Default, obstacles, seed: 1);
+
+        Assert.Contains(result.Candidates, c => c.Strategy == TipStrategy.GridProjection);
+        Assert.DoesNotContain(result.Candidates, c => c.Strategy == TipStrategy.Overhang);
+        Assert.Empty(result.Routing.UnroutedTips);
+
+        var lattice = BaseLattice.WorldPointsCovering(new Vector2(-5, -5), new Vector2(5, 5), routing).ToList();
+        var projected = result.Candidates.Where(c => c.Strategy == TipStrategy.GridProjection).ToList();
+        Assert.All(projected, t =>
+        {
+            var xy = new Vector2(t.Point.X, t.Point.Y);
+            Assert.True(lattice.Any(p => Vector2.Distance(p, xy) < 1e-3f),
+                $"grid tip XY ({xy.X},{xy.Y}) is not on the lattice");
+            Assert.Contains(result.Routing.BasePositions,
+                b => Vector2.Distance(new Vector2(b.X, b.Y), xy) < 1e-3f);
+        });
+    }
+
+    [Fact]
     public void BoxOnThePlateGeneratesNothing()
     {
         var mesh = Box(new Vector3(-5, -5, 0), new Vector3(5, 5, 10));

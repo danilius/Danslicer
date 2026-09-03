@@ -20,22 +20,10 @@ internal static class LayerStack
         if (layerHeight <= 1e-6f) return result;
 
         var prepared = new MeshSlicer.PreparedMesh(mesh, Matrix4x4.Identity);
+        var polygons = MeshSlicer.LayerPolygons(prepared, layerHeight);
         var h = (double)layerHeight;
-        if (prepared.MaxZ <= 1e-9) return result;
-
-        var layerCount = (int)Math.Ceiling(prepared.MaxZ / h - 1e-6);
-        if (layerCount <= 0) return result;
-
-        var buckets = MeshSlicer.BucketTriangles(prepared, h, layerCount);
-        var segments = new List<MeshSlicer.Segment>();
-        for (int i = 0; i < layerCount; i++)
-        {
-            var z = (i + 0.5) * h;
-            segments.Clear();
-            MeshSlicer.CollectSegments(prepared, buckets[i], z, segments);
-            var polygons = MeshSlicer.Finish(MeshSlicer.ChainSegments(segments), 0);
-            result.Add(new SliceLayer(i, (float)z, polygons));
-        }
+        for (int i = 0; i < polygons.Count; i++)
+            result.Add(new SliceLayer(i, (float)((i + 0.5) * h), polygons[i]));
         return result;
     }
 

@@ -8,9 +8,9 @@ namespace Danslicer.Core.Supports.Generation;
 internal readonly record struct Island(Vector3 Centroid, float AreaMm2, float Z, int LayerIndex);
 
 /// <summary>
-/// Layer islands via <see cref="MeshSlicer"/>'s public API: a region of a layer whose XY does
-/// not overlap the previous layer (the plate counts as support for layer 0 when the mesh sits
-/// on it). Slicer internals are not modified; see Grok/QUESTIONS.md for a possible helper.
+/// Layer islands: a region of a layer whose XY does not overlap the previous layer (the plate
+/// counts as support for layer 0 when the mesh sits on it). Contours and the newborn difference
+/// come from <see cref="MeshSlicer.LayerPolygons"/> / <see cref="MeshSlicer.NewbornIslands"/>.
 /// </summary>
 internal static class IslandFinder
 {
@@ -35,29 +35,15 @@ internal static class IslandFinder
         var theta = Math.Clamp(overhangAngleDegrees, 1f, 89f) * Math.PI / 180.0;
         var inflateMm = layerHeight * Math.Tan(theta) + 0.02;
         var sitsOnPlate = meshMinZ <= plateZ + layerHeight + 1e-4;
-        Paths64? previous = null;
 
-        foreach (var layer in layers)
+        var polygons = new List<Paths64>(layers.Count);
+        foreach (var layer in layers) polygons.Add(layer.Polygons);
+        var newborn = MeshSlicer.NewbornIslands(polygons, inflateMm);
+
+        for (int i = 0; i < layers.Count; i++)
         {
-            var polygons = layer.Polygons;
-            Paths64 newborn;
-            if (layer.Index == 0 && sitsOnPlate)
-            {
-                newborn = new Paths64();
-            }
-            else if (previous is null || previous.Count == 0)
-            {
-                newborn = polygons;
-            }
-            else
-            {
-                var supported = Clipper.InflatePaths(
-                    previous, inflateMm * MeshSlicer.UnitsPerMm, JoinType.Round, EndType.Polygon);
-                newborn = Clipper.Difference(polygons, supported, FillRule.NonZero);
-            }
-
-            CollectIslands(newborn, minAreaMm2, layer.Z, layer.Index, result);
-            previous = polygons;
+            if (i == 0 && sitsOnPlate) continue;
+            CollectIslands(newborn[i], minAreaMm2, layers[i].Z, layers[i].Index, result);
         }
 
         return result;

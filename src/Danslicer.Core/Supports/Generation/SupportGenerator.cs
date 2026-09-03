@@ -27,7 +27,13 @@ public static class SupportGenerator
         IReadOnlySet<int>? keepCleanFaces = null,
         int seed = 0)
     {
-        var candidates = TipPlacer.Place(mesh, regionFaces, placement, existingGraph, keepCleanFaces, seed);
+        // Grid routing expects tips on lattice verticals. When the caller has not already
+        // opted into (or out of) grid projection, pass the lattice into placement so Poisson
+        // overhang sampling is replaced by grid hits. Islands and minima still run.
+        var effectivePlacement = placement.Grid is null
+            ? placement with { Grid = routing }
+            : placement;
+        var candidates = TipPlacer.Place(mesh, regionFaces, effectivePlacement, existingGraph, keepCleanFaces, seed);
 
         // Both sides of this mapping speak the inward (penetration) normal, so it passes through;
         // the router flips to the graph's outward convention when it creates the tip node.
