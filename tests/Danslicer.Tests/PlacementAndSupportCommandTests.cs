@@ -305,7 +305,7 @@ public sealed class PlacementAndSupportCommandTests
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
-                MiniSupportMaxFanPerBranchEnd = 5,
+                MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 5f, BaseHeight = 1f,
@@ -334,6 +334,7 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(0.3f, request.Settings.MiniSupportTipDiameter);
         Assert.Equal(1.2f, request.Settings.MiniSupportConeLength);
         Assert.Equal(6f, request.Settings.MiniSupportMaxLength);
+        Assert.Equal(72f, request.Settings.MiniSupportMaxAngleDegrees);
         Assert.Equal(5, request.Settings.MiniSupportMaxFanPerBranchEnd);
         Assert.True(request.Settings.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, request.Settings.MiniIslandMaxAreaMm2);

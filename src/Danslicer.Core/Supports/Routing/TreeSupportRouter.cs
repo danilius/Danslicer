@@ -25,6 +25,8 @@ public sealed record TreeRoutingOptions
     public float MiniSupportTipDiameter { get; init; } = 0.25f;
     public float MiniSupportConeLength { get; init; } = 1f;
     public float MiniSupportMaxLength { get; init; } = 5f;
+    /// <summary>Maximum mini-support lean from vertical.</summary>
+    public float MiniSupportMaxAngleDegrees { get; init; } = 75f;
     public int MiniSupportMaxFanPerBranchEnd { get; init; } = 4;
     /// <summary>
     /// When true, a refused regular tip may be retried as a mini support. Disabled by default so
@@ -84,6 +86,9 @@ public sealed class TreeSupportRouter
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportTipDiameter);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportConeLength);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportMaxLength);
+        if (!float.IsFinite(options.MiniSupportMaxAngleDegrees) ||
+            options.MiniSupportMaxAngleDegrees <= 0 || options.MiniSupportMaxAngleDegrees >= 90)
+            throw new ArgumentOutOfRangeException(nameof(options.MiniSupportMaxAngleDegrees));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportMaxFanPerBranchEnd);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchDirections);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchLengthSteps);
@@ -143,10 +148,13 @@ public sealed class TreeSupportRouter
             var length = Vector3.Distance(branchEnd.Position, tip.SurfacePoint);
             if (length > options.MiniSupportMaxLength + Epsilon || length <= Epsilon) continue;
             hasBranchEndInRange = true;
+            var delta = tip.SurfacePoint - branchEnd.Position;
+            var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z)) *
+                       180 / MathF.PI;
+            if (lean > options.MiniSupportMaxAngleDegrees + Epsilon) continue;
             if (state.MiniFanCount(branchEnd.Id) >= options.MiniSupportMaxFanPerBranchEnd) continue;
             var bodyRadius = options.MiniSupportDiameter * 0.5f;
             var queryRadius = bodyRadius + state.Clearance.ModelDistance;
-            var delta = tip.SurfacePoint - branchEnd.Position;
             var contactAllowance = MathF.Max(options.MiniSupportTipDiameter * 0.5f,
                 queryRadius) * 2 + 0.01f;
             var clearEnd = length > contactAllowance

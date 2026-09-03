@@ -162,6 +162,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.MiniSupportMaxLength = Clamp(value, 0.01f, 1000f, 5f));
     }
 
+    public float SupportMiniSupportMaxAngleDegrees
+    {
+        get => Supports.MiniSupportMaxAngleDegrees;
+        set => Update(() => Supports.MiniSupportMaxAngleDegrees = Clamp(value, 1f, 89f, 75f));
+    }
+
     public int SupportMiniSupportMaxFanPerBranchEnd
     {
         get => Supports.MiniSupportMaxFanPerBranchEnd;

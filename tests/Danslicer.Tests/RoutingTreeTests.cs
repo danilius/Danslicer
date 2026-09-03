@@ -215,6 +215,27 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void MiniSupportAngleLimitRejectsANearHorizontalRod()
+    {
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(8, 0, 10.2f), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+        };
+
+        var limited = Route(tips, new TreeRoutingOptions { MiniSupportMaxAngleDegrees = 75f });
+        var generous = Route(tips, new TreeRoutingOptions { MiniSupportMaxAngleDegrees = 89f });
+
+        Assert.Single(limited.Failures);
+        Assert.DoesNotContain(limited.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+        Assert.Empty(generous.Failures);
+        Assert.Single(generous.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+    }
+
+    [Fact]
     public void RefusedRegularTipsOnlyFallBackToMiniWhenExplicitlyEnabled()
     {
         var tips = new[]
@@ -222,13 +243,14 @@ public sealed class RoutingTreeTests
             // Creates a reachable grid trunk and a branch end at (5, 0, 12).
             new RoutingTip(new(5, 0, 14), Vector3.UnitZ, 0.4f),
             // Its own junction cannot reach the 20 mm grid, but its contact can reach that end.
-            new RoutingTip(new(9, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(9, 0, 12.2f), Vector3.UnitZ, 0.4f),
         };
         var options = new TreeRoutingOptions
         {
             BaseGridPitch = 20f,
             MaxBranchLength = 8f,
             PreferExistingTrunks = false,
+            MiniSupportMaxAngleDegrees = 89f,
         };
 
         var honest = Route(tips, options);

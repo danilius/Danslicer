@@ -145,6 +145,11 @@
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
                                    Value="{Binding SupportMiniSupportMaxLength, Mode=TwoWay}" />
                 </Grid>
+                <Grid Tag="supports mini maximum lean angle degrees" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max angle from vertical" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="89" Increment="1" FormatString="0.#"
+                                   Value="{Binding SupportMiniSupportMaxAngleDegrees, Mode=TwoWay}" />
+                </Grid>
                 <Grid Tag="supports mini maximum fan per branch end count" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max fan per branch end" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="1" Maximum="100" Increment="1" FormatString="0"

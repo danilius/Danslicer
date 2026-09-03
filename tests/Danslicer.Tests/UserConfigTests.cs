@@ -135,7 +135,7 @@ public sealed class UserConfigTests : IDisposable
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
-                MiniSupportMaxFanPerBranchEnd = 5,
+                MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 6f, BaseHeight = 1.1f,
@@ -163,6 +163,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.3f, supports.MiniSupportTipDiameter);
         Assert.Equal(1.2f, supports.MiniSupportConeLength);
         Assert.Equal(6f, supports.MiniSupportMaxLength);
+        Assert.Equal(72f, supports.MiniSupportMaxAngleDegrees);
         Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.True(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
@@ -198,6 +199,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.25f, supports.MiniSupportTipDiameter);
         Assert.Equal(1f, supports.MiniSupportConeLength);
         Assert.Equal(5f, supports.MiniSupportMaxLength);
+        Assert.Equal(75f, supports.MiniSupportMaxAngleDegrees);
         Assert.Equal(4, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.False(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
