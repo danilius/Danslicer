@@ -37,6 +37,17 @@ public sealed class UserConfigTests : IDisposable
                 OverhangColorA = "#112233",
                 OverhangColorB = "#445566",
                 OverhangCheckerSizeMm = 5f,
+                SupportDisplay = new SupportDisplayConfig
+                {
+                    Mode = SupportDisplayMode.Transparent,
+                    ShowContactPointsInTransparent = false,
+                    ShowTips = false,
+                    ShowMiniSupports = false,
+                    ShowBranches = false,
+                    ShowTrunks = false,
+                    ShowBases = false,
+                    ShowBracing = false,
+                },
             },
             Placement = new PlacementConfig
             {
@@ -63,6 +74,14 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
         Assert.Equal("#445566", loaded.Viewport.OverhangColorB);
         Assert.Equal(5f, loaded.Viewport.OverhangCheckerSizeMm);
+        Assert.Equal(SupportDisplayMode.Transparent, loaded.Viewport.SupportDisplay.Mode);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowContactPointsInTransparent);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowTips);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowMiniSupports);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowBranches);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowTrunks);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowBases);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowBracing);
         Assert.Equal(PlacementMode.RaiseAbovePlate, loaded.Placement.Mode);
         Assert.Equal(8.5f, loaded.Placement.HeightMm);
     }
@@ -99,6 +118,13 @@ public sealed class UserConfigTests : IDisposable
         Assert.False(loaded.SpaceMouse.InvertZoom);
         Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
         Assert.Equal(0f, loaded.Placement.HeightMm);
+        Assert.Equal(SupportDisplayMode.Full, loaded.Viewport.SupportDisplay.Mode);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowTips);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowMiniSupports);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowBranches);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowTrunks);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowBases);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowBracing);
     }
 
     [Fact]
