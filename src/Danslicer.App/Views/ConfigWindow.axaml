@@ -182,6 +182,14 @@
                         <NumericUpDown Grid.Column="1" Minimum="1" Maximum="100" Increment="1" FormatString="0"
                                        Value="{Binding SupportMiniSupportMaxFanPerBranchEnd, Mode=TwoWay}" />
                     </Grid>
+                    <Grid Tag="supports mini island maximum classification area square mm" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Max mini island area mm²" Classes="label" />
+                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.01" FormatString="0.###"
+                                       Value="{Binding SupportMiniIslandMaxAreaMm2, Mode=TwoWay}" />
+                    </Grid>
+                    <CheckBox Tag="supports mini fallback refused regular structural downgrade"
+                              Content="Retry refused regular tips as minis"
+                              IsChecked="{Binding SupportRefusedTipsFallBackToMini, Mode=TwoWay}" Margin="0,4" />
 
                     <TextBlock Text="Base" Classes="section" />
                     <Grid Tag="supports base square grid pitch spacing mm" ColumnDefinitions="190,*" Margin="0,2">

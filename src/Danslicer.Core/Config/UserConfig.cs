@@ -76,6 +76,8 @@ public sealed record SupportConfig
     public float MiniSupportConeLength { get; set; } = 1f;
     public float MiniSupportMaxLength { get; set; } = 5f;
     public int MiniSupportMaxFanPerBranchEnd { get; set; } = 4;
+    public bool RefusedTipsFallBackToMini { get; set; }
+    public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
     public float BaseGridPitch { get; set; } = 20f;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -117,6 +119,10 @@ public sealed record SupportConfig
         OverhangAngleDegrees = float.IsFinite(OverhangAngleDegrees)
             ? Math.Clamp(OverhangAngleDegrees, 0f, 90f) : 45f;
         MinIslandAreaMm2 = NonNegative(MinIslandAreaMm2);
+        var miniContactRadius = MiniSupportTipDiameter * 0.5f;
+        var miniContactArea = MathF.PI * miniContactRadius * miniContactRadius;
+        MiniIslandMaxAreaMm2 = MathF.Min(MinIslandAreaMm2,
+            MathF.Max(miniContactArea, NonNegative(MiniIslandMaxAreaMm2)));
     }
 
     private static float Positive(float value, float fallback) =>

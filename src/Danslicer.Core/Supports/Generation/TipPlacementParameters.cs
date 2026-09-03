@@ -33,6 +33,11 @@ public sealed record TipPlacementParameters
 
     /// <summary>When enabled, below-threshold islands are retained as mini-support-only contacts.</summary>
     public bool EnableMiniSupports { get; init; }
+    /// <summary>
+    /// Upper area bound for mini-island classification. At use it is constrained between the
+    /// mini contact footprint and <see cref="MinIslandAreaMm2"/>.
+    /// </summary>
+    public float MiniIslandMaxAreaMm2 { get; init; } = 0.1f;
     public float MiniSupportTipDiameterMm { get; init; } = 0.25f;
     public float MiniSupportConeLengthMm { get; init; } = 1f;
 
