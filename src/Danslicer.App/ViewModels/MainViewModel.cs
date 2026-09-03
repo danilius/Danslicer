@@ -187,6 +187,7 @@ public partial class MainViewModel : ViewModelBase
         Document.SupportSettings = AppConfig.Current.Supports;
         PrintSettings = new PrintSettingsViewModel(Document);
         SupportSettings = new ConfigViewModel();
+        SupportSettings.Saved += () => Document.SupportSettings = AppConfig.Current.Supports;
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
         HideScopedCommand = new ModeScopedCommand(

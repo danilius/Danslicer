@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using CommunityToolkit.Mvvm.Input;
 using Danslicer.App.Configuration;
 using Danslicer.Core.Config;
 using Danslicer.Core.Supports;
@@ -12,9 +13,30 @@ namespace Danslicer.App.ViewModels;
 /// </summary>
 public sealed class ConfigViewModel : ViewModelBase
 {
+    private enum PresetNameOperation { None, SaveAs, Rename }
+
     private SpaceMouseConfig SpaceMouse => AppConfig.Current.SpaceMouse;
     private ViewportConfig Viewport => AppConfig.Current.Viewport;
     private SupportConfig Supports => AppConfig.Current.Supports;
+    private IReadOnlyList<string> _supportPresetDisplayNames = [];
+    private int _selectedSupportPresetIndex = -1;
+    private bool _isSupportPresetNameEditorVisible;
+    private string _supportPresetNameDraft = "";
+    private string _supportPresetValidationMessage = "";
+    private PresetNameOperation _presetNameOperation;
+
+    public ConfigViewModel()
+    {
+        SaveSupportPresetCommand = new RelayCommand(SaveSupportPreset, HasSelectedSupportPreset);
+        BeginSaveSupportPresetAsCommand = new RelayCommand(BeginSaveSupportPresetAs);
+        BeginRenameSupportPresetCommand = new RelayCommand(
+            BeginRenameSupportPreset, HasSelectedSupportPreset);
+        DeleteSupportPresetCommand = new RelayCommand(
+            DeleteSupportPreset, () => HasSelectedSupportPreset() && AppConfig.Current.SupportPresets.Count > 1);
+        ConfirmSupportPresetNameCommand = new RelayCommand(ConfirmSupportPresetName);
+        CancelSupportPresetNameCommand = new RelayCommand(CancelSupportPresetName);
+        RefreshSupportPresetOptions();
+    }
 
     public SupportDisplayConfig SupportDisplay => Viewport.SupportDisplay;
 
@@ -24,6 +46,77 @@ public sealed class ConfigViewModel : ViewModelBase
     public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
         Enum.GetValues<SupportBaseShape>();
 
+    public IRelayCommand SaveSupportPresetCommand { get; }
+    public IRelayCommand BeginSaveSupportPresetAsCommand { get; }
+    public IRelayCommand BeginRenameSupportPresetCommand { get; }
+    public IRelayCommand DeleteSupportPresetCommand { get; }
+    public IRelayCommand ConfirmSupportPresetNameCommand { get; }
+    public IRelayCommand CancelSupportPresetNameCommand { get; }
+
+    public IReadOnlyList<string> SupportPresetDisplayNames
+    {
+        get => _supportPresetDisplayNames;
+        private set
+        {
+            _supportPresetDisplayNames = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int SelectedSupportPresetIndex
+    {
+        get => _selectedSupportPresetIndex;
+        set
+        {
+            if (value == _selectedSupportPresetIndex) return;
+            _selectedSupportPresetIndex = value;
+            OnPropertyChanged();
+            if (value < 0 || value >= AppConfig.Current.SupportPresets.Count) return;
+            if (!AppConfig.Current.ApplySupportPreset(AppConfig.Current.SupportPresets[value].Name)) return;
+            AppConfig.Save();
+            OnPropertyChanged(string.Empty);
+            RefreshSupportPresetOptions();
+            Saved?.Invoke();
+        }
+    }
+
+    public bool IsSupportPresetNameEditorVisible
+    {
+        get => _isSupportPresetNameEditorVisible;
+        private set
+        {
+            _isSupportPresetNameEditorVisible = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string SupportPresetNameDraft
+    {
+        get => _supportPresetNameDraft;
+        set
+        {
+            _supportPresetNameDraft = value;
+            SupportPresetValidationMessage = "";
+            OnPropertyChanged();
+        }
+    }
+
+    public string SupportPresetNameEditorAction =>
+        _presetNameOperation == PresetNameOperation.Rename ? "Rename" : "Save copy";
+
+    public string SupportPresetValidationMessage
+    {
+        get => _supportPresetValidationMessage;
+        private set
+        {
+            _supportPresetValidationMessage = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasSupportPresetValidationMessage));
+        }
+    }
+
+    public bool HasSupportPresetValidationMessage => SupportPresetValidationMessage.Length > 0;
+
     /// <summary>Raised after every persisted change, so hosts can refresh what they draw.</summary>
     public event Action? Saved;
 
@@ -32,6 +125,109 @@ public sealed class ConfigViewModel : ViewModelBase
         apply();
         AppConfig.Save();
         OnPropertyChanged(property);
+        RefreshSupportPresetOptions();
+        Saved?.Invoke();
+    }
+
+    private bool HasSelectedSupportPreset() =>
+        SelectedSupportPresetIndex >= 0 &&
+        SelectedSupportPresetIndex < AppConfig.Current.SupportPresets.Count;
+
+    private void RefreshSupportPresetOptions()
+    {
+        var config = AppConfig.Current;
+        var active = config.FindSupportPreset(config.ActiveSupportPresetName);
+        var modified = active is not null && active.Settings != config.Supports;
+        SupportPresetDisplayNames = config.SupportPresets
+            .Select(preset => preset.Name + (modified && ReferenceEquals(preset, active) ? " *" : ""))
+            .ToArray();
+        _selectedSupportPresetIndex = active is null ? -1 : config.SupportPresets.IndexOf(active);
+        OnPropertyChanged(nameof(SelectedSupportPresetIndex));
+        SaveSupportPresetCommand.NotifyCanExecuteChanged();
+        BeginRenameSupportPresetCommand.NotifyCanExecuteChanged();
+        DeleteSupportPresetCommand.NotifyCanExecuteChanged();
+    }
+
+    private void SaveSupportPreset()
+    {
+        if (!HasSelectedSupportPreset()) return;
+        var config = AppConfig.Current;
+        config.SaveSupportPreset(config.SupportPresets[SelectedSupportPresetIndex].Name);
+        AppConfig.Save();
+        RefreshSupportPresetOptions();
+        Saved?.Invoke();
+    }
+
+    private void BeginSaveSupportPresetAs()
+    {
+        var baseName = HasSelectedSupportPreset()
+            ? AppConfig.Current.SupportPresets[SelectedSupportPresetIndex].Name
+            : "Support preset";
+        var candidate = $"{baseName} copy";
+        for (var suffix = 2; AppConfig.Current.FindSupportPreset(candidate) is not null; suffix++)
+            candidate = $"{baseName} copy {suffix}";
+        BeginSupportPresetNameEdit(PresetNameOperation.SaveAs, candidate);
+    }
+
+    private void BeginRenameSupportPreset()
+    {
+        if (!HasSelectedSupportPreset()) return;
+        BeginSupportPresetNameEdit(PresetNameOperation.Rename,
+            AppConfig.Current.SupportPresets[SelectedSupportPresetIndex].Name);
+    }
+
+    private void BeginSupportPresetNameEdit(PresetNameOperation operation, string draft)
+    {
+        _presetNameOperation = operation;
+        OnPropertyChanged(nameof(SupportPresetNameEditorAction));
+        SupportPresetNameDraft = draft;
+        IsSupportPresetNameEditorVisible = true;
+    }
+
+    private void ConfirmSupportPresetName()
+    {
+        var name = SupportPresetNameDraft.Trim();
+        if (name.Length == 0)
+        {
+            SupportPresetValidationMessage = "Enter a preset name.";
+            return;
+        }
+
+        var config = AppConfig.Current;
+        var succeeded = _presetNameOperation switch
+        {
+            PresetNameOperation.SaveAs => config.SaveSupportPresetAs(name),
+            PresetNameOperation.Rename when HasSelectedSupportPreset() => config.RenameSupportPreset(
+                config.SupportPresets[SelectedSupportPresetIndex].Name, name),
+            _ => false,
+        };
+        if (!succeeded)
+        {
+            SupportPresetValidationMessage = "That preset name is already in use.";
+            return;
+        }
+
+        AppConfig.Save();
+        CancelSupportPresetName();
+        RefreshSupportPresetOptions();
+        Saved?.Invoke();
+    }
+
+    private void CancelSupportPresetName()
+    {
+        _presetNameOperation = PresetNameOperation.None;
+        IsSupportPresetNameEditorVisible = false;
+        SupportPresetValidationMessage = "";
+    }
+
+    private void DeleteSupportPreset()
+    {
+        if (!HasSelectedSupportPreset() || AppConfig.Current.SupportPresets.Count <= 1) return;
+        var config = AppConfig.Current;
+        config.DeleteSupportPreset(config.SupportPresets[SelectedSupportPresetIndex].Name);
+        AppConfig.Save();
+        CancelSupportPresetName();
+        RefreshSupportPresetOptions();
         Saved?.Invoke();
     }
 

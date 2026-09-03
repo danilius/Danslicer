@@ -24,6 +24,32 @@
     </UserControl.Styles>
 
     <StackPanel>
+        <StackPanel Margin="0,0,0,6">
+            <TextBlock Text="Preset" Classes="label" Margin="0,0,0,2" />
+            <ComboBox ItemsSource="{Binding SupportPresetDisplayNames}"
+                      SelectedIndex="{Binding SelectedSupportPresetIndex, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" />
+            <WrapPanel Margin="0,4,0,0">
+                <Button Content="Save" Command="{Binding SaveSupportPresetCommand}" Margin="0,0,4,0"
+                        ToolTip.Tip="Overwrite this preset with the current support settings" />
+                <Button Content="Save As…" Command="{Binding BeginSaveSupportPresetAsCommand}" Margin="0,0,4,0" />
+                <Button Content="Rename" Command="{Binding BeginRenameSupportPresetCommand}" Margin="0,0,4,0" />
+                <Button Content="Delete" Command="{Binding DeleteSupportPresetCommand}" />
+            </WrapPanel>
+            <StackPanel IsVisible="{Binding IsSupportPresetNameEditorVisible}" Margin="0,4,0,0">
+                <TextBox Text="{Binding SupportPresetNameDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         PlaceholderText="Preset name" />
+                <TextBlock Text="{Binding SupportPresetValidationMessage}"
+                           IsVisible="{Binding HasSupportPresetValidationMessage}"
+                           Foreground="#EF5350" FontSize="11" Margin="0,2,0,0" />
+                <WrapPanel Margin="0,4,0,0">
+                    <Button Content="{Binding SupportPresetNameEditorAction}"
+                            Command="{Binding ConfirmSupportPresetNameCommand}" Margin="0,0,4,0" />
+                    <Button Content="Cancel" Command="{Binding CancelSupportPresetNameCommand}" />
+                </WrapPanel>
+            </StackPanel>
+        </StackPanel>
+
         <Expander Header="Tip" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports tip contact diameter mm" ColumnDefinitions="170,*" Margin="0,2">
