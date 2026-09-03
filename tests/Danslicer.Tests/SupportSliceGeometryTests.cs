@@ -243,6 +243,20 @@ public class SupportSliceGeometryTests
         AssertAreaNear(Math.PI * 0.6 * 0.6, SupportSliceGeometry.SectionsAt(g, 5));
     }
 
+    [Theory]
+    [InlineData(SupportSegmentType.Trunk, 0.8f)]
+    [InlineData(SupportSegmentType.Branch, 1.6f)]
+    public void ConeTipSectionApproachesItsParentDiameterAtTheJunction(
+        SupportSegmentType parentType, float parentDiameter)
+    {
+        var graph = ConeTipWithParent(parentType, parentDiameter);
+
+        // The first emitted contour is the tip body's section 0.001 mm above the junction.
+        // Its radius is within 0.05% of the exact parent radius; the old constant neck was 50%.
+        var sections = SupportSliceGeometry.SectionsAt(graph, 5.001);
+        AssertAreaNear(Math.PI * Math.Pow(parentDiameter * 0.5, 2), [sections[0]]);
+    }
+
     [Fact]
     public void EmbeddedConeHasSectionsPastTheContactAndFattensTheSurface()
     {
@@ -353,6 +367,35 @@ public class SupportSliceGeometryTests
         var g = new SupportGraph();
         AddConeNeck(g, Vector3.Zero with { Z = 10 }, ball);
         return g;
+    }
+
+    private static SupportGraph ConeTipWithParent(SupportSegmentType parentType,
+        float parentDiameter)
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 10),
+            SurfaceNormal = -Vector3.UnitZ, TipDiameter = 0.4f,
+            TipShape = SupportTipShape.Cone, ConeLength = 2f,
+        };
+        var junction = new SupportNode
+            { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 5) };
+        var parentEnd = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        graph.AddNode(tip);
+        graph.AddNode(junction);
+        graph.AddNode(parentEnd);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id,
+            Diameter = 0.4f,
+        });
+        graph.AddSegment(new SupportSegment
+        {
+            Type = parentType, NodeA = junction.Id, NodeB = parentEnd.Id,
+            Diameter = parentDiameter,
+        });
+        return graph;
     }
 
     private static void AddConeNeck(SupportGraph g, Vector3 tipPos, bool ball)

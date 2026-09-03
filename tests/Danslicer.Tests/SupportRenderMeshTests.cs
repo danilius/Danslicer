@@ -199,10 +199,28 @@ public class SupportRenderMeshTests
 
         var part = Assert.Single(SupportRenderMesh.Build(graph));
         Assert.Equal(SupportRenderKind.Tip, part.Kind);
-        // Frustum over the cone length, capsule for the remaining 3 mm, contact sphere at the tip.
-        Assert.Equal(SupportRenderMesh.TrianglesPerFrustum + SupportRenderMesh.TrianglesPerCapsule
+        // Three-ring closed body (contact, cone base, junction) plus the contact sphere.
+        Assert.Equal(6 * SupportRenderMesh.RadialSegments
             + SupportRenderMesh.TrianglesPerSphere, part.Mesh.TriangleCount);
         AssertClosed(part.Mesh);
+    }
+
+    [Theory]
+    [InlineData(SupportSegmentType.Trunk, 0.8f)]
+    [InlineData(SupportSegmentType.Branch, 1.6f)]
+    public void ConeTipJunctionRingMatchesItsParentMember(SupportSegmentType parentType,
+        float parentDiameter)
+    {
+        var graph = ConeTipWithParent(parentType, parentDiameter);
+
+        var tipPart = Assert.Single(SupportRenderMesh.Build(graph),
+            part => part.Kind == SupportRenderKind.Tip);
+        var junctionRadius = tipPart.Mesh.Positions
+            .Where(position => MathF.Abs(position.Z - 5f) < 1e-4f)
+            .Max(position => new Vector2(position.X, position.Y).Length());
+
+        Assert.Equal(parentDiameter * 0.5f, junctionRadius, 3);
+        Assert.Equal(5f, tipPart.Mesh.Bounds.Min.Z, 3);
     }
 
     [Fact]
@@ -226,6 +244,35 @@ public class SupportRenderMeshTests
         var mesh = Assert.Single(SupportRenderMesh.Build(graph)).Mesh;
         // The ball sphere sits at the penetrated contact centre: z = 10 - 0.2, radius 0.5.
         Assert.Equal(10f - 0.2f + 0.5f, mesh.Bounds.Max.Z, 3);
+    }
+
+    private static SupportGraph ConeTipWithParent(SupportSegmentType parentType,
+        float parentDiameter)
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 10),
+            TipShape = SupportTipShape.Cone, ConeLength = 2f, TipDiameter = 0.4f,
+        };
+        var junction = new SupportNode
+            { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 5) };
+        var parentEnd = new SupportNode
+            { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        graph.AddNode(tip);
+        graph.AddNode(junction);
+        graph.AddNode(parentEnd);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id,
+            Diameter = 0.4f,
+        });
+        graph.AddSegment(new SupportSegment
+        {
+            Type = parentType, NodeA = junction.Id, NodeB = parentEnd.Id,
+            Diameter = parentDiameter,
+        });
+        return graph;
     }
 
     [Fact]

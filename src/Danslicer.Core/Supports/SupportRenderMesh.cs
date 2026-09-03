@@ -76,7 +76,8 @@ public static class SupportRenderMesh
                 builders[key] = builder = new MeshBuilder();
 
             if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
-                AppendConeTip(builder, tip, other, segment.Diameter * 0.5f);
+                AppendConeTip(builder, tip, other, segment.Diameter * 0.5f,
+                    SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f);
             else
                 AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
         }
@@ -118,7 +119,8 @@ public static class SupportRenderMesh
             var b = graph.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
             if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
-                AppendConeTip(builder, tip, other, segment.Diameter * 0.5f);
+                AppendConeTip(builder, tip, other, segment.Diameter * 0.5f,
+                    SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f);
             else
                 AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
             any = true;
@@ -145,10 +147,11 @@ public static class SupportRenderMesh
 
     /// <summary>
     /// Renders a cone-shaped tip member the same way <see cref="SupportSliceGeometry.ConeTipSection"/>
-    /// slices it: a frustum from the contact diameter to the member diameter over the cone length,
-    /// the member remainder as a capsule, and the contact ball (or a contact-radius sphere) at the tip.
+    /// slices it: contact-to-neck taper, a flush transition to the parent-member diameter at the
+    /// junction, and the contact ball (or a contact-radius sphere) at the tip.
     /// </summary>
-    public static void AppendConeTip(MeshBuilder builder, SupportNode tip, SupportNode other, float radius)
+    public static void AppendConeTip(MeshBuilder builder, SupportNode tip, SupportNode other,
+        float neckRadius, float junctionRadius)
     {
         var contactRadius = MathF.Max(tip.TipDiameter * 0.5f, 0f);
         var axis = other.Position - tip.Position;
@@ -156,21 +159,42 @@ public static class SupportRenderMesh
         var coneLength = Math.Min(Math.Max(tip.ConeLength, 0f), length);
         if (length < 1e-6f || coneLength <= 0)
         {
-            AppendCapsule(builder, tip.Position, other.Position, radius);
+            AppendCapsule(builder, tip.Position, other.Position, neckRadius);
             return;
         }
 
         var direction = axis / length;
         var coneBase = tip.Position + direction * coneLength;
-        AppendFrustum(builder, tip.Position, coneBase, contactRadius, radius);
-        if (length - coneLength > 1e-4f)
-            AppendCapsule(builder, coneBase, other.Position, radius);
-        else
-            AppendSphere(builder, other.Position, radius);
+        var hasRemainder = length - coneLength > 1e-4f;
+        AppendTipBody(builder, tip.Position, coneBase, other.Position, contactRadius,
+            neckRadius, junctionRadius, hasRemainder);
         if (tip.BallDiameter > 0)
             AppendSphere(builder, tip.ContactBallCenter, tip.BallDiameter * 0.5f);
         else if (contactRadius > 0)
             AppendSphere(builder, tip.Position, contactRadius);
+    }
+
+    private static void AppendTipBody(MeshBuilder builder, Vector3 tip, Vector3 coneBase,
+        Vector3 junction, float contactRadius, float neckRadius, float junctionRadius,
+        bool hasRemainder)
+    {
+        var axis = Vector3.Normalize(junction - tip);
+        var (u, v) = OrthonormalFrame(axis);
+        var rings = hasRemainder
+            ? new[]
+            {
+                AddRing(builder, tip, u, v, MathF.Max(contactRadius, 0f)),
+                AddRing(builder, coneBase, u, v, MathF.Max(neckRadius, 0f)),
+                AddRing(builder, junction, u, v, MathF.Max(junctionRadius, 0f)),
+            }
+            : new[]
+            {
+                AddRing(builder, tip, u, v, MathF.Max(contactRadius, 0f)),
+                AddRing(builder, junction, u, v, MathF.Max(junctionRadius, 0f)),
+            };
+        var tipPole = builder.AddVertex(tip);
+        var junctionPole = builder.AddVertex(junction);
+        StitchShell(builder, rings, tipPole, junctionPole);
     }
 
     /// <summary>

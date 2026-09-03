@@ -138,7 +138,8 @@ namespace Danslicer.Tests
             var result = router.Route(tips, options);
 
             Assert.Equal(tips.Count, result.Graph.Nodes.Count(n => n.Type == SupportNodeType.Tip));
-            Assert.Empty(result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Branch));
+            Assert.DoesNotContain(result.Graph.Segments,
+                segment => segment.Type == SupportSegmentType.Branch);
             Assert.All(result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Tip), segment =>
             {
                 var tipNode = result.Graph.GetNode(segment.NodeA);

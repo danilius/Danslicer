@@ -32,7 +32,8 @@ public static class SupportSliceGeometry
             var b = graph.GetNode(segment.NodeB);
             if (a.Disabled || b.Disabled) continue;
             if (TryConeTip(a, b, out var tip, out var other))
-                ConeTipSection(tip, other, segment.Diameter * 0.5, z, paths);
+                ConeTipSection(tip, other, segment.Diameter * 0.5,
+                    TipJunctionDiameter(graph, segment) * 0.5, z, paths);
             else
                 CapsuleSection(a.Position, b.Position, segment.Diameter * 0.5, z, paths);
         }
@@ -97,11 +98,33 @@ public static class SupportSliceGeometry
     }
 
     /// <summary>
-    /// Cone frustum along the neck (contact radius → neck radius over cone length), remainder of
-    /// the neck as a capsule, and a small contact sphere unless a ball is present.
+    /// Diameter that a tapered tip must reach at its junction. Tip/mini members carry the
+    /// taper-rule diameter on the graph for routing clearance; their printable wide end instead
+    /// matches the branch or trunk that carries them. A direct tip-to-base member has no separate
+    /// parent and therefore keeps its own diameter.
     /// </summary>
-    public static void ConeTipSection(SupportNode tip, SupportNode other, double neckRadius, double z,
-        Paths64 output)
+    internal static float TipJunctionDiameter(SupportGraph graph, SupportSegment tipSegment)
+    {
+        var a = graph.GetNode(tipSegment.NodeA);
+        var junctionId = a.Type == SupportNodeType.Tip ? tipSegment.NodeB : tipSegment.NodeA;
+        var diameter = 0f;
+        foreach (var incident in graph.SegmentsAt(junctionId))
+        {
+            if (incident.Id == tipSegment.Id ||
+                incident.Type is not (SupportSegmentType.Branch or SupportSegmentType.Trunk))
+                continue;
+            diameter = MathF.Max(diameter, incident.Diameter);
+        }
+        return diameter > 0 ? diameter : tipSegment.Diameter;
+    }
+
+    /// <summary>
+    /// Cone frustum along the neck (contact radius → neck radius over cone length), then a
+    /// frustum from the neck radius to the parent-member radius at the junction. The flat-ended
+    /// body avoids a second, differently sized spherical cap inside the parent member.
+    /// </summary>
+    public static void ConeTipSection(SupportNode tip, SupportNode other, double neckRadius,
+        double junctionRadius, double z, Paths64 output)
     {
         var rContact = Math.Max(tip.TipDiameter * 0.5, 0.0);
         var axis = other.Position - tip.Position;
@@ -118,8 +141,11 @@ public static class SupportSliceGeometry
         // Move the narrow end past the surface while leaving the base fixed. The original
         // contact plane therefore cuts a slightly wider part of the embedded frustum.
         var embeddedTip = tip.Position - dir * tip.PenetrationDepth;
-        ConeSection(embeddedTip, coneBase, rContact, neckRadius, z, output);
-        CapsuleSection(coneBase, other.Position, neckRadius, z, output);
+        var hasRemainder = segLen - coneLen > 1e-4f;
+        ConeSection(embeddedTip, coneBase, rContact,
+            hasRemainder ? neckRadius : junctionRadius, z, output);
+        if (hasRemainder)
+            ConeSection(coneBase, other.Position, neckRadius, junctionRadius, z, output);
         if (tip.BallDiameter <= 0 && rContact > 0)
             SphereSection(tip.Position, rContact, z, output);
     }
