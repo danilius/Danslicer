@@ -33,22 +33,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         Configuration.WindowStatePersistence.Track(this, "main",
             WorkspaceGrid.ColumnDefinitions[0], WorkspaceGrid.ColumnDefinitions[4]);
-        AddWindowKeyBinding("Ctrl+Z", () => ViewModel?.UndoCommand);
-        AddWindowKeyBinding("Ctrl+Shift+Z", () => ViewModel?.RedoCommand);
-        AddWindowKeyBinding("Ctrl+Y", () => ViewModel?.RedoCommand);
-        AddWindowKeyBinding("Delete", () => ViewModel?.DeleteCommand);
-        AddWindowKeyBinding("Ctrl+D", () => ViewModel?.DropToPlateScopedCommand);
-        AddWindowKeyBinding("Ctrl+G", () => ViewModel?.GenerateSupportsScopedCommand);
-        AddWindowKeyBinding("Ctrl+A", () => ViewModel?.SelectAllCommand);
-        AddWindowKeyBinding("Shift+H", () => ViewModel?.HideUnselectedSupportsScopedCommand);
-        AddWindowKeyBinding("Ctrl+R", () => ViewModel?.SliceScopedCommand);
-        AddWindowKeyBinding("Ctrl+S", () => SaveProjectCommand);
-        AddWindowKeyBinding("Ctrl+Shift+S", () => SaveProjectAsCommand);
-        AddWindowKeyBinding("Ctrl+O", () => OpenProjectCommand);
-        AddWindowKeyBinding("Ctrl+I", () => ImportCommand);
-        AddWindowKeyBinding("Ctrl+E", () => ExportCommand);
-        AddWindowKeyBinding("Ctrl+OemComma",
-            () => new RelayCommand(() => OnPreferencesClick(this, new RoutedEventArgs())));
+        RefreshWindowKeymap();
         Viewport.PropertyChanged += (_, e) =>
         {
             if (e.Property == ViewportControl.StatusTextProperty && DataContext is MainViewModel vm)
@@ -74,6 +59,7 @@ public partial class MainWindow : Window
     private MainViewModel? ViewModel => DataContext as MainViewModel;
     private ConfigWindow? _configWindow;
     private SupportPresetEditorWindow? _presetEditorWindow;
+    private readonly List<KeyBinding> _windowKeyBindings = [];
 
     private void OpenSupportPresetEditor()
     {
@@ -221,13 +207,56 @@ public partial class MainWindow : Window
     /// Registers application shortcuts in one place and lets focused text editors handle the same
     /// gestures themselves. This avoids window-level KeyBindings preempting editing commands.
     /// </summary>
-    private void AddWindowKeyBinding(string gesture, Func<ICommand?> command)
+    private void AddWindowKeyBinding(string actionId, Func<ICommand?> command)
     {
-        KeyBindings.Add(new KeyBinding
+        var binding = new KeyBinding
         {
-            Gesture = KeyGesture.Parse(gesture),
+            Gesture = WindowKeymap.GetGesture(AppConfig.Current, actionId),
             Command = new TextInputGuardCommand(this, command),
-        });
+        };
+        _windowKeyBindings.Add(binding);
+        KeyBindings.Add(binding);
+    }
+
+    private void RefreshWindowKeymap()
+    {
+        foreach (var binding in _windowKeyBindings)
+            KeyBindings.Remove(binding);
+        _windowKeyBindings.Clear();
+
+        AddWindowKeyBinding(WindowKeymap.Undo, () => ViewModel?.UndoCommand);
+        AddWindowKeyBinding(WindowKeymap.Redo, () => ViewModel?.RedoCommand);
+        AddWindowKeyBinding(WindowKeymap.RedoAlternate, () => ViewModel?.RedoCommand);
+        AddWindowKeyBinding(WindowKeymap.Delete, () => ViewModel?.DeleteCommand);
+        AddWindowKeyBinding(WindowKeymap.DropToPlate, () => ViewModel?.DropToPlateScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.GenerateSupports, () => ViewModel?.GenerateSupportsScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.SelectAll, () => ViewModel?.SelectAllCommand);
+        AddWindowKeyBinding(WindowKeymap.HideUnselectedSupports,
+            () => ViewModel?.HideUnselectedSupportsScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.Slice, () => ViewModel?.SliceScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.SaveProject, () => SaveProjectCommand);
+        AddWindowKeyBinding(WindowKeymap.SaveProjectAs, () => SaveProjectAsCommand);
+        AddWindowKeyBinding(WindowKeymap.OpenProject, () => OpenProjectCommand);
+        AddWindowKeyBinding(WindowKeymap.ImportMesh, () => ImportCommand);
+        AddWindowKeyBinding(WindowKeymap.ExportPrint, () => ExportCommand);
+        AddWindowKeyBinding(WindowKeymap.Preferences,
+            () => new RelayCommand(() => OnPreferencesClick(this, new RoutedEventArgs())));
+
+        OpenProjectMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.OpenProject);
+        SaveProjectMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.SaveProject);
+        SaveProjectAsMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.SaveProjectAs);
+        ImportMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.ImportMesh);
+        FileExportMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.ExportPrint);
+        UndoMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Undo);
+        RedoMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Redo);
+        SelectAllMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.SelectAll);
+        DeleteMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Delete);
+        PreferencesMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Preferences);
+        DropToPlateMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.DropToPlate);
+        HideUnselectedMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.HideUnselectedSupports);
+        GenerateSupportsMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.GenerateSupports);
+        SliceMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Slice);
+        PrintExportMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.ExportPrint);
     }
 
     private sealed class TextInputGuardCommand(Window owner, Func<ICommand?> command) : ICommand
@@ -257,10 +286,16 @@ public partial class MainWindow : Window
         }
         var config = ViewModel?.SupportSettings ?? new ConfigViewModel();
         _configWindow = new ConfigWindow(config);
-        config.Saved += Viewport.RequestRedraw;
-        _configWindow.Closed += (_, _) => config.Saved -= Viewport.RequestRedraw;
+        config.Saved += OnPreferencesSaved;
+        _configWindow.Closed += (_, _) => config.Saved -= OnPreferencesSaved;
         _configWindow.Closed += (_, _) => _configWindow = null;
         _configWindow.Show(this);
+    }
+
+    private void OnPreferencesSaved()
+    {
+        Viewport.RequestRedraw();
+        RefreshWindowKeymap();
     }
 
     private void OnOpenProjectClick(object? sender, RoutedEventArgs e) => OpenProjectCommand.Execute(null);

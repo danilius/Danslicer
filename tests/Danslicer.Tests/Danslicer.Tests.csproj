@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.2" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -21,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Danslicer.Core\Danslicer.Core.csproj" />
     <ProjectReference Include="..\..\src\Danslicer.Cli\Danslicer.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Danslicer.App\Danslicer.App.csproj" />
   </ItemGroup>
 
 </Project>

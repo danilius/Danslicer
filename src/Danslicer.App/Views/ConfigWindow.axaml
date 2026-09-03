@@ -50,6 +50,7 @@
                 <ListBox x:Name="SectionList" Background="Transparent" Margin="4,0"
                          SelectionChanged="OnSectionSelected">
                     <ListBoxItem Content="Viewport" />
+                    <ListBoxItem Content="Keymap" />
                     <ListBoxItem Content="Supports" />
                     <ListBoxItem Content="SpaceMouse" />
                 </ListBox>
@@ -96,6 +97,35 @@
                         <NumericUpDown Grid.Column="2" Minimum="0.5" Maximum="20" Increment="0.5" FormatString="0.0"
                                        Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
                     </Grid>
+                </StackPanel>
+
+                <StackPanel x:Name="KeymapSection">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Keymap" Classes="section" />
+                        <Button Grid.Column="1" Content="Reset all" Command="{Binding Keymap.ResetAllCommand}"
+                                Padding="10,3" Margin="0,8,0,4" />
+                    </Grid>
+                    <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Window-level shortcuts only. Viewport G/R/S/T/H/F keys and axis constraints remain fixed." />
+                    <TextBlock Text="{Binding Keymap.ValidationMessage}" IsVisible="{Binding Keymap.HasValidationMessage}"
+                               Foreground="#FFB35C" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" />
+                    <ItemsControl ItemsSource="{Binding Keymap.Bindings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:KeymapBindingViewModel">
+                                <Grid IsVisible="{Binding IsVisible}" ColumnDefinitions="*,150,70" ColumnSpacing="8" Margin="0,2">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ActionName}" Classes="label" />
+                                        <TextBlock Text="{Binding ActionId}" Foreground="#666C72" FontSize="10" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="{Binding CaptureButtonText}"
+                                            Command="{Binding BeginCaptureCommand}" MinHeight="28"
+                                            HorizontalContentAlignment="Center" />
+                                    <Button Grid.Column="2" Content="Reset" Command="{Binding ResetCommand}"
+                                            MinHeight="28" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
 
                 <StackPanel x:Name="SupportsSection">

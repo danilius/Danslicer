@@ -71,39 +71,39 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_Open Project..." Click="OnOpenProjectClick" InputGesture="Ctrl+O" />
-                <MenuItem Header="_Save Project" Click="OnSaveProjectClick" InputGesture="Ctrl+S" />
-                <MenuItem Header="Save Project _As..." Click="OnSaveProjectAsClick" InputGesture="Ctrl+Shift+S" />
+                <MenuItem x:Name="OpenProjectMenuItem" Header="_Open Project..." Click="OnOpenProjectClick" />
+                <MenuItem x:Name="SaveProjectMenuItem" Header="_Save Project" Click="OnSaveProjectClick" />
+                <MenuItem x:Name="SaveProjectAsMenuItem" Header="Save Project _As..." Click="OnSaveProjectAsClick" />
                 <Separator />
-                <MenuItem Header="_Import STL..." Click="OnImportClick" />
-                <MenuItem Header="_Export Print File..." Click="OnExportClick"
+                <MenuItem x:Name="ImportMenuItem" Header="_Import STL..." Click="OnImportClick" />
+                <MenuItem x:Name="FileExportMenuItem" Header="_Export Print File..." Click="OnExportClick"
                           IsVisible="{Binding IsLayersView}" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" />
-                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" />
+                <MenuItem x:Name="UndoMenuItem" Header="_Undo" Command="{Binding UndoCommand}" />
+                <MenuItem x:Name="RedoMenuItem" Header="_Redo" Command="{Binding RedoCommand}" />
                 <Separator />
-                <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" />
-                <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" />
+                <MenuItem x:Name="SelectAllMenuItem" Header="Select _All" Command="{Binding SelectAllCommand}" />
+                <MenuItem x:Name="DeleteMenuItem" Header="_Delete" Command="{Binding DeleteCommand}" />
                 <Separator />
-                <MenuItem Header="_Preferences..." Click="OnPreferencesClick" />
+                <MenuItem x:Name="PreferencesMenuItem" Header="_Preferences..." Click="OnPreferencesClick" />
             </MenuItem>
             <MenuItem Header="_Object" IsVisible="{Binding IsModelView}">
-                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateScopedCommand}"
+                <MenuItem x:Name="DropToPlateMenuItem" Header="_Drop to Plate" Command="{Binding DropToPlateScopedCommand}"
                           IsVisible="{Binding DropToPlateScopedCommand.IsAvailable}" />
                 <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F"
                           IsVisible="{Binding IsLayoutView}" />
                 <Separator IsVisible="{Binding IsModelView}" />
                 <MenuItem Header="_Hide" Command="{Binding HideScopedCommand}" InputGesture="H"
                           IsVisible="{Binding HideScopedCommand.IsAvailable}" />
-                <MenuItem Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsScopedCommand}"
+                <MenuItem x:Name="HideUnselectedMenuItem" Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsScopedCommand}"
                           IsVisible="{Binding HideUnselectedSupportsScopedCommand.IsAvailable}" />
                 <MenuItem Header="_Unhide All" Command="{Binding UnhideAllScopedCommand}" InputGesture="Alt+H"
                           IsVisible="{Binding UnhideAllScopedCommand.IsAvailable}" />
                 <Separator IsVisible="{Binding IsSupportView}" />
-                <MenuItem Header="_Generate Supports" Command="{Binding GenerateSupportsScopedCommand}"
+                <MenuItem x:Name="GenerateSupportsMenuItem" Header="_Generate Supports" Command="{Binding GenerateSupportsScopedCommand}"
                           IsVisible="{Binding GenerateSupportsScopedCommand.IsAvailable}" />
                 <Separator IsVisible="{Binding IsModelView}" />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
@@ -120,8 +120,8 @@
                           IsVisible="{Binding IsModelView}" />
             </MenuItem>
             <MenuItem Header="_Print" IsVisible="{Binding IsLayersView}">
-                <MenuItem Header="_Slice" Command="{Binding SliceScopedCommand}" />
-                <MenuItem Header="_Export Print File..." Click="OnExportClick" />
+                <MenuItem x:Name="SliceMenuItem" Header="_Slice" Command="{Binding SliceScopedCommand}" />
+                <MenuItem x:Name="PrintExportMenuItem" Header="_Export Print File..." Click="OnExportClick" />
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Toggle Workspace / _Slicing" Command="{Binding ToggleViewCommand}" InputGesture="Tab" />

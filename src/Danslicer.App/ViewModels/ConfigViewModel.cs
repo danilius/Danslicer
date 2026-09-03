@@ -43,6 +43,8 @@ public sealed class ConfigViewModel : ViewModelBase
         _supportOverride = supportOverride;
         _persistChanges = persistChanges;
         _supportChanged = supportChanged;
+        Keymap = new KeymapViewModel(AppConfig.Current);
+        Keymap.Changed += () => Saved?.Invoke();
         SaveSupportPresetCommand = new RelayCommand(SaveSupportPreset, HasSelectedSupportPreset);
         BeginSaveSupportPresetAsCommand = new RelayCommand(BeginSaveSupportPresetAs);
         BeginRenameSupportPresetCommand = new RelayCommand(
@@ -57,6 +59,7 @@ public sealed class ConfigViewModel : ViewModelBase
     }
 
     public SupportDisplayConfig SupportDisplay => Viewport.SupportDisplay;
+    public KeymapViewModel Keymap { get; }
 
     public IReadOnlyList<string> SupportDisplayModes { get; } =
         ["Full", "Contact points", "Lines", "Tips", "Transparent"];
