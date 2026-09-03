@@ -313,6 +313,42 @@ public class SupportRenderMeshTests
     }
 
     [Fact]
+    public void BuildAndSelectionHonorViewportFilters()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode { Type = SupportNodeType.Tip, Position = new(0, 0, 10) };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = new(0, 0, 5) };
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            BaseShape = SupportBaseShape.Disc,
+        };
+        graph.AddNode(tip);
+        graph.AddNode(junction);
+        graph.AddNode(bottom);
+        var tipMember = new SupportSegment
+        {
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id,
+        };
+        var trunk = new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = junction.Id, NodeB = bottom.Id,
+        };
+        graph.AddSegment(tipMember);
+        graph.AddSegment(trunk);
+
+        var parts = SupportRenderMesh.Build(graph, includeSegment: segment =>
+            segment.Type == SupportSegmentType.Tip, includeBase: _ => false);
+        var selected = SupportRenderMesh.BuildSelected(graph, _ => true, segment =>
+            segment.Type == SupportSegmentType.Tip, _ => false);
+
+        Assert.Single(parts);
+        Assert.Equal(SupportRenderKind.Tip, parts[0].Kind);
+        Assert.NotNull(selected);
+        Assert.Equal(parts[0].Mesh.TriangleCount, selected!.TriangleCount);
+    }
+
+    [Fact]
     public void HiddenBaseNodeRendersNoBase()
     {
         var graph = new SupportGraph();

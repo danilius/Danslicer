@@ -11,6 +11,7 @@ using Danslicer.Core.Config;
 using Danslicer.Core.IO;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
+using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Utilities;
 
@@ -505,7 +506,17 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SelectAll() => WorkspaceSelection.SelectAll(Document, ViewMode);
+    private void SelectAll()
+    {
+        if (ViewMode == WorkspaceMode.Support)
+        {
+            Document.ClearSelection();
+            Document.SelectSupportElements(SupportDisplayPolicy.DisplayedElementIds(
+                Document.Supports, AppConfig.Current.Viewport.SupportDisplay));
+            return;
+        }
+        WorkspaceSelection.SelectAll(Document, ViewMode);
+    }
 
     [RelayCommand]
     private void ToggleView()

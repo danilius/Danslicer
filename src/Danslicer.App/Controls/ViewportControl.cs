@@ -11,8 +11,10 @@ using Danslicer.App.Editing;
 using Danslicer.App.Input;
 using Danslicer.Core;
 using Danslicer.Core.Commands;
+using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
+using Danslicer.Core.Supports;
 using Danslicer.Render;
 
 namespace Danslicer.App.Controls;
@@ -50,6 +52,10 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> SelectThroughSupportsProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(SelectThroughSupports));
 
+    public static readonly StyledProperty<SupportDisplayConfig> SupportDisplayProperty =
+        AvaloniaProperty.Register<ViewportControl, SupportDisplayConfig>(nameof(SupportDisplay),
+            new SupportDisplayConfig());
+
     /// <summary>The live marquee rectangle in viewport coordinates; null when no drag is active.
     /// Drawn by a sibling overlay control, above the GL composition surface.</summary>
     public static readonly StyledProperty<Rect?> MarqueeRectProperty =
@@ -69,7 +75,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private bool _ctrlHeld;
     private readonly List<OverlayLine> _overlay = new();
     private readonly List<OverlayLine> _depthOverlay = new();
-    private readonly List<AuxMeshDraw> _supportMeshes = new();
+    private readonly List<SupportMeshBatch> _supportMeshes = new();
     private bool _supportMeshesDirty = true;
     private ISixAxisInput? _sixAxis;
     private DispatcherTimer? _sixAxisTimer;
@@ -85,6 +91,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private readonly List<AuxMeshDraw> _combinedAuxMeshes = new();
     private Mesh? _selectedSupportMesh;
     private const float MarqueeClickThresholdPixels = 3f;
+    private readonly record struct SupportMeshBatch(AuxMeshDraw Draw, Vector3 SortOrigin);
 
     public Camera Camera { get; } = new();
 
@@ -114,6 +121,7 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool ShowOverhangs { get => GetValue(ShowOverhangsProperty); set => SetValue(ShowOverhangsProperty, value); }
     public bool SupportSelectionMode { get => GetValue(SupportSelectionModeProperty); set => SetValue(SupportSelectionModeProperty, value); }
     public bool SelectThroughSupports { get => GetValue(SelectThroughSupportsProperty); set => SetValue(SelectThroughSupportsProperty, value); }
+    public SupportDisplayConfig SupportDisplay { get => GetValue(SupportDisplayProperty); set => SetValue(SupportDisplayProperty, value); }
     public Rect? MarqueeRect { get => GetValue(MarqueeRectProperty); private set => SetValue(MarqueeRectProperty, value); }
 
     public ViewportControl()
@@ -184,7 +192,23 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         else if (change.Property == SupportSelectionModeProperty)
         {
+            _supportMeshesDirty = true;
             UpdateStatus();
+            Redraw();
+        }
+        else if (change.Property == SupportDisplayProperty)
+        {
+            _supportMeshesDirty = true;
+            _selectionMeshDirty = true;
+            if (Document is { } document)
+            {
+                var retained = document.SupportSelection
+                    .Where(id => SupportDisplayPolicy.IsElementDisplayed(
+                        document.Supports, id, SupportDisplay)).ToList();
+                if (retained.Count != document.SupportSelection.Count)
+                    document.SelectSupportElements(retained);
+            }
+            Redraw();
         }
         else if (change.Property == ShowOverhangsProperty)
         {
@@ -227,7 +251,11 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_supportMeshesDirty) RebuildSupportMeshes();
         if (_selectionMeshDirty) RebuildSelectionMesh();
         _combinedAuxMeshes.Clear();
-        _combinedAuxMeshes.AddRange(_supportMeshes);
+        IEnumerable<SupportMeshBatch> supportBatches = SupportDisplay.Mode == SupportDisplayMode.Transparent
+            ? _supportMeshes.OrderByDescending(batch =>
+                Vector3.DistanceSquared(Camera.Eye, batch.SortOrigin))
+            : _supportMeshes;
+        foreach (var batch in supportBatches) _combinedAuxMeshes.Add(batch.Draw);
         if (_selectedSupportMesh is { } selected)
             _combinedAuxMeshes.Add(new AuxMeshDraw(selected,
                 new Vector3(SupportSelectedColor.X, SupportSelectedColor.Y, SupportSelectedColor.Z),
@@ -516,14 +544,18 @@ public sealed class ViewportControl : OpenGlControlBase
                     point => Camera.WorldToScreen(point, w, h),
                     new Vector2((float)start.X, (float)start.Y),
                     new Vector2((float)end.X, (float)end.Y),
-                    SelectThroughSupports ? null : point => IsSupportPointVisible(point, visibleObjectIds));
+                    SelectThroughSupports ? null : point => IsSupportPointVisible(point, visibleObjectIds),
+                    node => SupportDisplayPolicy.IsNodeDisplayed(
+                        Document.Supports, node, SupportDisplay),
+                    segment => SupportDisplayPolicy.IsSegmentDisplayed(
+                        segment.Type, SupportDisplay));
                 Document.SelectSupportElements(ids, _marqueeAdditive);
             }
             else if (Document is not null && _pendingClickSupport is { } element)
             {
                 if (!_marqueeAdditive) Document.ClearSelection();
                 // Double-click selects the whole support tree; single click the element.
-                if (_pendingClickCount >= 2) Document.SelectSupportComponent(element, _marqueeAdditive);
+                if (_pendingClickCount >= 2) SelectDisplayedSupportComponent(element, _marqueeAdditive);
                 else Document.SelectSupportElement(element, _marqueeAdditive);
             }
             else if (!_marqueeAdditive)
@@ -646,7 +678,9 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         if (Document is null || Document.SupportSelection.Count != 1) return null;
         var id = Document.SupportSelection.First();
-        return Document.Supports.TryGetNode(id, out var node) && node.Type == Danslicer.Core.Supports.SupportNodeType.Tip
+        return Document.Supports.TryGetNode(id, out var node) &&
+            node.Type == Danslicer.Core.Supports.SupportNodeType.Tip &&
+            SupportDisplayPolicy.IsElementDisplayed(Document.Supports, id, SupportDisplay)
             ? id : null;
     }
 
@@ -722,7 +756,8 @@ public sealed class ViewportControl : OpenGlControlBase
         var bestScore = float.PositiveInfinity;
         foreach (var node in supports.Nodes)
         {
-            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip) continue;
+            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip ||
+                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay)) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
             var d = Vector2.Distance(mouse, p);
             if (d > SupportPickRadiusPixels || d >= bestScore) continue;
@@ -734,7 +769,8 @@ public sealed class ViewportControl : OpenGlControlBase
 
         foreach (var segment in supports.Segments)
         {
-            if (segment.Hidden) continue;
+            if (segment.Hidden || !SupportDisplayPolicy.IsSegmentDisplayed(
+                    segment.Type, SupportDisplay)) continue;
             var a = supports.GetNode(segment.NodeA);
             var b = supports.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
@@ -758,7 +794,8 @@ public sealed class ViewportControl : OpenGlControlBase
         // radius in oblique views; the ordered samples cover the actual projected ellipse/conic.
         foreach (var node in supports.Nodes)
         {
-            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Base) continue;
+            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Base ||
+                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay)) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
             var d = Vector2.Distance(mouse, p);
             float? score = d <= SupportPickRadiusPixels ? d / SupportPickRadiusPixels : null;
@@ -825,9 +862,12 @@ public sealed class ViewportControl : OpenGlControlBase
     private void RebuildSelectionMesh()
     {
         _selectionMeshDirty = false;
-        _selectedSupportMesh = Document is { } document && document.SupportSelection.Count > 0
+        _selectedSupportMesh = Document is { } document && document.SupportSelection.Count > 0 &&
+            SupportDisplayPolicy.ShowsMeshes(SupportDisplay)
             ? Danslicer.Core.Supports.SupportRenderMesh.BuildSelected(
-                document.Supports, document.IsSupportSelected)
+                document.Supports, document.IsSupportSelected,
+                segment => SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, SupportDisplay),
+                node => SupportDisplayPolicy.IsNodeDisplayed(document.Supports, node, SupportDisplay))
             : null;
     }
 
@@ -842,39 +882,147 @@ public sealed class ViewportControl : OpenGlControlBase
         var supports = Document?.Supports;
         if (Document is null || supports is null) return;
 
-        // Built without selection state: the selection is a separate small overlay mesh.
-        foreach (var part in Danslicer.Core.Supports.SupportRenderMesh.Build(supports))
+        var display = SupportDisplay;
+        if (!SupportDisplayPolicy.ShowsMeshes(display)) return;
+
+        if (display.Mode == SupportDisplayMode.Transparent)
         {
-            var color = part.Kind switch
+            foreach (var (componentNodes, componentSegments) in supports.Supports())
             {
-                Danslicer.Core.Supports.SupportRenderKind.Tip => TipColor,
-                Danslicer.Core.Supports.SupportRenderKind.MiniSupport => MiniSupportColor,
-                Danslicer.Core.Supports.SupportRenderKind.Trunk => TrunkColor,
-                Danslicer.Core.Supports.SupportRenderKind.Bracing => BracingColor,
-                Danslicer.Core.Supports.SupportRenderKind.Base => BaseColor,
-                _ => BranchColor,
-            };
-            _supportMeshes.Add(new AuxMeshDraw(
-                part.Mesh,
-                new Vector3(color.X, color.Y, color.Z),
-                part.Disabled ? DisabledSupportOpacity : 1f));
+                // Bracing is excluded from the graph's support components. Assign each brace to
+                // its NodeA component so it is emitted exactly once and shares that sort key.
+                var segmentIds = new HashSet<Guid>(componentSegments);
+                foreach (var brace in supports.Segments)
+                    if (brace.Type == SupportSegmentType.Bracing &&
+                        componentNodes.Contains(brace.NodeA)) segmentIds.Add(brace.Id);
+                var parts = SupportRenderMesh.Build(supports,
+                    includeSegment: segment => segmentIds.Contains(segment.Id) &&
+                        SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, display),
+                    includeBase: node => componentNodes.Contains(node.Id) &&
+                        SupportDisplayPolicy.IsNodeDisplayed(supports, node, display));
+                if (parts.Count == 0) continue;
+                var origin = componentNodes.Select(id => supports.GetNode(id).Position)
+                    .Aggregate(Vector3.Zero, (sum, point) => sum + point) / componentNodes.Count;
+                AddSupportParts(parts, origin, TransparentSupportOpacity);
+            }
+            return;
         }
+
+        // Built without selection state: the selection is a separate small overlay mesh.
+        var visibleParts = SupportRenderMesh.Build(supports,
+            includeSegment: segment =>
+                SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, display),
+            includeBase: node => SupportDisplayPolicy.IsNodeDisplayed(supports, node, display));
+        foreach (var part in visibleParts)
+            AddSupportPart(part, part.Mesh.Bounds.Center, 1f);
+    }
+
+    private const float TransparentSupportOpacity = 0.28f;
+    private const float OutsideSupportModeOpacity = 0.45f;
+
+    private void AddSupportParts(IEnumerable<SupportRenderPart> parts, Vector3 sortOrigin,
+        float opacity)
+    {
+        foreach (var part in parts) AddSupportPart(part, sortOrigin, opacity);
+    }
+
+    private void AddSupportPart(SupportRenderPart part, Vector3 sortOrigin, float opacity)
+    {
+        var color = part.Kind switch
+        {
+            SupportRenderKind.Tip => TipColor,
+            SupportRenderKind.MiniSupport => MiniSupportColor,
+            SupportRenderKind.Trunk => TrunkColor,
+            SupportRenderKind.Bracing => BracingColor,
+            SupportRenderKind.Base => BaseColor,
+            _ => BranchColor,
+        };
+        _supportMeshes.Add(new SupportMeshBatch(new AuxMeshDraw(
+            part.Mesh,
+            new Vector3(color.X, color.Y, color.Z),
+            opacity * (SupportSelectionMode ? 1f : OutsideSupportModeOpacity) *
+                (part.Disabled ? DisabledSupportOpacity : 1f)), sortOrigin));
     }
 
     private void AppendSupportLines(List<OverlayLine> lines)
     {
         var supports = Document?.Supports;
         if (Document is null || supports is null) return;
+        if (SupportDisplayPolicy.ShowsLines(SupportDisplay))
+        {
+            foreach (var segment in supports.Segments)
+            {
+                if (segment.Hidden || !SupportDisplayPolicy.IsSegmentDisplayed(
+                        segment.Type, SupportDisplay)) continue;
+                var a = supports.GetNode(segment.NodeA);
+                var b = supports.GetNode(segment.NodeB);
+                if (a.Hidden || b.Hidden) continue;
+                var color = Document.IsSupportSelected(segment.Id)
+                    ? SupportSelectedColor
+                    : segment.Type switch
+                    {
+                        SupportSegmentType.Tip => TipColor,
+                        SupportSegmentType.MiniSupport => MiniSupportColor,
+                        SupportSegmentType.Trunk => TrunkColor,
+                        SupportSegmentType.Bracing => BracingColor,
+                        _ => BranchColor,
+                    };
+                if (segment.Disabled || a.Disabled || b.Disabled)
+                    color.W *= DisabledSupportOpacity;
+                if (!SupportSelectionMode) color.W *= OutsideSupportModeOpacity;
+                lines.Add(new OverlayLine(a.Position, b.Position, color));
+            }
+        }
+
+        if (!SupportDisplayPolicy.ShowsContactMarkers(SupportDisplay)) return;
         foreach (var node in supports.Nodes)
         {
-            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip) continue;
+            if (node.Hidden || node.Type != SupportNodeType.Tip ||
+                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay)) continue;
             var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipMarkerColor;
-            const float s = 0.8f;
+            if (!SupportSelectionMode) color.W *= OutsideSupportModeOpacity;
             var p = node.Position;
-            lines.Add(new OverlayLine(p - new Vector3(s, 0, 0), p + new Vector3(s, 0, 0), color));
-            lines.Add(new OverlayLine(p - new Vector3(0, s, 0), p + new Vector3(0, s, 0), color));
-            lines.Add(new OverlayLine(p - new Vector3(0, 0, s), p + new Vector3(0, 0, s), color));
+            if (SupportDisplay.Mode is SupportDisplayMode.ContactPoints or
+                SupportDisplayMode.Transparent)
+            {
+                var size = ContactMarkerHalfSize(p);
+                lines.Add(new OverlayLine(p - Camera.Right * size, p + Camera.Right * size, color));
+                lines.Add(new OverlayLine(p - Camera.Up * size, p + Camera.Up * size, color));
+            }
+            else
+            {
+                // Preserve Full's established marker exactly; Lines resurrects that same path.
+                const float size = 0.8f;
+                lines.Add(new OverlayLine(p - new Vector3(size, 0, 0), p + new Vector3(size, 0, 0), color));
+                lines.Add(new OverlayLine(p - new Vector3(0, size, 0), p + new Vector3(0, size, 0), color));
+                lines.Add(new OverlayLine(p - new Vector3(0, 0, size), p + new Vector3(0, 0, size), color));
+            }
         }
+    }
+
+    /// <summary>Four screen pixels, clamped in world space so extreme zooms stay sensible.</summary>
+    private float ContactMarkerHalfSize(Vector3 point)
+    {
+        var height = MathF.Max((float)Bounds.Height, 1f);
+        var viewHeight = Camera.Orthographic
+            ? Camera.ViewHeightAtTarget
+            : 2f * MathF.Max(Vector3.Dot(point - Camera.Eye, Camera.ViewDirection), Camera.Near) *
+                MathF.Tan(Camera.FovDegrees * 0.5f * MathF.PI / 180f);
+        return Math.Clamp(viewHeight / height * 4f, 0.2f, 2f);
+    }
+
+    private void SelectDisplayedSupportComponent(Guid elementId, bool additive)
+    {
+        if (Document is null) return;
+        Guid seed;
+        if (Document.Supports.TryGetNode(elementId, out var node)) seed = node.Id;
+        else if (Document.Supports.TryGetSegment(elementId, out var segment)) seed = segment.NodeA;
+        else return;
+        var component = Document.Supports.Component(seed);
+        var ids = component.Nodes.Concat(component.Segments)
+            .Where(id => SupportDisplayPolicy.IsElementDisplayed(
+                Document.Supports, id, SupportDisplay));
+        Document.SelectSupportElements(ids, additive);
     }
 
     // ----- Snapping -----
@@ -947,7 +1095,10 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.R when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Rotate, mouse, w, h); break;
                 case Key.S when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Scale, mouse, w, h); break;
                 case Key.A when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.ClearSelection(); break;
-                case Key.A when !ctrl && SupportSelectionMode: Document.SelectAllSupportElements(); break;
+                case Key.A when !ctrl && SupportSelectionMode:
+                    Document.SelectSupportElements(SupportDisplayPolicy.DisplayedElementIds(
+                        Document.Supports, SupportDisplay));
+                    break;
                 case Key.A when !ctrl: Document.SelectAll(); break;
                 case Key.B when !ctrl && SupportSelectionMode:
                     _borderSelectArmed = true;

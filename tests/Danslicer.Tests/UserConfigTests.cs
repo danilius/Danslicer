@@ -268,6 +268,19 @@ public sealed class UserConfigTests : IDisposable
     }
 
     [Fact]
+    public void ExplicitNullSupportDisplayIsTreatedAsMissing()
+    {
+        var path = PathFor("null-support-display.json");
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(path, """{ "Viewport": { "SupportDisplay": null } }""");
+
+        var loaded = UserConfig.Load(path);
+
+        Assert.Equal(SupportDisplayMode.Full, loaded.Viewport.SupportDisplay.Mode);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowContactPointsInTransparent);
+    }
+
+    [Fact]
     public void LegacyPlacementModesMigrateToToggleAndOffsetSemantics()
     {
         Directory.CreateDirectory(_dir);

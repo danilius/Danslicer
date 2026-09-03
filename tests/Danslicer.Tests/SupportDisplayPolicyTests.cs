@@ -65,6 +65,50 @@ public sealed class SupportDisplayPolicyTests
     }
 
     [Fact]
+    public void FocusedModesIgnoreFullAndTransparentElementSwitches()
+    {
+        var hiddenBySwitches = new SupportDisplayConfig
+        {
+            Mode = SupportDisplayMode.Lines,
+            ShowTips = false,
+            ShowMiniSupports = false,
+            ShowBranches = false,
+            ShowTrunks = false,
+            ShowBases = false,
+            ShowBracing = false,
+        };
+
+        Assert.All(Enum.GetValues<SupportSegmentType>(), type =>
+            Assert.True(SupportDisplayPolicy.IsSegmentDisplayed(type, hiddenBySwitches)));
+    }
+
+    [Fact]
+    public void TransparentContactMarkerToggleControlsTipNodeVisibility()
+    {
+        var (graph, nodes, _) = CompleteGraph();
+        var display = new SupportDisplayConfig
+        {
+            Mode = SupportDisplayMode.Transparent,
+            ShowContactPointsInTransparent = false,
+        };
+
+        Assert.False(SupportDisplayPolicy.ShowsContactMarkers(display));
+        Assert.All(nodes.Where(node => node.Type == SupportNodeType.Tip), node =>
+            Assert.False(SupportDisplayPolicy.IsElementDisplayed(graph, node.Id, display)));
+        Assert.True(SupportDisplayPolicy.IsSegmentDisplayed(SupportSegmentType.Tip, display));
+    }
+
+    [Fact]
+    public void MiniContactMarkerFollowsMiniRatherThanRegularTipSwitch()
+    {
+        var (graph, nodes, _) = CompleteGraph();
+        var display = new SupportDisplayConfig { ShowTips = false, ShowMiniSupports = true };
+
+        Assert.False(SupportDisplayPolicy.IsElementDisplayed(graph, nodes[0].Id, display));
+        Assert.True(SupportDisplayPolicy.IsElementDisplayed(graph, nodes[1].Id, display));
+    }
+
+    [Fact]
     public void ContactPointModeSelectsOnlyTipMarkers()
     {
         var display = new SupportDisplayConfig { Mode = SupportDisplayMode.ContactPoints };
@@ -77,7 +121,17 @@ public sealed class SupportDisplayPolicyTests
                 SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, display));
 
         Assert.Equal(nodes.Where(node => node.Type == SupportNodeType.Tip)
-            .Select(node => node.Id), ids);
+            .Select(node => node.Id).ToHashSet(), ids.ToHashSet());
+    }
+
+    [Fact]
+    public void JunctionWithoutAnyDrawnIncidentMemberIsNotSelectable()
+    {
+        var (graph, nodes, segments) = CompleteGraph();
+        foreach (var segment in segments) segment.Hidden = true;
+
+        Assert.False(SupportDisplayPolicy.IsElementDisplayed(
+            graph, nodes[2].Id, new SupportDisplayConfig()));
     }
 
     private static (SupportGraph Graph, SupportNode[] Nodes, SupportSegment[] Segments) CompleteGraph()

@@ -17,9 +17,9 @@ public static class SupportDisplayPolicy
 
     public static bool ShowsContactMarkers(SupportDisplayConfig display) => display.Mode switch
     {
-        SupportDisplayMode.Full => display.ShowTips,
-        SupportDisplayMode.ContactPoints or SupportDisplayMode.Lines or SupportDisplayMode.Tips => true,
-        SupportDisplayMode.Transparent => display.ShowTips && display.ShowContactPointsInTransparent,
+        SupportDisplayMode.Full or SupportDisplayMode.ContactPoints or
+            SupportDisplayMode.Lines or SupportDisplayMode.Tips => true,
+        SupportDisplayMode.Transparent => display.ShowContactPointsInTransparent,
         _ => false,
     };
 
@@ -44,13 +44,26 @@ public static class SupportDisplayPolicy
     public static bool IsNodeDisplayed(SupportGraph graph, SupportNode node,
         SupportDisplayConfig display) => node.Type switch
     {
-        SupportNodeType.Tip => ShowsContactMarkers(display),
-        SupportNodeType.Base => display.Mode is SupportDisplayMode.Full or
-            SupportDisplayMode.Transparent && display.ShowBases,
+        SupportNodeType.Tip => IsTipMarkerDisplayed(graph, node, display),
+        SupportNodeType.Base => display.ShowBases &&
+            (display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent),
         SupportNodeType.Junction => graph.SegmentsAt(node.Id)
-            .Any(segment => IsSegmentDisplayed(segment.Type, display)),
+            .Any(segment => !segment.Hidden && IsSegmentDisplayed(segment.Type, display) &&
+                !graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA).Hidden),
         _ => false,
     };
+
+    private static bool IsTipMarkerDisplayed(SupportGraph graph, SupportNode node,
+        SupportDisplayConfig display)
+    {
+        if (!ShowsContactMarkers(display)) return false;
+        if (display.Mode is not (SupportDisplayMode.Full or SupportDisplayMode.Transparent))
+            return true;
+        var incident = graph.SegmentsAt(node.Id);
+        // A bare tip predates the mini taxonomy and retains regular-tip visibility.
+        return incident.Count == 0 ? display.ShowTips :
+            incident.Any(segment => IsSegmentDisplayed(segment.Type, display));
+    }
 
     public static bool IsElementDisplayed(SupportGraph graph, Guid id,
         SupportDisplayConfig display)
