@@ -182,6 +182,10 @@ public sealed class ViewportControl : OpenGlControlBase
             ApplySnap();
             UpdateStatus();
         }
+        else if (change.Property == SupportSelectionModeProperty)
+        {
+            UpdateStatus();
+        }
         else if (change.Property == ShowOverhangsProperty)
         {
             Redraw();
@@ -970,7 +974,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.Delete when Document.SupportSelection.Count > 0: Document.DeleteSupportSelection(); break;
                 case Key.Home: FrameAll(); break;
                 case Key.OemPeriod: case Key.Decimal: FrameSelected(); break;
-                case Key.Tab when shift: SnapEnabled = !SnapEnabled; break;
+                case Key.Tab when shift && !SupportSelectionMode: SnapEnabled = !SnapEnabled; break;
+                case Key.Tab when shift: handled = false; break;
                 case Key.Tab: ToggleViewRequested?.Invoke(); break;
                 // Numpad views, with the main digit row as an always-available fallback for keyboards
                 // without a numpad (Blender's "emulate numpad"). Digits only mean numbers inside a modal tool.
@@ -1022,7 +1027,9 @@ public sealed class ViewportControl : OpenGlControlBase
         var spaceMouse = _sixAxis is { IsConnected: true }
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
-        StatusText = $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · T support · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
+        StatusText = SupportSelectionMode
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)

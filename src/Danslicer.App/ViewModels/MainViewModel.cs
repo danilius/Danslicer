@@ -31,6 +31,18 @@ public partial class MainViewModel : ViewModelBase
 
     public PrintSettingsViewModel PrintSettings { get; }
 
+    /// <summary>The one live support-settings model shared by Preferences and the Support panel.</summary>
+    public ConfigViewModel SupportSettings { get; }
+
+    public ModeScopedCommand DropToPlateScopedCommand { get; }
+    public ModeScopedCommand HideScopedCommand { get; }
+    public ModeScopedCommand UnhideAllScopedCommand { get; }
+    public ModeScopedCommand HideUnselectedSupportsScopedCommand { get; }
+    public ModeScopedCommand GenerateSupportsScopedCommand { get; }
+    public ModeScopedCommand SliceScopedCommand { get; }
+
+    private readonly List<ModeScopedCommand> _modeScopedCommands;
+
     [ObservableProperty]
     public partial SceneObject? SelectedObject { get; set; }
 
@@ -101,6 +113,7 @@ public partial class MainViewModel : ViewModelBase
         DeleteCommand.NotifyCanExecuteChanged();
         DropToPlateCommand.NotifyCanExecuteChanged();
         HideCommand.NotifyCanExecuteChanged();
+        foreach (var command in _modeScopedCommands) command.NotifyModeChanged();
     }
 
     [ObservableProperty]
@@ -170,6 +183,28 @@ public partial class MainViewModel : ViewModelBase
         // its own value snapshot, so edits affect the next generation/manual placement only.
         Document.SupportSettings = AppConfig.Current.Supports;
         PrintSettings = new PrintSettingsViewModel(Document);
+        SupportSettings = new ConfigViewModel();
+        DropToPlateScopedCommand = new ModeScopedCommand(
+            DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
+        HideScopedCommand = new ModeScopedCommand(
+            HideCommand, () => ViewMode, WorkspaceMode.Layout, WorkspaceMode.Support);
+        UnhideAllScopedCommand = new ModeScopedCommand(
+            UnhideAllCommand, () => ViewMode, WorkspaceMode.Layout, WorkspaceMode.Support);
+        HideUnselectedSupportsScopedCommand = new ModeScopedCommand(
+            HideUnselectedSupportsCommand, () => ViewMode, WorkspaceMode.Support);
+        GenerateSupportsScopedCommand = new ModeScopedCommand(
+            GenerateSupportsCommand, () => ViewMode, WorkspaceMode.Support);
+        SliceScopedCommand = new ModeScopedCommand(
+            SliceCommand, () => ViewMode, WorkspaceMode.Slicing);
+        _modeScopedCommands =
+        [
+            DropToPlateScopedCommand,
+            HideScopedCommand,
+            UnhideAllScopedCommand,
+            HideUnselectedSupportsScopedCommand,
+            GenerateSupportsScopedCommand,
+            SliceScopedCommand,
+        ];
         Position = MakeAxisFields(UnitKind.Length, "0.###", (t, axis, v) => t with { Translation = SetAxis(t.Translation, axis, (float)v) });
         Rotation = MakeAxisFields(UnitKind.Angle, "0.##", (t, axis, v) => t with { EulerDegrees = SetAxis(t.EulerDegrees, axis, (float)v) });
         Scale = MakeAxisFields(UnitKind.Scalar, "0.####", (t, axis, v) => t with { Scale = SetAxis(t.Scale, axis, (float)v) });
@@ -270,6 +305,7 @@ public partial class MainViewModel : ViewModelBase
             _syncingSelection = false;
         }
         RefreshFields();
+        GenerateSupportsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnAutoDropEnabledChanged(bool value)

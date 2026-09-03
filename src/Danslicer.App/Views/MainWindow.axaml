@@ -72,7 +72,8 @@
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
                 <MenuItem Header="_Import STL..." Click="OnImportClick" />
-                <MenuItem Header="_Export Print File..." Click="OnExportClick" />
+                <MenuItem Header="_Export Print File..." Click="OnExportClick"
+                          IsVisible="{Binding IsLayersView}" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="OnExitClick" />
             </MenuItem>
@@ -85,26 +86,37 @@
                 <Separator />
                 <MenuItem Header="_Preferences..." Click="OnPreferencesClick" />
             </MenuItem>
-            <MenuItem Header="_Object">
-                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" />
-                <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F" />
-                <Separator />
-                <MenuItem Header="_Hide" Command="{Binding HideCommand}" InputGesture="H" />
-                <MenuItem Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsCommand}" />
-                <MenuItem Header="_Unhide All" Command="{Binding UnhideAllCommand}" InputGesture="Alt+H" />
-                <Separator />
-                <MenuItem Header="_Generate Supports" Command="{Binding GenerateSupportsCommand}" />
-                <Separator />
+            <MenuItem Header="_Object" IsVisible="{Binding IsModelView}">
+                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateScopedCommand}"
+                          IsVisible="{Binding DropToPlateScopedCommand.IsAvailable}" />
+                <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F"
+                          IsVisible="{Binding IsLayoutView}" />
+                <Separator IsVisible="{Binding IsModelView}" />
+                <MenuItem Header="_Hide" Command="{Binding HideScopedCommand}" InputGesture="H"
+                          IsVisible="{Binding HideScopedCommand.IsAvailable}" />
+                <MenuItem Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsScopedCommand}"
+                          IsVisible="{Binding HideUnselectedSupportsScopedCommand.IsAvailable}" />
+                <MenuItem Header="_Unhide All" Command="{Binding UnhideAllScopedCommand}" InputGesture="Alt+H"
+                          IsVisible="{Binding UnhideAllScopedCommand.IsAvailable}" />
+                <Separator IsVisible="{Binding IsSupportView}" />
+                <MenuItem Header="_Generate Supports" Command="{Binding GenerateSupportsScopedCommand}"
+                          IsVisible="{Binding GenerateSupportsScopedCommand.IsAvailable}" />
+                <Separator IsVisible="{Binding IsModelView}" />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
-                <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}" />
-                <MenuItem Header="_Rotate Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowRotateGizmo, Mode=TwoWay}" />
-                <MenuItem Header="_Scale Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowScaleGizmo, Mode=TwoWay}" />
-                <MenuItem Header="S_napping" ToggleType="CheckBox" IsChecked="{Binding SnapEnabled, Mode=TwoWay}" InputGesture="Shift+Tab" />
-                <Separator />
-                <MenuItem Header="Over_hang Tint" ToggleType="CheckBox" IsChecked="{Binding ShowOverhangs, Mode=TwoWay}" />
+                <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}"
+                          IsVisible="{Binding IsLayoutView}" />
+                <MenuItem Header="_Rotate Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowRotateGizmo, Mode=TwoWay}"
+                          IsVisible="{Binding IsLayoutView}" />
+                <MenuItem Header="_Scale Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowScaleGizmo, Mode=TwoWay}"
+                          IsVisible="{Binding IsLayoutView}" />
+                <MenuItem Header="S_napping" ToggleType="CheckBox" IsChecked="{Binding SnapEnabled, Mode=TwoWay}"
+                          InputGesture="Shift+Tab" IsVisible="{Binding IsLayoutView}" />
+                <Separator IsVisible="{Binding IsModelView}" />
+                <MenuItem Header="Over_hang Tint" ToggleType="CheckBox" IsChecked="{Binding ShowOverhangs, Mode=TwoWay}"
+                          IsVisible="{Binding IsModelView}" />
             </MenuItem>
-            <MenuItem Header="_Print">
-                <MenuItem Header="_Slice" Command="{Binding SliceCommand}" />
+            <MenuItem Header="_Print" IsVisible="{Binding IsLayersView}">
+                <MenuItem Header="_Slice" Command="{Binding SliceScopedCommand}" />
                 <MenuItem Header="_Export Print File..." Click="OnExportClick" />
             </MenuItem>
             <MenuItem Header="_View">
@@ -184,18 +196,21 @@
                         <TextBlock Text="Scale" Classes="section" />
                         <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                        <TextBlock Text="Supports" Classes="section" />
-                        <Button Content="Generate Supports" Command="{Binding GenerateSupportsCommand}"
-                                HorizontalAlignment="Left" MinWidth="130" />
                     </StackPanel>
                 </ScrollViewer>
 
-                <StackPanel IsVisible="{Binding IsSupportView}">
-                    <TextBlock Text="Support" Classes="section" />
-                    <ToggleButton Content="Select Through" IsChecked="{Binding SelectThroughSupports}"
-                                  HorizontalAlignment="Stretch"
-                                  ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
-                </StackPanel>
+                <ScrollViewer IsVisible="{Binding IsSupportView}">
+                    <StackPanel>
+                        <TextBlock Text="Support" Classes="section" />
+                        <ToggleButton Content="Select Through" IsChecked="{Binding SelectThroughSupports}"
+                                      HorizontalAlignment="Stretch"
+                                      ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
+                        <Button Content="Generate Supports" Command="{Binding GenerateSupportsScopedCommand}"
+                                HorizontalAlignment="Stretch" Margin="0,6,0,2" />
+                        <TextBlock Text="Settings" Classes="section" />
+                        <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
+                    </StackPanel>
+                </ScrollViewer>
 
                 <ScrollViewer IsVisible="{Binding IsLayersView}">
                     <StackPanel>
@@ -205,7 +220,7 @@
 
                         <TextBlock Text="Slice" Classes="section" />
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Slice" Command="{Binding SliceCommand}" MinWidth="80" />
+                            <Button Content="Slice" Command="{Binding SliceScopedCommand}" MinWidth="80" />
                             <Button Content="Export…" Click="OnExportClick" MinWidth="80" />
                         </StackPanel>
                         <TextBlock Text="{Binding SliceSummary}" Classes="label" Margin="0,8,0,0" TextWrapping="Wrap" />
@@ -220,7 +235,7 @@
         <DockPanel Grid.Column="2">
             <Border DockPanel.Dock="Top" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,0,1" Padding="8,3">
                 <Grid ColumnDefinitions="Auto,*,Auto">
-                    <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsLayoutView}">
+                    <StackPanel Orientation="Horizontal" IsVisible="{Binding IsLayoutView}">
                         <TextBlock Text="Gizmo" Classes="label" Margin="0,0,8,0" />
                         <ToggleButton Classes="tool" Content="Move" IsChecked="{Binding ShowMoveGizmo}" ToolTip.Tip="Show move gizmo" />
                         <ToggleButton Classes="tool" Content="Rotate" IsChecked="{Binding ShowRotateGizmo}" ToolTip.Tip="Show rotate gizmo" />

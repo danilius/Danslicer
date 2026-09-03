@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.LogicalTree;
 using Danslicer.App.ViewModels;
 
 namespace Danslicer.App.Views;
@@ -11,10 +12,14 @@ namespace Danslicer.App.Views;
 /// </summary>
 public partial class ConfigWindow : Window
 {
-    public ConfigWindow()
+    public ConfigWindow() : this(new ConfigViewModel())
+    {
+    }
+
+    public ConfigWindow(ConfigViewModel config)
     {
         InitializeComponent();
-        DataContext = new ConfigViewModel();
+        DataContext = config;
         Configuration.WindowStatePersistence.Track(this, "preferences");
     }
 
@@ -25,7 +30,7 @@ public partial class ConfigWindow : Window
         {
             if (child is not StackPanel section) continue;
             var anyVisible = false;
-            foreach (var row in section.Children)
+            foreach (var row in section.GetLogicalDescendants().OfType<Control>())
             {
                 if (row.Tag is not string keywords) continue; // headers and notes without tags
                 row.IsVisible = query.Length == 0 || keywords.Contains(query, StringComparison.OrdinalIgnoreCase);
