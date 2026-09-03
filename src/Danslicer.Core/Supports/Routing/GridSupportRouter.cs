@@ -101,16 +101,33 @@ public sealed class GridSupportRouter
         var neckLength = MathF.Max(0.1f, taper.NeckLength);
         var horizontal = Vector2.Distance(new(basePosition.X, basePosition.Y),
             new(tip.SurfacePoint.X, tip.SurfacePoint.Y));
+        var junctionXy = horizontal <= options.SnapTolerance
+            ? new Vector2(tip.SurfacePoint.X, tip.SurfacePoint.Y)
+            : new Vector2(basePosition.X, basePosition.Y);
+        var branchHorizontal = Vector2.Distance(junctionXy,
+            new Vector2(tip.SurfacePoint.X, tip.SurfacePoint.Y));
         var lean = _rules.Find<LeanGrowthRule>();
         var angle = lean is { Enabled: true } ? lean.MaxAngleNearTipDegrees : 89;
-        var requiredDrop = horizontal / MathF.Max(0.01f, MathF.Tan(angle * MathF.PI / 180));
+        var requiredDrop = branchHorizontal / MathF.Max(0.01f, MathF.Tan(angle * MathF.PI / 180));
         var junctionZ = tip.SurfacePoint.Z - MathF.Max(neckLength, requiredDrop);
         if (junctionZ <= options.PlateZ + 0.05f)
         {
             junction = default;
             return false;
         }
-        junction = new Vector3(basePosition.X, basePosition.Y, junctionZ);
+        junction = new Vector3(junctionXy, junctionZ);
+
+        var pillar = new GrowthContext
+        {
+            Operation = GrowthOperation.Grow,
+            Start = basePosition,
+            DesiredEnd = junction,
+            End = junction,
+            Diameter = options.PillarDiameter,
+            DistanceToTip = Vector3.Distance(basePosition, tip.SurfacePoint),
+        };
+        _rules.Evaluate(pillar);
+        if (!pillar.Allowed || Vector3.DistanceSquared(pillar.End, junction) > 1e-6f) return false;
 
         var branch = new GrowthContext
         {
@@ -119,7 +136,7 @@ public sealed class GridSupportRouter
             DesiredEnd = tip.SurfacePoint,
             End = tip.SurfacePoint,
             Diameter = options.PillarDiameter,
-            DistanceToTip = horizontal,
+            DistanceToTip = branchHorizontal,
             ExistingBranchCount = existingBranchCount,
         };
         _rules.Evaluate(branch);
@@ -178,6 +195,7 @@ public sealed class GridSupportRouter
                 graph.AddNode(junction);
                 graph.AddSegment(Segment(ids, shared ? SupportSegmentType.Trunk : SupportSegmentType.Pillar,
                     previous.Id, junction.Id, shared ? trunkDiameter : options.PillarDiameter, options.Origin));
+                IncludeLean(previous.Position, junction.Position, ref maxLean);
                 previous = junction;
             }
 
@@ -188,10 +206,7 @@ public sealed class GridSupportRouter
             graph.AddNode(tipNode);
             graph.AddSegment(Segment(ids, SupportSegmentType.Neck, junction.Id, tipNode.Id,
                 route.NeckDiameter, options.Origin));
-            var delta = tipNode.Position - junction.Position;
-            var angle = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
-                * 180 / MathF.PI;
-            maxLean = MathF.Max(maxLean, angle);
+            IncludeLean(junction.Position, tipNode.Position, ref maxLean);
         }
     }
 
@@ -248,6 +263,14 @@ public sealed class GridSupportRouter
 
     private static Vector3 SafeNormal(Vector3 normal) => normal.LengthSquared() > 1e-12f
         ? Vector3.Normalize(normal) : Vector3.UnitZ;
+
+    private static void IncludeLean(Vector3 start, Vector3 end, ref float maxLean)
+    {
+        var delta = end - start;
+        var angle = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
+            * 180 / MathF.PI;
+        maxLean = MathF.Max(maxLean, angle);
+    }
 
     private sealed class DeterministicIds
     {

@@ -111,6 +111,23 @@ public sealed class RoutingGridTests
         Assert.Equal(2, result.BasePositions.Count);
     }
 
+    [Fact]
+    public void SnapToleranceAlignsJunctionBelowNearbyTip()
+    {
+        var tip = new RoutingTip(new(0.2f, 0.1f, 10), -Vector3.UnitZ, 0.4f);
+        var router = new GridSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
+
+        var snapped = router.Route(new[] { tip }, new GridRoutingOptions { SnapTolerance = 0.25f });
+        var unsnapped = router.Route(new[] { tip }, new GridRoutingOptions { SnapTolerance = 0 });
+        var snappedJunction = Assert.Single(snapped.Graph.Nodes, n => n.Type == SupportNodeType.Junction);
+        var unsnappedJunction = Assert.Single(unsnapped.Graph.Nodes, n => n.Type == SupportNodeType.Junction);
+
+        Assert.Equal(tip.SurfacePoint.X, snappedJunction.Position.X);
+        Assert.Equal(tip.SurfacePoint.Y, snappedJunction.Position.Y);
+        Assert.Equal(Vector3.Zero.X, unsnappedJunction.Position.X);
+        Assert.Equal(Vector3.Zero.Y, unsnappedJunction.Position.Y);
+    }
+
     private static string Snapshot(SupportGraph graph) => string.Join('|',
         graph.Nodes.OrderBy(n => n.Id).Select(n => $"N:{n.Id}:{n.Type}:{n.Position}")
             .Concat(graph.Segments.OrderBy(s => s.Id)
