@@ -7,6 +7,25 @@ namespace Danslicer.Tests;
 public sealed class RoutingGridTests
 {
     [Fact]
+    public void KeepCleanTagsUseSeparateLargerPillarClearance()
+    {
+        var scene = KeepCleanWall();
+        var rules = GrowthRuleSet.Default;
+        var router = new GridSupportRouter(scene, rules);
+        var tip = new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f);
+
+        var ordinary = router.Route(new[] { tip }, new GridRoutingOptions());
+        var protectedResult = router.Route(new[] { tip }, new GridRoutingOptions
+        {
+            KeepCleanObstacleTags = new HashSet<object> { "keep-clean" },
+        });
+
+        Assert.Equal(Vector3.Zero, Assert.Single(ordinary.BasePositions));
+        Assert.NotEqual(Vector3.Zero, Assert.Single(protectedResult.BasePositions));
+        Assert.Empty(protectedResult.UnroutedTips);
+    }
+
+    [Fact]
     public void ReinforceAddsAndRoutesRingTipsAroundLowestSeed()
     {
         var rules = GrowthRuleSet.Default;
@@ -95,6 +114,14 @@ public sealed class RoutingGridTests
         };
         graph.AddSegment(segment);
         return graph;
+    }
+
+    private static LinearCollisionScene KeepCleanWall()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(1, -10, 0), new(1, 10, 0), new(1, 10, 20), "keep-clean");
+        scene.AddTriangle(new(1, -10, 0), new(1, 10, 20), new(1, -10, 20), "keep-clean");
+        return scene;
     }
 
     [Fact]

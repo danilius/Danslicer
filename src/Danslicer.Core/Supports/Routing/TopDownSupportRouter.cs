@@ -12,6 +12,7 @@ public sealed record TopDownRoutingOptions
     public int Seed { get; init; } = 1;
     public SupportOrigin Origin { get; init; } = SupportOrigin.Manual;
     public bool AttachToExisting { get; init; }
+    public IReadOnlySet<object>? KeepCleanObstacleTags { get; init; }
 }
 
 /// <summary>
@@ -52,8 +53,7 @@ public sealed class TopDownSupportRouter
         var unrouted = new List<RoutingTip>();
         var maxLean = 0f;
         var angleOffset = new Random(options.Seed).NextSingle() * MathF.Tau;
-        var clearanceRule = _rules.Find<ClearanceGrowthRule>();
-        var clearance = clearanceRule is { Enabled: true } ? clearanceRule.DistanceFromModel : 0;
+        var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
 
         var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, options.Seed);
         foreach (var item in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
@@ -80,7 +80,8 @@ public sealed class TopDownSupportRouter
     private RouteProposal? Propose(RoutingTip tip, TopDownRoutingOptions options,
         IReadOnlyList<SupportNode> routeNodes, IReadOnlyDictionary<Guid, float> lowestTipByNode,
         IReadOnlyList<GeneratedCapsule> generatedCapsules,
-        IReadOnlyList<ExistingSupportTarget> attachTargets, float clearance, float angleOffset)
+        IReadOnlyList<ExistingSupportTarget> attachTargets, RoutingClearance clearance,
+        float angleOffset)
     {
         if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon) return null;
 
@@ -96,7 +97,7 @@ public sealed class TopDownSupportRouter
         var neckDiameter = MathF.Max(0.05f, taper.Diameter);
         var neckDrop = MathF.Min(MathF.Max(0.1f, taper.NeckLength), tip.SurfacePoint.Z - options.PlateZ);
         var first = tip.SurfacePoint - Vector3.UnitZ * neckDrop;
-        var neckRadius = neckDiameter * 0.5f + clearance;
+        var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
         if (!ContactSegmentIsClear(tip.SurfacePoint, first, neckRadius)) return null;
         if (HitsGenerated(tip.SurfacePoint, first, neckRadius, generatedCapsules, null)) return null;
 
@@ -125,7 +126,7 @@ public sealed class TopDownSupportRouter
     private MergeTarget? FindMerge(Vector3 current, float tipZ, TopDownRoutingOptions options,
         IReadOnlyList<SupportNode> routeNodes, IReadOnlyDictionary<Guid, float> lowestTipByNode,
         IReadOnlyList<GeneratedCapsule> generatedCapsules,
-        IReadOnlyList<ExistingSupportTarget> attachTargets, float clearance)
+        IReadOnlyList<ExistingSupportTarget> attachTargets, RoutingClearance clearance)
     {
         var candidates = routeNodes.Select(node => new MergeCandidate(node,
                 lowestTipByNode[node.Id], false, null))
@@ -166,12 +167,14 @@ public sealed class TopDownSupportRouter
             if (!branch.Allowed || Vector3.DistanceSquared(branch.End, target.Position) > 1e-6f) continue;
 
             // The incoming branch remains pillar-sized; only the shared downstream path is trunk-sized.
-            var radius = branch.Diameter * 0.5f + clearance;
+            var physicalRadius = branch.Diameter * 0.5f;
+            var queryRadius = physicalRadius + clearance.ModelDistance;
             var filter = candidate.Existing
                 ? ExistingSupportTargets.ExcludingIncidentSegments(candidate.Attachment!)
                 : null;
-            if (_obstacles.IntersectsCapsule(current, target.Position, radius, filter)) continue;
-            if (HitsGenerated(current, target.Position, radius, generatedCapsules, target.Id)) continue;
+            if (!clearance.PillarIsClear(_obstacles, current, target.Position, physicalRadius, filter))
+                continue;
+            if (HitsGenerated(current, target.Position, queryRadius, generatedCapsules, target.Id)) continue;
             return new MergeTarget(target, candidate.Existing);
         }
         return null;
@@ -179,7 +182,7 @@ public sealed class TopDownSupportRouter
 
     private Vector3? FindClearStep(Vector3 current, float nextZ, Vector3 tip,
         TopDownRoutingOptions options, IReadOnlyList<GeneratedCapsule> generatedCapsules,
-        float clearance, float angleOffset)
+        RoutingClearance clearance, float angleOffset)
     {
         var drop = current.Z - nextZ;
         var lean = _rules.Find<LeanGrowthRule>();
@@ -201,9 +204,10 @@ public sealed class TopDownSupportRouter
             };
             _rules.Evaluate(grow);
             if (!grow.Allowed || Vector3.DistanceSquared(grow.End, end) > 1e-6f) continue;
-            var radius = grow.Diameter * 0.5f + clearance;
-            if (_obstacles.IntersectsCapsule(current, end, radius)) continue;
-            if (HitsGenerated(current, end, radius, generatedCapsules, null)) continue;
+            var physicalRadius = grow.Diameter * 0.5f;
+            var queryRadius = physicalRadius + clearance.ModelDistance;
+            if (!clearance.PillarIsClear(_obstacles, current, end, physicalRadius)) continue;
+            if (HitsGenerated(current, end, queryRadius, generatedCapsules, null)) continue;
             return end;
         }
         return null;

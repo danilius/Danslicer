@@ -25,6 +25,7 @@ public sealed record GridRoutingOptions
     public int Seed { get; init; } = 1;
     public SupportOrigin Origin { get; init; } = SupportOrigin.Manual;
     public bool AttachToExisting { get; init; }
+    public IReadOnlySet<object>? KeepCleanObstacleTags { get; init; }
 }
 
 public sealed record RoutingResult(SupportGraph Graph, IReadOnlyList<RoutingTip> UnroutedTips,
@@ -58,8 +59,7 @@ public sealed class GridSupportRouter
         var attachments = new List<ExistingAssignment>();
         var unrouted = new List<RoutingTip>();
         var branchCounts = new Dictionary<Vector3, int>();
-        var clearance = _rules.Find<ClearanceGrowthRule>();
-        var clearanceDistance = clearance is { Enabled: true } ? clearance.DistanceFromModel : 0;
+        var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
         var attachTargets = options.AttachToExisting
             ? ExistingSupportTargets.From(existingGraph)
             : Array.Empty<ExistingSupportTarget>();
@@ -73,7 +73,7 @@ public sealed class GridSupportRouter
                              target.Node.Position))
                          .ThenBy(target => target.Node.Id))
             {
-                if (!TryExistingProposal(candidate.Tip, target, options, clearanceDistance,
+                if (!TryExistingProposal(candidate.Tip, target, options, clearance,
                         out var junction, out var neckDiameter)) continue;
                 attachments.Add(new ExistingAssignment(candidate.Tip, candidate.Index, junction,
                     neckDiameter, target));
@@ -85,7 +85,7 @@ public sealed class GridSupportRouter
             foreach (var basePosition in candidate.Bases)
             {
                 branchCounts.TryGetValue(basePosition, out var branchCount);
-                if (!TryProposal(candidate.Tip, basePosition, branchCount, options, clearanceDistance,
+                if (!TryProposal(candidate.Tip, basePosition, branchCount, options, clearance,
                     out var junction, out var neckDiameter)) continue;
                 assignments.Add((candidate.Tip, candidate.Index, basePosition, junction, neckDiameter));
                 branchCounts[basePosition] = branchCount + 1;
@@ -113,7 +113,8 @@ public sealed class GridSupportRouter
     }
 
     private bool TryExistingProposal(RoutingTip tip, ExistingSupportTarget target,
-        GridRoutingOptions options, float clearance, out Vector3 junction, out float neckDiameter)
+        GridRoutingOptions options, RoutingClearance clearance, out Vector3 junction,
+        out float neckDiameter)
     {
         var taper = new GrowthContext
         {
@@ -156,11 +157,10 @@ public sealed class GridSupportRouter
         if (!branch.Allowed || Vector3.DistanceSquared(branch.End, target.Node.Position) > 1e-6f)
             return false;
 
-        var neckRadius = neckDiameter * 0.5f + clearance;
+        var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
         if (!ContactSegmentIsClear(tip.SurfacePoint, junction, neckRadius)) return false;
-        var radius = branch.Diameter * 0.5f + clearance;
-        return !_obstacles.IntersectsCapsule(junction, target.Node.Position, radius,
-            ExistingSupportTargets.ExcludingIncidentSegments(target));
+        return clearance.PillarIsClear(_obstacles, junction, target.Node.Position,
+            branch.Diameter * 0.5f, ExistingSupportTargets.ExcludingIncidentSegments(target));
     }
 
     private bool ContactSegmentIsClear(Vector3 tip, Vector3 junction, float radius)
@@ -192,7 +192,7 @@ public sealed class GridSupportRouter
 
     private bool TryProposal(RoutingTip tip, Vector3 basePosition, int existingBranchCount,
         GridRoutingOptions options,
-        float clearance, out Vector3 junction, out float neckDiameter)
+        RoutingClearance clearance, out Vector3 junction, out float neckDiameter)
     {
         var taper = new GrowthContext
         {
@@ -248,17 +248,18 @@ public sealed class GridSupportRouter
         _rules.Evaluate(branch);
         if (!branch.Allowed || Vector3.DistanceSquared(branch.End, tip.SurfacePoint) > 1e-6f) return false;
 
-        var queryRadius = MathF.Max(options.PillarDiameter, neckDiameter) * 0.5f + clearance;
-        if (_obstacles.IntersectsCapsule(basePosition, junction, queryRadius)) return false;
+        var physicalRadius = MathF.Max(options.PillarDiameter, neckDiameter) * 0.5f;
+        if (!clearance.PillarIsClear(_obstacles, basePosition, junction, physicalRadius)) return false;
 
         // The last part of a neck intentionally enters the contacted surface. Query only the
         // portion that should remain clear of unrelated geometry.
         var neckVector = tip.SurfacePoint - junction;
         var neckLengthActual = neckVector.Length();
-        if (neckLengthActual > queryRadius * 2 + 0.01f)
+        var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
+        if (neckLengthActual > neckRadius * 2 + 0.01f)
         {
-            var clearEnd = tip.SurfacePoint - neckVector / neckLengthActual * (queryRadius * 2 + 0.01f);
-            if (_obstacles.IntersectsCapsule(junction, clearEnd, queryRadius)) return false;
+            var clearEnd = tip.SurfacePoint - neckVector / neckLengthActual * (neckRadius * 2 + 0.01f);
+            if (_obstacles.IntersectsCapsule(junction, clearEnd, neckRadius)) return false;
         }
         return true;
     }

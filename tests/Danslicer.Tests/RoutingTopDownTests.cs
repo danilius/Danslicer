@@ -7,6 +7,25 @@ namespace Danslicer.Tests;
 public sealed class RoutingTopDownTests
 {
     [Fact]
+    public void KeepCleanClearanceCanRejectOtherwiseClearPillar()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(1, -10, 0), new(1, 10, 0), new(1, 10, 20), "keep-clean");
+        scene.AddTriangle(new(1, -10, 0), new(1, 10, 20), new(1, -10, 20), "keep-clean");
+        var router = new TopDownSupportRouter(scene, GrowthRuleSet.Default);
+        var tip = new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f);
+        var options = new TopDownRoutingOptions { DetourRings = 0 };
+
+        Assert.Empty(router.Route(new[] { tip }, options).UnroutedTips);
+        var protectedResult = router.Route(new[] { tip }, options with
+        {
+            KeepCleanObstacleTags = new HashSet<object> { "keep-clean" },
+        });
+
+        Assert.Equal(tip, Assert.Single(protectedResult.UnroutedTips));
+    }
+
+    [Fact]
     public void ReinforceRoutesRingsOnlyAroundCriticalTips()
     {
         var rules = GrowthRuleSet.Default;

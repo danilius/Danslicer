@@ -74,3 +74,32 @@ internal sealed class DeterministicIds
         return new Guid(bytes);
     }
 }
+
+internal readonly record struct RoutingClearance(
+    float ModelDistance,
+    float KeepCleanDistance,
+    IReadOnlySet<object>? KeepCleanTags)
+{
+    public static RoutingClearance From(GrowthRuleSet rules, IReadOnlySet<object>? keepCleanTags)
+    {
+        var rule = rules.Find<ClearanceGrowthRule>();
+        return rule is { Enabled: true }
+            ? new RoutingClearance(rule.DistanceFromModel, rule.DistanceFromKeepCleanFaces,
+                keepCleanTags)
+            : new RoutingClearance(0, 0, keepCleanTags);
+    }
+
+    public bool PillarIsClear(ICollisionScene scene, Vector3 start, Vector3 end,
+        float physicalRadius, Func<object?, bool>? obstacleFilter = null)
+    {
+        if (scene.IntersectsCapsule(start, end, physicalRadius + ModelDistance, obstacleFilter))
+            return false;
+        if (KeepCleanTags is null || KeepCleanTags.Count == 0 ||
+            KeepCleanDistance <= ModelDistance) return true;
+
+        var keepCleanTags = KeepCleanTags;
+        return !scene.IntersectsCapsule(start, end, physicalRadius + KeepCleanDistance,
+            tag => tag is not null && keepCleanTags.Contains(tag) &&
+                (obstacleFilter is null || obstacleFilter(tag)));
+    }
+}
