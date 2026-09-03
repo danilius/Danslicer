@@ -73,6 +73,12 @@ using the lowest point of the mesh in its current orientation. Three modes:
    (edit box for the distance).
 3. *Off*: the object stays wherever it is put (today's behaviour).
 
+**Canonical support benchmarks (user decision 2026-09-03).** `test files/Drogon_flat_surface.stl`
+(organic extreme, ~47 MB) and `test files/roof gripper T2.obj` (CAD extreme) are the definitive
+test models for support work. Every significant support feature should be exercised against both
+via the CLI (`tips`, `route`, `checks`) and the numbers recorded; they are deliberately NOT in
+git (large binaries), they live in the repo directory on the user's machine.
+
 **Support "recipes" (user rumination 2026-09-03, later stage).** Largely DESIGN.md's existing
 profiles (§8.1: named parameter sets, "CAD clean" vs "organic dense") plus regions (§8.3), with
 three genuinely new elements worth designing when profiles land:
