@@ -55,7 +55,8 @@ public sealed class TopDownSupportRouter
         var clearanceRule = _rules.Find<ClearanceGrowthRule>();
         var clearance = clearanceRule is { Enabled: true } ? clearanceRule.DistanceFromModel : 0;
 
-        foreach (var item in tips.Select((tip, index) => (Tip: tip, Index: index))
+        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, options.Seed);
+        foreach (var item in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
                      .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
         {
             var proposal = Propose(item.Tip, options, routeNodes, lowestTipByNode,

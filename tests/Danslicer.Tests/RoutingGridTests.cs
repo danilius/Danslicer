@@ -7,6 +7,31 @@ namespace Danslicer.Tests;
 public sealed class RoutingGridTests
 {
     [Fact]
+    public void ReinforceAddsAndRoutesRingTipsAroundLowestSeed()
+    {
+        var rules = GrowthRuleSet.Default;
+        var reinforce = rules.Find<ReinforceGrowthRule>()!;
+        reinforce.Enabled = true;
+        reinforce.SeedSelector = ReinforceSeedSelector.LowestPointOfRegion;
+        reinforce.Count = 3;
+        reinforce.RingRadius = 3;
+        reinforce.RingDiameterMultiplier = 1.5f;
+        var router = new GridSupportRouter(new LinearCollisionScene(), rules);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f, IsRegionLowest: true) },
+            new GridRoutingOptions { Seed = 17 });
+
+        Assert.Empty(result.UnroutedTips);
+        var tips = result.Graph.Nodes.Where(node => node.Type == SupportNodeType.Tip).ToList();
+        Assert.Equal(4, tips.Count);
+        Assert.Single(tips, tip => MathF.Abs(tip.TipDiameter - 0.4f) < 1e-5f);
+        Assert.Equal(3, tips.Count(tip => MathF.Abs(tip.TipDiameter - 0.6f) < 1e-5f));
+        Assert.All(tips.Where(tip => tip.TipDiameter > 0.5f), tip =>
+            Assert.Equal(3, new Vector2(tip.Position.X, tip.Position.Y).Length(), 3));
+    }
+
+    [Fact]
     public void AttachToExistingAddsOnlyNewRouteAndJoiningSegment()
     {
         var existing = ExistingPillar(out var top, out var originalSegment);

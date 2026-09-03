@@ -3,7 +3,8 @@ using System.Numerics;
 namespace Danslicer.Core.Supports.Routing;
 
 public readonly record struct RoutingTip(Vector3 SurfacePoint, Vector3 InwardSurfaceNormal,
-    float TipDiameter, Guid? ContactObjectId = null);
+    float TipDiameter, Guid? ContactObjectId = null, bool IsCritical = false,
+    bool IsObjectLowest = false, bool IsRegionLowest = false);
 
 public enum BaseLatticeType
 {
@@ -49,7 +50,8 @@ public sealed class GridSupportRouter
         ArgumentOutOfRangeException.ThrowIfNegative(options.SnapTolerance);
         ArgumentOutOfRangeException.ThrowIfNegative(options.CandidateRingCount);
 
-        var orderedTips = tips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
+        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, options.Seed);
+        var orderedTips = expandedTips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
         var candidates = orderedTips.Select(item =>
             (item.Tip, item.Index, Bases: CandidateBases(item.Tip.SurfacePoint, options).ToList())).ToList();
         var assignments = new List<(RoutingTip Tip, int Index, Vector3 Base, Vector3 Junction, float NeckDiameter)>();

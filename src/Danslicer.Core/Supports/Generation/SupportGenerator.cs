@@ -31,7 +31,13 @@ public static class SupportGenerator
 
         // Both sides of this mapping speak the inward (penetration) normal, so it passes through;
         // the router flips to the graph's outward convention when it creates the tip node.
-        var tips = candidates.Select(c => new RoutingTip(c.Point, c.InwardNormal, c.TipDiameter));
+        var lowestRegion = candidates.OrderBy(candidate => candidate.Point.Z)
+            .ThenBy(candidate => candidate.Point.X).ThenBy(candidate => candidate.Point.Y)
+            .Select(candidate => (TipCandidate?)candidate).FirstOrDefault();
+        var tips = candidates.Select(c => new RoutingTip(c.Point, c.InwardNormal, c.TipDiameter,
+            IsObjectLowest: lowestRegion is { } lowestObject &&
+                MathF.Abs(lowestObject.Point.Z - mesh.Bounds.Min.Z) <= 1e-4f && c.Equals(lowestObject),
+            IsRegionLowest: lowestRegion is { } lowest && c.Equals(lowest)));
 
         var router = new GridSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed }, existingGraph);

@@ -7,6 +7,28 @@ namespace Danslicer.Tests;
 public sealed class RoutingTopDownTests
 {
     [Fact]
+    public void ReinforceRoutesRingsOnlyAroundCriticalTips()
+    {
+        var rules = GrowthRuleSet.Default;
+        var reinforce = rules.Find<ReinforceGrowthRule>()!;
+        reinforce.Enabled = true;
+        reinforce.SeedSelector = ReinforceSeedSelector.CriticalTips;
+        reinforce.Count = 2;
+        reinforce.RingRadius = 3;
+        var router = new TopDownSupportRouter(new LinearCollisionScene(), rules);
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f, IsCritical: true),
+            new RoutingTip(new(10, 0, 10), -Vector3.UnitZ, 0.4f),
+        };
+
+        var result = router.Route(tips, new TopDownRoutingOptions { Seed = 23 });
+
+        Assert.Empty(result.UnroutedTips);
+        Assert.Equal(4, result.Graph.Nodes.Count(node => node.Type == SupportNodeType.Tip));
+    }
+
+    [Fact]
     public void AttachToExistingDoesNotPromoteOrModifyPinnedPillar()
     {
         var existing = new SupportGraph();
