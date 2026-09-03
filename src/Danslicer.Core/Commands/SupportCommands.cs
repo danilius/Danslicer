@@ -33,6 +33,46 @@ public sealed class AddSupportElementsCommand : IDocumentCommand
     }
 }
 
+/// <summary>Sets support node positions (and tip normals) as one undoable step, e.g. a tip move.</summary>
+public sealed class SetSupportPositionsCommand : IDocumentCommand
+{
+    public readonly record struct Entry(SupportNode Node,
+        System.Numerics.Vector3 BeforePosition, System.Numerics.Vector3 BeforeNormal,
+        System.Numerics.Vector3 AfterPosition, System.Numerics.Vector3 AfterNormal);
+
+    private readonly SupportGraph _graph;
+    private readonly IReadOnlyList<Entry> _entries;
+
+    public SetSupportPositionsCommand(SupportGraph graph, IReadOnlyList<Entry> entries, string name = "Move support")
+    {
+        _graph = graph;
+        _entries = entries;
+        Name = name;
+    }
+
+    public string Name { get; }
+
+    public void Execute()
+    {
+        foreach (var e in _entries)
+        {
+            e.Node.Position = e.AfterPosition;
+            e.Node.SurfaceNormal = e.AfterNormal;
+        }
+        _graph.NotifyChanged();
+    }
+
+    public void Undo()
+    {
+        foreach (var e in _entries)
+        {
+            e.Node.Position = e.BeforePosition;
+            e.Node.SurfaceNormal = e.BeforeNormal;
+        }
+        _graph.NotifyChanged();
+    }
+}
+
 /// <summary>
 /// Removes support nodes and segments as one undoable step. Segments attached to a removed node are
 /// captured and removed too, so undo restores the exact structure.

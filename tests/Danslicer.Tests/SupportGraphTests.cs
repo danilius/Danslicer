@@ -180,6 +180,56 @@ public class SupportGraphTests
     }
 
     [Fact]
+    public void MoveTipVerticalRedropsTheSimpleTree()
+    {
+        var doc = new Danslicer.Core.Document();
+        var mesh = new Danslicer.Core.Geometry.Mesh(
+            new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
+        var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
+        doc.AddObject(obj);
+        doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ);
+
+        var tip = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip);
+        var affected = SupportEditing.AffectedByTipMove(doc.Supports, tip.Id);
+        Assert.Equal(3, affected.Count); // tip, junction, base
+
+        SupportEditing.MoveTipVertical(doc.Supports, tip.Id, new Vector3(7, -3, 15), Vector3.UnitX);
+        Assert.Equal(new Vector3(7, -3, 15), tip.Position);
+        Assert.Equal(Vector3.UnitX, tip.SurfaceNormal);
+        Assert.Equal(new Vector3(7, -3, 13), doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Junction).Position);
+        Assert.Equal(new Vector3(7, -3, 0), doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Base).Position);
+
+        // A tip with extra connections moves alone.
+        var junction = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Junction);
+        var extra = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(5, 5, 10) };
+        doc.Supports.AddNode(extra);
+        doc.Supports.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Bracing, NodeA = junction.Id, NodeB = extra.Id,
+        });
+        Assert.Single(SupportEditing.AffectedByTipMove(doc.Supports, tip.Id));
+    }
+
+    [Fact]
+    public void SetSupportPositionsCommandUndoes()
+    {
+        var g = new SupportGraph();
+        var node = new SupportNode { Type = SupportNodeType.Tip, Position = Vector3.Zero, SurfaceNormal = Vector3.UnitZ };
+        g.AddNode(node);
+        var command = new Danslicer.Core.Commands.SetSupportPositionsCommand(g, new[]
+        {
+            new Danslicer.Core.Commands.SetSupportPositionsCommand.Entry(
+                node, Vector3.Zero, Vector3.UnitZ, new Vector3(1, 2, 3), Vector3.UnitX),
+        });
+        command.Execute();
+        Assert.Equal(new Vector3(1, 2, 3), node.Position);
+        Assert.Equal(Vector3.UnitX, node.SurfaceNormal);
+        command.Undo();
+        Assert.Equal(Vector3.Zero, node.Position);
+        Assert.Equal(Vector3.UnitZ, node.SurfaceNormal);
+    }
+
+    [Fact]
     public void ChangedFiresOnStructuralEdits()
     {
         var g = new SupportGraph();
