@@ -138,6 +138,36 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.ExistingTrunkBranchRange = Clamp(value, 0.01f, 1000f, 8f));
     }
 
+    public float SupportMiniSupportDiameter
+    {
+        get => Supports.MiniSupportDiameter;
+        set => Update(() => Supports.MiniSupportDiameter = Clamp(value, 0.01f, 100f, 0.6f));
+    }
+
+    public float SupportMiniSupportTipDiameter
+    {
+        get => Supports.MiniSupportTipDiameter;
+        set => Update(() => Supports.MiniSupportTipDiameter = Clamp(value, 0.01f, 100f, 0.25f));
+    }
+
+    public float SupportMiniSupportConeLength
+    {
+        get => Supports.MiniSupportConeLength;
+        set => Update(() => Supports.MiniSupportConeLength = Clamp(value, 0.01f, 100f, 1f));
+    }
+
+    public float SupportMiniSupportMaxLength
+    {
+        get => Supports.MiniSupportMaxLength;
+        set => Update(() => Supports.MiniSupportMaxLength = Clamp(value, 0.01f, 1000f, 5f));
+    }
+
+    public int SupportMiniSupportMaxFanPerBranchEnd
+    {
+        get => Supports.MiniSupportMaxFanPerBranchEnd;
+        set => Update(() => Supports.MiniSupportMaxFanPerBranchEnd = Math.Clamp(value, 1, 100));
+    }
+
     public float SupportBaseGridPitch
     {
         get => Supports.BaseGridPitch;

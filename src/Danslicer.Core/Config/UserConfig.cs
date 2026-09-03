@@ -71,6 +71,11 @@ public sealed record SupportConfig
     public float MaxBranchLength { get; set; } = 8f;
     public bool PreferExistingTrunks { get; set; } = true;
     public float ExistingTrunkBranchRange { get; set; } = 8f;
+    public float MiniSupportDiameter { get; set; } = 0.6f;
+    public float MiniSupportTipDiameter { get; set; } = 0.25f;
+    public float MiniSupportConeLength { get; set; } = 1f;
+    public float MiniSupportMaxLength { get; set; } = 5f;
+    public int MiniSupportMaxFanPerBranchEnd { get; set; } = 4;
     public float BaseGridPitch { get; set; } = 20f;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -97,6 +102,11 @@ public sealed record SupportConfig
         TipMemberLength = Positive(TipMemberLength, 2f);
         MaxBranchLength = Positive(MaxBranchLength, 8f);
         ExistingTrunkBranchRange = Positive(ExistingTrunkBranchRange, 8f);
+        MiniSupportDiameter = Positive(MiniSupportDiameter, 0.6f);
+        MiniSupportTipDiameter = Positive(MiniSupportTipDiameter, 0.25f);
+        MiniSupportConeLength = Positive(MiniSupportConeLength, 1f);
+        MiniSupportMaxLength = Positive(MiniSupportMaxLength, 5f);
+        MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
         BaseGridPitch = Positive(BaseGridPitch, 20f);
         if (!Enum.IsDefined(BaseShape)) BaseShape = SupportBaseShape.Disc;
         BaseDiameter = Positive(BaseDiameter, 4f);

@@ -614,6 +614,7 @@ public sealed class ViewportControl : OpenGlControlBase
     // ----- Manual supports -----
 
     private static readonly Vector4 TipColor = new(1f, 0.85f, 0.3f, 0.95f);
+    private static readonly Vector4 MiniSupportColor = new(1f, 0.68f, 0.22f, 0.95f);
     private static readonly Vector4 BranchColor = new(0.55f, 0.75f, 0.95f, 0.95f);
     private static readonly Vector4 TrunkColor = new(0.75f, 0.85f, 1f, 0.95f);
     private static readonly Vector4 BracingColor = new(0.5f, 0.9f, 0.6f, 0.95f);
@@ -843,6 +844,7 @@ public sealed class ViewportControl : OpenGlControlBase
             var color = part.Kind switch
             {
                 Danslicer.Core.Supports.SupportRenderKind.Tip => TipColor,
+                Danslicer.Core.Supports.SupportRenderKind.MiniSupport => MiniSupportColor,
                 Danslicer.Core.Supports.SupportRenderKind.Trunk => TrunkColor,
                 Danslicer.Core.Supports.SupportRenderKind.Bracing => BracingColor,
                 Danslicer.Core.Supports.SupportRenderKind.Base => BaseColor,
