@@ -97,6 +97,9 @@
                 <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" InputGesture="Ctrl+D" />
                 <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F" />
                 <Separator />
+                <MenuItem Header="_Hide" Command="{Binding HideCommand}" InputGesture="H" />
+                <MenuItem Header="_Unhide All" Command="{Binding UnhideAllCommand}" InputGesture="Alt+H" />
+                <Separator />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
                 <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}" />
                 <MenuItem Header="_Rotate Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowRotateGizmo, Mode=TwoWay}" />

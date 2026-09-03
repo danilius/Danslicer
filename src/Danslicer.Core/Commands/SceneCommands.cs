@@ -53,3 +53,22 @@ public sealed class SetTransformCommand : IDocumentCommand
     public void Execute() => _object.Transform = _after;
     public void Undo() => _object.Transform = _before;
 }
+
+public sealed class SetRenderStateCommand : IDocumentCommand
+{
+    private readonly SceneObject _object;
+    private readonly RenderState _before;
+    private readonly RenderState _after;
+
+    public SetRenderStateCommand(SceneObject obj, RenderState after, string name)
+    {
+        _object = obj;
+        _before = obj.RenderState;
+        _after = after;
+        Name = name;
+    }
+
+    public string Name { get; }
+    public void Execute() => _object.RenderState = _after;
+    public void Undo() => _object.RenderState = _before;
+}

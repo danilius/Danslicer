@@ -99,6 +99,28 @@ public sealed class Document
         if (commands.Count > 0) Execute(new CompositeCommand("Drop to plate", commands));
     }
 
+    /// <summary>Hides the selected objects and deselects them. One undo step.</summary>
+    public void HideSelection()
+    {
+        if (_selection.Count == 0) return;
+        var commands = _selection
+            .Select(o => (IDocumentCommand)new SetRenderStateCommand(o, RenderState.Hidden, $"Hide {o.Name}"))
+            .ToList();
+        ClearSelection();
+        Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Hide {commands.Count} objects", commands));
+    }
+
+    /// <summary>Returns every hidden object to normal. One undo step.</summary>
+    public void UnhideAll()
+    {
+        var commands = Scene.Objects
+            .Where(o => o.RenderState == RenderState.Hidden)
+            .Select(o => (IDocumentCommand)new SetRenderStateCommand(o, RenderState.Normal, $"Unhide {o.Name}"))
+            .ToList();
+        if (commands.Count == 0) return;
+        Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : "Unhide all", commands));
+    }
+
     /// <summary>
     /// Rotates the object so the picked face (grown into its near-coplanar cluster) points straight
     /// down, then rests it on the plate. One undo step. Rotation pivots on the world-bounds centre.
