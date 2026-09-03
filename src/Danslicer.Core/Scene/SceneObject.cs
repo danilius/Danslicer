@@ -13,16 +13,17 @@ public enum RenderState
 /// <summary>A placed instance of a mesh on the build plate.</summary>
 public sealed class SceneObject
 {
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; }
     public string Name { get; set; }
     public Mesh Mesh { get; }
     public Transform Transform { get; set; } = Transform.Identity;
     public RenderState RenderState { get; set; } = RenderState.Normal;
 
-    public SceneObject(string name, Mesh mesh)
+    public SceneObject(string name, Mesh mesh, Guid? id = null)
     {
         Name = name;
         Mesh = mesh;
+        Id = id ?? Guid.NewGuid();
     }
 
     public Aabb WorldBounds => Mesh.Bounds.Transform(Transform.ToMatrix());
