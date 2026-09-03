@@ -1,10 +1,122 @@
 # Danslicer handover
 
 Written 2026-09-03 for a fresh conversation and updated through the day; the FIRST section
-(night) supersedes all older state notes below. Read this, then `docs/DESIGN.md` for the
-full design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec.
+supersedes all older state notes below. Read this, then `docs/DESIGN.md` for the full
+design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec (updated
+tonight: grid bases, no-shrink bases, mini-supports).
 
-## State as of 2026-09-03 night — READ THIS SECTION FIRST
+## Addendum 2026-09-03 overnight — queue progress (kept current; RECOVERY: read this + the
+`danslicer-multi-agent-workflow` memory, re-arm the queue monitor AND the hourly
+heartbeat monitor, then resume the review/merge loop)
+
+**main is at `95cb53a`, 324 green tests, pushed. Jobs 001–005 all merged tonight**, in
+order: 001 refusal reasons (`e17e07c`), 002 mini classification — fallback-to-mini off
+by default (`3985f34`), 003 optional base grid + A/B (`80f74fd`; spec amended
+`3e8a86c` — grid now optional, default on; grid-off cuts Drogon refusals 1759→882),
+002b island band hole (`c38a81c`), 004 mode-scoped UI + Support-panel settings
+(`abd071c` — the user's mode-visibility directive is DONE), 005 branch shaping toward
+the Lychee reference + 75° mini lean cap (`95cb53a`; Lychee mined: 174 bases median
+1.44 mm spacing, trunks median 9.68 mm, branches median 5.36 mm ≤45°). **Job 006**
+(support display modes) is IN FLIGHT — its first commit `830fbdb` is RED (its own
+`ContactPointModeSelectsOnlyTipMarkers` fails, flagged in REVIEW.md as a completion
+blocker). Claude merges autonomously overnight; user decisions pending in the morning:
+grid on/off + pitch after screen test, mini/shaping defaults, Qwen lane start (user
+deferred to "later this evening").
+
+## Addendum 2026-09-03 ~21:30 — ChatGPT overnight queue LIVE
+
+The overnight run is started for ChatGPT (Qwen joins later this evening, per the user).
+ChatGPT now works as a Codex scheduled task: every ~5 min a FRESH chat claims the
+lowest-numbered job from `Danslicer-chatgpt\ChatGPT\inbox\` (atomic move to `working\`,
+results to `completed\`/`failed\`) per `ChatGPT\PROTOCOL.md`, which answers its setup
+questions (inbox path, `NNN-slug.md` format with `Requires:`, 5-min interval,
+completion = granular commits + clean build + full tests + result file). Queue loaded:
+001 refusal reasons, 002 mini classification (brief 18), 003 grid optional (user
+decision: pitch stays configurable AND grid gets an on/off toggle, both for screen
+experimentation), 004 mode-scoped UI (brief 17) + ALL support configs also shown in the
+right panel in Support mode "for now", 005 branch shaping toward the Lychee reference.
+Claude merges autonomously overnight (standing grant), triages failed/stale claims,
+refills the inbox. Monitor watches the queue folders + QUESTIONS + branch head.
+
+## Addendum 2026-09-03 ~21:00 — brief 16 merged, user screen-test feedback
+
+**main is at merge `89eca94`, 305 green tests, pushed** — ChatGPT's whole brief 16
+(grid bases 20 mm pitch, branch-first config, mini-supports + island feed + CLI +
+benchmarks) merged with the user's approval and rebuilt. Benchmarks: bases 315→17 /
+134→17, refusals 629→1690 / 84→352 under 20 mm pitch + 8 mm branch reach — the user
+has been shown these numbers; grid-pitch policy decision PENDING.
+
+**User feedback from Lychee comparison (screenshots, 2026-09-03 evening):** added
+`test files/drogon_collapse with Lychee supports.stl` (low-poly drogon with Lychee
+supports, reference target for support shape; not in git). Branch X-crossing
+"weirdness" still present; Lychee's tree shape (no grid, near-vertical trunks,
+Y-merges) is the target look. Some tips look like minis in regular-support places →
+brief 18 (`INSTRUCTIONS-18.md`, classification control; root cause: refused regular
+candidates silently retry as minis). Queue order for ChatGPT: refusal-reason
+micro-commit → brief 18 → brief 17 (`INSTRUCTIONS-17.md`, mode-scoped controls per the
+user's Layout/Slicing visibility principle) → brief 19 (branch shaping toward the
+Lychee reference, NOT WRITTEN — blocked on the user's grid decision).
+
+**Support display modes** (user request; BRIEFED overnight as queue job 006 once the
+queue drained) — show just contact points; just lines (the old line rendering); just
+tips; transparent/ghost supports with or without contact points; plus Claude's
+additions: per-element-type visibility toggles and (if cheap) dimmed supports outside
+Support mode.
+
+## State as of 2026-09-03 ~20:00 — READ THIS SECTION FIRST
+
+**main is at `350cad0`, 297 green tests, pushed.** Merged today after the night section
+below was written, in order: ChatGPT's brief 12 queue (workspace semantics, marquee fix,
+text-box gesture yielding, mode panels); Claude's `support-geometry`
+(tip/branch/trunk/base vocabulary, base disc/cone geometry, cone tip RENDERING,
+TreeSupportRouter = spec-shaped generation now behind Ctrl+G and manual T, benchmarks);
+Claude's `support-fixes` (Shift+T REMOVED per user, island coverage for teeth
+— min island 0.1 + island tips exempt from spacing, base disc fitting, short tip-member
+fallback); Claude's `support-ux-fixes` (marquee drawn by a SelectionRectOverlay ABOVE the
+GL surface — the GL compositor hides the viewport's own 2D layer; Blender-style
+drag-anywhere box select with click deferred to release; H hides WHOLE supports; base
+disc picking; selection-only render-mesh rebuilds fixing a multi-second freeze);
+ChatGPT's briefs 13+14 (support config window — 15 fields + base shape dropdown,
+persisted, snapshot-isolated; dense-teeth routing: 30°/15° branch fans + 0.5 mm
+same-trunk sibling fusion); and ChatGPT's brief 15 (six screen-test fixes: island config
+default regression, marquee visibility via cached BVH, parent-aware tip taper — the
+"branches ignore diameter setting" report, base-transition regression tests, bases
+RELOCATE instead of shrinking, projected-disc base picking).
+
+**Claude is supervisory-only** (user directive): briefs, reviews in a detached scratch
+worktree (build + full tests per commit), merges, pushes. Tonight the user granted
+autonomous merge authority for the overnight run ("merge as you see fit").
+
+**OVERNIGHT PLAN — waiting for the user's explicit "start".** Keep ChatGPT AND Qwen busy;
+monitor, review, merge autonomously. ChatGPT is on brief 16 (`INSTRUCTIONS-16.md`: grid
+bases with configurable pitch, branch-first preference, MINI-SUPPORTS for teeth/barbs —
+all new user dictation, recorded in the spec). Queue further briefs from the outstanding
+pool as it finishes; keep granularity and the REPORT/REVIEW protocol. The Qwen lane is
+validated and documented in the auto-memory (`danslicer-multi-agent-workflow`): worktree
+`F:\Git Repos\Danslicer-qwen` branch `qwen-trial`, driver scripts in its git-excluded
+`Qwen/` folder, author-rich/repair-minimal pattern, compile/test gates; give it SMALL
+factorable tasks (test authoring, pure Core functions, diagnosis) and review everything.
+API details + key in the memory file, not here.
+
+**Start a persistent Monitor** polling ChatGPT's mailbox
+(`F:\Git Repos\Danslicer-chatgpt\ChatGPT\` REPORT/QUESTIONS mtimes) and the
+`grid-routing-prototype` head each minute; the old session's monitor dies with it.
+
+**User decisions tonight (all in SUPPORT-GEOMETRY-SPEC.md):** bases on a configurable
+grid (pitch default 20 mm — square/plate-aligned/nearest-first are ASSUMPTIONS, user
+offered a Blender mock-up); branch-first before new trunks; bases never shrink (relocate);
+DiscCone tops match their member; mini-supports = fine rods fanning from branch ends with
+a max length; everything configurable. Island-search tweaks (multiple tips per island,
+weakly-supported detection, tracking, IslandTipAt, painting) remain USER-PENDING — do not
+brief.
+
+**User-only outstanding:** screen-test briefs 15/16 when convenient (the running app is
+main `350cad0` with drogon-lo); set their saved Min island area from 0.5 to 0.1 in
+Preferences (deliberately not auto-migrated); the Blender grid mock-up if they choose;
+the Reinforce visuals (needs profile UI); the physical mirror-X test print; re-running
+`/auto-mode-setup`.
+
+## State as of 2026-09-03 night (SUPERSEDED by the section above)
 
 **main is at `6228f40`, 242 green tests, pushed** (with branches `grid-routing-prototype`
 and `spacemouse-buttons`). Merged tonight with the user's approval: ChatGPT's whole

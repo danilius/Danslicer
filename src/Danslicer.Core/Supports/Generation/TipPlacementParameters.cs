@@ -25,11 +25,23 @@ public sealed record TipPlacementParameters
     public float MinSpacingMm { get; init; } = 2.5f;
 
     /// <summary>
-    /// Islands smaller than this are ignored. 0.1 mm² is ~40 Mono X pixels — small spikes such
-    /// as teeth are real printable features and must be supported (user screen test 2026-09-03:
-    /// the old 0.5 default silently dropped tooth apexes).
+    /// Islands smaller than this are ignored when mini supports are disabled. When they are
+    /// enabled, <see cref="MiniIslandMaxAreaMm2"/> becomes the mini/regular boundary instead.
+    /// 0.1 mm² is ~40 Mono X pixels — small spikes such as teeth are real printable features
+    /// and must be supported (user screen test 2026-09-03: the old 0.5 default silently dropped
+    /// tooth apexes).
     /// </summary>
     public float MinIslandAreaMm2 { get; init; } = 0.1f;
+
+    /// <summary>When enabled, below-threshold islands are retained as mini-support-only contacts.</summary>
+    public bool EnableMiniSupports { get; init; }
+    /// <summary>
+    /// Upper area bound for mini-island classification. At use it is constrained between the
+    /// mini contact footprint and <see cref="MinIslandAreaMm2"/>.
+    /// </summary>
+    public float MiniIslandMaxAreaMm2 { get; init; } = 0.1f;
+    public float MiniSupportTipDiameterMm { get; init; } = 0.25f;
+    public float MiniSupportConeLengthMm { get; init; } = 1f;
 
     /// <summary>
     /// Dedup radius between island tips. Every island physically needs its own support — two

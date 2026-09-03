@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
+        xmlns:controls="using:Danslicer.App.Controls"
         x:Class="Danslicer.App.Views.ConfigWindow"
         x:DataType="vm:ConfigViewModel"
         Width="760" Height="540" MinWidth="560" MinHeight="360"
@@ -99,93 +100,7 @@
 
                 <StackPanel x:Name="SupportsSection">
                     <TextBlock Text="Supports" Classes="section" />
-                    <TextBlock Text="Tip" Classes="section" />
-                    <Grid Tag="supports tip contact diameter mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Tip diameter" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
-                                       Value="{Binding SupportTipDiameter, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports tip cone length mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Cone length" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
-                                       Value="{Binding SupportConeLength, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports tip ball snap diameter none zero mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Ball diameter (0 = none)" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
-                                       Value="{Binding SupportBallDiameter, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports tip penetration depth embedding mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Penetration depth" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
-                                       Value="{Binding SupportPenetrationDepth, Mode=TwoWay}" />
-                    </Grid>
-
-                    <TextBlock Text="Members" Classes="section" />
-                    <Grid Tag="supports members trunk diameter mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Trunk diameter" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
-                                       Value="{Binding SupportTrunkDiameter, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports members branch diameter mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Branch diameter" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
-                                       Value="{Binding SupportBranchDiameter, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports members angle degrees maximum" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Member angle °" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="1" Maximum="89" Increment="1" FormatString="0"
-                                       Value="{Binding SupportMemberAngleDegrees, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports members tip member length mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Tip member length" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
-                                       Value="{Binding SupportTipMemberLength, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports members maximum branch length mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Max branch length" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
-                                       Value="{Binding SupportMaxBranchLength, Mode=TwoWay}" />
-                    </Grid>
-
-                    <TextBlock Text="Base" Classes="section" />
-                    <Grid Tag="supports base shape disc cone none" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Shape" Classes="label" />
-                        <ComboBox Grid.Column="1" ItemsSource="{Binding SupportBaseShapes}"
-                                  SelectedItem="{Binding SupportBaseShapeValue, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports base diameter mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Base diameter" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
-                                       Value="{Binding SupportBaseDiameter, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports base height thickness mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Base height" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.1" FormatString="0.##"
-                                       Value="{Binding SupportBaseHeight, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports base cone height mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Base cone height" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.1" FormatString="0.##"
-                                       Value="{Binding SupportBaseConeHeight, Mode=TwoWay}" />
-                    </Grid>
-
-                    <TextBlock Text="Placement" Classes="section" />
-                    <Grid Tag="supports placement spacing density mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Spacing" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
-                                       Value="{Binding SupportSpacing, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports placement overhang angle degrees threshold" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Overhang angle °" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="90" Increment="1" FormatString="0"
-                                       Value="{Binding SupportOverhangAngleDegrees, Mode=TwoWay}" />
-                    </Grid>
-                    <Grid Tag="supports placement minimum island area square mm" ColumnDefinitions="190,*" Margin="0,2">
-                        <TextBlock Text="Min island area mm²" Classes="label" />
-                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.1" FormatString="0.##"
-                                       Value="{Binding SupportMinIslandAreaMm2, Mode=TwoWay}" />
-                    </Grid>
+                    <controls:SupportSettingsView DataContext="{Binding}" />
                 </StackPanel>
 
                 <StackPanel x:Name="SpaceMouseSection">

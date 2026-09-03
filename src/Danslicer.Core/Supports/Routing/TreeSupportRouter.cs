@@ -18,6 +18,25 @@ public sealed record TreeRoutingOptions
     public float TipMemberLength { get; init; } = 2f;
     /// <summary>Longest branch member allowed, in millimetres along the member.</summary>
     public float MaxBranchLength { get; init; } = 8f;
+    public bool PreferExistingTrunks { get; init; } = true;
+    /// <summary>Maximum actual branch length when attaching to an existing trunk.</summary>
+    public float ExistingTrunkBranchRange { get; init; } = 8f;
+    public float MiniSupportDiameter { get; init; } = 0.6f;
+    public float MiniSupportTipDiameter { get; init; } = 0.25f;
+    public float MiniSupportConeLength { get; init; } = 1f;
+    public float MiniSupportMaxLength { get; init; } = 5f;
+    /// <summary>Maximum mini-support lean from vertical.</summary>
+    public float MiniSupportMaxAngleDegrees { get; init; } = 75f;
+    public int MiniSupportMaxFanPerBranchEnd { get; init; } = 4;
+    /// <summary>
+    /// When true, a refused regular tip may be retried as a mini support. Disabled by default so
+    /// structurally required regular contacts remain visible as honest refusals.
+    /// </summary>
+    public bool RefusedTipsFallBackToMini { get; init; }
+    /// <summary>When true, new bases are constrained to the plate-origin square grid.</summary>
+    public bool UseBaseGrid { get; init; } = true;
+    /// <summary>Pitch of the plate-origin-aligned square base grid.</summary>
+    public float BaseGridPitch { get; init; } = 20f;
     /// <summary>Directions tried when a branch must swing around an obstacle or reach a trunk.</summary>
     public int BranchDirections { get; init; } = 12;
     /// <summary>Branch lengths tried per direction, as fractions of <see cref="MaxBranchLength"/>.</summary>
@@ -45,6 +64,8 @@ public sealed class TreeSupportRouter
 {
     private const float Epsilon = 1e-5f;
     private const float SiblingBranchFusionDistance = 0.5f;
+    private const float BranchDirectionPreferenceDiameters = 1f;
+    private const float ProjectedBranchClearanceDiameters = 1f;
     private readonly ICollisionScene _obstacles;
     private readonly GrowthRuleSet _rules;
 
@@ -58,6 +79,17 @@ public sealed class TreeSupportRouter
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.TrunkDiameter);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.TipMemberLength);
+        if (options.UseBaseGrid)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BaseGridPitch);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.ExistingTrunkBranchRange);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportDiameter);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportTipDiameter);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportConeLength);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportMaxLength);
+        if (!float.IsFinite(options.MiniSupportMaxAngleDegrees) ||
+            options.MiniSupportMaxAngleDegrees <= 0 || options.MiniSupportMaxAngleDegrees >= 90)
+            throw new ArgumentOutOfRangeException(nameof(options.MiniSupportMaxAngleDegrees));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportMaxFanPerBranchEnd);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchDirections);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchLengthSteps);
 
@@ -70,17 +102,85 @@ public sealed class TreeSupportRouter
         var failures = new List<RoutingFailure>();
 
         var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, _obstacles, options.Seed);
+        var pendingMini = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
         foreach (var item in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
                      .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
         {
-            if (RouteOne(item.Tip, options, state, out var reason)) continue;
-            unrouted.Add(item.Tip);
-            failures.Add(new RoutingFailure(item.Tip, reason));
+            var reason = RoutingFailureReason.NoClearStep;
+            if (!item.Tip.MiniSupportOnly && RouteOne(item.Tip, options, state, out reason))
+                continue;
+            if (item.Tip.MiniSupportOnly || options.RefusedTipsFallBackToMini)
+                pendingMini.Add((item.Tip, item.Index, reason));
+            else
+            {
+                unrouted.Add(item.Tip);
+                failures.Add(new RoutingFailure(item.Tip, reason));
+            }
+        }
+        foreach (var pending in pendingMini.OrderByDescending(item => item.Tip.SurfacePoint.Z)
+                     .ThenBy(item => item.Index))
+        {
+            if (TryRouteMiniSupport(pending.Tip, options, state, out var miniReason)) continue;
+            unrouted.Add(pending.Tip);
+            failures.Add(new RoutingFailure(pending.Tip,
+                pending.Tip.MiniSupportOnly ? miniReason : pending.Reason));
         }
 
         var bases = graph.Nodes.Where(node => node.Type == SupportNodeType.Base)
             .Select(node => node.Position).OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
         return new RoutingResult(graph, unrouted, bases, state.MaxLean, failures);
+    }
+
+    private bool TryRouteMiniSupport(RoutingTip tip, TreeRoutingOptions options, RouteState state,
+        out RoutingFailureReason reason)
+    {
+        reason = RoutingFailureReason.NoClearStep;
+        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
+        {
+            reason = RoutingFailureReason.BelowPlate;
+            return false;
+        }
+        var hasBranchEndInRange = false;
+        foreach (var branchEnd in state.BranchEnds
+                     .OrderBy(node => Vector3.DistanceSquared(node.Position, tip.SurfacePoint))
+                     .ThenBy(node => node.Id))
+        {
+            var length = Vector3.Distance(branchEnd.Position, tip.SurfacePoint);
+            if (length > options.MiniSupportMaxLength + Epsilon || length <= Epsilon) continue;
+            hasBranchEndInRange = true;
+            var delta = tip.SurfacePoint - branchEnd.Position;
+            var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z)) *
+                       180 / MathF.PI;
+            if (lean > options.MiniSupportMaxAngleDegrees + Epsilon) continue;
+            if (state.MiniFanCount(branchEnd.Id) >= options.MiniSupportMaxFanPerBranchEnd) continue;
+            var bodyRadius = options.MiniSupportDiameter * 0.5f;
+            var queryRadius = bodyRadius + state.Clearance.ModelDistance;
+            var contactAllowance = MathF.Max(options.MiniSupportTipDiameter * 0.5f,
+                queryRadius) * 2 + 0.01f;
+            var clearEnd = length > contactAllowance
+                ? tip.SurfacePoint - delta / length * contactAllowance
+                : branchEnd.Position;
+            if (clearEnd != branchEnd.Position &&
+                _obstacles.IntersectsCapsule(branchEnd.Position, clearEnd, queryRadius)) continue;
+            var incident = state.Graph.SegmentsAt(branchEnd.Id).Select(segment => segment.Id).ToList();
+            if (state.HitsGenerated(branchEnd.Position, clearEnd, queryRadius, incident)) continue;
+
+            var miniTip = state.NewNode(SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
+            RoutingUtilities.ApplyContact(miniTip, tip with
+            {
+                TipDiameter = options.MiniSupportTipDiameter,
+                TipShape = SupportTipShape.Cone,
+                ConeLength = options.MiniSupportConeLength,
+                BallDiameter = 0f,
+            });
+            state.Graph.AddNode(miniTip);
+            state.AddSegment(SupportSegmentType.MiniSupport, branchEnd, miniTip,
+                options.MiniSupportDiameter, options.Origin);
+            state.IncrementMiniFan(branchEnd.Id);
+            return true;
+        }
+        if (!hasBranchEndInRange) reason = RoutingFailureReason.NoBranchEndInRange;
+        return false;
     }
 
     private bool RouteOne(RoutingTip tip, TreeRoutingOptions options, RouteState state,
@@ -93,48 +193,95 @@ public sealed class TreeSupportRouter
             return false;
         }
 
+        var (branchTipDiameter, tipMemberLength) = TipMemberDimensions(
+            tip, options.BranchDiameter, options.TipMemberLength);
+        var branchJunction = FindTipJunction(tip, options, state,
+            branchTipDiameter, tipMemberLength);
+
+        // Branch-first: an existing trunk gets first refusal, and a tip feeding that branch
+        // tapers from the configured branch diameter.
+        if (options.PreferExistingTrunks && branchJunction is { } branchJ1 &&
+            branchJ1.Z > options.PlateZ + Epsilon &&
+            TryAttachToTrunk(tip, branchJ1, options, state, branchTipDiameter)) return true;
+
+        var (trunkTipDiameter, _) = TipMemberDimensions(
+            tip, options.TrunkDiameter, options.TipMemberLength);
+        var trunkJunction = MathF.Abs(trunkTipDiameter - branchTipDiameter) <= Epsilon
+            ? branchJunction
+            : FindTipJunction(tip, options, state, trunkTipDiameter, tipMemberLength);
+
+        // A tip connected directly to a trunk (or directly to its base near the plate) tapers
+        // from the trunk setting, independently of BranchDiameter.
+        if (trunkJunction is { } trunkJ1)
+        {
+            if (trunkJ1.Z <= options.PlateZ + Epsilon)
+            {
+                var baseJunction = FindTipBaseJunction(tip, options, state,
+                    trunkTipDiameter, tipMemberLength);
+                if (baseJunction is { } baseJ1)
+                {
+                    EmitSupport(tip, new Vector3(baseJ1.X, baseJ1.Y, options.PlateZ), null,
+                        tipOnly: true, options, state, trunkTipDiameter);
+                    return true;
+                }
+            }
+            else if ((!options.UseBaseGrid || IsOnBaseGrid(trunkJ1, options)) &&
+                     TrunkIsClear(trunkJ1, options, state))
+            {
+                EmitSupport(tip, trunkJ1, null, tipOnly: false,
+                    options, state, trunkTipDiameter);
+                return true;
+            }
+        }
+
+        if (branchJunction is null)
+        {
+            reason = RoutingFailureReason.ContactBlocked;
+            return false;
+        }
+
+        // The straight candidate was handled with trunk-derived tip geometry above. Every
+        // remaining candidate introduces a branch, so both it and its tip use branch settings.
+        var trunkTops = TrunkTopCandidates(
+            branchJunction.Value, options, state.AngleOffset).ToList();
+        foreach (var candidate in trunkTops)
+        {
+            var trunkTop = candidate.Top;
+            if (Vector2.DistanceSquared(new(branchJunction.Value.X, branchJunction.Value.Y),
+                    new(trunkTop.X, trunkTop.Y)) <= Epsilon * Epsilon) continue;
+            if (!BranchIsClear(branchJunction.Value, trunkTop, options, state))
+                continue;
+            if (!TrunkIsClear(trunkTop, options, state)) continue;
+            EmitSupport(tip, trunkTop, branchJunction.Value, tipOnly: false,
+                options, state, branchTipDiameter);
+            return true;
+        }
+        if (!options.PreferExistingTrunks && branchJunction is { } fallbackJ1 &&
+            fallbackJ1.Z > options.PlateZ + Epsilon &&
+            TryAttachToTrunk(tip, fallbackJ1, options, state, branchTipDiameter)) return true;
+        var straightGridCandidateWasBlocked = options.UseBaseGrid &&
+                                              trunkJunction is { } straightJunction &&
+                                              straightJunction.Z > options.PlateZ + Epsilon &&
+                                              IsOnBaseGrid(straightJunction, options);
+        if (options.UseBaseGrid && !straightGridCandidateWasBlocked && trunkTops.Count == 0)
+            reason = RoutingFailureReason.NoReachableGridPoint;
+        return false;
+    }
+
+    private (float Diameter, float Length) TipMemberDimensions(RoutingTip tip,
+        float parentDiameter, float configuredLength)
+    {
         var taper = new GrowthContext
         {
             Operation = GrowthOperation.Tip,
             Start = tip.SurfacePoint,
             DesiredEnd = tip.SurfacePoint,
             End = tip.SurfacePoint,
-            Diameter = options.BranchDiameter,
-            TipLength = options.TipMemberLength,
+            Diameter = parentDiameter,
+            TipLength = configuredLength,
         };
         _rules.Evaluate(taper);
-        var tipMemberDiameter = MathF.Max(0.05f, taper.Diameter);
-        var tipMemberLength = MathF.Max(0.1f, taper.TipLength);
-
-        var junction = FindTipJunction(tip, options, state, tipMemberDiameter, tipMemberLength);
-        if (junction is null)
-        {
-            reason = RoutingFailureReason.ContactBlocked;
-            return false;
-        }
-        var j1 = junction.Value;
-
-        // The contact sits so low that the tip member reaches the plate: tip straight onto a base.
-        if (j1.Z <= options.PlateZ + Epsilon)
-        {
-            EmitSupport(tip, new Vector3(j1.X, j1.Y, options.PlateZ), null, tipOnly: true,
-                options, state, tipMemberDiameter);
-            return true;
-        }
-
-        if (TryAttachToTrunk(tip, j1, options, state, tipMemberDiameter)) return true;
-
-        foreach (var trunkTop in TrunkTopCandidates(j1, options, state.AngleOffset))
-        {
-            var viaBranch = Vector3.DistanceSquared(trunkTop, j1) > Epsilon * Epsilon;
-            if (viaBranch && !MemberIsClear(j1, trunkTop, options.BranchDiameter * 0.5f, state))
-                continue;
-            if (!TrunkIsClear(trunkTop, options, state)) continue;
-            EmitSupport(tip, trunkTop, viaBranch ? j1 : null, tipOnly: false,
-                options, state, tipMemberDiameter);
-            return true;
-        }
-        return false;
+        return (MathF.Max(0.05f, taper.Diameter), MathF.Max(0.1f, taper.TipLength));
     }
 
     /// <summary>
@@ -145,6 +292,51 @@ public sealed class TreeSupportRouter
     private Vector3? FindTipJunction(RoutingTip tip, TreeRoutingOptions options, RouteState state,
         float tipMemberDiameter, float tipMemberLength)
     {
+        foreach (var candidate in TipJunctionCandidates(tip, options, state,
+                     tipMemberDiameter, tipMemberLength))
+            return candidate;
+        return null;
+    }
+
+    private Vector3? FindTipBaseJunction(RoutingTip tip, TreeRoutingOptions options,
+        RouteState state, float tipMemberDiameter, float tipMemberLength)
+    {
+        if (!options.UseBaseGrid)
+        {
+            foreach (var candidate in TipJunctionCandidates(tip, options, state,
+                         tipMemberDiameter, tipMemberLength, includeBaseRelocationFan: true))
+            {
+                if (candidate.Z > options.PlateZ + Epsilon) continue;
+                var basePosition = new Vector3(candidate.X, candidate.Y, options.PlateZ);
+                if (BaseIsClear(basePosition, options, state)) return candidate;
+            }
+            return null;
+        }
+
+        var vertical = tip.SurfacePoint.Z - options.PlateZ;
+        if (vertical <= Epsilon || vertical > tipMemberLength + Epsilon) return null;
+        var maxAngle = options.MaxMemberAngleDegrees * MathF.PI / 180f;
+        var maxHorizontal = MathF.Min(vertical * MathF.Tan(maxAngle),
+            MathF.Sqrt(MathF.Max(0, tipMemberLength * tipMemberLength - vertical * vertical)));
+        foreach (var xy in BaseLattice.NearestSquarePoints(
+                     new Vector2(tip.SurfacePoint.X, tip.SurfacePoint.Y),
+                     options.BaseGridPitch, maxHorizontal))
+        {
+            var candidate = new Vector3(xy, options.PlateZ);
+            var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) +
+                                state.Clearance.ModelDistance;
+            if (!ContactMemberIsClear(tip.SurfacePoint, candidate, contactRadius)) continue;
+            if (state.HitsGenerated(tip.SurfacePoint, candidate,
+                    tipMemberDiameter * 0.5f + state.Clearance.ModelDistance)) continue;
+            if (BaseIsClear(candidate, options, state)) return candidate;
+        }
+        return null;
+    }
+
+    private IEnumerable<Vector3> TipJunctionCandidates(RoutingTip tip,
+        TreeRoutingOptions options, RouteState state, float tipMemberDiameter,
+        float tipMemberLength, bool includeBaseRelocationFan = false)
+    {
         var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) + state.Clearance.ModelDistance;
         var memberRadius = tipMemberDiameter * 0.5f + state.Clearance.ModelDistance;
         // Rough or tightly packed contacts (teeth) can block every full-length departure; a
@@ -152,7 +344,10 @@ public sealed class TreeSupportRouter
         var shortLength = MathF.Min(tipMemberLength, contactRadius * 2);
         foreach (var candidateLength in new[] { tipMemberLength, shortLength }.Distinct())
         {
-            foreach (var direction in TipDirections(tip, options, state.AngleOffset))
+            var directions = includeBaseRelocationFan
+                ? TipToBaseDirections(tip, options, state.AngleOffset)
+                : TipDirections(tip, options, state.AngleOffset);
+            foreach (var direction in directions)
             {
                 var length = direction.Z < -Epsilon
                     ? MathF.Min(candidateLength, (tip.SurfacePoint.Z - options.PlateZ) / -direction.Z)
@@ -160,10 +355,36 @@ public sealed class TreeSupportRouter
                 var end = tip.SurfacePoint + direction * length;
                 if (!ContactMemberIsClear(tip.SurfacePoint, end, contactRadius)) continue;
                 if (state.HitsGenerated(tip.SurfacePoint, end, memberRadius)) continue;
-                return end;
+                yield return end;
             }
         }
-        return null;
+    }
+
+    /// <summary>
+    /// Near the plate, a flat underside's normal produces only a straight-down tip direction.
+    /// Add angled directions so a full-size base can move off blocked plate geometry.
+    /// </summary>
+    private IEnumerable<Vector3> TipToBaseDirections(RoutingTip tip, TreeRoutingOptions options,
+        float angleOffset)
+    {
+        foreach (var direction in TipDirections(tip, options, angleOffset)) yield return direction;
+        foreach (var angleDegrees in new[]
+                 {
+                     options.MaxMemberAngleDegrees,
+                     MathF.Min(options.MaxMemberAngleDegrees, 30f),
+                     MathF.Min(options.MaxMemberAngleDegrees, 15f),
+                 }.Distinct())
+        {
+            var angle = angleDegrees * MathF.PI / 180f;
+            for (var index = 0; index < options.BranchDirections; index++)
+            {
+                var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
+                yield return Vector3.Normalize(new Vector3(
+                    MathF.Cos(theta) * MathF.Sin(angle),
+                    MathF.Sin(theta) * MathF.Sin(angle),
+                    -MathF.Cos(angle)));
+            }
+        }
     }
 
     private IEnumerable<Vector3> TipDirections(RoutingTip tip, TreeRoutingOptions options,
@@ -212,32 +433,52 @@ public sealed class TreeSupportRouter
         var maxBranches = branchRule is { Enabled: true } ? branchRule.MaxBranchesPerTrunk : int.MaxValue;
         var maxAngle = options.MaxMemberAngleDegrees * MathF.PI / 180f;
         var tanAngle = MathF.Tan(maxAngle);
-        var sinAngle = MathF.Sin(maxAngle);
-
-        foreach (var trunk in state.Trunks
-                     .OrderBy(t => Vector2.DistanceSquared(new(j1.X, j1.Y), t.Xy))
-                     .ThenBy(t => t.BaseNodeId))
+        var lean = new Vector2(j1.X - tip.SurfacePoint.X, j1.Y - tip.SurfacePoint.Y);
+        var leanDirection = lean.LengthSquared() > Epsilon * Epsilon
+            ? Vector2.Normalize(lean)
+            : Vector2.Zero;
+        var candidates = new List<ExistingTrunkCandidate>();
+        foreach (var trunk in state.Trunks)
         {
             if (trunk.BranchCount >= maxBranches) continue;
             var hDist = Vector2.Distance(new(j1.X, j1.Y), trunk.Xy);
-            var branchLength = sinAngle > Epsilon ? hDist / sinAngle : float.MaxValue;
-            if (branchLength > options.MaxBranchLength) continue;
             // A hair steeper than the exact member angle, so float rounding in the lean rule
             // can never clamp (and thereby reject) a nominally-exact 45° branch.
-            var attachZ = j1.Z - (tanAngle > Epsilon ? hDist / tanAngle : 0f) - 1e-3f;
-            // The attachment must land on the trunk itself, above its base headroom.
-            if (attachZ > trunk.TopZ + Epsilon) continue;
+            var highestAngleLimitedZ = j1.Z -
+                                       (tanAngle > Epsilon ? hDist / tanAngle : 0f) - 1e-3f;
+            // Use the highest point the existing trunk can offer without exceeding the angle.
+            // This is the shortest viable branch; a shorter trunk therefore receives a shallower
+            // branch at its top instead of being discarded outright.
+            var attachZ = MathF.Min(highestAngleLimitedZ, trunk.TopZ);
             if (attachZ < options.PlateZ + options.BaseHeight + Epsilon) continue;
             if (hDist <= Epsilon) continue; // the junction is on the trunk line; the drop handles it
+            var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
+            var branchLength = Vector3.Distance(j1, attach);
+            if (branchLength > options.ExistingTrunkBranchRange + Epsilon) continue;
 
+            var towardTrunk = Vector2.Normalize(trunk.Xy - new Vector2(j1.X, j1.Y));
+            var alignmentPenalty = leanDirection == Vector2.Zero
+                ? 0f
+                : (1f - Vector2.Dot(leanDirection, towardTrunk)) * options.BranchDiameter *
+                  BranchDirectionPreferenceDiameters;
+            candidates.Add(new ExistingTrunkCandidate(
+                trunk, attach, branchLength, branchLength + alignmentPenalty));
+        }
+
+        foreach (var candidate in candidates.OrderBy(item => item.Score)
+                     .ThenBy(item => item.Length).ThenBy(item => item.Trunk.BaseNodeId))
+        {
+            var trunk = candidate.Trunk;
+            var attach = candidate.Attach;
+            var attachZ = attach.Z;
             // The spec's member angle governs branch geometry here; the lean rule's step-router
             // clamps (including its tighter near-tip angle) do not apply to tree anatomy.
-            var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
             var branchRadius = options.BranchDiameter * 0.5f;
             if (!state.Clearance.PillarIsClear(_obstacles, j1, attach, branchRadius)) continue;
             if (state.HitsGeneratedForTrunkAttachment(j1, attach,
                     branchRadius + state.Clearance.ModelDistance, trunk,
-                    SiblingBranchFusionDistance)) continue;
+                    SiblingBranchFusionDistance,
+                    options.BranchDiameter * ProjectedBranchClearanceDiameters)) continue;
 
             var attachNode = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
                 ? state.Graph.GetNode(trunk.TopNodeId)
@@ -245,6 +486,7 @@ public sealed class TreeSupportRouter
             var tipNode = EmitTipMember(tip, j1, options, state, tipMemberDiameter);
             var branch = state.AddSegment(SupportSegmentType.Branch, tipNode.Junction, attachNode,
                 options.BranchDiameter, options.Origin);
+            state.RegisterBranchEnd(tipNode.Junction);
             trunk.BranchSegmentIds.Add(branch.Id);
             trunk.BranchCount++;
             return true;
@@ -253,68 +495,96 @@ public sealed class TreeSupportRouter
     }
 
     /// <summary>
-    /// Vertical drop line candidates: straight below the junction, then one-branch fans from the
-    /// configured maximum angle down through 30° and 15°. The configured angle is a maximum;
-    /// shallower branches can find drop lines that a steep fan overshoots in dense geometry.
+    /// Grid mode uses reachable plate-origin square-grid drop lines, nearest first. Free mode
+    /// restores the deterministic branch fan used before bases were constrained to a grid.
     /// </summary>
-    private IEnumerable<Vector3> TrunkTopCandidates(Vector3 j1, TreeRoutingOptions options,
+    private static IEnumerable<TrunkTopCandidate> TrunkTopCandidates(Vector3 j1,
+        TreeRoutingOptions options,
         float angleOffset)
     {
-        yield return j1;
-        var angles = new[]
+        if (!options.UseBaseGrid)
         {
-            options.MaxMemberAngleDegrees,
-            MathF.Min(options.MaxMemberAngleDegrees, 30f),
-            MathF.Min(options.MaxMemberAngleDegrees, 15f),
-        }.Distinct();
-        foreach (var angleDegrees in angles)
-        {
-            var angle = angleDegrees * MathF.PI / 180f;
+            yield return new TrunkTopCandidate(j1, 0f, 0f);
+            var angles = new[]
+            {
+                MathF.Min(options.MaxMemberAngleDegrees, 15f),
+                MathF.Min(options.MaxMemberAngleDegrees, 30f),
+                options.MaxMemberAngleDegrees,
+            }.Distinct().Order();
+            // Search by physical member length first. At a given length, prefer the more vertical
+            // member; this prevents every 45-degree length from winning before a shorter shallow
+            // alternative is even considered.
             for (var step = 1; step <= options.BranchLengthSteps; step++)
             {
                 var length = options.MaxBranchLength * step / options.BranchLengthSteps;
-                for (var index = 0; index < options.BranchDirections; index++)
+                foreach (var angleDegrees in angles)
                 {
-                    var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
-                    var direction = new Vector3(
-                        MathF.Cos(theta) * MathF.Sin(angle),
-                        MathF.Sin(theta) * MathF.Sin(angle),
-                        -MathF.Cos(angle));
-                    var end = j1 + direction * length;
-                    if (end.Z > options.PlateZ + options.BaseHeight + Epsilon) yield return end;
+                    var freeAngle = angleDegrees * MathF.PI / 180f;
+                    for (var index = 0; index < options.BranchDirections; index++)
+                    {
+                        var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
+                        var direction = new Vector3(
+                            MathF.Cos(theta) * MathF.Sin(freeAngle),
+                            MathF.Sin(theta) * MathF.Sin(freeAngle),
+                            -MathF.Cos(freeAngle));
+                        var end = j1 + direction * length;
+                        if (end.Z > options.PlateZ + options.BaseHeight + Epsilon)
+                            yield return new TrunkTopCandidate(end, length, angleDegrees);
+                    }
                 }
             }
+            yield break;
         }
+
+        var angle = options.MaxMemberAngleDegrees * MathF.PI / 180f;
+        var maxHorizontal = options.MaxBranchLength * MathF.Sin(angle);
+        var candidates = new List<TrunkTopCandidate>();
+        foreach (var xy in BaseLattice.NearestSquarePoints(new Vector2(j1.X, j1.Y),
+                     options.BaseGridPitch, maxHorizontal))
+        {
+            var horizontal = Vector2.Distance(new(j1.X, j1.Y), xy);
+            foreach (var candidateDegrees in new[]
+                     {
+                         options.MaxMemberAngleDegrees,
+                         MathF.Min(options.MaxMemberAngleDegrees, 30f),
+                         MathF.Min(options.MaxMemberAngleDegrees, 15f),
+                     }.Distinct())
+            {
+                var candidateAngle = candidateDegrees * MathF.PI / 180f;
+                var length = horizontal <= Epsilon ? 0 : horizontal / MathF.Sin(candidateAngle);
+                if (length > options.MaxBranchLength + Epsilon) continue;
+                var drop = horizontal <= Epsilon ? 0 : horizontal / MathF.Tan(candidateAngle);
+                var top = new Vector3(xy, j1.Z - drop);
+                if (top.Z > options.PlateZ + options.BaseHeight + Epsilon)
+                    candidates.Add(new TrunkTopCandidate(top, length, candidateDegrees));
+            }
+        }
+        foreach (var candidate in candidates.OrderBy(item => item.Length)
+                     .ThenBy(item => item.AngleDegrees)
+                     .ThenBy(item => item.Top.X).ThenBy(item => item.Top.Y))
+            yield return candidate;
+    }
+
+    private static bool IsOnBaseGrid(Vector3 point, TreeRoutingOptions options)
+    {
+        var x = MathF.Round(point.X / options.BaseGridPitch) * options.BaseGridPitch;
+        var y = MathF.Round(point.Y / options.BaseGridPitch) * options.BaseGridPitch;
+        return Vector2.DistanceSquared(new(point.X, point.Y), new(x, y)) <= Epsilon * Epsilon;
     }
 
     private bool TrunkIsClear(Vector3 top, TreeRoutingOptions options, RouteState state)
     {
         var basePosition = new Vector3(top.X, top.Y, options.PlateZ);
-        return MemberIsClear(top, basePosition, options.TrunkDiameter * 0.5f, state);
+        return MemberIsClear(top, basePosition, options.TrunkDiameter * 0.5f, state) &&
+               BaseIsClear(basePosition, options, state);
     }
 
-    /// <summary>
-    /// The largest base disc that clears the MODEL at this position: full diameter first, then
-    /// shrink steps down to the member diameter, then no base at all (the member itself already
-    /// proved clear). Other supports are ignored — neighbouring bases overlap and fuse on the
-    /// plate by design; only base-into-model collisions are avoided (user screen test
-    /// 2026-09-03: full-size discs were sinking into the model near plate-level geometry).
-    /// </summary>
-    private (SupportBaseShape Shape, float Diameter) FitBase(Vector3 basePosition,
-        float memberDiameter, TreeRoutingOptions options, RouteState state)
+    private bool BaseIsClear(Vector3 basePosition, TreeRoutingOptions options, RouteState state)
     {
-        if (options.BaseShape == SupportBaseShape.None)
-            return (SupportBaseShape.None, options.BaseDiameter);
+        if (options.BaseShape == SupportBaseShape.None) return true;
         var discTop = basePosition + Vector3.UnitZ * options.BaseHeight;
-        var floor = MathF.Max(memberDiameter, 0.1f);
-        foreach (var fraction in new[] { 1f, 0.75f, 0.5f, 0f })
-        {
-            var diameter = MathF.Max(floor, options.BaseDiameter * fraction);
-            if (state.Clearance.PillarIsClear(_obstacles, basePosition, discTop, diameter * 0.5f))
-                return (options.BaseShape, diameter);
-            if (diameter <= floor + 1e-4f) break;
-        }
-        return (SupportBaseShape.None, options.BaseDiameter);
+        return state.Clearance.PillarIsClear(_obstacles, basePosition, discTop,
+            options.BaseDiameter * 0.5f);
     }
 
     private bool MemberIsClear(Vector3 start, Vector3 end, float physicalRadius, RouteState state,
@@ -323,6 +593,26 @@ public sealed class TreeSupportRouter
         if (!state.Clearance.PillarIsClear(_obstacles, start, end, physicalRadius)) return false;
         return !state.HitsGenerated(start, end,
             physicalRadius + state.Clearance.ModelDistance, excludeSegments);
+    }
+
+    private bool BranchIsClear(Vector3 start, Vector3 end, TreeRoutingOptions options,
+        RouteState state)
+    {
+        var radius = options.BranchDiameter * 0.5f;
+        return MemberIsClear(start, end, radius, state) &&
+               !state.HasProjectedBranchNearPass(start, end,
+                   options.BranchDiameter * ProjectedBranchClearanceDiameters);
+    }
+
+    internal static bool ProjectedSegmentsPassTooClose(Vector3 aStart, Vector3 aEnd,
+        Vector3 bStart, Vector3 bEnd, float clearance)
+    {
+        var flatAStart = new Vector3(aStart.X, aStart.Y, 0);
+        var flatAEnd = new Vector3(aEnd.X, aEnd.Y, 0);
+        var flatBStart = new Vector3(bStart.X, bStart.Y, 0);
+        var flatBEnd = new Vector3(bEnd.X, bEnd.Y, 0);
+        return GeometryDistance.SegmentSegmentSquared(flatAStart, flatAEnd, flatBStart, flatBEnd)
+               <= clearance * clearance;
     }
 
     /// <summary>Clear check for the tip member, ignoring its own contact end like the other routers.</summary>
@@ -352,11 +642,9 @@ public sealed class TreeSupportRouter
         TreeRoutingOptions options, RouteState state, float tipMemberDiameter)
     {
         var basePosition = new Vector3(trunkTop.X, trunkTop.Y, options.PlateZ);
-        var (baseShape, baseDiameter) = FitBase(basePosition,
-            tipOnly ? tipMemberDiameter : options.TrunkDiameter, options, state);
         var baseNode = state.NewNode(SupportNodeType.Base, basePosition, options.Origin);
-        baseNode.BaseShape = baseShape;
-        baseNode.BaseDiameter = baseDiameter;
+        baseNode.BaseShape = options.BaseShape;
+        baseNode.BaseDiameter = options.BaseDiameter;
         baseNode.BaseHeight = options.BaseHeight;
         baseNode.BaseConeHeight = options.BaseConeHeight;
 
@@ -381,6 +669,7 @@ public sealed class TreeSupportRouter
             state.Graph.AddNode(top);
             branchSegmentId = state.AddSegment(SupportSegmentType.Branch, junction, top,
                 options.BranchDiameter, options.Origin).Id;
+            state.RegisterBranchEnd(junction);
         }
         state.Graph.AddNode(baseNode);
         var trunkSegment = state.AddSegment(SupportSegmentType.Trunk, top, baseNode,
@@ -453,6 +742,12 @@ public sealed class TreeSupportRouter
         }
     }
 
+    private readonly record struct ExistingTrunkCandidate(TrunkRecord Trunk, Vector3 Attach,
+        float Length, float Score);
+
+    private readonly record struct TrunkTopCandidate(Vector3 Top, float Length,
+        float AngleDegrees);
+
     /// <summary>Mutable per-run bookkeeping shared by the routing helpers.</summary>
     private sealed class RouteState
     {
@@ -460,9 +755,12 @@ public sealed class TreeSupportRouter
         public RoutingClearance Clearance { get; }
         public float AngleOffset { get; }
         public List<TrunkRecord> Trunks { get; } = new();
+        public IEnumerable<SupportNode> BranchEnds => _branchEndIds.Select(Graph.GetNode);
         public float MaxLean { get; private set; }
         private readonly DeterministicIds _ids;
         private readonly List<GeneratedCapsule> _capsules = new();
+        private readonly HashSet<Guid> _branchEndIds = new();
+        private readonly Dictionary<Guid, int> _miniFanCounts = new();
 
         public RouteState(SupportGraph graph, DeterministicIds ids, RoutingClearance clearance,
             float angleOffset)
@@ -476,6 +774,11 @@ public sealed class TreeSupportRouter
         public SupportNode NewNode(SupportNodeType type, Vector3 position, SupportOrigin origin)
             => new() { Id = _ids.Next(), Type = type, Position = position, Origin = origin };
 
+        public void RegisterBranchEnd(SupportNode node) => _branchEndIds.Add(node.Id);
+        public int MiniFanCount(Guid nodeId) => _miniFanCounts.GetValueOrDefault(nodeId);
+        public void IncrementMiniFan(Guid nodeId) =>
+            _miniFanCounts[nodeId] = MiniFanCount(nodeId) + 1;
+
         public SupportSegment AddSegment(SupportSegmentType type, SupportNode a, SupportNode b,
             float diameter, SupportOrigin origin)
         {
@@ -486,7 +789,7 @@ public sealed class TreeSupportRouter
             };
             Graph.AddSegment(segment);
             _capsules.Add(new GeneratedCapsule(a.Position, b.Position,
-                diameter * 0.5f, segment.Id));
+                diameter * 0.5f, segment.Id, type));
             var delta = b.Position - a.Position;
             var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
                 * 180 / MathF.PI;
@@ -514,7 +817,7 @@ public sealed class TreeSupportRouter
         /// obstacles beyond it. Trunk segments are excluded because they are the join target.
         /// </summary>
         public bool HitsGeneratedForTrunkAttachment(Vector3 start, Vector3 end, float radius,
-            TrunkRecord trunk, float fusionDistance)
+            TrunkRecord trunk, float fusionDistance, float projectedClearance)
         {
             foreach (var capsule in _capsules)
             {
@@ -524,6 +827,9 @@ public sealed class TreeSupportRouter
                 {
                     if (GeometryDistance.SegmentSegmentSquared(
                             start, end, capsule.Start, capsule.End) <= sum * sum) return true;
+                    if (capsule.Type == SupportSegmentType.Branch &&
+                        ProjectedSegmentsPassTooClose(start, end, capsule.Start, capsule.End,
+                            projectedClearance)) return true;
                     continue;
                 }
 
@@ -536,7 +842,20 @@ public sealed class TreeSupportRouter
                         out var existingStart, out var existingEnd)) continue;
                 if (GeometryDistance.SegmentSegmentSquared(proposedStart, proposedEnd,
                         existingStart, existingEnd) <= sum * sum) return true;
+                if (capsule.Type == SupportSegmentType.Branch &&
+                    ProjectedSegmentsPassTooClose(proposedStart, proposedEnd,
+                        existingStart, existingEnd, projectedClearance)) return true;
             }
+            return false;
+        }
+
+        public bool HasProjectedBranchNearPass(Vector3 start, Vector3 end, float clearance)
+        {
+            foreach (var capsule in _capsules)
+                if (capsule.Type == SupportSegmentType.Branch &&
+                    ProjectedSegmentsPassTooClose(start, end, capsule.Start, capsule.End,
+                        clearance))
+                    return true;
             return false;
         }
 
@@ -574,6 +893,6 @@ public sealed class TreeSupportRouter
             => _capsules.RemoveAll(capsule => capsule.SegmentId == segmentId);
 
         private readonly record struct GeneratedCapsule(Vector3 Start, Vector3 End, float Radius,
-            Guid SegmentId);
+            Guid SegmentId, SupportSegmentType Type);
     }
 }

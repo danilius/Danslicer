@@ -37,6 +37,17 @@ public sealed class UserConfigTests : IDisposable
                 OverhangColorA = "#112233",
                 OverhangColorB = "#445566",
                 OverhangCheckerSizeMm = 5f,
+                SupportDisplay = new SupportDisplayConfig
+                {
+                    Mode = SupportDisplayMode.Transparent,
+                    ShowContactPointsInTransparent = false,
+                    ShowTips = false,
+                    ShowMiniSupports = false,
+                    ShowBranches = false,
+                    ShowTrunks = false,
+                    ShowBases = false,
+                    ShowBracing = false,
+                },
             },
             Placement = new PlacementConfig
             {
@@ -63,6 +74,14 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
         Assert.Equal("#445566", loaded.Viewport.OverhangColorB);
         Assert.Equal(5f, loaded.Viewport.OverhangCheckerSizeMm);
+        Assert.Equal(SupportDisplayMode.Transparent, loaded.Viewport.SupportDisplay.Mode);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowContactPointsInTransparent);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowTips);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowMiniSupports);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowBranches);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowTrunks);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowBases);
+        Assert.False(loaded.Viewport.SupportDisplay.ShowBracing);
         Assert.Equal(PlacementMode.RaiseAbovePlate, loaded.Placement.Mode);
         Assert.Equal(8.5f, loaded.Placement.HeightMm);
     }
@@ -99,6 +118,13 @@ public sealed class UserConfigTests : IDisposable
         Assert.False(loaded.SpaceMouse.InvertZoom);
         Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
         Assert.Equal(0f, loaded.Placement.HeightMm);
+        Assert.Equal(SupportDisplayMode.Full, loaded.Viewport.SupportDisplay.Mode);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowTips);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowMiniSupports);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowBranches);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowTrunks);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowBases);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowBracing);
     }
 
     [Fact]
@@ -132,8 +158,14 @@ public sealed class UserConfigTests : IDisposable
                 TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.3f,
                 PenetrationDepth = 0.15f, TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
                 MemberAngleDegrees = 38f, TipMemberLength = 3f, MaxBranchLength = 11f,
+                PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
+                MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
+                MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
+                MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
+                RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
+                UseBaseGrid = false, BaseGridPitch = 18f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 6f, BaseHeight = 1.1f,
-                BaseConeHeight = 2.8f, Spacing = 3.2f, OverhangAngleDegrees = 51f,
+                BaseConeHeight = 2.8f, Spacing = 3.2f, IslandSpacingMm = 0.7f, OverhangAngleDegrees = 51f,
                 MinIslandAreaMm2 = 0.9f,
             },
         };
@@ -151,11 +183,24 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(38f, supports.MemberAngleDegrees);
         Assert.Equal(3f, supports.TipMemberLength);
         Assert.Equal(11f, supports.MaxBranchLength);
+        Assert.False(supports.PreferExistingTrunks);
+        Assert.Equal(9f, supports.ExistingTrunkBranchRange);
+        Assert.Equal(0.7f, supports.MiniSupportDiameter);
+        Assert.Equal(0.3f, supports.MiniSupportTipDiameter);
+        Assert.Equal(1.2f, supports.MiniSupportConeLength);
+        Assert.Equal(6f, supports.MiniSupportMaxLength);
+        Assert.Equal(72f, supports.MiniSupportMaxAngleDegrees);
+        Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
+        Assert.True(supports.RefusedTipsFallBackToMini);
+        Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
+        Assert.False(supports.UseBaseGrid);
+        Assert.Equal(18f, supports.BaseGridPitch);
         Assert.Equal(SupportBaseShape.DiscCone, supports.BaseShape);
         Assert.Equal(6f, supports.BaseDiameter);
         Assert.Equal(1.1f, supports.BaseHeight);
         Assert.Equal(2.8f, supports.BaseConeHeight);
         Assert.Equal(3.2f, supports.Spacing);
+        Assert.Equal(0.7f, supports.IslandSpacingMm);
         Assert.Equal(51f, supports.OverhangAngleDegrees);
         Assert.Equal(0.9f, supports.MinIslandAreaMm2);
     }
@@ -174,13 +219,26 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(45f, supports.MemberAngleDegrees);
         Assert.Equal(2f, supports.TipMemberLength);
         Assert.Equal(8f, supports.MaxBranchLength);
+        Assert.True(supports.PreferExistingTrunks);
+        Assert.Equal(8f, supports.ExistingTrunkBranchRange);
+        Assert.Equal(0.6f, supports.MiniSupportDiameter);
+        Assert.Equal(0.25f, supports.MiniSupportTipDiameter);
+        Assert.Equal(1f, supports.MiniSupportConeLength);
+        Assert.Equal(5f, supports.MiniSupportMaxLength);
+        Assert.Equal(75f, supports.MiniSupportMaxAngleDegrees);
+        Assert.Equal(4, supports.MiniSupportMaxFanPerBranchEnd);
+        Assert.False(supports.RefusedTipsFallBackToMini);
+        Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
+        Assert.True(supports.UseBaseGrid);
+        Assert.Equal(20f, supports.BaseGridPitch);
         Assert.Equal(SupportBaseShape.Disc, supports.BaseShape);
         Assert.Equal(4f, supports.BaseDiameter);
         Assert.Equal(0.8f, supports.BaseHeight);
         Assert.Equal(2f, supports.BaseConeHeight);
         Assert.Equal(2.5f, supports.Spacing);
+        Assert.Equal(0.5f, supports.IslandSpacingMm);
         Assert.Equal(45f, supports.OverhangAngleDegrees);
-        Assert.Equal(0.5f, supports.MinIslandAreaMm2);
+        Assert.Equal(0.1f, supports.MinIslandAreaMm2);
     }
 
     [Fact]
@@ -207,6 +265,19 @@ public sealed class UserConfigTests : IDisposable
 
         Assert.Equal(0.4f, loaded.Supports.TipDiameter);
         Assert.Equal(SupportBaseShape.Disc, loaded.Supports.BaseShape);
+    }
+
+    [Fact]
+    public void ExplicitNullSupportDisplayIsTreatedAsMissing()
+    {
+        var path = PathFor("null-support-display.json");
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(path, """{ "Viewport": { "SupportDisplay": null } }""");
+
+        var loaded = UserConfig.Load(path);
+
+        Assert.Equal(SupportDisplayMode.Full, loaded.Viewport.SupportDisplay.Mode);
+        Assert.True(loaded.Viewport.SupportDisplay.ShowContactPointsInTransparent);
     }
 
     [Fact]

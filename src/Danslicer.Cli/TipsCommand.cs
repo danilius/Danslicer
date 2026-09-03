@@ -19,7 +19,9 @@ internal static class TipsCommand
         string? path = null;
         var json = false;
         var seat = false;
-        var parameters = TipPlacementParameters.Default;
+        // Mirrors the app's tree-generation default: preserve below-threshold islands for the
+        // mini-support pass. Other direct TipPlacer callers remain opt-in.
+        var parameters = TipPlacementParameters.Default with { EnableMiniSupports = true };
         var seed = 0;
         BaseLatticeType? gridLattice = null;
         float? gridSpacing = null;

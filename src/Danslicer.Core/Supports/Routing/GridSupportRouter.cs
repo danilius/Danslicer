@@ -6,7 +6,8 @@ public readonly record struct RoutingTip(Vector3 SurfacePoint, Vector3 InwardSur
     float TipDiameter, Guid? ContactObjectId = null, bool IsCritical = false,
     bool IsObjectLowest = false, bool IsRegionLowest = false,
     SupportTipShape TipShape = SupportTipShape.Capsule,
-    float ConeLength = 2f, float BallDiameter = 0f, float PenetrationDepth = 0f);
+    float ConeLength = 2f, float BallDiameter = 0f, float PenetrationDepth = 0f,
+    bool MiniSupportOnly = false);
 
 public enum BaseLatticeType
 {
@@ -34,6 +35,8 @@ public enum RoutingFailureReason
 {
     ContactBlocked,
     NoClearStep,
+    NoReachableGridPoint,
+    NoBranchEndInRange,
     NoLanding,
     BelowPlate,
 }

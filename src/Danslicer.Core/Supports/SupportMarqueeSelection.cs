@@ -7,7 +7,9 @@ public static class SupportMarqueeSelection
 {
     public static IReadOnlyList<Guid> ElementsInside(SupportGraph graph,
         Func<Vector3, Vector2?> project, Vector2 cornerA, Vector2 cornerB,
-        Func<Vector3, bool>? isVisible = null)
+        Func<Vector3, bool>? isVisible = null,
+        Func<SupportNode, bool>? includeNode = null,
+        Func<SupportSegment, bool>? includeSegment = null)
     {
         var min = Vector2.Min(cornerA, cornerB);
         var max = Vector2.Max(cornerA, cornerB);
@@ -17,10 +19,11 @@ public static class SupportMarqueeSelection
 
         var ids = new List<Guid>();
         foreach (var node in graph.Nodes.OrderBy(node => node.Id))
-            if (!node.Hidden && Inside(node.Position)) ids.Add(node.Id);
+            if (!node.Hidden && (includeNode?.Invoke(node) ?? true) && Inside(node.Position))
+                ids.Add(node.Id);
         foreach (var segment in graph.Segments.OrderBy(segment => segment.Id))
         {
-            if (segment.Hidden) continue;
+            if (segment.Hidden || !(includeSegment?.Invoke(segment) ?? true)) continue;
             var a = graph.GetNode(segment.NodeA);
             var b = graph.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;

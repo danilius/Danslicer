@@ -66,6 +66,11 @@ Default angle for all angled elements: **45°**. Everything above is configurabl
 - **Bases sit on an imaginary grid** with a configurable pitch: at 20 mm, every base
   centre is 20 mm from the next. This resolves the earlier "still open" question — it IS
   a bases-on-grid-points rule, not merely a recipe parameter.
+  - *Amended (user decision, 2026-09-03 evening, after the seated benchmark A/B):* the
+    grid is now **optional** — `UseBaseGrid` on/off joins the pitch as configuration,
+    default ON (the dictated rule stands until the user chooses otherwise). Grid-off
+    restores free base placement for the user's screen experiments; the A/B numbers
+    live in BENCHMARKS.md ("optional base grid A/B").
 - **Branch-first**: a new support first looks for an existing trunk within branch range
   and joins it; only when none is reachable does it create its own base and trunk (on a
   grid point). Both the preference and the range are configurable.

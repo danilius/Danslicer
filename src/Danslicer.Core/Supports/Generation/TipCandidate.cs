@@ -7,6 +7,8 @@ public enum TipStrategy
 {
     /// <summary>Layer island: material with nothing below it. Placed first, regardless of density.</summary>
     Island,
+    /// <summary>Island below the normal area threshold, reserved for the mini-support pass.</summary>
+    MiniIsland,
     /// <summary>Local Z-minimum of the surface. Placed first, regardless of density.</summary>
     LocalMinimum,
     /// <summary>Poisson-disk sample on an overhang face.</summary>

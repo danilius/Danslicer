@@ -65,6 +65,63 @@ public class TipPlacementTests
     }
 
     [Fact]
+    public void SubThresholdIslandIsHandedToMiniSupportPassWithFineContactGeometry()
+    {
+        var mesh = Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5));
+        var parameters = P(minIsland: 0.1f) with
+        {
+            EnableMiniSupports = true,
+            MiniSupportTipDiameterMm = 0.23f,
+            MiniSupportConeLengthMm = 0.9f,
+        };
+
+        var mini = Assert.Single(Place(mesh, parameters),
+            candidate => candidate.Strategy == TipStrategy.MiniIsland);
+        Assert.Equal(0.23f, mini.TipDiameter);
+        Assert.Equal(SupportTipShape.Cone, mini.TipShape);
+        Assert.Equal(0.9f, mini.ConeLength);
+    }
+
+    [Fact]
+    public void MiniIslandMaximumAreaIsIndependentFromRegularIslandThreshold()
+    {
+        var mesh = Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5));
+        var parameters = P(minIsland: 0.2f) with
+        {
+            EnableMiniSupports = true,
+            MiniIslandMaxAreaMm2 = 0.05f,
+        };
+
+        var bandIsland = Place(mesh, parameters);
+
+        Assert.DoesNotContain(bandIsland,
+            candidate => candidate.Strategy == TipStrategy.MiniIsland);
+        Assert.Contains(bandIsland,
+            candidate => candidate.Strategy == TipStrategy.Island);
+        Assert.Contains(Place(mesh, parameters with { MiniIslandMaxAreaMm2 = 0.1f }),
+            candidate => candidate.Strategy == TipStrategy.MiniIsland);
+    }
+
+    [Fact]
+    public void MiniIslandMaximumAreaNormalizesToItsPhysicalAndRegularBounds()
+    {
+        var mesh = Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5));
+        var parameters = P(minIsland: 0.1f) with
+        {
+            EnableMiniSupports = true,
+            MiniSupportTipDiameterMm = 0.25f,
+        };
+
+        var belowFootprint = Place(mesh, parameters with { MiniIslandMaxAreaMm2 = 0f });
+        var aboveRegular = Place(mesh, parameters with { MiniIslandMaxAreaMm2 = 10f });
+
+        Assert.DoesNotContain(belowFootprint,
+            candidate => candidate.Strategy == TipStrategy.MiniIsland);
+        Assert.Contains(aboveRegular,
+            candidate => candidate.Strategy == TipStrategy.MiniIsland);
+    }
+
+    [Fact]
     public void CoincidentIslandTipsStillDedup()
     {
         // The island exemption is not a duplicate generator: two tips of the same island

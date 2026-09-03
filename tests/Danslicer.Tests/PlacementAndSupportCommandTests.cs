@@ -302,6 +302,12 @@ public sealed class PlacementAndSupportCommandTests
                 TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.2f,
                 PenetrationDepth = 0.1f, TrunkDiameter = 1.6f, BranchDiameter = 1.3f,
                 MemberAngleDegrees = 37f, TipMemberLength = 2.8f, MaxBranchLength = 12f,
+                PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
+                MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
+                MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
+                MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
+                RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
+                UseBaseGrid = false, BaseGridPitch = 18f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 5f, BaseHeight = 1f,
                 BaseConeHeight = 2.3f, Spacing = 3.5f, OverhangAngleDegrees = 52f,
                 MinIslandAreaMm2 = 0.75f,
@@ -322,6 +328,18 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(37f, request.Settings.MemberAngleDegrees);
         Assert.Equal(2.8f, request.Settings.TipMemberLength);
         Assert.Equal(12f, request.Settings.MaxBranchLength);
+        Assert.False(request.Settings.PreferExistingTrunks);
+        Assert.Equal(9f, request.Settings.ExistingTrunkBranchRange);
+        Assert.Equal(0.7f, request.Settings.MiniSupportDiameter);
+        Assert.Equal(0.3f, request.Settings.MiniSupportTipDiameter);
+        Assert.Equal(1.2f, request.Settings.MiniSupportConeLength);
+        Assert.Equal(6f, request.Settings.MiniSupportMaxLength);
+        Assert.Equal(72f, request.Settings.MiniSupportMaxAngleDegrees);
+        Assert.Equal(5, request.Settings.MiniSupportMaxFanPerBranchEnd);
+        Assert.True(request.Settings.RefusedTipsFallBackToMini);
+        Assert.Equal(0.2f, request.Settings.MiniIslandMaxAreaMm2);
+        Assert.False(request.Settings.UseBaseGrid);
+        Assert.Equal(18f, request.Settings.BaseGridPitch);
         Assert.Equal(SupportBaseShape.DiscCone, request.Settings.BaseShape);
         Assert.Equal(5f, request.Settings.BaseDiameter);
         Assert.Equal(1f, request.Settings.BaseHeight);

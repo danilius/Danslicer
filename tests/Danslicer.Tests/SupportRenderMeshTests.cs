@@ -7,6 +7,27 @@ namespace Danslicer.Tests;
 
 public class SupportRenderMeshTests
 {
+    [Fact]
+    public void MiniSupportRendersAsItsOwnCapsuleKind()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode { Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 2) };
+        var end = new SupportNode { Type = SupportNodeType.Junction, Position = Vector3.Zero };
+        graph.AddNode(tip);
+        graph.AddNode(end);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.MiniSupport,
+            NodeA = tip.Id,
+            NodeB = end.Id,
+            Diameter = 0.6f,
+        });
+
+        var part = Assert.Single(SupportRenderMesh.Build(graph));
+        Assert.Equal(SupportRenderKind.MiniSupport, part.Kind);
+        Assert.Equal(0.3f, part.Mesh.Bounds.Max.X, 3);
+    }
+
     private static SupportGraph VerticalPillar(out SupportSegment segment, float diameter = 1.2f)
     {
         var graph = new SupportGraph();
@@ -249,13 +270,17 @@ public class SupportRenderMeshTests
         graph.AddNode(bottom);
         graph.AddSegment(new SupportSegment
         {
-            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = bottom.Id, Diameter = 1.2f,
+            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = bottom.Id, Diameter = 0.7f,
         });
 
         var basePart = Assert.Single(SupportRenderMesh.Build(graph), p => p.Kind == SupportRenderKind.Base);
         Assert.Equal(2 * SupportRenderMesh.TrianglesPerFrustum, basePart.Mesh.TriangleCount);
         AssertClosed(basePart.Mesh);
         Assert.Equal(2.8f, basePart.Mesh.Bounds.Max.Z, 3);
+        var topRadius = basePart.Mesh.Positions
+            .Where(position => MathF.Abs(position.Z - 2.8f) < 1e-4f)
+            .Max(position => new Vector2(position.X, position.Y).Length());
+        Assert.Equal(0.35f, topRadius, 3);
     }
 
     [Fact]
@@ -285,6 +310,42 @@ public class SupportRenderMeshTests
         var baseOnly = SupportRenderMesh.BuildSelected(graph, id => id == bottom.Id);
         Assert.NotNull(baseOnly);
         Assert.Equal(SupportRenderMesh.TrianglesPerFrustum, baseOnly!.TriangleCount);
+    }
+
+    [Fact]
+    public void BuildAndSelectionHonorViewportFilters()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode { Type = SupportNodeType.Tip, Position = new(0, 0, 10) };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = new(0, 0, 5) };
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            BaseShape = SupportBaseShape.Disc,
+        };
+        graph.AddNode(tip);
+        graph.AddNode(junction);
+        graph.AddNode(bottom);
+        var tipMember = new SupportSegment
+        {
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id,
+        };
+        var trunk = new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = junction.Id, NodeB = bottom.Id,
+        };
+        graph.AddSegment(tipMember);
+        graph.AddSegment(trunk);
+
+        var parts = SupportRenderMesh.Build(graph, includeSegment: segment =>
+            segment.Type == SupportSegmentType.Tip, includeBase: _ => false);
+        var selected = SupportRenderMesh.BuildSelected(graph, _ => true, segment =>
+            segment.Type == SupportSegmentType.Tip, _ => false);
+
+        Assert.Single(parts);
+        Assert.Equal(SupportRenderKind.Tip, parts[0].Kind);
+        Assert.NotNull(selected);
+        Assert.Equal(parts[0].Mesh.TriangleCount, selected!.TriangleCount);
     }
 
     [Fact]

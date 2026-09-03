@@ -39,6 +39,39 @@ public sealed class ViewportConfig
 
     /// <summary>Edge length of the overhang checker squares, millimetres.</summary>
     public float OverhangCheckerSizeMm { get; set; } = 2f;
+
+    /// <summary>Viewport-only support presentation. This never changes slice geometry.</summary>
+    public SupportDisplayConfig SupportDisplay { get; set; } = new();
+}
+
+public enum SupportDisplayMode
+{
+    Full,
+    ContactPoints,
+    Lines,
+    Tips,
+    Transparent,
+}
+
+/// <summary>
+/// Persisted support viewport presentation. Element switches intentionally apply only to the
+/// Full and Transparent modes; the focused Contact points, Lines and Tips modes have fixed scope.
+/// </summary>
+public sealed record SupportDisplayConfig
+{
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public SupportDisplayMode Mode { get; init; } = SupportDisplayMode.Full;
+    public bool ShowContactPointsInTransparent { get; init; } = true;
+    public bool ShowTips { get; init; } = true;
+    public bool ShowMiniSupports { get; init; } = true;
+    public bool ShowBranches { get; init; } = true;
+    public bool ShowTrunks { get; init; } = true;
+    public bool ShowBases { get; init; } = true;
+    public bool ShowBracing { get; init; } = true;
+
+    internal SupportDisplayConfig Normalize() => Enum.IsDefined(Mode)
+        ? this
+        : this with { Mode = SupportDisplayMode.Full };
 }
 
 public enum PlacementMode
@@ -69,6 +102,18 @@ public sealed record SupportConfig
     public float MemberAngleDegrees { get; set; } = 45f;
     public float TipMemberLength { get; set; } = 2f;
     public float MaxBranchLength { get; set; } = 8f;
+    public bool PreferExistingTrunks { get; set; } = true;
+    public float ExistingTrunkBranchRange { get; set; } = 8f;
+    public float MiniSupportDiameter { get; set; } = 0.6f;
+    public float MiniSupportTipDiameter { get; set; } = 0.25f;
+    public float MiniSupportConeLength { get; set; } = 1f;
+    public float MiniSupportMaxLength { get; set; } = 5f;
+    public float MiniSupportMaxAngleDegrees { get; set; } = 75f;
+    public int MiniSupportMaxFanPerBranchEnd { get; set; } = 4;
+    public bool RefusedTipsFallBackToMini { get; set; }
+    public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
+    public bool UseBaseGrid { get; set; } = true;
+    public float BaseGridPitch { get; set; } = 20f;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public SupportBaseShape BaseShape { get; set; } = SupportBaseShape.Disc;
@@ -77,8 +122,9 @@ public sealed record SupportConfig
     public float BaseConeHeight { get; set; } = 2f;
 
     public float Spacing { get; set; } = 2.5f;
+    public float IslandSpacingMm { get; set; } = 0.5f;
     public float OverhangAngleDegrees { get; set; } = 45f;
-    public float MinIslandAreaMm2 { get; set; } = 0.5f;
+    public float MinIslandAreaMm2 { get; set; } = 0.1f;
 
     internal void Normalize()
     {
@@ -92,14 +138,28 @@ public sealed record SupportConfig
             ? Math.Clamp(MemberAngleDegrees, 1f, 89f) : 45f;
         TipMemberLength = Positive(TipMemberLength, 2f);
         MaxBranchLength = Positive(MaxBranchLength, 8f);
+        ExistingTrunkBranchRange = Positive(ExistingTrunkBranchRange, 8f);
+        MiniSupportDiameter = Positive(MiniSupportDiameter, 0.6f);
+        MiniSupportTipDiameter = Positive(MiniSupportTipDiameter, 0.25f);
+        MiniSupportConeLength = Positive(MiniSupportConeLength, 1f);
+        MiniSupportMaxLength = Positive(MiniSupportMaxLength, 5f);
+        MiniSupportMaxAngleDegrees = float.IsFinite(MiniSupportMaxAngleDegrees)
+            ? Math.Clamp(MiniSupportMaxAngleDegrees, 1f, 89f) : 75f;
+        MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
+        BaseGridPitch = Positive(BaseGridPitch, 20f);
         if (!Enum.IsDefined(BaseShape)) BaseShape = SupportBaseShape.Disc;
         BaseDiameter = Positive(BaseDiameter, 4f);
         BaseHeight = NonNegative(BaseHeight);
         BaseConeHeight = NonNegative(BaseConeHeight);
         Spacing = Positive(Spacing, 2.5f);
+        IslandSpacingMm = Positive(IslandSpacingMm, 0.5f);
         OverhangAngleDegrees = float.IsFinite(OverhangAngleDegrees)
             ? Math.Clamp(OverhangAngleDegrees, 0f, 90f) : 45f;
         MinIslandAreaMm2 = NonNegative(MinIslandAreaMm2);
+        var miniContactRadius = MiniSupportTipDiameter * 0.5f;
+        var miniContactArea = MathF.PI * miniContactRadius * miniContactRadius;
+        MiniIslandMaxAreaMm2 = MathF.Min(MinIslandAreaMm2,
+            MathF.Max(miniContactArea, NonNegative(MiniIslandMaxAreaMm2)));
     }
 
     private static float Positive(float value, float fallback) =>
@@ -159,6 +219,8 @@ public sealed class UserConfig
             // Explicit nulls from hand-edited or older files are treated like missing sections.
             config.SpaceMouse ??= new SpaceMouseConfig();
             config.Viewport ??= new ViewportConfig();
+            config.Viewport.SupportDisplay =
+                (config.Viewport.SupportDisplay ?? new SupportDisplayConfig()).Normalize();
             config.Placement ??= new PlacementConfig();
             config.Supports ??= new SupportConfig();
             config.Supports.Normalize();

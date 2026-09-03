@@ -7,6 +7,7 @@ namespace Danslicer.Core.Supports;
 public enum SupportRenderKind
 {
     Tip,
+    MiniSupport,
     Branch,
     Trunk,
     Bracing,
@@ -47,13 +48,16 @@ public static class SupportRenderMesh
     /// Builds render meshes for every visible segment of <paramref name="graph"/>, grouped by
     /// (kind, selected, disabled). <paramref name="isSelected"/> may be null when nothing is.
     /// </summary>
-    public static IReadOnlyList<SupportRenderPart> Build(SupportGraph graph, Func<Guid, bool>? isSelected = null)
+    public static IReadOnlyList<SupportRenderPart> Build(SupportGraph graph,
+        Func<Guid, bool>? isSelected = null,
+        Func<SupportSegment, bool>? includeSegment = null,
+        Func<SupportNode, bool>? includeBase = null)
     {
         var builders = new Dictionary<(SupportRenderKind Kind, bool Selected, bool Disabled), MeshBuilder>();
 
         foreach (var segment in graph.Segments)
         {
-            if (segment.Hidden) continue;
+            if (segment.Hidden || !(includeSegment?.Invoke(segment) ?? true)) continue;
             var a = graph.GetNode(segment.NodeA);
             var b = graph.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
@@ -61,6 +65,7 @@ public static class SupportRenderMesh
             var kind = segment.Type switch
             {
                 SupportSegmentType.Tip => SupportRenderKind.Tip,
+                SupportSegmentType.MiniSupport => SupportRenderKind.MiniSupport,
                 SupportSegmentType.Trunk => SupportRenderKind.Trunk,
                 SupportSegmentType.Bracing => SupportRenderKind.Bracing,
                 _ => SupportRenderKind.Branch,
@@ -78,7 +83,8 @@ public static class SupportRenderMesh
 
         foreach (var node in graph.Nodes)
         {
-            if (node.Hidden || node.Type != SupportNodeType.Base) continue;
+            if (node.Hidden || node.Type != SupportNodeType.Base ||
+                !(includeBase?.Invoke(node) ?? true)) continue;
             if (node.BaseShape == SupportBaseShape.None) continue;
             var key = (SupportRenderKind.Base, isSelected?.Invoke(node.Id) ?? false, node.Disabled);
             if (!builders.TryGetValue(key, out var builder))
@@ -98,13 +104,16 @@ public static class SupportRenderMesh
     /// elements instead of the whole graph (the full rebuild froze the app for seconds on a
     /// generated forest). Returns null when nothing selected is visible.
     /// </summary>
-    public static Mesh? BuildSelected(SupportGraph graph, Func<Guid, bool> isSelected)
+    public static Mesh? BuildSelected(SupportGraph graph, Func<Guid, bool> isSelected,
+        Func<SupportSegment, bool>? includeSegment = null,
+        Func<SupportNode, bool>? includeBase = null)
     {
         var builder = new MeshBuilder();
         var any = false;
         foreach (var segment in graph.Segments)
         {
-            if (segment.Hidden || !isSelected(segment.Id)) continue;
+            if (segment.Hidden || !isSelected(segment.Id) ||
+                !(includeSegment?.Invoke(segment) ?? true)) continue;
             var a = graph.GetNode(segment.NodeA);
             var b = graph.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
@@ -116,7 +125,8 @@ public static class SupportRenderMesh
         }
         foreach (var node in graph.Nodes)
         {
-            if (node.Hidden || node.Type != SupportNodeType.Base) continue;
+            if (node.Hidden || node.Type != SupportNodeType.Base ||
+                !(includeBase?.Invoke(node) ?? true)) continue;
             if (node.BaseShape == SupportBaseShape.None || !isSelected(node.Id)) continue;
             AppendBase(builder, node, MaxVisibleIncidentDiameter(graph, node));
             any = true;

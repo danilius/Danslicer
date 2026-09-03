@@ -366,6 +366,12 @@ public sealed class Document
         return _meshObstacleCache;
     }
 
+    /// <summary>Raycasts the cached world-space mesh BVH, optionally restricting object ids.</summary>
+    public ObstacleRayHit? RaycastMeshes(Vector3 origin, Vector3 direction, float maxDistance,
+        IReadOnlySet<Guid>? includedObjectIds = null) =>
+        MeshObstacles().Raycast(origin, direction, maxDistance,
+            includedObjectIds is null ? null : tag => tag is Guid id && includedObjectIds.Contains(id));
+
     /// <summary>
     /// Adds a manual support at a picked surface point, routed by the tree router into the spec
     /// anatomy (cone tip, optional branch, vertical trunk, disc base) against every object and
@@ -396,6 +402,17 @@ public sealed class Document
             MaxMemberAngleDegrees = settings.MemberAngleDegrees,
             TipMemberLength = settings.TipMemberLength,
             MaxBranchLength = settings.MaxBranchLength,
+            PreferExistingTrunks = settings.PreferExistingTrunks,
+            ExistingTrunkBranchRange = settings.ExistingTrunkBranchRange,
+            MiniSupportDiameter = settings.MiniSupportDiameter,
+            MiniSupportTipDiameter = settings.MiniSupportTipDiameter,
+            MiniSupportConeLength = settings.MiniSupportConeLength,
+            MiniSupportMaxLength = settings.MiniSupportMaxLength,
+            MiniSupportMaxAngleDegrees = settings.MiniSupportMaxAngleDegrees,
+            MiniSupportMaxFanPerBranchEnd = settings.MiniSupportMaxFanPerBranchEnd,
+            RefusedTipsFallBackToMini = settings.RefusedTipsFallBackToMini,
+            UseBaseGrid = settings.UseBaseGrid,
+            BaseGridPitch = settings.BaseGridPitch,
             BaseShape = settings.BaseShape,
             BaseDiameter = settings.BaseDiameter,
             BaseHeight = settings.BaseHeight,
@@ -503,8 +520,13 @@ public sealed class Document
                 PenetrationDepthMm = request.Settings.PenetrationDepth,
                 SpacingMm = request.Settings.Spacing,
                 MinSpacingMm = request.Settings.Spacing,
+                IslandSpacingMm = request.Settings.IslandSpacingMm,
                 OverhangAngleDegrees = request.Settings.OverhangAngleDegrees,
                 MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
+                EnableMiniSupports = true,
+                MiniIslandMaxAreaMm2 = request.Settings.MiniIslandMaxAreaMm2,
+                MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
+                MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
             },
             new TreeRoutingOptions
             {
@@ -513,6 +535,17 @@ public sealed class Document
                 MaxMemberAngleDegrees = request.Settings.MemberAngleDegrees,
                 TipMemberLength = request.Settings.TipMemberLength,
                 MaxBranchLength = request.Settings.MaxBranchLength,
+                PreferExistingTrunks = request.Settings.PreferExistingTrunks,
+                ExistingTrunkBranchRange = request.Settings.ExistingTrunkBranchRange,
+                MiniSupportDiameter = request.Settings.MiniSupportDiameter,
+                MiniSupportTipDiameter = request.Settings.MiniSupportTipDiameter,
+                MiniSupportConeLength = request.Settings.MiniSupportConeLength,
+                MiniSupportMaxLength = request.Settings.MiniSupportMaxLength,
+                MiniSupportMaxAngleDegrees = request.Settings.MiniSupportMaxAngleDegrees,
+                MiniSupportMaxFanPerBranchEnd = request.Settings.MiniSupportMaxFanPerBranchEnd,
+                RefusedTipsFallBackToMini = request.Settings.RefusedTipsFallBackToMini,
+                UseBaseGrid = request.Settings.UseBaseGrid,
+                BaseGridPitch = request.Settings.BaseGridPitch,
                 BaseShape = request.Settings.BaseShape,
                 BaseDiameter = request.Settings.BaseDiameter,
                 BaseHeight = request.Settings.BaseHeight,

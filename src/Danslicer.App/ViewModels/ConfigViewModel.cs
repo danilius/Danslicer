@@ -16,6 +16,11 @@ public sealed class ConfigViewModel : ViewModelBase
     private ViewportConfig Viewport => AppConfig.Current.Viewport;
     private SupportConfig Supports => AppConfig.Current.Supports;
 
+    public SupportDisplayConfig SupportDisplay => Viewport.SupportDisplay;
+
+    public IReadOnlyList<string> SupportDisplayModes { get; } =
+        ["Full", "Contact points", "Lines", "Tips", "Transparent"];
+
     public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
         Enum.GetValues<SupportBaseShape>();
 
@@ -27,6 +32,18 @@ public sealed class ConfigViewModel : ViewModelBase
         apply();
         AppConfig.Save();
         OnPropertyChanged(property);
+        Saved?.Invoke();
+    }
+
+    private void UpdateSupportDisplay(Func<SupportDisplayConfig, SupportDisplayConfig> apply,
+        [CallerMemberName] string? property = null)
+    {
+        Viewport.SupportDisplay = apply(Viewport.SupportDisplay);
+        AppConfig.Save();
+        OnPropertyChanged(property);
+        OnPropertyChanged(nameof(SupportDisplay));
+        OnPropertyChanged(nameof(IsSupportElementVisibilityAvailable));
+        OnPropertyChanged(nameof(IsTransparentSupportDisplay));
         Saved?.Invoke();
     }
 
@@ -68,6 +85,66 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Viewport.OverhangCheckerSizeMm;
         set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
+    }
+
+    public int SupportDisplayModeIndex
+    {
+        get => (int)SupportDisplay.Mode;
+        set => UpdateSupportDisplay(display => display with
+        {
+            Mode = Enum.IsDefined((SupportDisplayMode)value)
+                ? (SupportDisplayMode)value
+                : SupportDisplayMode.Full,
+        });
+    }
+
+    public bool IsSupportElementVisibilityAvailable =>
+        SupportDisplay.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent;
+
+    public bool IsTransparentSupportDisplay =>
+        SupportDisplay.Mode == SupportDisplayMode.Transparent;
+
+    public bool ShowContactPointsInTransparent
+    {
+        get => SupportDisplay.ShowContactPointsInTransparent;
+        set => UpdateSupportDisplay(display => display with
+            { ShowContactPointsInTransparent = value });
+    }
+
+    public bool ShowSupportTips
+    {
+        get => SupportDisplay.ShowTips;
+        set => UpdateSupportDisplay(display => display with { ShowTips = value });
+    }
+
+    public bool ShowMiniSupports
+    {
+        get => SupportDisplay.ShowMiniSupports;
+        set => UpdateSupportDisplay(display => display with { ShowMiniSupports = value });
+    }
+
+    public bool ShowSupportBranches
+    {
+        get => SupportDisplay.ShowBranches;
+        set => UpdateSupportDisplay(display => display with { ShowBranches = value });
+    }
+
+    public bool ShowSupportTrunks
+    {
+        get => SupportDisplay.ShowTrunks;
+        set => UpdateSupportDisplay(display => display with { ShowTrunks = value });
+    }
+
+    public bool ShowSupportBases
+    {
+        get => SupportDisplay.ShowBases;
+        set => UpdateSupportDisplay(display => display with { ShowBases = value });
+    }
+
+    public bool ShowSupportBracing
+    {
+        get => SupportDisplay.ShowBracing;
+        set => UpdateSupportDisplay(display => display with { ShowBracing = value });
     }
 
     // Supports
@@ -126,6 +203,79 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.MaxBranchLength = Clamp(value, 0.01f, 1000f, 8f));
     }
 
+    public bool SupportPreferExistingTrunks
+    {
+        get => Supports.PreferExistingTrunks;
+        set => Update(() => Supports.PreferExistingTrunks = value);
+    }
+
+    public float SupportExistingTrunkBranchRange
+    {
+        get => Supports.ExistingTrunkBranchRange;
+        set => Update(() => Supports.ExistingTrunkBranchRange = Clamp(value, 0.01f, 1000f, 8f));
+    }
+
+    public float SupportMiniSupportDiameter
+    {
+        get => Supports.MiniSupportDiameter;
+        set => Update(() => Supports.MiniSupportDiameter = Clamp(value, 0.01f, 100f, 0.6f));
+    }
+
+    public float SupportMiniSupportTipDiameter
+    {
+        get => Supports.MiniSupportTipDiameter;
+        set => Update(() => Supports.MiniSupportTipDiameter = Clamp(value, 0.01f, 100f, 0.25f));
+    }
+
+    public float SupportMiniSupportConeLength
+    {
+        get => Supports.MiniSupportConeLength;
+        set => Update(() => Supports.MiniSupportConeLength = Clamp(value, 0.01f, 100f, 1f));
+    }
+
+    public float SupportMiniSupportMaxLength
+    {
+        get => Supports.MiniSupportMaxLength;
+        set => Update(() => Supports.MiniSupportMaxLength = Clamp(value, 0.01f, 1000f, 5f));
+    }
+
+    public float SupportMiniSupportMaxAngleDegrees
+    {
+        get => Supports.MiniSupportMaxAngleDegrees;
+        set => Update(() => Supports.MiniSupportMaxAngleDegrees = Clamp(value, 1f, 89f, 75f));
+    }
+
+    public int SupportMiniSupportMaxFanPerBranchEnd
+    {
+        get => Supports.MiniSupportMaxFanPerBranchEnd;
+        set => Update(() => Supports.MiniSupportMaxFanPerBranchEnd = Math.Clamp(value, 1, 100));
+    }
+
+    public bool SupportRefusedTipsFallBackToMini
+    {
+        get => Supports.RefusedTipsFallBackToMini;
+        set => Update(() => Supports.RefusedTipsFallBackToMini = value);
+    }
+
+    public float SupportMiniIslandMaxAreaMm2
+    {
+        get => Supports.MiniIslandMaxAreaMm2;
+        set => Update(() => Supports.MiniIslandMaxAreaMm2 =
+            Clamp(value, 0f, 1_000_000f, 0.1f));
+    }
+
+    public float SupportBaseGridPitch
+    {
+        get => Supports.BaseGridPitch;
+        set => Update(() => Supports.BaseGridPitch = Clamp(value, 0.01f, 1000f, 20f));
+    }
+
+    public bool SupportUseBaseGrid
+    {
+        get => Supports.UseBaseGrid;
+        set => Update(() => Supports.UseBaseGrid = value);
+    }
+
     public SupportBaseShape SupportBaseShapeValue
     {
         get => Supports.BaseShape;
@@ -156,6 +306,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.Spacing = Clamp(value, 0.01f, 1000f, 2.5f));
     }
 
+    public float SupportIslandSpacingMm
+    {
+        get => Supports.IslandSpacingMm;
+        set => Update(() => Supports.IslandSpacingMm = Clamp(value, 0.01f, 1000f, 0.5f));
+    }
+
     public float SupportOverhangAngleDegrees
     {
         get => Supports.OverhangAngleDegrees;
@@ -165,7 +321,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public float SupportMinIslandAreaMm2
     {
         get => Supports.MinIslandAreaMm2;
-        set => Update(() => Supports.MinIslandAreaMm2 = Clamp(value, 0f, 1_000_000f, 0.5f));
+        set => Update(() => Supports.MinIslandAreaMm2 = Clamp(value, 0f, 1_000_000f, 0.1f));
     }
 
     private static float Clamp(float value, float minimum, float maximum, float fallback) =>
