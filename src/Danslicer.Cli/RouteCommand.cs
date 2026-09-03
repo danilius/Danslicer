@@ -4,6 +4,7 @@ using System.Text.Json;
 using Danslicer.Core.IO;
 using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Routing;
+using Danslicer.Cli;
 
 internal static class RouteCommand
 {
@@ -20,6 +21,7 @@ internal static class RouteCommand
             var strategy = "grid";
             var stepHeight = 2f;
             var json = false;
+            var seat = false;
             for (var i = 1; i < args.Length; i++)
             {
                 options = args[i] switch
@@ -35,12 +37,20 @@ internal static class RouteCommand
                     "--step-height" => SetStepHeight(options, args[++i], out stepHeight),
                     "--tips" => SetTips(options, args[++i], out tipsPath),
                     "--json" => SetJson(options, out json),
+                    "--seat" => SetSeat(options, out seat),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
                 };
             }
             if (tipsPath is null) return UsageError("--tips <tips.json> is required");
 
             var mesh = MeshFile.Read(meshPath);
+            Vector3? seatOffset = null;
+            if (seat)
+            {
+                var seated = MeshSeat.Apply(mesh);
+                mesh = seated.Mesh;
+                seatOffset = seated.Offset;
+            }
             var obstacles = new BvhCollisionScene();
             obstacles.AddMesh(mesh, Matrix4x4.Identity, Path.GetFileName(meshPath));
             var tips = ReadTips(tipsPath);
@@ -56,8 +66,8 @@ internal static class RouteCommand
                     })
                 : new GridSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips, options);
             var collisionFree = IsCollisionFree(result.Graph, obstacles);
-            if (json) WriteJson(result, collisionFree);
-            else WriteText(meshPath, tips.Count, result, collisionFree);
+            if (json) WriteJson(result, collisionFree, seatOffset);
+            else WriteText(meshPath, tips.Count, result, collisionFree, seatOffset);
             return result.UnroutedTips.Count == 0 && collisionFree ? 0 : 2;
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or JsonException
@@ -77,6 +87,12 @@ internal static class RouteCommand
     private static GridRoutingOptions SetJson(GridRoutingOptions options, out bool json)
     {
         json = true;
+        return options;
+    }
+
+    private static GridRoutingOptions SetSeat(GridRoutingOptions options, out bool seat)
+    {
+        seat = true;
         return options;
     }
 
@@ -117,7 +133,10 @@ internal static class RouteCommand
                 throw new JsonException($"tip {index}: inwardSurfaceNormal/inwardNormal must contain three numbers");
             if (diameter <= 0)
                 throw new JsonException($"tip {index}: tipDiameter/diameter must be positive");
-            return new RoutingTip(ToVector(point), ToVector(normal), diameter, tip.ContactObjectId);
+            return new RoutingTip(ToVector(point), ToVector(normal), diameter, tip.ContactObjectId,
+                TipShape: ParseShape(tip.TipShape),
+                ConeLength: tip.ConeLength > 0 ? tip.ConeLength : 2f,
+                BallDiameter: tip.BallDiameter);
         }).ToList();
     }
 
@@ -144,9 +163,11 @@ internal static class RouteCommand
         return true;
     }
 
-    private static void WriteText(string meshPath, int tipCount, RoutingResult result, bool collisionFree)
+    private static void WriteText(string meshPath, int tipCount, RoutingResult result, bool collisionFree,
+        Vector3? seatOffset)
     {
         Console.WriteLine($"Mesh:           {meshPath}");
+        if (seatOffset is { } offset) MeshSeat.WriteText(offset);
         Console.WriteLine($"Tips:           {tipCount} ({result.UnroutedTips.Count} unrouted)");
         Console.WriteLine($"Nodes:          {result.Graph.NodeCount}");
         Console.WriteLine($"Segments:       {result.Graph.SegmentCount}");
@@ -159,20 +180,32 @@ internal static class RouteCommand
         Console.WriteLine($"Collision-free: {(collisionFree ? "yes" : "no")}");
     }
 
-    private static void WriteJson(RoutingResult result, bool collisionFree)
+    private static void WriteJson(RoutingResult result, bool collisionFree, Vector3? seatOffset)
     {
-        var summary = new
+        var summary = new Dictionary<string, object?>
         {
-            nodes = result.Graph.NodeCount,
-            segments = result.Graph.SegmentCount,
-            segmentCounts = Enum.GetValues<SupportSegmentType>().ToDictionary(type => type.ToString(),
+            ["nodes"] = result.Graph.NodeCount,
+            ["segments"] = result.Graph.SegmentCount,
+            ["segmentCounts"] = Enum.GetValues<SupportSegmentType>().ToDictionary(type => type.ToString(),
                 type => result.Graph.Segments.Count(segment => segment.Type == type)),
-            unroutedTips = result.UnroutedTips.Count,
-            bases = result.BasePositions.Select(p => new[] { p.X, p.Y, p.Z }),
-            maxLeanAngleDegrees = result.MaxLeanAngleDegrees,
-            collisionFree,
+            ["unroutedTips"] = result.UnroutedTips.Count,
+            ["bases"] = result.BasePositions.Select(p => new[] { p.X, p.Y, p.Z }).ToList(),
+            ["maxLeanAngleDegrees"] = result.MaxLeanAngleDegrees,
+            ["collisionFree"] = collisionFree,
         };
+        if (seatOffset is { } offset) summary["seatOffset"] = MeshSeat.Json(offset);
         Console.WriteLine(JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static SupportTipShape ParseShape(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return SupportTipShape.Capsule;
+        return value.ToLowerInvariant() switch
+        {
+            "capsule" => SupportTipShape.Capsule,
+            "cone" => SupportTipShape.Cone,
+            _ => throw new JsonException($"unknown tip shape '{value}'"),
+        };
     }
 
     private static BaseLatticeType ParseLattice(string value) => value.ToLowerInvariant() switch
@@ -189,7 +222,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--strategy grid|topdown] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 
@@ -207,5 +240,8 @@ internal static class RouteCommand
         public float TipDiameter { get; set; }
         public float Diameter { get; set; }
         public Guid? ContactObjectId { get; set; }
+        public string? TipShape { get; set; }
+        public float ConeLength { get; set; }
+        public float BallDiameter { get; set; }
     }
 }

@@ -172,4 +172,39 @@ public sealed class SupportGeneratorTests
         Assert.Empty(result.Candidates);
         Assert.Equal(0, result.Routing.Graph.NodeCount);
     }
+
+    [Fact]
+    public void ConeShapeParametersReachCandidatesAndRoutedTips()
+    {
+        var mesh = Box(new Vector3(-5, -5, 5), new Vector3(5, 5, 15));
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddMesh(mesh, Matrix4x4.Identity);
+        var placement = new TipPlacementParameters
+        {
+            SpacingMm = 4f,
+            TipShape = SupportTipShape.Cone,
+            ConeLengthMm = 1.5f,
+            BallDiameterMm = 0.8f,
+        };
+
+        var result = SupportGenerator.Generate(
+            mesh, AllFaces(mesh), placement, new GridRoutingOptions { Spacing = 4f },
+            GrowthRuleSet.Default, obstacles, seed: 7);
+
+        Assert.NotEmpty(result.Candidates);
+        Assert.All(result.Candidates, c =>
+        {
+            Assert.Equal(SupportTipShape.Cone, c.TipShape);
+            Assert.Equal(1.5f, c.ConeLength);
+            Assert.Equal(0.8f, c.BallDiameter);
+        });
+        var tips = result.Routing.Graph.Nodes.Where(n => n.Type == SupportNodeType.Tip).ToList();
+        Assert.NotEmpty(tips);
+        Assert.All(tips, t =>
+        {
+            Assert.Equal(SupportTipShape.Cone, t.TipShape);
+            Assert.Equal(1.5f, t.ConeLength);
+            Assert.Equal(0.8f, t.BallDiameter);
+        });
+    }
 }

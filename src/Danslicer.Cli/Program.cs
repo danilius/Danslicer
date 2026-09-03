@@ -41,16 +41,17 @@ void Usage()
     Console.Error.WriteLine("  danslicer info <file.stl|file.obj>");
     Console.Error.WriteLine("  danslicer slice <file.stl|file.obj>... -o <out.pwmx> [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
     Console.Error.WriteLine("  danslicer inspect <file.pwmx>");
-    Console.Error.WriteLine("  danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--strategy grid|topdown] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
-    Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--spacing 2.5] [--min-spacing 2.5]");
+    Console.Error.WriteLine("  danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+    Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--seat] [--spacing 2.5] [--min-spacing 2.5]");
     Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--layer 0.05] [--tip 0.4]");
+    Console.Error.WriteLine("                 [--tip-shape capsule|cone] [--cone-length 2] [--ball-diameter 0]");
     Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
     Console.Error.WriteLine("                 [--grid square|hex] [--grid-spacing 5] [--grid-offset-x 0] [--grid-offset-y 0]");
     Console.Error.WriteLine("                 [--grid-rotation 0] [--keep-clean-distance 0]");
-    Console.Error.WriteLine("  danslicer checks <file.stl|file.obj>... [--json] [--layer 0.05] [--min-island 0.5]");
+    Console.Error.WriteLine("  danslicer checks <file.stl|file.obj>... [--json] [--seat] [--layer 0.05] [--min-island 0.5]");
     Console.Error.WriteLine("                   [--overhang 45] [--min-suction 5] [--drain 0.8]");
     Console.Error.WriteLine("                   [--support-spacing 1] [--model-clearance 0.5] [--object-spacing 1]");
-    Console.Error.WriteLine("  danslicer areas <file.stl|file.obj> [--json] [--overhang 45] [--min-area 0.5]");
+    Console.Error.WriteLine("  danslicer areas <file.stl|file.obj> [--json] [--seat] [--overhang 45] [--min-area 0.5]");
     Console.Error.WriteLine("                  [--layer 0.05] [--min-island 0.5] [--sharp-edge 30]");
 }
 

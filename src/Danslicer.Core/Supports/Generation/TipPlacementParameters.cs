@@ -32,6 +32,15 @@ public sealed record TipPlacementParameters
 
     public float TipDiameterMm { get; init; } = 0.4f;
 
+    /// <summary>Contact geometry copied onto every generated candidate. Default preserves capsule slicing.</summary>
+    public SupportTipShape TipShape { get; init; } = SupportTipShape.Capsule;
+
+    /// <summary>Cone length along the neck, millimetres. Unused when <see cref="TipShape"/> is Capsule.</summary>
+    public float ConeLengthMm { get; init; } = 2f;
+
+    /// <summary>Snap-off ball diameter, millimetres. Zero means no ball. Unused when shape is Capsule.</summary>
+    public float BallDiameterMm { get; init; } = 0f;
+
     /// <summary>
     /// Sharp-feature bias, 0 to 1. Zero ignores edges; 1 strongly prefers ridges and corners
     /// in scoring and extra edge samples. Interior faces still receive tips unless

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Tests;
@@ -108,6 +109,85 @@ public sealed class RoutingCollisionTests
             Assert.Equal(expected.Distance, actual.Distance, 4);
             Assert.InRange(Vector3.Distance(expected.Point, actual.Point), 0, 0.0001f);
         }
+    }
+
+    [Fact]
+    public void OversizedContactBallIsASphereObstacle()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 10),
+            SurfaceNormal = -Vector3.UnitZ, TipDiameter = 0.4f,
+            TipShape = SupportTipShape.Cone, ConeLength = 2f, BallDiameter = 3f,
+            PenetrationDepth = 0.2f,
+        };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = Vector3.Zero };
+        graph.AddNode(tip);
+        graph.AddNode(junction);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
+        });
+
+        var linear = new LinearCollisionScene();
+        var bvh = new BvhCollisionScene();
+        linear.AddSupportGraph(graph);
+        bvh.AddSupportGraph(graph);
+
+        Assert.Equal(1, linear.SphereCount);
+        Assert.Equal(1, bvh.SphereCount);
+
+        // A query that misses the 0.6 mm neck radius but hits the 1.5 mm ball.
+        var start = new Vector3(1.2f, 0, 10.2f);
+        var end = new Vector3(1.2f, 0, 10.2f) + Vector3.UnitY;
+        Assert.True(linear.IntersectsCapsule(start, end, 0.05f));
+        Assert.True(bvh.IntersectsCapsule(start, end, 0.05f));
+        Assert.False(linear.IntersectsCapsule(new Vector3(4, 0, 10), new Vector3(4, 0, 11), 0.05f));
+    }
+
+    [Fact]
+    public void BallSmallerThanNeckIsNotAnExtraObstacle()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 10),
+            SurfaceNormal = -Vector3.UnitZ, TipShape = SupportTipShape.Cone,
+            BallDiameter = 0.8f,
+        };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = Vector3.Zero };
+        graph.AddNode(tip);
+        graph.AddNode(junction);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
+        });
+
+        var scene = new LinearCollisionScene();
+        scene.AddSupportGraph(graph);
+        Assert.Equal(0, scene.SphereCount);
+        Assert.Equal(1, scene.CapsuleCount);
+    }
+
+    [Fact]
+    public void BvhAgreesWithLinearOnSpheres()
+    {
+        var linear = new LinearCollisionScene();
+        var bvh = new BvhCollisionScene();
+        linear.AddSphere(new Vector3(0, 0, 2), 1f, "ball");
+        bvh.AddSphere(new Vector3(0, 0, 2), 1f, "ball");
+
+        Assert.True(linear.IntersectsCapsule(new Vector3(0, 0, 0), new Vector3(0, 0, 4), 0.1f));
+        Assert.Equal(
+            linear.IntersectsCapsule(new Vector3(3, 0, 2), new Vector3(4, 0, 2), 0.1f),
+            bvh.IntersectsCapsule(new Vector3(3, 0, 2), new Vector3(4, 0, 2), 0.1f));
+
+        var expected = Assert.IsType<ObstacleNearestPoint>(linear.NearestObstacle(new Vector3(0, 0, 5)));
+        var actual = Assert.IsType<ObstacleNearestPoint>(bvh.NearestObstacle(new Vector3(0, 0, 5)));
+        Assert.Equal("ball", expected.Tag);
+        Assert.Equal(expected.Tag, actual.Tag);
+        Assert.Equal(expected.Distance, actual.Distance, 4);
     }
 
     [Fact]

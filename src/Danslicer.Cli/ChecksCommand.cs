@@ -15,12 +15,14 @@ internal static class ChecksCommand
     {
         var inputs = new List<string>();
         var json = false;
+        var seat = false;
         var parameters = PrintCheckParameters.Default;
         for (int i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
                 case "--json": json = true; break;
+                case "--seat": seat = true; break;
                 case "--layer": parameters = parameters with { LayerHeightMm = F(args[++i]) }; break;
                 case "--min-island": parameters = parameters with { MinIslandAreaMm2 = F(args[++i]) }; break;
                 case "--overhang": parameters = parameters with { OverhangAngleDegrees = F(args[++i]) }; break;
@@ -43,13 +45,29 @@ internal static class ChecksCommand
         if (inputs.Count == 0)
         {
             Console.Error.WriteLine("Usage:");
-            Console.Error.WriteLine("  danslicer checks <file.stl|file.obj>... [--json] [--layer 0.05] [--min-island 0.5]");
+            Console.Error.WriteLine("  danslicer checks <file.stl|file.obj>... [--json] [--seat] [--layer 0.05] [--min-island 0.5]");
             Console.Error.WriteLine("                   [--overhang 45] [--min-suction 5] [--drain 0.8]");
             Console.Error.WriteLine("                   [--support-spacing 1] [--model-clearance 0.5] [--object-spacing 1]");
             return 1;
         }
 
-        var meshes = inputs.Select(MeshFile.Read).ToList();
+        var meshes = new List<Danslicer.Core.Geometry.Mesh>();
+        var seatOffsets = new List<float[]?>();
+        foreach (var path in inputs)
+        {
+            var mesh = MeshFile.Read(path);
+            if (seat)
+            {
+                var seated = MeshSeat.Apply(mesh);
+                meshes.Add(seated.Mesh);
+                seatOffsets.Add(MeshSeat.Json(seated.Offset));
+            }
+            else
+            {
+                meshes.Add(mesh);
+                seatOffsets.Add(null);
+            }
+        }
         var findings = PrintChecker.Check(meshes, supports: null, parameters);
 
         if (json)
@@ -63,6 +81,7 @@ internal static class ChecksCommand
             Console.WriteLine(JsonSerializer.Serialize(new
             {
                 files = inputs,
+                seatOffsets = seat ? seatOffsets : null,
                 count = findings.Count,
                 byKind = findings.GroupBy(f => f.Kind.ToString()).ToDictionary(g => g.Key, g => g.Count()),
                 findings = findings.Select(f => new
@@ -87,6 +106,14 @@ internal static class ChecksCommand
         }
 
         Console.WriteLine($"Files:     {string.Join(", ", inputs)}");
+        if (seat)
+        {
+            for (int i = 0; i < inputs.Count; i++)
+            {
+                var o = seatOffsets[i]!;
+                Console.WriteLine($"Seat offset:  {inputs[i]}  {Fmt(o[0])}, {Fmt(o[1])}, {Fmt(o[2])}");
+            }
+        }
         Console.WriteLine($"Findings:  {findings.Count}");
         foreach (var kind in Enum.GetValues<CheckKind>())
         {

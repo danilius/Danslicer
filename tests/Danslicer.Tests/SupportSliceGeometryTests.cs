@@ -114,4 +114,164 @@ public class SupportSliceGeometryTests
         s.Disabled = true;
         Assert.Empty(SupportSliceGeometry.SectionsAt(g, 10));
     }
+
+    [Fact]
+    public void VerticalConeHasLinearlyInterpolatedRadius()
+    {
+        // Tip at z=10, r=0.2; 2 mm down the neck r=0.6. Midpoint z=9 is r=0.4.
+        var paths = new Paths64();
+        SupportSliceGeometry.ConeSection(new Vector3(0, 0, 10), new Vector3(0, 0, 8), 0.2, 0.6, z: 9, paths);
+        AssertAreaNear(Math.PI * 0.4 * 0.4, paths);
+
+        var atTip = new Paths64();
+        SupportSliceGeometry.ConeSection(new Vector3(0, 0, 10), new Vector3(0, 0, 8), 0.2, 0.6, z: 10, atTip);
+        AssertAreaNear(Math.PI * 0.2 * 0.2, atTip);
+
+        var atBase = new Paths64();
+        SupportSliceGeometry.ConeSection(new Vector3(0, 0, 10), new Vector3(0, 0, 8), 0.2, 0.6, z: 8, atBase);
+        AssertAreaNear(Math.PI * 0.6 * 0.6, atBase);
+    }
+
+    [Fact]
+    public void SphereSectionHasKnownRadiusAtOffsetZ()
+    {
+        var mid = new Paths64();
+        SupportSliceGeometry.SphereSection(new Vector3(0, 0, 10), 0.5, z: 10, mid);
+        AssertAreaNear(Math.PI * 0.25, mid);
+
+        var offset = new Paths64();
+        SupportSliceGeometry.SphereSection(new Vector3(0, 0, 10), 0.5, z: 10.3, offset);
+        AssertAreaNear(Math.PI * (0.25 - 0.09), offset);
+
+        var miss = new Paths64();
+        SupportSliceGeometry.SphereSection(new Vector3(0, 0, 10), 0.5, z: 10.6, miss);
+        Assert.Empty(miss);
+    }
+
+    [Fact]
+    public void ConeTipGraphHasKnownRadiiAlongTheNeck()
+    {
+        var g = ConeNeckGraph(ball: false);
+        // Mid-cone: only the frustum, r = 0.4.
+        AssertAreaNear(Math.PI * 0.4 * 0.4, SupportSliceGeometry.SectionsAt(g, 9));
+        // Below the cone the neck is a cylinder of r = 0.6.
+        AssertAreaNear(Math.PI * 0.6 * 0.6, SupportSliceGeometry.SectionsAt(g, 5));
+    }
+
+    [Fact]
+    public void ConeAndBallGraphUnionsTheContactSphere()
+    {
+        var g = ConeNeckGraph(ball: true);
+        // Ball centre is at z=10.2 (penetration 0.2 along inward +Z). At the centre, r=0.5.
+        AssertAreaNear(Math.PI * 0.25, SupportSliceGeometry.SectionsAt(g, 10.2));
+        // Mid-cone is unchanged: ball does not reach z=9 (centre 10.2, r=0.5 → down to 9.7).
+        AssertAreaNear(Math.PI * 0.4 * 0.4, SupportSliceGeometry.SectionsAt(g, 9));
+    }
+
+    [Fact]
+    public void MixedShapesSliceIndependently()
+    {
+        var g = new SupportGraph();
+        AddPillar(g, new Vector3(-10, 0, 0), new Vector3(-10, 0, 10), 2f);
+        AddConeNeck(g, new Vector3(0, 0, 10), ball: false);
+        AddConeNeck(g, new Vector3(10, 0, 10), ball: true);
+
+        var atMidCone = SupportSliceGeometry.SectionsAt(g, 9);
+        Assert.Equal(3, atMidCone.Count);
+
+        var atBall = SupportSliceGeometry.SectionsAt(g, 10.2);
+        Assert.True(atBall.Count >= 2, $"expected pillar cap + ball, got {atBall.Count}");
+    }
+
+    [Fact]
+    public void DefaultTipShapeIsBitIdenticalToCapsuleSections()
+    {
+        var g = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 10),
+            SurfaceNormal = -Vector3.UnitZ, TipDiameter = 0.4f,
+        };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 8) };
+        var baseNode = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        g.AddNode(tip); g.AddNode(junction); g.AddNode(baseNode);
+        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f });
+        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = 1.2f });
+
+        var zs = new[] { -0.5, 0, 4, 8, 9, 10, 10.5, 11 };
+        var baseline = zs.Select(z => Copy(SupportSliceGeometry.SectionsAt(g, z))).ToList();
+
+        // Capsule + leftover cone/ball fields must not change a single clipper point.
+        tip.TipShape = SupportTipShape.Capsule;
+        tip.ConeLength = 2f;
+        tip.BallDiameter = 1f;
+        for (int i = 0; i < zs.Length; i++)
+            AssertPathsEqual(baseline[i], SupportSliceGeometry.SectionsAt(g, zs[i]));
+
+        // And the graph path matches slicing every segment as a capsule.
+        for (int i = 0; i < zs.Length; i++)
+        {
+            var manual = new Paths64();
+            foreach (var segment in g.Segments)
+            {
+                var a = g.GetNode(segment.NodeA);
+                var b = g.GetNode(segment.NodeB);
+                SupportSliceGeometry.CapsuleSection(a.Position, b.Position, segment.Diameter * 0.5, zs[i], manual);
+            }
+            AssertPathsEqual(baseline[i], manual);
+        }
+    }
+
+    private static SupportGraph ConeNeckGraph(bool ball)
+    {
+        var g = new SupportGraph();
+        AddConeNeck(g, Vector3.Zero with { Z = 10 }, ball);
+        return g;
+    }
+
+    private static void AddConeNeck(SupportGraph g, Vector3 tipPos, bool ball)
+    {
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = tipPos,
+            SurfaceNormal = -Vector3.UnitZ, TipDiameter = 0.4f,
+            TipShape = SupportTipShape.Cone, ConeLength = 2f,
+            BallDiameter = ball ? 1f : 0f, PenetrationDepth = 0.2f,
+        };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = tipPos with { Z = 0 } };
+        g.AddNode(tip);
+        g.AddNode(junction);
+        g.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
+        });
+    }
+
+    private static void AddPillar(SupportGraph g, Vector3 from, Vector3 to, float diameter)
+    {
+        var a = new SupportNode { Type = SupportNodeType.Base, Position = from };
+        var b = new SupportNode { Type = SupportNodeType.Junction, Position = to };
+        g.AddNode(a);
+        g.AddNode(b);
+        g.AddSegment(new SupportSegment { Type = SupportSegmentType.Pillar, NodeA = a.Id, NodeB = b.Id, Diameter = diameter });
+    }
+
+    private static Paths64 Copy(Paths64 paths)
+    {
+        var copy = new Paths64(paths.Count);
+        foreach (var path in paths)
+            copy.Add([.. path]);
+        return copy;
+    }
+
+    private static void AssertPathsEqual(Paths64 expected, Paths64 actual)
+    {
+        Assert.Equal(expected.Count, actual.Count);
+        for (int i = 0; i < expected.Count; i++)
+        {
+            Assert.Equal(expected[i].Count, actual[i].Count);
+            for (int j = 0; j < expected[i].Count; j++)
+                Assert.Equal(expected[i][j], actual[i][j]);
+        }
+    }
 }

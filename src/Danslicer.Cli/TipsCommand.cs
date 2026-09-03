@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.IO;
+using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 
@@ -17,6 +18,7 @@ internal static class TipsCommand
     {
         string? path = null;
         var json = false;
+        var seat = false;
         var parameters = TipPlacementParameters.Default;
         var seed = 0;
         BaseLatticeType? gridLattice = null;
@@ -29,12 +31,27 @@ internal static class TipsCommand
             switch (args[i])
             {
                 case "--json": json = true; break;
+                case "--seat": seat = true; break;
                 case "--overhang": parameters = parameters with { OverhangAngleDegrees = F(args[++i]) }; break;
                 case "--spacing": parameters = parameters with { SpacingMm = F(args[++i]) }; break;
                 case "--min-spacing": parameters = parameters with { MinSpacingMm = F(args[++i]) }; break;
                 case "--min-island": parameters = parameters with { MinIslandAreaMm2 = F(args[++i]) }; break;
                 case "--layer": parameters = parameters with { LayerHeightMm = F(args[++i]) }; break;
                 case "--tip": parameters = parameters with { TipDiameterMm = F(args[++i]) }; break;
+                case "--tip-shape":
+                {
+                    var name = args[++i].ToLowerInvariant();
+                    if (name == "capsule") parameters = parameters with { TipShape = SupportTipShape.Capsule };
+                    else if (name == "cone") parameters = parameters with { TipShape = SupportTipShape.Cone };
+                    else
+                    {
+                        Console.Error.WriteLine("tip-shape must be 'capsule' or 'cone'");
+                        return 1;
+                    }
+                    break;
+                }
+                case "--cone-length": parameters = parameters with { ConeLengthMm = F(args[++i]) }; break;
+                case "--ball-diameter": parameters = parameters with { BallDiameterMm = F(args[++i]) }; break;
                 case "--edge": parameters = parameters with { EdgePreference = F(args[++i]) }; break;
                 case "--force-edges": parameters = parameters with { ForceEdgePlacement = true }; break;
                 case "--sharp-edge": parameters = parameters with { SharpEdgeDegrees = F(args[++i]) }; break;
@@ -70,8 +87,9 @@ internal static class TipsCommand
         if (path is null)
         {
             Console.Error.WriteLine("Usage:");
-            Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--spacing 2.5] [--min-spacing 2.5]");
+            Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--seat] [--spacing 2.5] [--min-spacing 2.5]");
             Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--layer 0.05] [--tip 0.4]");
+            Console.Error.WriteLine("                 [--tip-shape capsule|cone] [--cone-length 2] [--ball-diameter 0]");
             Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
             Console.Error.WriteLine("                 [--grid square|hex] [--grid-spacing 5] [--grid-offset-x 0] [--grid-offset-y 0]");
             Console.Error.WriteLine("                 [--grid-rotation 0] [--keep-clean-distance 0]");
@@ -94,6 +112,13 @@ internal static class TipsCommand
         }
 
         var mesh = MeshFile.Read(path);
+        Vector3? seatOffset = null;
+        if (seat)
+        {
+            var seated = MeshSeat.Apply(mesh);
+            mesh = seated.Mesh;
+            seatOffset = seated.Offset;
+        }
         var faces = Enumerable.Range(0, mesh.TriangleCount).ToHashSet();
         var tips = TipPlacer.Place(mesh, faces, parameters, existingGraph: null, keepCleanFaces: null, seed);
 
@@ -109,6 +134,10 @@ internal static class TipsCommand
                 Count = tips.Count,
                 ByStrategy = byStrategy,
                 Spacing = spacing,
+                SeatOffset = seatOffset is { } o ? MeshSeat.Json(o) : null,
+                TipShape = parameters.TipShape.ToString(),
+                ConeLength = parameters.ConeLengthMm,
+                BallDiameter = parameters.BallDiameterMm,
                 Candidates = tips.Select(t => new CandidateDto
                 {
                     Strategy = t.Strategy.ToString(),
@@ -117,6 +146,9 @@ internal static class TipsCommand
                     Diameter = t.TipDiameter,
                     Score = t.Score,
                     FaceIndex = t.FaceIndex,
+                    TipShape = t.TipShape.ToString(),
+                    ConeLength = t.ConeLength,
+                    BallDiameter = t.BallDiameter,
                 }).ToList(),
             };
             var opts = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -126,6 +158,8 @@ internal static class TipsCommand
 
         Console.WriteLine($"File:        {path}");
         Console.WriteLine($"Triangles:   {mesh.TriangleCount.ToString("N0", Ci)}");
+        if (seatOffset is { } offset) MeshSeat.WriteText(offset);
+        Console.WriteLine($"Tip shape:   {parameters.TipShape}  cone {Fmt(parameters.ConeLengthMm)}  ball {Fmt(parameters.BallDiameterMm)}");
         Console.WriteLine($"Candidates:  {tips.Count}");
         foreach (var strategy in Enum.GetValues<TipStrategy>())
         {
@@ -183,6 +217,11 @@ internal static class TipsCommand
         public required int Count { get; init; }
         public required Dictionary<string, int> ByStrategy { get; init; }
         public SpacingDto? Spacing { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float[]? SeatOffset { get; init; }
+        public required string TipShape { get; init; }
+        public required float ConeLength { get; init; }
+        public required float BallDiameter { get; init; }
         public required List<CandidateDto> Candidates { get; init; }
     }
 
@@ -194,6 +233,9 @@ internal static class TipsCommand
         public required float Diameter { get; init; }
         public required float Score { get; init; }
         public required int FaceIndex { get; init; }
+        public required string TipShape { get; init; }
+        public required float ConeLength { get; init; }
+        public required float BallDiameter { get; init; }
     }
 
     private sealed class SpacingDto
