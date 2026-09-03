@@ -41,7 +41,7 @@ internal static class RouteCommand
             if (tipsPath is null) return UsageError("--tips <tips.json> is required");
 
             var mesh = MeshFile.Read(meshPath);
-            var obstacles = new LinearCollisionScene();
+            var obstacles = new BvhCollisionScene();
             obstacles.AddMesh(mesh, Matrix4x4.Identity, Path.GetFileName(meshPath));
             var tips = ReadTips(tipsPath);
             var result = strategy == "topdown"

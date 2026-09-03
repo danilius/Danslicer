@@ -47,4 +47,65 @@ public sealed class RoutingCollisionTests
         Assert.Equal(2, hit.Distance, 4);
         Assert.Equal(Vector3.Zero, hit.Point);
     }
+
+    [Fact]
+    public void BvhAgreesWithLinearSceneOnFixedSeedRandomizedQueries()
+    {
+        var random = new Random(20260903);
+        var linear = new LinearCollisionScene();
+        var bvh = new BvhCollisionScene();
+        for (var i = 0; i < 120; i++)
+        {
+            var a = Point(random);
+            var b = a + Direction(random);
+            var c = a + Direction(random);
+            linear.AddTriangle(a, b, c, $"triangle-{i}");
+            bvh.AddTriangle(a, b, c, $"triangle-{i}");
+        }
+        for (var i = 0; i < 40; i++)
+        {
+            var start = Point(random);
+            var end = start + Direction(random) * 2;
+            var radius = 0.05f + random.NextSingle() * 0.7f;
+            linear.AddCapsule(start, end, radius, $"capsule-{i}");
+            bvh.AddCapsule(start, end, radius, $"capsule-{i}");
+        }
+
+        for (var i = 0; i < 500; i++)
+        {
+            var start = Point(random);
+            var end = start + Direction(random) * 4;
+            var radius = random.NextSingle();
+            Assert.Equal(linear.IntersectsCapsule(start, end, radius),
+                bvh.IntersectsCapsule(start, end, radius));
+
+            var point = Point(random);
+            var expected = Assert.IsType<ObstacleNearestPoint>(linear.NearestObstacle(point));
+            var actual = Assert.IsType<ObstacleNearestPoint>(bvh.NearestObstacle(point));
+            Assert.Equal(expected.Tag, actual.Tag);
+            Assert.Equal(expected.Distance, actual.Distance, 4);
+            Assert.InRange(Vector3.Distance(expected.Point, actual.Point), 0, 0.0001f);
+        }
+    }
+
+    [Fact]
+    public void BvhRebuildsAfterObstacleIsAdded()
+    {
+        var scene = new BvhCollisionScene();
+        Assert.False(scene.IntersectsCapsule(Vector3.Zero, Vector3.UnitZ, 0.1f));
+
+        scene.AddTriangle(new(-1, -1, 0.5f), new(1, -1, 0.5f), new(0, 1, 0.5f));
+
+        Assert.True(scene.IntersectsCapsule(Vector3.Zero, Vector3.UnitZ, 0.1f));
+    }
+
+    private static Vector3 Point(Random random) => new(
+        random.NextSingle() * 20 - 10,
+        random.NextSingle() * 20 - 10,
+        random.NextSingle() * 20 - 10);
+
+    private static Vector3 Direction(Random random) => new(
+        random.NextSingle() * 2 - 1,
+        random.NextSingle() * 2 - 1,
+        random.NextSingle() * 2 - 1);
 }
