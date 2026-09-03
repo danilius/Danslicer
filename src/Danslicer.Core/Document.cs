@@ -519,22 +519,57 @@ public sealed class Document
         Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Hide {commands.Count} objects", commands));
     }
 
-    /// <summary>Hides exactly the selected support elements and deselects them. One undo step.</summary>
+    /// <summary>
+    /// Hides the selected SUPPORTS and deselects them: each selected element expands to its
+    /// complete non-bracing connected component, because a support is one user-visible thing
+    /// (user screen test 2026-09-03: hiding a lone trunk left its tip and base floating).
+    /// A selected brace hides itself only. One undo step.
+    /// </summary>
     public void HideSelectedSupportElements()
     {
         if (_supportSelection.Count == 0) return;
-        var entries = new List<SetSupportHiddenCommand.Entry>();
+        var nodes = new HashSet<Guid>();
+        var segments = new HashSet<Guid>();
         foreach (var id in _supportSelection)
         {
-            if (Supports.TryGetNode(id, out var node) && !node.Hidden)
+            if (Supports.TryGetNode(id, out var node))
+            {
+                AddComponent(node.Id);
+            }
+            else if (Supports.TryGetSegment(id, out var segment))
+            {
+                segments.Add(segment.Id);
+                if (segment.Type != SupportSegmentType.Bracing)
+                {
+                    AddComponent(segment.NodeA);
+                    AddComponent(segment.NodeB);
+                }
+            }
+        }
+
+        void AddComponent(Guid seed)
+        {
+            var component = Supports.Component(seed, includeBracing: false);
+            nodes.UnionWith(component.Nodes);
+            segments.UnionWith(component.Segments);
+        }
+
+        var entries = new List<SetSupportHiddenCommand.Entry>();
+        foreach (var id in nodes)
+        {
+            var node = Supports.GetNode(id);
+            if (!node.Hidden)
                 entries.Add(new SetSupportHiddenCommand.Entry(value => node.Hidden = value, false, true));
-            else if (Supports.TryGetSegment(id, out var segment) && !segment.Hidden)
+        }
+        foreach (var id in segments)
+        {
+            var segment = Supports.GetSegment(id);
+            if (!segment.Hidden)
                 entries.Add(new SetSupportHiddenCommand.Entry(value => segment.Hidden = value, false, true));
         }
         ClearSupportSelection();
         if (entries.Count > 0)
-            Execute(new SetSupportHiddenCommand(Supports, entries,
-                entries.Count == 1 ? "Hide support element" : $"Hide {entries.Count} support elements"));
+            Execute(new SetSupportHiddenCommand(Supports, entries, "Hide supports"));
     }
 
     /// <summary>

@@ -192,30 +192,55 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
-    public void HideSelectedSupportElementsIsOneUndoableCommand()
+    public void HideSelectedSupportElementsHidesTheWholeSupport()
     {
+        // Selecting ANY element of a support hides the complete non-bracing component: a
+        // support is one user-visible thing (a lone hidden trunk left tip and base floating).
         var doc = new Document();
         var a = new SupportNode { Type = SupportNodeType.Tip, Position = Vector3.UnitZ };
         var b = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
         var segment = new SupportSegment
-            { Type = SupportSegmentType.Branch, NodeA = a.Id, NodeB = b.Id };
+            { Type = SupportSegmentType.Trunk, NodeA = a.Id, NodeB = b.Id };
+        var otherTip = new SupportNode { Type = SupportNodeType.Tip, Position = new Vector3(5, 0, 1) };
         doc.Supports.AddNode(a);
         doc.Supports.AddNode(b);
         doc.Supports.AddSegment(segment);
-        doc.SelectSupportElements([a.Id, segment.Id]);
+        doc.Supports.AddNode(otherTip);
+        doc.SelectSupportElements([segment.Id]);
 
         doc.HideSelectedSupportElements();
 
         Assert.True(a.Hidden);
+        Assert.True(b.Hidden);
         Assert.True(segment.Hidden);
-        Assert.False(b.Hidden);
+        Assert.False(otherTip.Hidden);
         Assert.Empty(doc.SupportSelection);
-        Assert.Equal("Hide 2 support elements", doc.History.UndoName);
+        Assert.Equal("Hide supports", doc.History.UndoName);
 
         doc.Undo();
         Assert.False(a.Hidden);
-        Assert.False(segment.Hidden);
         Assert.False(b.Hidden);
+        Assert.False(segment.Hidden);
+    }
+
+    [Fact]
+    public void HidingASelectedBraceHidesOnlyTheBrace()
+    {
+        var doc = new Document();
+        var left = new SupportNode { Type = SupportNodeType.Junction, Position = Vector3.UnitZ };
+        var right = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(5, 0, 1) };
+        var brace = new SupportSegment
+            { Type = SupportSegmentType.Bracing, NodeA = left.Id, NodeB = right.Id };
+        doc.Supports.AddNode(left);
+        doc.Supports.AddNode(right);
+        doc.Supports.AddSegment(brace);
+        doc.SelectSupportElements([brace.Id]);
+
+        doc.HideSelectedSupportElements();
+
+        Assert.True(brace.Hidden);
+        Assert.False(left.Hidden);
+        Assert.False(right.Hidden);
     }
 
     [Fact]
