@@ -20,6 +20,8 @@ internal sealed class PointGrid
 
     public bool AnyWithin(Vector3 p, float radius)
     {
+        if (_cells.Count == 0) return false;
+
         var r2 = radius * radius;
         var reach = Math.Max(1, (int)MathF.Ceiling(radius / _cell));
         var c = Key(p);
