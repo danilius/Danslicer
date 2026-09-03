@@ -31,6 +31,9 @@ public partial class MainViewModel : ViewModelBase
 
     public PrintSettingsViewModel PrintSettings { get; }
 
+    /// <summary>The one live support-settings model shared by Preferences and the Support panel.</summary>
+    public ConfigViewModel SupportSettings { get; }
+
     public ModeScopedCommand DropToPlateScopedCommand { get; }
     public ModeScopedCommand HideScopedCommand { get; }
     public ModeScopedCommand UnhideAllScopedCommand { get; }
@@ -180,6 +183,7 @@ public partial class MainViewModel : ViewModelBase
         // its own value snapshot, so edits affect the next generation/manual placement only.
         Document.SupportSettings = AppConfig.Current.Supports;
         PrintSettings = new PrintSettingsViewModel(Document);
+        SupportSettings = new ConfigViewModel();
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
         HideScopedCommand = new ModeScopedCommand(

@@ -207,6 +207,8 @@
                                       ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
                         <Button Content="Generate Supports" Command="{Binding GenerateSupportsScopedCommand}"
                                 HorizontalAlignment="Stretch" Margin="0,6,0,2" />
+                        <TextBlock Text="Settings" Classes="section" />
+                        <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
                     </StackPanel>
                 </ScrollViewer>
 

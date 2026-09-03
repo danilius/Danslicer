@@ -90,9 +90,10 @@ public partial class MainWindow : Window
             open.Activate();
             return;
         }
-        _configWindow = new ConfigWindow();
-        if (_configWindow.DataContext is ConfigViewModel config)
-            config.Saved += Viewport.RequestRedraw;
+        var config = ViewModel?.SupportSettings ?? new ConfigViewModel();
+        _configWindow = new ConfigWindow(config);
+        config.Saved += Viewport.RequestRedraw;
+        _configWindow.Closed += (_, _) => config.Saved -= Viewport.RequestRedraw;
         _configWindow.Closed += (_, _) => _configWindow = null;
         _configWindow.Show(this);
     }
