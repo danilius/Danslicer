@@ -68,6 +68,20 @@
                                 Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
                         <TextBlock Grid.Column="2" Classes="value" Text="{Binding PlateOpacityFromBelow, StringFormat={}{0:0%}}" />
                     </Grid>
+                    <Grid Tag="viewport overhang checker colour color hex first" ColumnDefinitions="190,120,*" Margin="0,2">
+                        <TextBlock Text="Overhang colour A" Classes="label" />
+                        <TextBox Grid.Column="1" FontSize="12" Text="{Binding OverhangColorA, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport overhang checker colour color hex second" ColumnDefinitions="190,120,*" Margin="0,2">
+                        <TextBlock Text="Overhang colour B" Classes="label" />
+                        <TextBox Grid.Column="1" FontSize="12" Text="{Binding OverhangColorB, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport overhang checker chequer square cell size mm" ColumnDefinitions="190,*,52" Margin="0,2">
+                        <TextBlock Text="Overhang checker size" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="0.5" Maximum="20" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding OverhangCheckerSizeMm, StringFormat={}{0:0.0} mm}" />
+                    </Grid>
                 </StackPanel>
 
                 <StackPanel x:Name="SpaceMouseSection">

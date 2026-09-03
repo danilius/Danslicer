@@ -39,6 +39,33 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Viewport.PlateOpacityFromBelow = Math.Clamp(value, 0f, 1f));
     }
 
+    public string OverhangColorA
+    {
+        get => Viewport.OverhangColorA;
+        set { if (TryNormalizeColor(value, out var hex)) Update(() => Viewport.OverhangColorA = hex); }
+    }
+
+    public string OverhangColorB
+    {
+        get => Viewport.OverhangColorB;
+        set { if (TryNormalizeColor(value, out var hex)) Update(() => Viewport.OverhangColorB = hex); }
+    }
+
+    public float OverhangCheckerSizeMm
+    {
+        get => Viewport.OverhangCheckerSizeMm;
+        set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
+    }
+
+    /// <summary>Accepts "RRGGBB" with or without '#'; rejects anything else without saving.</summary>
+    private static bool TryNormalizeColor(string? input, out string hex)
+    {
+        var s = input?.Trim().TrimStart('#') ?? "";
+        var valid = s.Length == 6 && s.All(Uri.IsHexDigit);
+        hex = valid ? $"#{s.ToUpperInvariant()}" : "";
+        return valid;
+    }
+
     // SpaceMouse
 
     public float SpaceMouseOrbitSensitivity

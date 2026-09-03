@@ -29,6 +29,10 @@ public sealed class RenderFrame
     public float OverhangAngleDegrees { get; init; } = 45f;
     /// <summary>Plate opacity when the camera is below it: 0 invisible, 1 opaque (no fade).</summary>
     public float PlateOpacityFromBelow { get; init; } = 1f;
+    /// <summary>The two overhang checker colours and the checker cell edge in millimetres.</summary>
+    public Vector3 OverhangColorA { get; init; } = new(0.98f, 0.80f, 0.15f);
+    public Vector3 OverhangColorB { get; init; } = new(0.90f, 0.12f, 0.10f);
+    public float OverhangCheckerSizeMm { get; init; } = 2f;
 }
 
 /// <summary>
@@ -49,6 +53,9 @@ public sealed class SceneRenderer : IDisposable
     private readonly Dictionary<Mesh, GpuMesh> _meshes = new();
     private GpuMesh? _plate;
     private Vector3 _plateSize;
+    private Vector3 _overhangColorA;
+    private Vector3 _overhangColorB;
+    private float _overhangCell = 2f;
 
     public string GlVersion { get; }
     public bool IsGles { get; }
@@ -82,6 +89,9 @@ public sealed class SceneRenderer : IDisposable
         var aspect = frame.Width / (float)Math.Max(frame.Height, 1);
         var view = frame.Camera.View;
         var projection = frame.Camera.Projection(aspect);
+        _overhangColorA = frame.OverhangColorA;
+        _overhangColorB = frame.OverhangColorB;
+        _overhangCell = frame.OverhangCheckerSizeMm;
 
         PruneMeshCache(frame);
         // Looking up from under the plate, the plate fades to the configured opacity so the
@@ -215,6 +225,9 @@ public sealed class SceneRenderer : IDisposable
         _meshShader.Set("uBackfaceTint", backfaceTint);
         _meshShader.Set("uWarnBelowPlate", warnBelowPlate ? 1f : 0f);
         _meshShader.Set("uOverhangCos", overhangCos);
+        _meshShader.Set("uOverhangColorA", _overhangColorA);
+        _meshShader.Set("uOverhangColorB", _overhangColorB);
+        _meshShader.Set("uOverhangCell", _overhangCell);
     }
 
     private void DrawLines(RenderFrame frame, in Matrix4x4 viewProjection)

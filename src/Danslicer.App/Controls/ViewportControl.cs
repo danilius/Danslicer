@@ -209,6 +209,11 @@ public sealed class ViewportControl : OpenGlControlBase
             ShowOverhangs = ShowOverhangs,
             OverhangAngleDegrees = Configuration.AppConfig.Current.Viewport.OverhangAngleDegrees,
             PlateOpacityFromBelow = Configuration.AppConfig.Current.Viewport.PlateOpacityFromBelow,
+            OverhangColorA = Configuration.AppConfig.ParseColor(
+                Configuration.AppConfig.Current.Viewport.OverhangColorA, new Vector3(0.98f, 0.80f, 0.15f)),
+            OverhangColorB = Configuration.AppConfig.ParseColor(
+                Configuration.AppConfig.Current.Viewport.OverhangColorB, new Vector3(0.90f, 0.12f, 0.10f)),
+            OverhangCheckerSizeMm = Configuration.AppConfig.Current.Viewport.OverhangCheckerSizeMm,
         });
     }
 

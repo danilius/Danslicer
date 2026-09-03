@@ -49,6 +49,9 @@ internal static class Shaders
         uniform float uOpacity;
         uniform float uWarnBelowPlate; // 1 = tint geometry below Z = 0
         uniform float uOverhangCos;    // cos of the overhang angle from straight down; 2 disables
+        uniform vec3 uOverhangColorA;  // checker colour on even cells
+        uniform vec3 uOverhangColorB;  // checker colour on odd cells
+        uniform float uOverhangCell;   // checker cell edge, mm
 
         out vec4 fragColor;
 
@@ -80,21 +83,20 @@ internal static class Shaders
             vec3 color = uColor;
             if (back) color = mix(color, vec3(0.85, 0.30, 0.55), uBackfaceTint * 0.6);
 
-            // Overhang tint: surfaces facing downward within the threshold of straight down.
-            // Severity runs yellow at the threshold to red on flat undersides, with a soft edge.
-            // A 2 mm world-space checker alternates tint strength so overhangs stay readable on
-            // any base colour, selection orange included.
+            // Overhang tint: surfaces facing downward within the threshold of straight down show
+            // a solid two-colour world-space checker, so overhangs read clearly on any base
+            // colour at any lighting. Colours and cell size come from user configuration; only
+            // the threshold edge is softened.
             if (uOverhangCos < 1.5)
             {
                 float down = dot(normalize(vWorldNormal), vec3(0.0, 0.0, -1.0));
                 float over = smoothstep(uOverhangCos - 0.06, uOverhangCos + 0.02, down);
                 if (over > 0.0)
                 {
-                    float severity = clamp((down - uOverhangCos) / max(1.0 - uOverhangCos, 1e-3), 0.0, 1.0);
-                    vec3 warn = mix(vec3(0.98, 0.80, 0.15), vec3(0.90, 0.12, 0.10), severity);
-                    vec3 cells = floor(vWorldPosition / 2.0);
+                    vec3 cells = floor(vWorldPosition / max(uOverhangCell, 0.1));
                     float checker = mod(cells.x + cells.y + cells.z, 2.0);
-                    color = mix(color, warn, over * mix(0.40, 0.90, checker));
+                    vec3 warn = mix(uOverhangColorA, uOverhangColorB, checker);
+                    color = mix(color, warn, over);
                 }
             }
 

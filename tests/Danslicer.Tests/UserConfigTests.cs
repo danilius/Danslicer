@@ -33,6 +33,9 @@ public sealed class UserConfigTests : IDisposable
             {
                 OverhangAngleDegrees = 30f,
                 PlateOpacityFromBelow = 0.6f,
+                OverhangColorA = "#112233",
+                OverhangColorB = "#445566",
+                OverhangCheckerSizeMm = 5f,
             },
         };
         var path = PathFor("config.json");
@@ -51,6 +54,9 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.02f, loaded.SpaceMouse.Deadzone);
         Assert.Equal(30f, loaded.Viewport.OverhangAngleDegrees);
         Assert.Equal(0.6f, loaded.Viewport.PlateOpacityFromBelow);
+        Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
+        Assert.Equal("#445566", loaded.Viewport.OverhangColorB);
+        Assert.Equal(5f, loaded.Viewport.OverhangCheckerSizeMm);
     }
 
     [Fact]

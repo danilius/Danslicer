@@ -29,6 +29,15 @@ public sealed class ViewportConfig
 
     /// <summary>Build-plate opacity when the camera is below it: 0 invisible, 1 fully opaque.</summary>
     public float PlateOpacityFromBelow { get; set; } = 0.3f;
+
+    /// <summary>First overhang checker colour, "#RRGGBB".</summary>
+    public string OverhangColorA { get; set; } = "#FACC26";
+
+    /// <summary>Second overhang checker colour, "#RRGGBB".</summary>
+    public string OverhangColorB { get; set; } = "#E61F1A";
+
+    /// <summary>Edge length of the overhang checker squares, millimetres.</summary>
+    public float OverhangCheckerSizeMm { get; set; } = 2f;
 }
 
 /// <summary>
