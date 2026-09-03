@@ -1,11 +1,65 @@
 # Danslicer handover
 
-Written 2026-09-03 for a fresh conversation, updated overnight 2026-09-03, during the
-multi-agent afternoon and evening, and finally late 2026-09-03 (see the FIRST section,
-which supersedes all older state notes below). Read this, then `docs/DESIGN.md` for the
+Written 2026-09-03 for a fresh conversation and updated through the day; the FIRST section
+(night) supersedes all older state notes below. Read this, then `docs/DESIGN.md` for the
 full design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec.
 
-## State as of 2026-09-03 late — READ THIS SECTION FIRST
+## State as of 2026-09-03 night — READ THIS SECTION FIRST
+
+**main is at `6228f40`, 242 green tests, pushed** (with branches `grid-routing-prototype`
+and `spacemouse-buttons`). Merged tonight with the user's approval: ChatGPT's whole
+brief 10/9/8/11 queue (Shift+H whole-tree hide; model landing disabled by default —
+honest refusals only, Drogon top-down 343/1113; `PenetrationDepth` as the single
+embedding-depth name, default 0, CLI-exposed; the seated benchmark matrix in BENCHMARKS.md
+that Grok never wrote — seated gripper top-down 5.9 s / 52 of 445 where unseated was killed
+at 39 min; non-blocking batched generation with progress bar + cancel-rollback + one undo
+step; Layout/Support/Slicing workspaces, mode-dependent Ctrl+A, marquee), and Claude's own
+`spacemouse-buttons` branch (Claude implements again now — own worktree
+`F:\Git Repos\Danslicer-claude`, never files in ChatGPT's queue).
+
+**SpaceMouse buttons are DONE and accepted** — user: "leave the SpaceMouse for now, it has
+all the functionality I require." `_IKeyboardEvents` COM sink in `TdxSpaceMouse` (GUID/
+DISPIDs verified against the installed typelib, Advise probed live), drained in the
+viewport poll. Fit=frame-all, T/R/F=views (codes 3/5/6 confirmed on hardware), Rotation=
+device-only rotation lock in the status bar, device Esc=keyboard-Esc chain. Codes 31 and
+32 were observed from unbound buttons on the user's unit and are recorded for any future
+binding pass; Menu/1-4 stay unbound by choice.
+
+**User screen-tested the merged queue.** Everything passes EXCEPT: the marquee draws
+nothing (bug), and Ctrl+A inside a text box selected all supports instead of text (window
+KeyBinding preemption). Both, plus a workspace-semantics redesign the user dictated, are
+in **`ChatGPT/INSTRUCTIONS-12.md`** (the current brief): Support mode = objects neither
+selectable nor movable; Layout mode = supports unselectable and rigidly carried by object
+transforms (even if it ruins them); Tab cycles Layout→Support→Slicing (Slicing in the
+cycle only when sliced, but the Slicing workspace itself is ALWAYS available); the right
+panel loses its Object|Print tabs and becomes mode-specific (print controls live in
+Slicing); left/right panels resizable; a select-through toggle for the marquee in the
+Support panel; H hides selected supports in Support mode; hidden supports never
+selectable. **Per-printer and per-resin settings editors are decided but explicitly
+LATER** — do not brief yet.
+
+**Island search rumination (user, tonight): already implemented** — the user's
+slice-and-diff idea is exactly `MeshSlicer.NewbornIslands` + `IslandFinder` (polygon
+difference with slope-aware inflation), feeding TipPlacer/PrintChecker/SupportAreaDetector,
+configurable via `--min-island` / `--overhang` / `--layer`. Claude proposed tweaks, USER
+DECISION PENDING, do not brief until they choose: multiple tips per large island
+(`IslandAreaPerTipMm2`), weakly-supported detection (`MinSupportedFraction`), island
+tracking through layers, `IslandTipAt` centroid|lowest|both, island painting in the
+Support workspace.
+
+**Start a persistent Monitor** in the new session polling ChatGPT's mailbox
+(`F:\Git Repos\Danslicer-chatgpt\ChatGPT\` REPORT/QUESTIONS mtimes) and the
+`grid-routing-prototype` head each minute; the old session's monitor dies with it.
+Review protocol unchanged: detached scratch worktree, build + full tests, merge-test
+against main, merge only with the user's per-merge approval, then push. ChatGPT's last
+queue landed as three commits after the report — it was asked (REVIEW note) to commit
+granularly this time.
+
+**User-only outstanding:** screen-test brief 12 when it lands, the Reinforce visuals
+(needs profile UI), the physical mirror-X test print, and re-running `/auto-mode-setup`
+(broken earlier by a transient classifier outage).
+
+## State as of 2026-09-03 late (SUPERSEDED by the section above)
 
 **Grok is out of tokens and retired.** ChatGPT is the only implementing agent; it owns
 both former lanes and the file-lock split is dissolved. **Claude's manager-only restriction
