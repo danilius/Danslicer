@@ -124,9 +124,9 @@ public class SupportGraphTests
         Assert.Equal(0, doc.Supports.NodeCount);
         Assert.Equal(0, doc.Supports.SegmentCount);
 
-        // A contact near the plate skips the neck (blind straight path: the router refuses this
-        // spot because the contact hovers over the test triangle within clearance).
-        doc.AddManualSupport(obj, new Vector3(0, 0, 2), -Vector3.UnitZ, routeAroundModel: false);
+        // A contact near the plate connects the tip straight to its base: no junction.
+        // (Away from the test triangle so the tip member has clearance.)
+        doc.AddManualSupport(obj, new Vector3(5, 5, 1), -Vector3.UnitZ);
         Assert.Equal(2, doc.Supports.NodeCount);
         Assert.Equal(1, doc.Supports.SegmentCount);
     }
@@ -139,11 +139,12 @@ public class SupportGraphTests
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
         doc.AddObject(obj);
-        doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ, routeAroundModel: false); // tip, junction, base + neck, pillar
+        // Away from the test triangle so the vertical drop is clear: tip, junction, base.
+        doc.AddManualSupport(obj, new Vector3(3, 4, 20), -Vector3.UnitZ);
 
-        // Deleting the pillar strands both remaining fragments (a tipless base, a baseless tip
+        // Deleting the trunk strands both remaining fragments (a tipless base, a baseless tip
         // stub), so residue pruning takes the whole tree in one undoable step.
-        var pillar = doc.Supports.Segments.Single(s => s.Type == SupportSegmentType.Branch);
+        var pillar = doc.Supports.Segments.Single(s => s.Type == SupportSegmentType.Trunk);
         doc.SelectSupportElement(pillar.Id);
         doc.DeleteSupportSelection();
         Assert.Equal(0, doc.Supports.NodeCount);
@@ -190,9 +191,10 @@ public class SupportGraphTests
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
         doc.AddObject(obj);
-        // Blind trees as scaffolding: this test pins down selection semantics, not routing.
-        doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ, routeAroundModel: false);
-        doc.AddManualSupport(obj, new Vector3(10, 0, 20), -Vector3.UnitZ, routeAroundModel: false);
+        // Two routed trees far enough apart that neither branches onto the other's trunk,
+        // and clear of the test triangle so both drops are simple verticals.
+        doc.AddManualSupport(obj, new Vector3(3, 4, 20), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(13, 4, 20), -Vector3.UnitZ);
 
         // Brace the two trees together; the whole-support pick must still stop at the bracing.
         var junctions = doc.Supports.Nodes.Where(n => n.Type == SupportNodeType.Junction).ToList();
@@ -202,9 +204,9 @@ public class SupportGraphTests
         });
 
         var pillar = doc.Supports.SegmentsAt(junctions[0].Id)
-            .Single(s => s.Type == SupportSegmentType.Branch);
+            .Single(s => s.Type == SupportSegmentType.Trunk);
         doc.SelectSupportComponent(pillar.Id);
-        Assert.Equal(5, doc.SupportSelection.Count); // 3 nodes + neck + pillar of one tree only
+        Assert.Equal(5, doc.SupportSelection.Count); // 3 nodes + tip member + trunk of one tree only
         Assert.DoesNotContain(junctions[1].Id, doc.SupportSelection);
 
         // Deleting the whole selection removes one tree and leaves the other intact.
@@ -221,8 +223,7 @@ public class SupportGraphTests
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
         doc.AddObject(obj);
-        // Blind tree as scaffolding: this test pins down tip-move semantics, not routing.
-        doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ, routeAroundModel: false);
+        doc.AddManualSupport(obj, new Vector3(3, 4, 20), -Vector3.UnitZ);
 
         var tip = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip);
         var affected = SupportEditing.AffectedByTipMove(doc.Supports, tip.Id);

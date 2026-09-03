@@ -7,7 +7,7 @@ using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Tests;
 
-/// <summary>T now routes manual supports around the model; Shift+T keeps the blind drop.</summary>
+/// <summary>T routes manual supports around the model; a refused contact adds nothing.</summary>
 public sealed class ManualSupportRoutingTests
 {
     /// <summary>Axis-aligned box mesh with outward faces (soup-welded).</summary>
@@ -64,18 +64,6 @@ public sealed class ManualSupportRoutingTests
         Assert.Equal(RoutingFailureReason.NoClearStep, failureReason);
         Assert.Equal(0, document.Supports.NodeCount);
         Assert.Equal(0, document.Supports.SegmentCount);
-    }
-
-    [Fact]
-    public void ShiftOverrideStillPlacesTheBlindStraightTree()
-    {
-        var (document, box) = FloatingBoxDocument();
-
-        var added = document.AddManualSupport(box, new Vector3(0, 0, 14), Vector3.UnitZ,
-            routeAroundModel: false);
-
-        Assert.True(added);
-        Assert.Equal(3, document.Supports.NodeCount); // tip, junction, base — the old shape
     }
 
     [Fact]
