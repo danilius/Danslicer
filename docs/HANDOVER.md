@@ -5,6 +5,24 @@ supersedes all older state notes below. Read this, then `docs/DESIGN.md` for the
 design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec (updated
 tonight: grid bases, no-shrink bases, mini-supports).
 
+## Addendum 2026-09-03 overnight — queue progress (kept current; RECOVERY: read this + the
+`danslicer-multi-agent-workflow` memory, re-arm the queue monitor AND the hourly
+heartbeat monitor, then resume the review/merge loop)
+
+**main is at `95cb53a`, 324 green tests, pushed. Jobs 001–005 all merged tonight**, in
+order: 001 refusal reasons (`e17e07c`), 002 mini classification — fallback-to-mini off
+by default (`3985f34`), 003 optional base grid + A/B (`80f74fd`; spec amended
+`3e8a86c` — grid now optional, default on; grid-off cuts Drogon refusals 1759→882),
+002b island band hole (`c38a81c`), 004 mode-scoped UI + Support-panel settings
+(`abd071c` — the user's mode-visibility directive is DONE), 005 branch shaping toward
+the Lychee reference + 75° mini lean cap (`95cb53a`; Lychee mined: 174 bases median
+1.44 mm spacing, trunks median 9.68 mm, branches median 5.36 mm ≤45°). **Job 006**
+(support display modes) is IN FLIGHT — its first commit `830fbdb` is RED (its own
+`ContactPointModeSelectsOnlyTipMarkers` fails, flagged in REVIEW.md as a completion
+blocker). Claude merges autonomously overnight; user decisions pending in the morning:
+grid on/off + pitch after screen test, mini/shaping defaults, Qwen lane start (user
+deferred to "later this evening").
+
 ## Addendum 2026-09-03 ~21:30 — ChatGPT overnight queue LIVE
 
 The overnight run is started for ChatGPT (Qwen joins later this evening, per the user).
@@ -39,11 +57,11 @@ micro-commit → brief 18 → brief 17 (`INSTRUCTIONS-17.md`, mode-scoped contro
 user's Layout/Slicing visibility principle) → brief 19 (branch shaping toward the
 Lychee reference, NOT WRITTEN — blocked on the user's grid decision).
 
-**Feature note for later (user, do not brief yet): support display modes** — show just
-contact points; just lines (the old line rendering) for the supports; just tips;
-transparent/ghost supports with or without contact points; Claude's suggestions:
-per-element-type visibility toggles (tips/branches/trunks/bases/minis) and dimmed
-supports outside Support mode. User explicitly invited other suggestions.
+**Support display modes** (user request; BRIEFED overnight as queue job 006 once the
+queue drained) — show just contact points; just lines (the old line rendering); just
+tips; transparent/ghost supports with or without contact points; plus Claude's
+additions: per-element-type visibility toggles and (if cheap) dimmed supports outside
+Support mode.
 
 ## State as of 2026-09-03 ~20:00 — READ THIS SECTION FIRST
 
