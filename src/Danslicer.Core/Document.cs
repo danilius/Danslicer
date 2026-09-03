@@ -12,7 +12,12 @@ using Danslicer.Core.Slicing;
 namespace Danslicer.Core;
 
 public sealed record SupportGenerationSummary(int CandidateCount, int GeneratedTipCount,
-    int UnroutedTipCount);
+    int UnroutedTipCount)
+{
+    /// <summary>Honest routing refusal buckets for diagnostics and live preview feedback.</summary>
+    public IReadOnlyDictionary<RoutingFailureReason, int> RefusalReasons { get; init; } =
+        new Dictionary<RoutingFailureReason, int>();
+}
 public readonly record struct SupportPositionSnapshot(Vector3 Position, Vector3 SurfaceNormal);
 
 public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
@@ -615,7 +620,12 @@ public sealed class Document
             .Select(segment => segment.Clone(Guid.NewGuid(), idMap[segment.NodeA],
                 idMap[segment.NodeB], origin)).ToList();
         var summary = new SupportGenerationSummary(generated.Candidates.Count,
-            nodes.Count(node => node.Type == SupportNodeType.Tip), generated.Routing.UnroutedTips.Count);
+            nodes.Count(node => node.Type == SupportNodeType.Tip), generated.Routing.UnroutedTips.Count)
+        {
+            RefusalReasons = generated.Routing.Failures
+                .GroupBy(failure => failure.Reason)
+                .ToDictionary(group => group.Key, group => group.Count()),
+        };
         return new PreparedSupportGeneration(nodes, segments, summary);
     }
 
