@@ -35,6 +35,14 @@ public sealed class Scene
         return index;
     }
 
+    internal void ReplaceWith(IEnumerable<SceneObject> objects)
+    {
+        foreach (var existing in _objects.ToList())
+            Remove(existing);
+        foreach (var obj in objects)
+            Add(obj);
+    }
+
     public Aabb WorldBounds
     {
         get

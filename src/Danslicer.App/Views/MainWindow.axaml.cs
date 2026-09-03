@@ -7,16 +7,23 @@ using Avalonia.Platform.Storage;
 using Danslicer.App.Controls;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
+using Danslicer.Core.IO;
 
 namespace Danslicer.App.Views;
 
 public partial class MainWindow : Window
 {
+    public ICommand SaveProjectCommand { get; }
+    public ICommand SaveProjectAsCommand { get; }
+    public ICommand OpenProjectCommand { get; }
     public ICommand ImportCommand { get; }
     public ModeScopedCommand ExportCommand { get; }
 
     public MainWindow()
     {
+        SaveProjectCommand = new AsyncRelayCommand(SaveProjectAsync);
+        SaveProjectAsCommand = new AsyncRelayCommand(SaveProjectAsAsync);
+        OpenProjectCommand = new AsyncRelayCommand(OpenProjectAsync);
         ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
         ExportCommand = new ModeScopedCommand(
             new RelayCommand(() => OnExportClick(this, new RoutedEventArgs())),
@@ -34,6 +41,9 @@ public partial class MainWindow : Window
         AddWindowKeyBinding("Ctrl+A", () => ViewModel?.SelectAllCommand);
         AddWindowKeyBinding("Shift+H", () => ViewModel?.HideUnselectedSupportsScopedCommand);
         AddWindowKeyBinding("Ctrl+R", () => ViewModel?.SliceScopedCommand);
+        AddWindowKeyBinding("Ctrl+S", () => SaveProjectCommand);
+        AddWindowKeyBinding("Ctrl+Shift+S", () => SaveProjectAsCommand);
+        AddWindowKeyBinding("Ctrl+O", () => OpenProjectCommand);
         AddWindowKeyBinding("Ctrl+I", () => ImportCommand);
         AddWindowKeyBinding("Ctrl+E", () => ExportCommand);
         AddWindowKeyBinding("Ctrl+OemComma",
@@ -51,6 +61,126 @@ public partial class MainWindow : Window
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
     private ConfigWindow? _configWindow;
+
+    private async Task SaveProjectAsync()
+    {
+        if (ViewModel is not { } vm) return;
+        if (vm.IsGeneratingSupports || vm.IsSlicing)
+        {
+            vm.ViewportStatus = "Wait for the current operation before saving a project.";
+            return;
+        }
+        if (vm.ProjectPath is null)
+        {
+            await SaveProjectAsAsync();
+            return;
+        }
+        try
+        {
+            vm.SaveProject(vm.ProjectPath, CaptureProjectViewState());
+        }
+        catch (Exception ex)
+        {
+            vm.ViewportStatus = $"Save failed: {ex.Message}";
+        }
+    }
+
+    private async Task SaveProjectAsAsync()
+    {
+        if (ViewModel is not { } vm) return;
+        if (vm.IsGeneratingSupports || vm.IsSlicing)
+        {
+            vm.ViewportStatus = "Wait for the current operation before saving a project.";
+            return;
+        }
+        var suggested = vm.ProjectPath is { } current
+            ? System.IO.Path.GetFileName(current)
+            : $"{vm.Document.Scene.Objects.FirstOrDefault()?.Name ?? "project"}.{ProjectFile.Extension}";
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Danslicer project",
+            SuggestedFileName = suggested,
+            DefaultExtension = ProjectFile.Extension,
+            FileTypeChoices =
+            [
+                new FilePickerFileType("Danslicer project")
+                    { Patterns = [$"*.{ProjectFile.Extension}"] },
+            ],
+        });
+        var path = file?.TryGetLocalPath();
+        if (path is null) return;
+        try
+        {
+            vm.SaveProject(path, CaptureProjectViewState());
+        }
+        catch (Exception ex)
+        {
+            vm.ViewportStatus = $"Save failed: {ex.Message}";
+        }
+    }
+
+    private async Task OpenProjectAsync()
+    {
+        if (ViewModel is not { } vm) return;
+        if (vm.IsGeneratingSupports || vm.IsSlicing)
+        {
+            vm.ViewportStatus = "Wait for the current operation before opening a project.";
+            return;
+        }
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open Danslicer project",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Danslicer project")
+                    { Patterns = [$"*.{ProjectFile.Extension}"] },
+                FilePickerFileTypes.All,
+            ],
+        });
+        var path = files.FirstOrDefault()?.TryGetLocalPath();
+        if (path is null) return;
+        try
+        {
+            ApplyProjectViewState(vm.OpenProject(path));
+            Viewport.Focus();
+        }
+        catch (Exception ex)
+        {
+            vm.ViewportStatus = $"Open failed: {ex.Message}";
+        }
+    }
+
+    private ProjectViewState CaptureProjectViewState() => new()
+    {
+        CameraTarget = Viewport.Camera.Target,
+        CameraDistance = Viewport.Camera.Distance,
+        CameraYaw = Viewport.Camera.Yaw,
+        CameraPitch = Viewport.Camera.Pitch,
+        CameraFovDegrees = Viewport.Camera.FovDegrees,
+        CameraOrthographic = Viewport.Camera.Orthographic,
+        WorkspaceMode = ViewModel?.ViewMode ?? WorkspaceMode.Layout,
+    };
+
+    private void ApplyProjectViewState(ProjectViewState state)
+    {
+        var defaults = new ProjectViewState();
+        var camera = Viewport.Camera;
+        camera.Target = IsFinite(state.CameraTarget) ? state.CameraTarget : defaults.CameraTarget;
+        camera.Distance = float.IsFinite(state.CameraDistance)
+            ? Math.Clamp(state.CameraDistance, 1f, 50_000f) : defaults.CameraDistance;
+        camera.Yaw = float.IsFinite(state.CameraYaw) ? state.CameraYaw : defaults.CameraYaw;
+        camera.Pitch = float.IsFinite(state.CameraPitch)
+            ? Math.Clamp(state.CameraPitch, -89.9f * MathF.PI / 180f, 89.9f * MathF.PI / 180f)
+            : defaults.CameraPitch;
+        camera.FovDegrees = float.IsFinite(state.CameraFovDegrees)
+            ? Math.Clamp(state.CameraFovDegrees, 1f, 179f) : defaults.CameraFovDegrees;
+        camera.Orthographic = state.CameraOrthographic;
+        Viewport.RequestRedraw();
+    }
+
+    private static bool IsFinite(System.Numerics.Vector3 value) =>
+        float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
 
     /// <summary>
     /// Registers application shortcuts in one place and lets focused text editors handle the same
@@ -97,6 +227,10 @@ public partial class MainWindow : Window
         _configWindow.Closed += (_, _) => _configWindow = null;
         _configWindow.Show(this);
     }
+
+    private void OnOpenProjectClick(object? sender, RoutedEventArgs e) => OpenProjectCommand.Execute(null);
+    private void OnSaveProjectClick(object? sender, RoutedEventArgs e) => SaveProjectCommand.Execute(null);
+    private void OnSaveProjectAsClick(object? sender, RoutedEventArgs e) => SaveProjectAsCommand.Execute(null);
 
     private async void OnImportClick(object? sender, RoutedEventArgs e)
     {

@@ -95,6 +95,25 @@ public sealed class ProjectFileTests
     }
 
     [Fact]
+    public void ReplacingAnOpenDocumentStartsWithFreshSelectionAndUndoHistory()
+    {
+        var current = CompleteDocument(sharedMesh: false);
+        Assert.True(current.History.CanUndo);
+        Assert.NotEmpty(current.Selection);
+        var replacement = CompleteDocument(sharedMesh: true);
+
+        current.ReplaceWith(replacement);
+
+        Assert.False(current.History.CanUndo);
+        Assert.False(current.History.CanRedo);
+        Assert.Empty(current.Selection);
+        Assert.Empty(current.SupportSelection);
+        Assert.Equal(replacement.Scene.Objects.Select(obj => obj.Id),
+            current.Scene.Objects.Select(obj => obj.Id));
+        AssertGraphEqual(replacement.Supports, current.Supports);
+    }
+
+    [Fact]
     public void GeneratedSupportsSliceToIdenticalRleAfterSaveLoad()
     {
         using var file = new TemporaryProject();
