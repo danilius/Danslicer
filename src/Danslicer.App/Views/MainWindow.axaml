@@ -71,29 +71,29 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="_Import STL..." Click="OnImportClick" InputGesture="Ctrl+I" />
-                <MenuItem Header="_Export Print File..." Click="OnExportClick" InputGesture="Ctrl+E" />
+                <MenuItem Header="_Import STL..." Click="OnImportClick" />
+                <MenuItem Header="_Export Print File..." Click="OnExportClick" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
-                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGesture="Ctrl+Shift+Z" />
+                <MenuItem Header="_Undo" Command="{Binding UndoCommand}" />
+                <MenuItem Header="_Redo" Command="{Binding RedoCommand}" />
                 <Separator />
-                <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" InputGesture="Ctrl+A" />
-                <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" InputGesture="Delete" />
+                <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" />
+                <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" />
                 <Separator />
-                <MenuItem Header="_Preferences..." Click="OnPreferencesClick" InputGesture="Ctrl+OemComma" />
+                <MenuItem Header="_Preferences..." Click="OnPreferencesClick" />
             </MenuItem>
             <MenuItem Header="_Object">
-                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" InputGesture="Ctrl+D" />
+                <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" />
                 <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F" />
                 <Separator />
                 <MenuItem Header="_Hide" Command="{Binding HideCommand}" InputGesture="H" />
-                <MenuItem Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsCommand}" InputGesture="Shift+H" />
+                <MenuItem Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsCommand}" />
                 <MenuItem Header="_Unhide All" Command="{Binding UnhideAllCommand}" InputGesture="Alt+H" />
                 <Separator />
-                <MenuItem Header="_Generate Supports" Command="{Binding GenerateSupportsCommand}" InputGesture="Ctrl+G" />
+                <MenuItem Header="_Generate Supports" Command="{Binding GenerateSupportsCommand}" />
                 <Separator />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
                 <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}" />
@@ -104,8 +104,8 @@
                 <MenuItem Header="Over_hang Tint" ToggleType="CheckBox" IsChecked="{Binding ShowOverhangs, Mode=TwoWay}" />
             </MenuItem>
             <MenuItem Header="_Print">
-                <MenuItem Header="_Slice" Command="{Binding SliceCommand}" InputGesture="Ctrl+R" />
-                <MenuItem Header="_Export Print File..." Click="OnExportClick" InputGesture="Ctrl+E" />
+                <MenuItem Header="_Slice" Command="{Binding SliceCommand}" />
+                <MenuItem Header="_Export Print File..." Click="OnExportClick" />
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Toggle Workspace / _Slicing" Command="{Binding ToggleViewCommand}" InputGesture="Tab" />

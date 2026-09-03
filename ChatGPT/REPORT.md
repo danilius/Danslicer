@@ -28,7 +28,9 @@ Every gesture formerly declared in `MainWindow.axaml` was affected by the same p
 is guarded: Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y, Delete, Ctrl+D, Ctrl+G, Ctrl+A, Shift+H and Ctrl+R. The
 programmatic Ctrl+I, Ctrl+E and Ctrl+, bindings use the same central path as a preventative measure.
 This is especially visible for Ctrl+A, Delete, undo/redo and literal uppercase H entry, but yielding
-all application shortcuts is the consistent rule while a text editor owns focus.
+all application shortcuts is the consistent rule while a text editor owns focus. Duplicate
+`MenuItem.InputGesture` registrations were removed for these centrally registered shortcuts, so
+opening a menu cannot install a second unguarded route.
 
 ### 3. Workspace semantics and owned-support transforms
 
