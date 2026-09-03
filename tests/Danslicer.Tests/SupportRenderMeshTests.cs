@@ -160,6 +160,118 @@ public class SupportRenderMeshTests
     }
 
     [Fact]
+    public void ConeTipRendersFrustumRemainderAndContactSphere()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 10),
+            TipShape = SupportTipShape.Cone, ConeLength = 2f, TipDiameter = 0.4f,
+        };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 5) };
+        graph.AddNode(tip);
+        graph.AddNode(junction);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = 0.8f,
+        });
+
+        var part = Assert.Single(SupportRenderMesh.Build(graph));
+        Assert.Equal(SupportRenderKind.Tip, part.Kind);
+        // Frustum over the cone length, capsule for the remaining 3 mm, contact sphere at the tip.
+        Assert.Equal(SupportRenderMesh.TrianglesPerFrustum + SupportRenderMesh.TrianglesPerCapsule
+            + SupportRenderMesh.TrianglesPerSphere, part.Mesh.TriangleCount);
+        AssertClosed(part.Mesh);
+    }
+
+    [Fact]
+    public void ConeTipBallReplacesTheContactSphere()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 10),
+            TipShape = SupportTipShape.Cone, ConeLength = 2f, TipDiameter = 0.4f,
+            BallDiameter = 1f, PenetrationDepth = 0.2f, SurfaceNormal = Vector3.UnitZ,
+        };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 5) };
+        graph.AddNode(tip);
+        graph.AddNode(junction);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = 0.8f,
+        });
+
+        var mesh = Assert.Single(SupportRenderMesh.Build(graph)).Mesh;
+        // The ball sphere sits at the penetrated contact centre: z = 10 - 0.2, radius 0.5.
+        Assert.Equal(10f - 0.2f + 0.5f, mesh.Bounds.Max.Z, 3);
+    }
+
+    [Fact]
+    public void DiscBaseRendersOneFrustumUnderItsKind()
+    {
+        var graph = new SupportGraph();
+        var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 10) };
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            BaseShape = SupportBaseShape.Disc, BaseDiameter = 4f, BaseHeight = 0.8f,
+        };
+        graph.AddNode(top);
+        graph.AddNode(bottom);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = bottom.Id, Diameter = 1.2f,
+        });
+
+        var parts = SupportRenderMesh.Build(graph);
+        Assert.Equal(2, parts.Count);
+        var basePart = Assert.Single(parts, p => p.Kind == SupportRenderKind.Base);
+        Assert.Equal(SupportRenderMesh.TrianglesPerFrustum, basePart.Mesh.TriangleCount);
+        AssertClosed(basePart.Mesh);
+        Assert.Equal(0f, basePart.Mesh.Bounds.Min.Z, 3);
+        Assert.Equal(0.8f, basePart.Mesh.Bounds.Max.Z, 3);
+        Assert.Equal(2f, basePart.Mesh.Bounds.Max.X, 3);
+    }
+
+    [Fact]
+    public void DiscConeBaseAddsTheConeFrustum()
+    {
+        var graph = new SupportGraph();
+        var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 10) };
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 4f, BaseHeight = 0.8f,
+            BaseConeHeight = 2f,
+        };
+        graph.AddNode(top);
+        graph.AddNode(bottom);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = bottom.Id, Diameter = 1.2f,
+        });
+
+        var basePart = Assert.Single(SupportRenderMesh.Build(graph), p => p.Kind == SupportRenderKind.Base);
+        Assert.Equal(2 * SupportRenderMesh.TrianglesPerFrustum, basePart.Mesh.TriangleCount);
+        AssertClosed(basePart.Mesh);
+        Assert.Equal(2.8f, basePart.Mesh.Bounds.Max.Z, 3);
+    }
+
+    [Fact]
+    public void HiddenBaseNodeRendersNoBase()
+    {
+        var graph = new SupportGraph();
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            BaseShape = SupportBaseShape.Disc, Hidden = true,
+        };
+        graph.AddNode(bottom);
+        Assert.Empty(SupportRenderMesh.Build(graph));
+    }
+
+    [Fact]
     public void LeaningCapsuleStaysClosedAndOutward()
     {
         var graph = new SupportGraph();

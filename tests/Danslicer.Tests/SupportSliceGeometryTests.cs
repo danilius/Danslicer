@@ -59,6 +59,62 @@ public class SupportSliceGeometryTests
         Assert.Equal(2, paths.Count);
     }
 
+    private static SupportGraph TrunkWithBase(SupportBaseShape shape, out SupportNode baseNode)
+    {
+        var graph = new SupportGraph();
+        var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 10) };
+        baseNode = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            BaseShape = shape, BaseDiameter = 4f, BaseHeight = 0.8f, BaseConeHeight = 2f,
+        };
+        graph.AddNode(top);
+        graph.AddNode(baseNode);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = baseNode.Id, Diameter = 1.2f,
+        });
+        return graph;
+    }
+
+    [Fact]
+    public void DiscBaseSlicesToItsFullCircleInsideTheDisc()
+    {
+        var graph = TrunkWithBase(SupportBaseShape.Disc, out _);
+        // Inside the disc the union of trunk circle and disc circle is the disc: radius 2.
+        AssertAreaNear(Math.PI * 4, SupportSliceGeometry.SectionsAt(graph, 0.4));
+        // Above the disc only the trunk remains: radius 0.6 (plus its cap, same circle).
+        AssertAreaNear(Math.PI * 0.36, SupportSliceGeometry.SectionsAt(graph, 5));
+    }
+
+    [Fact]
+    public void DiscConeBaseInterpolatesToTheMemberDiameter()
+    {
+        var graph = TrunkWithBase(SupportBaseShape.DiscCone, out _);
+        // Halfway up the cone (z = 0.8 + 1.0): radius runs 2 -> 0.6, so 1.3 here.
+        AssertAreaNear(Math.PI * 1.3 * 1.3, SupportSliceGeometry.SectionsAt(graph, 1.8));
+        // At the very top of the cone the frustum matches the trunk: radius 0.6.
+        AssertAreaNear(Math.PI * 0.36, SupportSliceGeometry.SectionsAt(graph, 2.8));
+    }
+
+    [Fact]
+    public void BaseShapeNoneSlicesExactlyAsBefore()
+    {
+        var graph = TrunkWithBase(SupportBaseShape.None, out _);
+        var paths = new Paths64();
+        SupportSliceGeometry.CapsuleSection(new Vector3(0, 0, 10), Vector3.Zero, 0.6, 0.4, paths);
+        AssertAreaNear(AreaMm2(paths), SupportSliceGeometry.SectionsAt(graph, 0.4));
+    }
+
+    [Fact]
+    public void DisabledBaseNodeSlicesNoBase()
+    {
+        var graph = TrunkWithBase(SupportBaseShape.Disc, out var baseNode);
+        baseNode.Disabled = true;
+        // The trunk segment touches the disabled node, so nothing slices at all.
+        Assert.Empty(SupportSliceGeometry.SectionsAt(graph, 0.4));
+    }
+
     [Fact]
     public void SlicerUnionsSupportSectionsIntoTheLayers()
     {

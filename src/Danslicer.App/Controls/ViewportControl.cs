@@ -576,6 +576,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private static readonly Vector4 BranchColor = new(0.55f, 0.75f, 0.95f, 0.95f);
     private static readonly Vector4 TrunkColor = new(0.75f, 0.85f, 1f, 0.95f);
     private static readonly Vector4 BracingColor = new(0.5f, 0.9f, 0.6f, 0.95f);
+    private static readonly Vector4 BaseColor = new(0.8f, 0.7f, 0.5f, 0.95f);
     private static readonly Vector4 TipMarkerColor = new(1f, 0.55f, 0.25f, 1f);
 
     private string? TryAddSupport(Vector2 mouse, bool forceStraight = false)
@@ -743,6 +744,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 Danslicer.Core.Supports.SupportRenderKind.Tip => TipColor,
                 Danslicer.Core.Supports.SupportRenderKind.Trunk => TrunkColor,
                 Danslicer.Core.Supports.SupportRenderKind.Bracing => BracingColor,
+                Danslicer.Core.Supports.SupportRenderKind.Base => BaseColor,
                 _ => BranchColor,
             };
             _supportMeshes.Add(new AuxMeshDraw(

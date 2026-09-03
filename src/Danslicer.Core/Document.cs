@@ -416,20 +416,11 @@ public sealed class Document
         // Routing ids are deterministic from the seed. Fresh graph ids allow repeated generation
         // with seed zero while preserving deterministic placement and routing geometry.
         var idMap = generated.Routing.Graph.Nodes.ToDictionary(node => node.Id, _ => Guid.NewGuid());
-        var nodes = generated.Routing.Graph.Nodes.Select(node => new SupportNode
-        {
-            Id = idMap[node.Id], Type = node.Type, Position = node.Position, Origin = origin,
-            Pinned = node.Pinned, Hidden = node.Hidden, Disabled = node.Disabled,
-            SurfaceNormal = node.SurfaceNormal, TipDiameter = node.TipDiameter,
-            PenetrationDepth = node.PenetrationDepth, ContactObjectId = node.ContactObjectId,
-            TipShape = node.TipShape, ConeLength = node.ConeLength, BallDiameter = node.BallDiameter,
-        }).ToList();
-        var segments = generated.Routing.Graph.Segments.Select(segment => new SupportSegment
-        {
-            Id = Guid.NewGuid(), Type = segment.Type, NodeA = idMap[segment.NodeA],
-            NodeB = idMap[segment.NodeB], Diameter = segment.Diameter, Origin = origin,
-            Pinned = segment.Pinned, Hidden = segment.Hidden, Disabled = segment.Disabled,
-        }).ToList();
+        var nodes = generated.Routing.Graph.Nodes
+            .Select(node => node.Clone(idMap[node.Id], origin)).ToList();
+        var segments = generated.Routing.Graph.Segments
+            .Select(segment => segment.Clone(Guid.NewGuid(), idMap[segment.NodeA],
+                idMap[segment.NodeB], origin)).ToList();
         var summary = new SupportGenerationSummary(generated.Candidates.Count,
             nodes.Count(node => node.Type == SupportNodeType.Tip), generated.Routing.UnroutedTips.Count);
         return new PreparedSupportGeneration(nodes, segments, summary);
@@ -443,21 +434,9 @@ public sealed class Document
     {
         var clone = new SupportGraph();
         foreach (var node in source.Nodes)
-            clone.AddNode(new SupportNode
-            {
-                Id = node.Id, Type = node.Type, Position = node.Position, Origin = node.Origin,
-                Pinned = node.Pinned, Hidden = node.Hidden, Disabled = node.Disabled,
-                SurfaceNormal = node.SurfaceNormal, TipDiameter = node.TipDiameter,
-                PenetrationDepth = node.PenetrationDepth, ContactObjectId = node.ContactObjectId,
-                TipShape = node.TipShape, ConeLength = node.ConeLength, BallDiameter = node.BallDiameter,
-            });
+            clone.AddNode(node.Clone());
         foreach (var segment in source.Segments)
-            clone.AddSegment(new SupportSegment
-            {
-                Id = segment.Id, Type = segment.Type, NodeA = segment.NodeA, NodeB = segment.NodeB,
-                Diameter = segment.Diameter, Origin = segment.Origin, Pinned = segment.Pinned,
-                Hidden = segment.Hidden, Disabled = segment.Disabled,
-            });
+            clone.AddSegment(segment.Clone());
         return clone;
     }
 

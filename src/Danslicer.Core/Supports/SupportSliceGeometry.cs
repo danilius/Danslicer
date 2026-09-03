@@ -42,10 +42,40 @@ public static class SupportSliceGeometry
             if (node.TipShape != SupportTipShape.Cone || node.BallDiameter <= 0) continue;
             SphereSection(node.ContactBallCenter, node.BallDiameter * 0.5, z, paths);
         }
+        foreach (var node in graph.Nodes)
+        {
+            if (node.Disabled || node.Type != SupportNodeType.Base) continue;
+            if (node.BaseShape == SupportBaseShape.None) continue;
+            BaseSection(node, MaxIncidentDiameter(graph, node), z, paths);
+        }
         return paths;
     }
 
-    private static bool TryConeTip(SupportNode a, SupportNode b, out SupportNode tip, out SupportNode other)
+    /// <summary>The widest member meeting a node; the top radius of a DiscCone base's cone.</summary>
+    private static float MaxIncidentDiameter(SupportGraph graph, SupportNode node)
+    {
+        var diameter = 0f;
+        foreach (var segment in graph.SegmentsAt(node.Id))
+            if (!segment.Disabled && segment.Diameter > diameter) diameter = segment.Diameter;
+        return diameter;
+    }
+
+    /// <summary>
+    /// Disc (a vertical cylinder of BaseDiameter × BaseHeight rising from the node) and, for
+    /// DiscCone, a frustum from the disc diameter to the member diameter over BaseConeHeight.
+    /// </summary>
+    public static void BaseSection(SupportNode baseNode, float memberDiameter, double z, Paths64 output)
+    {
+        var origin = baseNode.Position;
+        var discTop = origin + Vector3.UnitZ * baseNode.BaseHeight;
+        var discRadius = baseNode.BaseDiameter * 0.5;
+        ConeSection(origin, discTop, discRadius, discRadius, z, output);
+        if (baseNode.BaseShape != SupportBaseShape.DiscCone) return;
+        var coneTop = discTop + Vector3.UnitZ * baseNode.BaseConeHeight;
+        ConeSection(discTop, coneTop, discRadius, memberDiameter * 0.5, z, output);
+    }
+
+    internal static bool TryConeTip(SupportNode a, SupportNode b, out SupportNode tip, out SupportNode other)
     {
         if (a.Type == SupportNodeType.Tip && a.TipShape == SupportTipShape.Cone && a.ConeLength > 0
             && b.Type != SupportNodeType.Tip)
