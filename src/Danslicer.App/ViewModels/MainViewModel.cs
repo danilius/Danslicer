@@ -166,6 +166,9 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel()
     {
+        // Keep the document pointed at the live persisted settings. Each support operation takes
+        // its own value snapshot, so edits affect the next generation/manual placement only.
+        Document.SupportSettings = AppConfig.Current.Supports;
         PrintSettings = new PrintSettingsViewModel(Document);
         Position = MakeAxisFields(UnitKind.Length, "0.###", (t, axis, v) => t with { Translation = SetAxis(t.Translation, axis, (float)v) });
         Rotation = MakeAxisFields(UnitKind.Angle, "0.##", (t, axis, v) => t with { EulerDegrees = SetAxis(t.EulerDegrees, axis, (float)v) });

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Danslicer.Core;
+using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Supports;
@@ -49,6 +50,48 @@ public sealed class ManualSupportRoutingTests
         var bases = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Base).ToList();
         Assert.All(bases, n => Assert.Equal(0f, n.Position.Z, 3));
         Assert.NotEmpty(bases);
+    }
+
+    [Fact]
+    public void RoutedSupportUsesCurrentTipMemberAndBaseSettings()
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig
+        {
+            TipDiameter = 0.6f,
+            ConeLength = 2.7f,
+            BallDiameter = 0.25f,
+            PenetrationDepth = 0.12f,
+            TrunkDiameter = 1.7f,
+            BranchDiameter = 1.4f,
+            MemberAngleDegrees = 40f,
+            TipMemberLength = 3f,
+            MaxBranchLength = 10f,
+            BaseShape = SupportBaseShape.DiscCone,
+            BaseDiameter = 5.5f,
+            BaseHeight = 1.1f,
+            BaseConeHeight = 2.4f,
+        };
+
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+
+        var tip = Assert.Single(document.Supports.Nodes, n => n.Type == SupportNodeType.Tip);
+        Assert.Equal(SupportTipShape.Cone, tip.TipShape);
+        Assert.Equal(0.6f, tip.TipDiameter);
+        Assert.Equal(2.7f, tip.ConeLength);
+        Assert.Equal(0.25f, tip.BallDiameter);
+        Assert.Equal(0.12f, tip.PenetrationDepth);
+        var tipSegment = Assert.Single(document.Supports.Segments,
+            segment => segment.Type == SupportSegmentType.Tip);
+        var junctionId = tipSegment.NodeA == tip.Id ? tipSegment.NodeB : tipSegment.NodeA;
+        Assert.Equal(3f, Vector3.Distance(tip.Position, document.Supports.GetNode(junctionId).Position), 3);
+        Assert.All(document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Trunk),
+            segment => Assert.Equal(1.7f, segment.Diameter));
+        var supportBase = Assert.Single(document.Supports.Nodes, n => n.Type == SupportNodeType.Base);
+        Assert.Equal(SupportBaseShape.DiscCone, supportBase.BaseShape);
+        Assert.Equal(5.5f, supportBase.BaseDiameter);
+        Assert.Equal(1.1f, supportBase.BaseHeight);
+        Assert.Equal(2.4f, supportBase.BaseConeHeight);
     }
 
     [Fact]

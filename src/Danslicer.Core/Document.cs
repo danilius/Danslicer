@@ -17,7 +17,8 @@ public readonly record struct SupportPositionSnapshot(Vector3 Position, Vector3 
 
 public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
 public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot Target,
-    IReadOnlyList<SceneMeshSnapshot> SceneMeshes, SupportGraph ExistingSupports, int Seed);
+    IReadOnlyList<SceneMeshSnapshot> SceneMeshes, SupportGraph ExistingSupports, int Seed,
+    SupportConfig Settings);
 
 /// <summary>
 /// The single model behind the application: scene, selection, printer and undo history.
@@ -34,6 +35,7 @@ public sealed class Document
     public PrintSettings PrintSettings { get; set; } = PrintSettings.Default;
     public PlacementMode PlacementMode { get; set; } = PlacementMode.AutoDrop;
     public float PlacementHeightMm { get; set; }
+    public SupportConfig SupportSettings { get; set; } = new();
 
     public IReadOnlyCollection<SceneObject> Selection => _selection;
 
@@ -387,14 +389,27 @@ public sealed class Document
     private bool TryAddRoutedSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
         out RoutingFailureReason? failureReason)
     {
+        var settings = SupportSettings with { };
         var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
-        var router = new TreeSupportRouter(obstacles, GrowthRuleSet.Default);
-        var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id,
-            TipShape: SupportTipShape.Cone);
+        var rules = GrowthRuleSet.Default;
+        rules.Find<TaperGrowthRule>()!.TipLength = settings.TipMemberLength;
+        var router = new TreeSupportRouter(obstacles, rules);
+        var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
+            TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
+            BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
         var options = new TreeRoutingOptions
         {
+            TrunkDiameter = settings.TrunkDiameter,
+            BranchDiameter = settings.BranchDiameter,
+            MaxMemberAngleDegrees = settings.MemberAngleDegrees,
+            TipMemberLength = settings.TipMemberLength,
+            MaxBranchLength = settings.MaxBranchLength,
+            BaseShape = settings.BaseShape,
+            BaseDiameter = settings.BaseDiameter,
+            BaseHeight = settings.BaseHeight,
+            BaseConeHeight = settings.BaseConeHeight,
             Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
             Origin = SupportOrigin.ManualFor(obj.Id),
         };
@@ -462,7 +477,8 @@ public sealed class Document
     {
         var scene = Scene.Objects.Select(o => new SceneMeshSnapshot(o.Mesh, o.Transform.ToMatrix())).ToList();
         return new SupportGenerationRequest(obj.Id,
-            new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), scene, CloneGraph(Supports), seed);
+            new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), scene, CloneGraph(Supports), seed,
+            SupportSettings with { });
     }
 
     /// <summary>Runs generation using only a captured snapshot; safe to call off the UI thread.</summary>
@@ -483,11 +499,37 @@ public sealed class Document
         var supportObstacles = new LinearCollisionScene();
         supportObstacles.AddSupportGraph(request.ExistingSupports);
         var obstacles = new CompositeCollisionScene(meshes, supportObstacles);
+        var rules = GrowthRuleSet.Default;
+        rules.Find<TaperGrowthRule>()!.TipLength = request.Settings.TipMemberLength;
         // Spec-shaped generation: cone tips on trunk/branch trees with disc bases. The capsule
         // grid/top-down paths remain available through the CLI for comparison.
         var generated = SupportGenerator.GenerateTree(worldMesh, region,
-            TipPlacementParameters.Default with { TipShape = SupportTipShape.Cone },
-            new TreeRoutingOptions { Seed = request.Seed, Origin = origin }, GrowthRuleSet.Default,
+            TipPlacementParameters.Default with
+            {
+                TipDiameterMm = request.Settings.TipDiameter,
+                TipShape = SupportTipShape.Cone,
+                ConeLengthMm = request.Settings.ConeLength,
+                BallDiameterMm = request.Settings.BallDiameter,
+                PenetrationDepthMm = request.Settings.PenetrationDepth,
+                SpacingMm = request.Settings.Spacing,
+                MinSpacingMm = request.Settings.Spacing,
+                OverhangAngleDegrees = request.Settings.OverhangAngleDegrees,
+                MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
+            },
+            new TreeRoutingOptions
+            {
+                TrunkDiameter = request.Settings.TrunkDiameter,
+                BranchDiameter = request.Settings.BranchDiameter,
+                MaxMemberAngleDegrees = request.Settings.MemberAngleDegrees,
+                TipMemberLength = request.Settings.TipMemberLength,
+                MaxBranchLength = request.Settings.MaxBranchLength,
+                BaseShape = request.Settings.BaseShape,
+                BaseDiameter = request.Settings.BaseDiameter,
+                BaseHeight = request.Settings.BaseHeight,
+                BaseConeHeight = request.Settings.BaseConeHeight,
+                Seed = request.Seed,
+                Origin = origin,
+            }, rules,
             obstacles, request.ExistingSupports, seed: request.Seed, progress: progress);
         cancellationToken.ThrowIfCancellationRequested();
 
