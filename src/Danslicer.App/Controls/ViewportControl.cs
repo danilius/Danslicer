@@ -907,7 +907,9 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         var projection = Camera.Orthographic ? "Ortho" : "Persp";
         var snap = SnapEnabled ? "Snap on" : "Snap off";
-        var spaceMouse = _sixAxis is { IsConnected: true } ? " · SpaceMouse" : "";
+        var spaceMouse = _sixAxis is { IsConnected: true }
+            ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
+            : "";
         StatusText = $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · T support · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
     }
 
@@ -952,7 +954,9 @@ public sealed class ViewportControl : OpenGlControlBase
             device.Dispose();
             return;
         }
-        Log("SpaceMouse connected via 3DxWare COM");
+        Log(device.ButtonsConnected
+            ? "SpaceMouse connected via 3DxWare COM, buttons hooked"
+            : "SpaceMouse connected via 3DxWare COM, button events unavailable");
         _sixAxis = device;
         _sixAxisTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(15) };
         _sixAxisTimer.Tick += (_, _) => PollSpaceMouse();
@@ -962,6 +966,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private void PollSpaceMouse()
     {
         if (_sixAxis is null) return;
+        foreach (var press in _sixAxis.DrainButtonPresses()) HandleSpaceMouseButton(press);
         var m = _sixAxis.Poll();
         if (m.IsZero) return;
 
@@ -972,7 +977,8 @@ public sealed class ViewportControl : OpenGlControlBase
         var zoom = SpaceMouseZoomSteps * config.ZoomSensitivity;
 
         var moved = false;
-        if (MathF.Abs(m.Rotation.Y) > deadzone || MathF.Abs(m.Rotation.X) > deadzone)
+        if (!_spaceMouseRotationLock &&
+            (MathF.Abs(m.Rotation.Y) > deadzone || MathF.Abs(m.Rotation.X) > deadzone))
         {
             Camera.Orbit(
                 -m.Rotation.Y * orbit * (config.InvertOrbitYaw ? -1f : 1f),
@@ -993,5 +999,39 @@ public sealed class ViewportControl : OpenGlControlBase
             moved = true;
         }
         if (moved) Redraw();
+    }
+
+    // Locks the device's rotation axes only (3Dconnexion convention); MMB orbit stays available.
+    private bool _spaceMouseRotationLock;
+
+    private void HandleSpaceMouseButton(SixAxisButtonPress press)
+    {
+        Log($"SpaceMouse button {press.Button} (code {press.RawCode})");
+        switch (press.Button)
+        {
+            // Esc mirrors the keyboard's priority chain in OnKeyDown.
+            case SixAxisButton.Escape when _modal is not null && Document is not null:
+                if (_modal.IsActive) { _modal.Cancel(); _gizmoDragging = false; }
+                else if (_tipDrag is not null) CancelTipDrag();
+                else if (_layFlatPick) _layFlatPick = false;
+                else if (Document.SupportSelection.Count > 0) Document.ClearSupportSelection();
+                else Document.ClearSelection();
+                UpdateStatus();
+                break;
+            // View buttons wait out an active modal drag rather than yanking its screen mapping.
+            case SixAxisButton.Fit when _modal is not { IsActive: true }: FrameAll(); break;
+            case SixAxisButton.ViewTop when _modal is not { IsActive: true }: SetView(c => c.ViewTop()); break;
+            case SixAxisButton.ViewBottom when _modal is not { IsActive: true }: SetView(c => c.ViewBottom()); break;
+            case SixAxisButton.ViewLeft when _modal is not { IsActive: true }: SetView(c => c.ViewLeft()); break;
+            case SixAxisButton.ViewRight when _modal is not { IsActive: true }: SetView(c => c.ViewRight()); break;
+            case SixAxisButton.ViewFront when _modal is not { IsActive: true }: SetView(c => c.ViewFront()); break;
+            case SixAxisButton.ViewBack when _modal is not { IsActive: true }: SetView(c => c.ViewBack()); break;
+            case SixAxisButton.RotationLock:
+                _spaceMouseRotationLock = !_spaceMouseRotationLock;
+                UpdateStatus();
+                break;
+            // Menu, digits, ISO, rolls and modifier buttons are unbound for now; the log line
+            // above records what each physical button sends for the on-device test.
+        }
     }
 }
