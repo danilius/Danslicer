@@ -190,6 +190,35 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void RefusedRegularTipsOnlyFallBackToMiniWhenExplicitlyEnabled()
+    {
+        var tips = new[]
+        {
+            // Creates a reachable grid trunk and a branch end at (5, 0, 12).
+            new RoutingTip(new(5, 0, 14), Vector3.UnitZ, 0.4f),
+            // Its own junction cannot reach the 20 mm grid, but its contact can reach that end.
+            new RoutingTip(new(9, 0, 12), Vector3.UnitZ, 0.4f),
+        };
+        var options = new TreeRoutingOptions
+        {
+            BaseGridPitch = 20f,
+            MaxBranchLength = 8f,
+            PreferExistingTrunks = false,
+        };
+
+        var honest = Route(tips, options);
+        var downgraded = Route(tips, options with { RefusedTipsFallBackToMini = true });
+
+        var failure = Assert.Single(honest.Failures);
+        Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason);
+        Assert.DoesNotContain(honest.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+        Assert.Empty(downgraded.Failures);
+        Assert.Single(downgraded.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+    }
+
+    [Fact]
     public void EachMemberUsesItsConfiguredParentDiameter()
     {
         var rules = GrowthRuleSet.Default;

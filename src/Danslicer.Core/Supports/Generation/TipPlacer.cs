@@ -64,6 +64,11 @@ public static class TipPlacer
 
         var miniContactRadius = parameters.MiniSupportTipDiameterMm * 0.5f;
         var miniIslandFloor = MathF.PI * miniContactRadius * miniContactRadius;
+        var requestedMiniMax = float.IsFinite(parameters.MiniIslandMaxAreaMm2)
+            ? MathF.Max(0, parameters.MiniIslandMaxAreaMm2)
+            : TipPlacementParameters.Default.MiniIslandMaxAreaMm2;
+        var miniIslandMax = MathF.Min(parameters.MinIslandAreaMm2,
+            MathF.Max(miniIslandFloor, requestedMiniMax));
         var islandFloor = parameters.EnableMiniSupports
             ? MathF.Min(parameters.MinIslandAreaMm2, miniIslandFloor)
             : parameters.MinIslandAreaMm2;
@@ -121,7 +126,7 @@ public static class TipPlacer
         // displacing ordinary required tips or the main overhang distribution.
         if (parameters.EnableMiniSupports)
         {
-            foreach (var island in islands.Where(i => i.AreaMm2 < parameters.MinIslandAreaMm2))
+            foreach (var island in islands.Where(i => i.AreaMm2 < miniIslandMax))
             {
                 if (!TryProjectToRegion(mesh, bvh, region, island.Centroid, parameters,
                         out var point, out var outward, out var face)) continue;

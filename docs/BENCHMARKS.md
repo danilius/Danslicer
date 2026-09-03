@@ -239,3 +239,35 @@ continues to a plate base (747 bases).
    capped at four per end. Their unrestricted fine-rod direction accounts for max lean above 45°.
 4. Both outputs remain collision-free, and every emitted base is full-size and exactly on the
    plate-origin grid.
+
+---
+
+## 2026-09-03 late night — explicit mini classification, regular fallback disabled
+
+- Branch: `grid-routing-prototype` at `664895f`; regular-tip fallback to mini supports now
+  defaults OFF, while genuine `MiniIsland` contacts still use the mini pass.
+- Config: Debug, net10.0; same machine and single-process conditions as the earlier seated runs.
+- Fresh `tips --seat --json` output was used for each model, followed by
+  `route --seat --strategy tree --json` with defaults. The default mini-island upper bound is
+  0.1 mm², independently configurable from the regular-island threshold.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `tips` | `--seat --json` | 27.156 | 0 | **1961** candidates (Island 639, MiniIsland 492, LocalMinimum 106, Corner 275, Edge 180, Overhang 269) | Candidate classification is bit-identical to the preceding run at the unchanged 0.1 mm² defaults. |
+| drogon | `route` | `--seat --strategy tree --json` | 8.403 | 2 | nodes 393, segs 376 (tip 87, mini-support **115**, branch 87, trunk 87, brace 0), **unrouted 1759 / 1961**, bases 17, max lean 88.8°, collisionFree **true** | Refusals: ContactBlocked 31, NoClearStep 396, NoReachableGridPoint 1085, NoBranchEndInRange 247. |
+| gripper | `tips` | `--seat --json` | 3.121 | 0 | **482** candidates (Island 91, MiniIsland 22, Edge 93, Overhang 276) | Candidate classification is bit-identical to the preceding run at the unchanged 0.1 mm² defaults. |
+| gripper | `route` | `--seat --strategy tree --json` | 0.474 | 2 | nodes 260, segs 243 (tip 79, mini-support **6**, branch 79, trunk 79, brace 0), **unrouted 397 / 482**, bases 17, max lean 45.0°, collisionFree **true** | Refusals: ContactBlocked 6, NoClearStep 35, NoReachableGridPoint 342, NoBranchEndInRange 14. |
+
+### Observations
+
+1. With refused-regular fallback OFF, Drogon mini segments fall **184 → 115 (−69, −37.5%)**
+   and honest refusals rise **1690 → 1759 (+69)**. Gripper mini segments fall
+   **51 → 6 (−45, −88.2%)** and refusals rise **352 → 397 (+45)**. In each case the
+   refusal increase exactly equals the regular contacts no longer downgraded.
+2. The remaining 115 / 6 mini segments originate only from genuine below-threshold fine-island
+   contacts. The input candidate sets and 17 grid bases per model are unchanged, isolating the
+   delta to classification policy rather than placement or base routing.
+3. Both outputs remain collision-free. The refusal breakdown now distinguishes unreachable grid
+   points and mini contacts with no branch end in range from generic routing-step failures.

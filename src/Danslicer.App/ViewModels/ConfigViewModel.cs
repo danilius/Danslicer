@@ -168,6 +168,19 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.MiniSupportMaxFanPerBranchEnd = Math.Clamp(value, 1, 100));
     }
 
+    public bool SupportRefusedTipsFallBackToMini
+    {
+        get => Supports.RefusedTipsFallBackToMini;
+        set => Update(() => Supports.RefusedTipsFallBackToMini = value);
+    }
+
+    public float SupportMiniIslandMaxAreaMm2
+    {
+        get => Supports.MiniIslandMaxAreaMm2;
+        set => Update(() => Supports.MiniIslandMaxAreaMm2 =
+            Clamp(value, 0f, 1_000_000f, 0.1f));
+    }
+
     public float SupportBaseGridPitch
     {
         get => Supports.BaseGridPitch;
