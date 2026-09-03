@@ -15,6 +15,7 @@ public sealed class Document
     private readonly HashSet<SceneObject> _selection = new();
 
     public Scene.Scene Scene { get; } = new();
+    public Supports.SupportGraph Supports { get; } = new();
     public UndoStack History { get; } = new();
     public PrinterDefinition Printer { get; set; } = PrinterDefinition.PhotonMonoX;
     public PrintSettings PrintSettings { get; set; } = PrintSettings.Default;
@@ -28,6 +29,8 @@ public sealed class Document
     public Document()
     {
         History.Changed += () => Changed?.Invoke();
+        Supports.Changed += () => Changed?.Invoke(); // support edits invalidate a stale slice
+
         Scene.ObjectRemoved += obj =>
         {
             if (_selection.Remove(obj)) SelectionChanged?.Invoke();

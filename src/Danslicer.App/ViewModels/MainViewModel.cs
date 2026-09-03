@@ -297,7 +297,7 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token), token);
+            var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token, Document.Supports), token);
             LastSlice = result;
             SliceSummary =
                 $"{result.LayerCount} layers × {settings.LayerHeight:0.###} mm = {result.PrintHeight:0.##} mm\n" +

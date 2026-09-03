@@ -41,15 +41,17 @@ public static class Slicer
     public const int PreviewHeight = 168;
 
     /// <summary>
-    /// Slices all visible objects into layers. Throws if any object sits below the plate or nothing is
-    /// sliceable. Layers are processed in parallel and encoded immediately.
+    /// Slices all visible objects into layers, plus the support graph's analytic sections when one
+    /// is given. Throws if any object sits below the plate or nothing is sliceable. Layers are
+    /// processed in parallel and encoded immediately.
     /// </summary>
     public static SliceResult Slice(
         IEnumerable<SceneObject> objects,
         PrinterDefinition printer,
         PrintSettings settings,
         IProgress<double>? progress = null,
-        CancellationToken cancellation = default)
+        CancellationToken cancellation = default,
+        Supports.SupportGraph? supports = null)
     {
         var prepared = new List<MeshSlicer.PreparedMesh>();
         foreach (var obj in objects)
@@ -61,6 +63,19 @@ public static class Slicer
 
         var minZ = prepared.Min(m => m.MinZ);
         var maxZ = prepared.Max(m => m.MaxZ);
+
+        // Supports extend the print height up to their cap tops; sections below the plate are
+        // simply never sliced (layers start at zero), matching how bases rest on the plate.
+        if (supports is not null)
+        {
+            foreach (var segment in supports.Segments)
+            {
+                if (segment.Disabled) continue;
+                var top = Math.Max(supports.GetNode(segment.NodeA).Position.Z, supports.GetNode(segment.NodeB).Position.Z)
+                          + segment.Diameter * 0.5;
+                if (top > maxZ) maxZ = top;
+            }
+        }
         if (minZ < -1e-3) throw new InvalidOperationException($"Geometry extends {-minZ:0.###} mm below the plate.");
         if (maxZ > printer.BuildVolume.Z + 1e-3) throw new InvalidOperationException($"Geometry exceeds the {printer.BuildVolume.Z} mm build height.");
 
@@ -107,6 +122,8 @@ public static class Slicer
                     MeshSlicer.CollectSegments(prepared[m], buckets[m][i], z, worker.Segments);
 
                 var loops = MeshSlicer.ChainSegments(worker.Segments);
+                if (supports is not null)
+                    loops.AddRange(Supports.SupportSliceGeometry.SectionsAt(supports, z));
                 var polygons = MeshSlicer.Finish(loops, settings.XyCompensation);
                 var lit = worker.Rasterizer.Rasterize(polygons, worker.Pixels);
 
