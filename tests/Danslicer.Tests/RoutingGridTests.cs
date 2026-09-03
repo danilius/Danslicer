@@ -27,7 +27,8 @@ public sealed class RoutingGridTests
     [Fact]
     public void TipsOnSameGridCellShareOneTrunk()
     {
-        var router = new GridSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
+        var rules = GrowthRuleSet.Default;
+        var router = new GridSupportRouter(new LinearCollisionScene(), rules);
         var tips = new[]
         {
             new RoutingTip(new(1, 0, 10), -Vector3.UnitZ, 0.4f),
@@ -38,7 +39,46 @@ public sealed class RoutingGridTests
 
         Assert.Single(result.BasePositions);
         Assert.Equal(2, result.Graph.Nodes.Count(n => n.Type == SupportNodeType.Tip));
-        Assert.Contains(result.Graph.Segments, s => s.Type == SupportSegmentType.Trunk);
+        var trunks = result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Trunk).ToList();
+        Assert.NotEmpty(trunks);
+        Assert.All(trunks,
+            trunk => Assert.Equal(rules.Find<MergeGrowthRule>()!.ResultingTrunkDiameter, trunk.Diameter));
+    }
+
+    [Fact]
+    public void MergeTooCloseBelowLowestTipKeepsPillarDiameter()
+    {
+        var rules = GrowthRuleSet.Default;
+        rules.Find<TaperGrowthRule>()!.NeckLength = 1;
+        rules.Find<MergeGrowthRule>()!.MinHeightAboveTipsToMerge = 2;
+        var router = new GridSupportRouter(new LinearCollisionScene(), rules);
+        var tips = new[]
+        {
+            new RoutingTip(new(0.1f, 0, 3), -Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(0, 0.1f, 3), -Vector3.UnitZ, 0.4f),
+        };
+
+        var result = router.Route(tips, new GridRoutingOptions { Spacing = 5, PillarDiameter = 1.1f });
+
+        var trunks = result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Trunk).ToList();
+        Assert.NotEmpty(trunks);
+        Assert.All(trunks, trunk => Assert.Equal(1.1f, trunk.Diameter));
+    }
+
+    [Fact]
+    public void NeckTaperUsesPillarRatherThanTipDiameter()
+    {
+        var rules = GrowthRuleSet.Default;
+        rules.Find<TaperGrowthRule>()!.TipToPillarDiameterRatio = 0.5f;
+        var router = new GridSupportRouter(new LinearCollisionScene(), rules);
+
+        var result = router.Route(new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.2f) },
+            new GridRoutingOptions { PillarDiameter = 1.2f });
+
+        var neck = Assert.Single(result.Graph.Segments, s => s.Type == SupportSegmentType.Neck);
+        Assert.Equal(0.6f, neck.Diameter, 4);
+        var tip = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Tip);
+        Assert.Equal(Vector3.UnitZ, tip.SurfaceNormal);
     }
 
     [Fact]

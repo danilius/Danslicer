@@ -20,6 +20,8 @@ public sealed class GrowthContext
     public Vector3 End { get; set; }
     public float Diameter { get; set; }
     public float DistanceToTip { get; set; }
+    /// <summary>The lowest tip served by a proposed merge, in world Z.</summary>
+    public float LowestTipZ { get; set; }
     public int ExistingBranchCount { get; set; }
     public int BranchLevel { get; set; }
     public bool Allowed { get; set; } = true;
@@ -119,8 +121,9 @@ public sealed class MergeGrowthRule : IGrowthRule
     public void Evaluate(GrowthContext context)
     {
         if (context.Operation != GrowthOperation.Merge) return;
+        var distanceBelowTips = context.LowestTipZ - context.Start.Z;
         if (Vector2.Distance(new(context.Start.X, context.Start.Y), new(context.DesiredEnd.X, context.DesiredEnd.Y))
-            > TriggerDistance || context.Start.Z < MinHeightAboveTipsToMerge)
+            > TriggerDistance || distanceBelowTips < MinHeightAboveTipsToMerge)
             context.Allowed = false;
         else
             context.Diameter = MathF.Max(context.Diameter, ResultingTrunkDiameter);
