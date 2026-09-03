@@ -111,6 +111,13 @@ public sealed class TopDownSupportRouter
                 lowestTipByNode, generatedCapsules, attachTargets, clearance);
             if (mergeTarget is not null) break;
 
+            var landing = FindLanding(current, options, generatedCapsules, clearance);
+            if (landing is not null)
+            {
+                points.Add(landing.Hit.Point);
+                return new RouteProposal(points, neckDiameter, null, landing);
+            }
+
             var nextZ = MathF.Max(options.PlateZ, current.Z - options.StepHeight);
             var next = FindClearStep(current, nextZ, tip.SurfacePoint, options,
                 generatedCapsules, clearance, angleOffset + step * 0.381966f);
@@ -120,7 +127,47 @@ public sealed class TopDownSupportRouter
         }
 
         if (mergeTarget is null && current.Z > options.PlateZ + Epsilon) return null;
-        return new RouteProposal(points, neckDiameter, mergeTarget);
+        return new RouteProposal(points, neckDiameter, mergeTarget, null);
+    }
+
+    private ModelLanding? FindLanding(Vector3 current, TopDownRoutingOptions options,
+        IReadOnlyList<GeneratedCapsule> generatedCapsules, RoutingClearance clearance)
+    {
+        var landRule = _rules.Find<LandGrowthRule>();
+        if (landRule is not { Enabled: true, AllowLandingOnModel: true }) return null;
+        var maxDistance = MathF.Min(options.StepHeight, current.Z - options.PlateZ);
+        var hit = _obstacles.Raycast(current, -Vector3.UnitZ, maxDistance);
+        if (hit is null || hit.Value.SurfaceNormal.Z <= 0) return null;
+        if (clearance.KeepCleanTags is not null && hit.Value.Tag is not null &&
+            clearance.KeepCleanTags.Contains(hit.Value.Tag)) return null;
+
+        var landingAngle = MathF.Asin(Math.Clamp(hit.Value.SurfaceNormal.Z, 0, 1))
+            * 180 / MathF.PI;
+        if (landingAngle < landRule.MinLandingAngleDegrees) return null;
+        var context = new GrowthContext
+        {
+            Operation = GrowthOperation.Land,
+            Start = current,
+            DesiredEnd = hit.Value.Point,
+            End = hit.Value.Point,
+            Diameter = options.PillarDiameter,
+        };
+        _rules.Evaluate(context);
+        if (!context.Allowed || !context.AllowModelLanding) return null;
+
+        var padDiameter = MathF.Max(options.PillarDiameter, context.LandingPadDiameter);
+        var physicalRadius = padDiameter * 0.5f;
+        var delta = hit.Value.Point - current;
+        var length = delta.Length();
+        var terminalAllowance = physicalRadius * 2 + clearance.ModelDistance + 0.01f;
+        if (length > terminalAllowance)
+        {
+            var clearEnd = hit.Value.Point - delta / length * terminalAllowance;
+            if (!clearance.PillarIsClear(_obstacles, current, clearEnd, physicalRadius)) return null;
+        }
+        if (HitsGenerated(current, hit.Value.Point,
+                physicalRadius + clearance.ModelDistance, generatedCapsules, null)) return null;
+        return new ModelLanding(hit.Value, padDiameter);
     }
 
     private MergeTarget? FindMerge(Vector3 current, float tipZ, TopDownRoutingOptions options,
@@ -269,9 +316,15 @@ public sealed class TopDownSupportRouter
             var isPlate = index == route.Points.Count - 1 && route.MergeTarget is null;
             var node = Node(ids, isPlate ? SupportNodeType.Base : SupportNodeType.Junction,
                 route.Points[index], options.Origin);
+            if (isPlate && route.Landing is not null && route.Landing.Hit.Tag is Guid objectId)
+                node.ContactObjectId = objectId;
             graph.AddNode(node);
             var type = index == 0 ? SupportSegmentType.Neck : SupportSegmentType.Pillar;
-            var diameter = index == 0 ? route.NeckDiameter : options.PillarDiameter;
+            var diameter = index == 0
+                ? route.NeckDiameter
+                : index == route.Points.Count - 1 && route.Landing is not null
+                    ? route.Landing.PadDiameter
+                    : options.PillarDiameter;
             AddSegment(graph, ids, previous, node, type, diameter, options.Origin,
                 generatedCapsules, true, ref maxLean);
             routeNodes.Add(node);
@@ -348,7 +401,8 @@ public sealed class TopDownSupportRouter
     }
 
     private sealed record RouteProposal(IReadOnlyList<Vector3> Points, float NeckDiameter,
-        MergeTarget? MergeTarget);
+        MergeTarget? MergeTarget, ModelLanding? Landing);
+    private sealed record ModelLanding(ObstacleRayHit Hit, float PadDiameter);
     private sealed record MergeTarget(SupportNode Node, bool Existing);
     private sealed record MergeCandidate(SupportNode Node, float LowestTipZ, bool Existing,
         ExistingSupportTarget? Attachment);

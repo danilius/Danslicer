@@ -7,6 +7,33 @@ namespace Danslicer.Tests;
 public sealed class RoutingTopDownTests
 {
     [Fact]
+    public void LandRuleCreatesModelBaseWithConfiguredPadDiameter()
+    {
+        var objectId = Guid.NewGuid();
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-5, -5, 4), new(5, -5, 4), new(5, 5, 4), objectId);
+        scene.AddTriangle(new(-5, -5, 4), new(5, 5, 4), new(-5, 5, 4), objectId);
+        var rules = GrowthRuleSet.Default;
+        var land = rules.Find<LandGrowthRule>()!;
+        land.Enabled = true;
+        land.AllowLandingOnModel = true;
+        land.MinLandingAngleDegrees = 60;
+        land.LandingPadDiameter = 3;
+        var router = new TopDownSupportRouter(scene, rules);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f) },
+            new TopDownRoutingOptions { StepHeight = 2, DetourRings = 0 });
+
+        Assert.Empty(result.UnroutedTips);
+        var modelBase = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Base);
+        Assert.Equal(4, modelBase.Position.Z, 4);
+        Assert.Equal(objectId, modelBase.ContactObjectId);
+        var pad = Assert.Single(result.Graph.SegmentsAt(modelBase.Id));
+        Assert.Equal(3, pad.Diameter);
+    }
+
+    [Fact]
     public void KeepCleanClearanceCanRejectOtherwiseClearPillar()
     {
         var scene = new LinearCollisionScene();

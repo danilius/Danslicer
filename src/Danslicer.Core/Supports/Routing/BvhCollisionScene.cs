@@ -117,6 +117,27 @@ public sealed class BvhCollisionScene : ICollisionScene
         return nearest;
     }
 
+    public ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+        Func<object?, bool>? obstacleFilter = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDistance);
+        if (direction.LengthSquared() <= 1e-12f)
+            throw new ArgumentException("Ray direction must be non-zero.", nameof(direction));
+        direction = Vector3.Normalize(direction);
+        ObstacleRayHit? nearest = null;
+        foreach (var triangle in _triangles)
+        {
+            if (obstacleFilter is not null && !obstacleFilter(triangle.Tag)) continue;
+            if (!GeometryDistance.RaycastTriangle(origin, direction, triangle.A, triangle.B,
+                    triangle.C, out var distance) || distance > maxDistance) continue;
+            if (nearest is not null && nearest.Value.Distance <= distance) continue;
+            var normal = Vector3.Cross(triangle.B - triangle.A, triangle.C - triangle.A);
+            normal = normal.LengthSquared() > 1e-12f ? Vector3.Normalize(normal) : Vector3.UnitZ;
+            nearest = new ObstacleRayHit(origin + direction * distance, normal, distance, triangle.Tag);
+        }
+        return nearest;
+    }
+
     private void EnsureBuilt()
     {
         if (!_dirty) return;

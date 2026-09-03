@@ -6,6 +6,8 @@ namespace Danslicer.Core.Supports.Routing;
 
 /// <summary>The closest obstacle point returned by a collision query.</summary>
 public readonly record struct ObstacleNearestPoint(Vector3 Point, float Distance, object? Tag = null);
+public readonly record struct ObstacleRayHit(
+    Vector3 Point, Vector3 SurfaceNormal, float Distance, object? Tag = null);
 
 /// <summary>
 /// Read-only collision queries used by support routing. A capsule includes both hemispherical
@@ -16,6 +18,8 @@ public interface ICollisionScene
     bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
         Func<object?, bool>? obstacleFilter = null);
     ObstacleNearestPoint? NearestObstacle(Vector3 point, Func<object?, bool>? obstacleFilter = null);
+    ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+        Func<object?, bool>? obstacleFilter = null);
 }
 
 /// <summary>
@@ -112,6 +116,32 @@ public sealed class LinearCollisionScene : ICollisionScene
         }
 
         return nearest;
+    }
+
+    public ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+        Func<object?, bool>? obstacleFilter = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDistance);
+        direction = NormalizeRay(direction);
+        ObstacleRayHit? nearest = null;
+        foreach (var triangle in _triangles)
+        {
+            if (obstacleFilter is not null && !obstacleFilter(triangle.Tag)) continue;
+            if (!GeometryDistance.RaycastTriangle(origin, direction, triangle.A, triangle.B,
+                    triangle.C, out var distance) || distance > maxDistance) continue;
+            if (nearest is not null && nearest.Value.Distance <= distance) continue;
+            var normal = Vector3.Cross(triangle.B - triangle.A, triangle.C - triangle.A);
+            normal = normal.LengthSquared() > 1e-12f ? Vector3.Normalize(normal) : Vector3.UnitZ;
+            nearest = new ObstacleRayHit(origin + direction * distance, normal, distance, triangle.Tag);
+        }
+        return nearest;
+    }
+
+    private static Vector3 NormalizeRay(Vector3 direction)
+    {
+        if (direction.LengthSquared() <= 1e-12f)
+            throw new ArgumentException("Ray direction must be non-zero.", nameof(direction));
+        return Vector3.Normalize(direction);
     }
 
     private static void Consider(Vector3 point, float distance, object? tag,
@@ -256,5 +286,37 @@ internal static class GeometryDistance
         if (v < 0 || u + v > 1) return false;
         var t = inverse * Vector3.Dot(edge2, q);
         return t >= 0 && t <= 1;
+    }
+
+    public static bool RaycastTriangle(Vector3 origin, Vector3 direction,
+        Vector3 a, Vector3 b, Vector3 c, out float distance)
+    {
+        const float epsilon = 1e-7f;
+        var edge1 = b - a;
+        var edge2 = c - a;
+        var h = Vector3.Cross(direction, edge2);
+        var determinant = Vector3.Dot(edge1, h);
+        if (MathF.Abs(determinant) < epsilon)
+        {
+            distance = 0;
+            return false;
+        }
+        var inverse = 1 / determinant;
+        var s = origin - a;
+        var u = inverse * Vector3.Dot(s, h);
+        if (u < 0 || u > 1)
+        {
+            distance = 0;
+            return false;
+        }
+        var q = Vector3.Cross(s, edge1);
+        var v = inverse * Vector3.Dot(direction, q);
+        if (v < 0 || u + v > 1)
+        {
+            distance = 0;
+            return false;
+        }
+        distance = inverse * Vector3.Dot(edge2, q);
+        return distance >= epsilon;
     }
 }
