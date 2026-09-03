@@ -22,8 +22,24 @@ old rows.
 
 ## How to rerun
 
-Debug CLI (`dotnet build -c Debug`). `route` accepts `tips --json` output directly (object
-with `candidates`) as well as the older JSON array.
+Debug CLI (`dotnet build -c Debug`). Run the canonical seated tree-routing matrix with one
+command:
+
+```powershell
+$cli = "src/Danslicer.Cli/bin/Debug/net10.0/Danslicer.Cli.dll"
+dotnet $cli bench --output benchmark-summary.json
+```
+
+`bench` generates fresh seated tips once for each canonical model, routes those candidates with
+the base grid both on and off, writes one structured JSON summary to `--output`, and prints a
+ready-to-paste table using the Results columns below. The JSON and table both include wall times,
+subcommand exit codes, candidate/topology counts, refusal breakdowns, maximum lean and collision
+status. Override either machine-local model path with `--drogon <path>` or `--gripper <path>`.
+Without `--output`, JSON is written to stdout and the table to stderr so stdout can be redirected
+directly to a machine-readable file.
+
+For individual probes, `route` accepts `tips --json` output directly (an object with `candidates`)
+as well as the older JSON array:
 
 ```
 $cli = src/Danslicer.Cli/bin/Debug/net10.0/Danslicer.Cli.dll

@@ -30,6 +30,8 @@ switch (args[0])
         return Danslicer.Cli.ChecksCommand.Run(args.Skip(1).ToArray());
     case "areas":
         return Danslicer.Cli.AreasCommand.Run(args.Skip(1).ToArray());
+    case "bench":
+        return Danslicer.Cli.BenchCommand.Run(args.Skip(1).ToArray());
     default:
         Usage();
         return 1;
@@ -53,6 +55,7 @@ void Usage()
     Console.Error.WriteLine("                   [--support-spacing 1] [--model-clearance 0.5] [--object-spacing 1]");
     Console.Error.WriteLine("  danslicer areas <file.stl|file.obj> [--json] [--seat] [--overhang 45] [--min-area 0.5]");
     Console.Error.WriteLine("                  [--layer 0.05] [--min-island 0.5] [--sharp-edge 30]");
+    Console.Error.WriteLine("  danslicer bench [--drogon <path>] [--gripper <path>] [--output <summary.json>]");
 }
 
 int Info(string[] a)
