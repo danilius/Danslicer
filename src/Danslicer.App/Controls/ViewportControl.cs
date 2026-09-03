@@ -115,6 +115,7 @@ public sealed class ViewportControl : OpenGlControlBase
             {
                 _subscribed.Changed -= Redraw;
                 _subscribed.SelectionChanged -= Redraw;
+                _subscribed.SupportSelectionChanged -= Redraw;
             }
             _subscribed = Document;
             _modal = null;
@@ -122,6 +123,7 @@ public sealed class ViewportControl : OpenGlControlBase
             {
                 _subscribed.Changed += Redraw;
                 _subscribed.SelectionChanged += Redraw;
+                _subscribed.SupportSelectionChanged += Redraw;
                 _modal = new ModalTransform(_subscribed, Camera);
             }
             Redraw();
@@ -313,19 +315,29 @@ public sealed class ViewportControl : OpenGlControlBase
                 }
             }
 
-            var hit = PickObject(m);
+            var hitObj = PickSurface(m, out _, out var surfacePoint, out _);
+            var objDistance = hitObj is null ? float.PositiveInfinity : Vector3.Distance(Camera.Eye, surfacePoint);
+            var support = PickSupportElement(m, out var supportDistance);
             var additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-            if (hit is null)
+            // Support lines are thin, so give them the tie against the surface right behind them.
+            if (support is { } element && supportDistance <= objDistance + 0.5f)
             {
                 if (!additive) Document.ClearSelection();
+                Document.SelectSupportElement(element, additive);
             }
-            else if (additive)
+            else if (hitObj is null)
             {
-                Document.ToggleSelection(hit);
+                if (!additive)
+                {
+                    Document.ClearSelection();
+                    Document.ClearSupportSelection();
+                }
             }
             else
             {
-                Document.Select(hit);
+                if (!additive) Document.ClearSupportSelection();
+                if (additive) Document.ToggleSelection(hitObj);
+                else Document.Select(hitObj);
             }
             e.Handled = true;
         }
@@ -475,17 +487,69 @@ public sealed class ViewportControl : OpenGlControlBase
         return true;
     }
 
-    private void AppendSupportLines(List<OverlayLine> lines)
+    private const float SupportPickRadiusPixels = 8f;
+
+    /// <summary>
+    /// The support element nearest the cursor within the pick radius: tips first (they are small
+    /// and sit on segments), then segments. Returns its camera distance for depth arbitration
+    /// against a surface hit.
+    /// </summary>
+    private Guid? PickSupportElement(Vector2 mouse, out float cameraDistance)
     {
+        cameraDistance = float.PositiveInfinity;
         var supports = Document?.Supports;
-        if (supports is null) return;
+        if (supports is null || supports.NodeCount == 0) return null;
+        var w = (float)Bounds.Width;
+        var h = (float)Bounds.Height;
+        var eye = Camera.Eye;
+
+        Guid? best = null;
+        var bestScore = float.PositiveInfinity;
+        foreach (var node in supports.Nodes)
+        {
+            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip) continue;
+            if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
+            var d = Vector2.Distance(mouse, p);
+            if (d > SupportPickRadiusPixels || d >= bestScore) continue;
+            bestScore = d;
+            best = node.Id;
+            cameraDistance = Vector3.Distance(eye, node.Position);
+        }
+        if (best is not null) return best; // a tip within reach wins over the segment under it
+
         foreach (var segment in supports.Segments)
         {
             if (segment.Hidden) continue;
             var a = supports.GetNode(segment.NodeA);
             var b = supports.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
-            var color = segment.Type switch
+            if (Camera.WorldToScreen(a.Position, w, h) is not { } pa ||
+                Camera.WorldToScreen(b.Position, w, h) is not { } pb) continue;
+            var ab = pb - pa;
+            var len2 = ab.LengthSquared();
+            var t = len2 < 1e-6f ? 0f : Math.Clamp(Vector2.Dot(mouse - pa, ab) / len2, 0f, 1f);
+            var d = Vector2.Distance(mouse, pa + ab * t);
+            if (d > SupportPickRadiusPixels || d >= bestScore) continue;
+            bestScore = d;
+            best = segment.Id;
+            cameraDistance = Vector3.Distance(eye, Vector3.Lerp(a.Position, b.Position, t));
+        }
+        return best;
+    }
+
+    private static readonly Vector4 SupportSelectedColor = new(1f, 1f, 1f, 1f);
+
+    private void AppendSupportLines(List<OverlayLine> lines)
+    {
+        var supports = Document?.Supports;
+        if (Document is null || supports is null) return;
+        foreach (var segment in supports.Segments)
+        {
+            if (segment.Hidden) continue;
+            var a = supports.GetNode(segment.NodeA);
+            var b = supports.GetNode(segment.NodeB);
+            if (a.Hidden || b.Hidden) continue;
+            var color = Document.IsSupportSelected(segment.Id) ? SupportSelectedColor : segment.Type switch
             {
                 Danslicer.Core.Supports.SupportSegmentType.Neck => NeckColor,
                 Danslicer.Core.Supports.SupportSegmentType.Trunk => TrunkColor,
@@ -498,11 +562,12 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var node in supports.Nodes)
         {
             if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip) continue;
+            var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipColor;
             const float s = 0.8f;
             var p = node.Position;
-            lines.Add(new OverlayLine(p - new Vector3(s, 0, 0), p + new Vector3(s, 0, 0), TipColor));
-            lines.Add(new OverlayLine(p - new Vector3(0, s, 0), p + new Vector3(0, s, 0), TipColor));
-            lines.Add(new OverlayLine(p - new Vector3(0, 0, s), p + new Vector3(0, 0, s), TipColor));
+            lines.Add(new OverlayLine(p - new Vector3(s, 0, 0), p + new Vector3(s, 0, 0), color));
+            lines.Add(new OverlayLine(p - new Vector3(0, s, 0), p + new Vector3(0, s, 0), color));
+            lines.Add(new OverlayLine(p - new Vector3(0, 0, s), p + new Vector3(0, 0, s), color));
         }
     }
 
@@ -579,7 +644,9 @@ public sealed class ViewportControl : OpenGlControlBase
                 // Manual support: a vertical tip-neck-pillar-base tree under the cursor.
                 case Key.T when !ctrl: TryAddSupport(mouse); break;
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
+                case Key.Escape when Document.SupportSelection.Count > 0: Document.ClearSupportSelection(); break;
                 case Key.Escape: Document.ClearSelection(); break;
+                case Key.Delete when Document.SupportSelection.Count > 0: Document.DeleteSupportSelection(); break;
                 case Key.Home: FrameAll(); break;
                 case Key.OemPeriod: case Key.Decimal: FrameSelected(); break;
                 case Key.Tab when shift: SnapEnabled = !SnapEnabled; break;

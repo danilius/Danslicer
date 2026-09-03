@@ -131,6 +131,55 @@ public class SupportGraphTests
     }
 
     [Fact]
+    public void DeleteSupportSelectionRemovesElementsUndoably()
+    {
+        var doc = new Danslicer.Core.Document();
+        var mesh = new Danslicer.Core.Geometry.Mesh(
+            new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
+        var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
+        doc.AddObject(obj);
+        doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ); // tip, junction, base + neck, pillar
+
+        // Deleting the selected pillar leaves the nodes in place.
+        var pillar = doc.Supports.Segments.Single(s => s.Type == SupportSegmentType.Pillar);
+        doc.SelectSupportElement(pillar.Id);
+        doc.DeleteSupportSelection();
+        Assert.Equal(3, doc.Supports.NodeCount);
+        Assert.Equal(1, doc.Supports.SegmentCount);
+        Assert.Empty(doc.SupportSelection);
+        doc.Undo();
+        Assert.Equal(2, doc.Supports.SegmentCount);
+
+        // Deleting a selected node takes its segments; undo restores the exact structure.
+        var junction = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Junction);
+        doc.SelectSupportElement(junction.Id);
+        doc.DeleteSupportSelection();
+        Assert.Equal(2, doc.Supports.NodeCount);
+        Assert.Equal(0, doc.Supports.SegmentCount);
+        doc.Undo();
+        Assert.Equal(3, doc.Supports.NodeCount);
+        Assert.Equal(2, doc.Supports.SegmentCount);
+    }
+
+    [Fact]
+    public void SupportSelectionDropsStaleIdsWhenElementsVanish()
+    {
+        var doc = new Danslicer.Core.Document();
+        var mesh = new Danslicer.Core.Geometry.Mesh(
+            new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
+        var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
+        doc.AddObject(obj);
+        doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ);
+
+        var tip = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip);
+        doc.SelectSupportElement(tip.Id);
+        doc.Undo(); // undo the add: the selected element no longer exists
+        Assert.Empty(doc.SupportSelection);
+        doc.DeleteSupportSelection(); // must be a no-op, not a crash
+        Assert.Equal("Add support", doc.History.RedoName); // the undone add is still redoable
+    }
+
+    [Fact]
     public void ChangedFiresOnStructuralEdits()
     {
         var g = new SupportGraph();

@@ -23,14 +23,29 @@ public sealed class Document
 
     public IReadOnlyCollection<SceneObject> Selection => _selection;
 
+    private readonly HashSet<Guid> _supportSelection = new();
+    /// <summary>Selected support element ids; nodes and segments share one id space.</summary>
+    public IReadOnlyCollection<Guid> SupportSelection => _supportSelection;
+
     /// <summary>Raised after any command, undo or redo, and after selection changes.</summary>
     public event Action? Changed;
     public event Action? SelectionChanged;
+    public event Action? SupportSelectionChanged;
 
     public Document()
     {
         History.Changed += () => Changed?.Invoke();
-        Supports.Changed += () => Changed?.Invoke(); // support edits invalidate a stale slice
+        Supports.Changed += () =>
+        {
+            // Drop selection ids whose elements are gone (e.g. after undo of an add).
+            var stale = _supportSelection.Where(id => !Supports.TryGetNode(id, out _) && !Supports.TryGetSegment(id, out _)).ToList();
+            if (stale.Count > 0)
+            {
+                foreach (var id in stale) _supportSelection.Remove(id);
+                SupportSelectionChanged?.Invoke();
+            }
+            Changed?.Invoke(); // support edits invalidate a stale slice
+        };
 
         Scene.ObjectRemoved += obj =>
         {
@@ -74,6 +89,41 @@ public sealed class Document
     }
 
     public bool IsSelected(SceneObject obj) => _selection.Contains(obj);
+
+    public bool IsSupportSelected(Guid id) => _supportSelection.Contains(id);
+
+    public void SelectSupportElement(Guid id, bool additive = false)
+    {
+        if (additive)
+        {
+            if (!_supportSelection.Remove(id)) _supportSelection.Add(id);
+        }
+        else
+        {
+            _supportSelection.Clear();
+            _supportSelection.Add(id);
+        }
+        SupportSelectionChanged?.Invoke();
+    }
+
+    public void ClearSupportSelection()
+    {
+        if (_supportSelection.Count == 0) return;
+        _supportSelection.Clear();
+        SupportSelectionChanged?.Invoke();
+    }
+
+    /// <summary>Deletes the selected support elements; a deleted node takes its segments. One undo step.</summary>
+    public void DeleteSupportSelection()
+    {
+        if (_supportSelection.Count == 0) return;
+        var nodes = _supportSelection.Where(id => Supports.TryGetNode(id, out _)).ToList();
+        var segments = _supportSelection.Where(id => Supports.TryGetSegment(id, out _)).ToList();
+        _supportSelection.Clear();
+        SupportSelectionChanged?.Invoke();
+        if (nodes.Count == 0 && segments.Count == 0) return;
+        Execute(new RemoveSupportElementsCommand(Supports, nodes, segments));
+    }
 
     public void AddObject(SceneObject obj)
     {
