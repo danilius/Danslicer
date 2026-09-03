@@ -56,6 +56,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private bool _gizmoDragging;
     private bool _ctrlHeld;
     private readonly List<OverlayLine> _overlay = new();
+    private readonly List<OverlayLine> _depthOverlay = new();
     private ISixAxisInput? _sixAxis;
     private DispatcherTimer? _sixAxisTimer;
 
@@ -172,6 +173,8 @@ public sealed class ViewportControl : OpenGlControlBase
         var height = Math.Max(1, (int)(Bounds.Height * scaling));
 
         _overlay.Clear();
+        _depthOverlay.Clear();
+        AppendSupportLines(_depthOverlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         UpdateGizmo();
         // Hide the gizmo during keyboard-driven modals; keep it while dragging a handle.
@@ -187,6 +190,7 @@ public sealed class ViewportControl : OpenGlControlBase
             IsSelected = Document.IsSelected,
             Printer = Document.Printer,
             Overlay = _overlay,
+            DepthOverlay = _depthOverlay,
             ShowOverhangs = ShowOverhangs,
         });
     }
@@ -397,9 +401,13 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private SceneObject? PickObject(Vector2 mouse) => PickFace(mouse, out _);
 
-    private SceneObject? PickFace(Vector2 mouse, out int triangle)
+    private SceneObject? PickFace(Vector2 mouse, out int triangle) => PickSurface(mouse, out triangle, out _, out _);
+
+    private SceneObject? PickSurface(Vector2 mouse, out int triangle, out Vector3 worldPoint, out Vector3 worldNormal)
     {
         triangle = -1;
+        worldPoint = default;
+        worldNormal = Vector3.UnitZ;
         if (Document is null) return null;
         var ray = Camera.ScreenToRay(mouse.X, mouse.Y, (float)Bounds.Width, (float)Bounds.Height);
         SceneObject? best = null;
@@ -418,6 +426,12 @@ public sealed class ViewportControl : OpenGlControlBase
                 bestDistance = d;
                 best = obj;
                 triangle = tri;
+                worldPoint = hitWorld;
+                // World normal from transformed edges, so non-uniform scale needs no special case.
+                obj.Mesh.GetTriangle(tri, out var a, out var b, out var c);
+                var wa = Vector3.Transform(a, world);
+                var n = Vector3.Cross(Vector3.Transform(b, world) - wa, Vector3.Transform(c, world) - wa);
+                worldNormal = n.LengthSquared() > 1e-18f ? Vector3.Normalize(n) : Vector3.UnitZ;
             }
         }
         return best;
@@ -442,6 +456,54 @@ public sealed class ViewportControl : OpenGlControlBase
         Document.Select(hit);
         Document.LayFlatOnFace(hit, triangle);
         return true;
+    }
+
+    // ----- Manual supports -----
+
+    private static readonly Vector4 NeckColor = new(1f, 0.85f, 0.3f, 0.95f);
+    private static readonly Vector4 PillarColor = new(0.55f, 0.75f, 0.95f, 0.95f);
+    private static readonly Vector4 TrunkColor = new(0.75f, 0.85f, 1f, 0.95f);
+    private static readonly Vector4 BracingColor = new(0.5f, 0.9f, 0.6f, 0.95f);
+    private static readonly Vector4 TipColor = new(1f, 0.55f, 0.25f, 1f);
+
+    private bool TryAddSupport(Vector2 mouse)
+    {
+        if (Document is null) return false;
+        var hit = PickSurface(mouse, out _, out var point, out var normal);
+        if (hit is null) return false;
+        Document.AddManualSupport(hit, point, normal);
+        return true;
+    }
+
+    private void AppendSupportLines(List<OverlayLine> lines)
+    {
+        var supports = Document?.Supports;
+        if (supports is null) return;
+        foreach (var segment in supports.Segments)
+        {
+            if (segment.Hidden) continue;
+            var a = supports.GetNode(segment.NodeA);
+            var b = supports.GetNode(segment.NodeB);
+            if (a.Hidden || b.Hidden) continue;
+            var color = segment.Type switch
+            {
+                Danslicer.Core.Supports.SupportSegmentType.Neck => NeckColor,
+                Danslicer.Core.Supports.SupportSegmentType.Trunk => TrunkColor,
+                Danslicer.Core.Supports.SupportSegmentType.Bracing => BracingColor,
+                _ => PillarColor,
+            };
+            if (segment.Disabled) color.W = 0.35f;
+            lines.Add(new OverlayLine(a.Position, b.Position, color));
+        }
+        foreach (var node in supports.Nodes)
+        {
+            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip) continue;
+            const float s = 0.8f;
+            var p = node.Position;
+            lines.Add(new OverlayLine(p - new Vector3(s, 0, 0), p + new Vector3(s, 0, 0), TipColor));
+            lines.Add(new OverlayLine(p - new Vector3(0, s, 0), p + new Vector3(0, s, 0), TipColor));
+            lines.Add(new OverlayLine(p - new Vector3(0, 0, s), p + new Vector3(0, 0, s), TipColor));
+        }
     }
 
     // ----- Snapping -----
@@ -514,6 +576,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.F when !ctrl: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
                 case Key.H when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.UnhideAll(); break;
                 case Key.H when !ctrl: Document.HideSelection(); break;
+                // Manual support: a vertical tip-neck-pillar-base tree under the cursor.
+                case Key.T when !ctrl: TryAddSupport(mouse); break;
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
                 case Key.Escape: Document.ClearSelection(); break;
                 case Key.Home: FrameAll(); break;
@@ -562,7 +626,7 @@ public sealed class ViewportControl : OpenGlControlBase
         var projection = Camera.Orthographic ? "Ortho" : "Persp";
         var snap = SnapEnabled ? "Snap on" : "Snap off";
         var spaceMouse = _sixAxis is { IsConnected: true } ? " · SpaceMouse" : "";
-        StatusText = $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
+        StatusText = $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · T support · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)

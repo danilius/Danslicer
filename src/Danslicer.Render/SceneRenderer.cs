@@ -16,6 +16,8 @@ public sealed class RenderFrame
     public required Func<SceneObject, bool> IsSelected { get; init; }
     public required PrinterDefinition Printer { get; init; }
     public IReadOnlyList<OverlayLine> Overlay { get; init; } = Array.Empty<OverlayLine>();
+    /// <summary>Lines drawn with depth testing, so scene geometry occludes them (e.g. supports).</summary>
+    public IReadOnlyList<OverlayLine> DepthOverlay { get; init; } = Array.Empty<OverlayLine>();
     /// <summary>Tint faces that overhang more than <see cref="OverhangAngleDegrees"/> from vertical.</summary>
     public bool ShowOverhangs { get; init; }
     /// <summary>Overhang threshold measured from the vertical wall: 45 tints anything steeper.</summary>
@@ -166,6 +168,7 @@ public sealed class SceneRenderer : IDisposable
         _depthLines.Clear();
         _overlayLines.Clear();
         AddGrid(frame.Printer);
+        foreach (var line in frame.DepthOverlay) _depthLines.Add(line);
         foreach (var line in frame.Overlay) _overlayLines.Add(line);
 
         _lineShader.Use();

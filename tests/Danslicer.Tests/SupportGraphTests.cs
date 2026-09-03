@@ -103,6 +103,34 @@ public class SupportGraphTests
     }
 
     [Fact]
+    public void AddManualSupportBuildsAnUndoableVerticalTree()
+    {
+        var doc = new Danslicer.Core.Document();
+        var mesh = new Danslicer.Core.Geometry.Mesh(
+            new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
+        var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
+        doc.AddObject(obj);
+
+        doc.AddManualSupport(obj, new Vector3(3, 4, 20), -Vector3.UnitZ);
+        Assert.Equal(3, doc.Supports.NodeCount); // tip, junction, base
+        Assert.Equal(2, doc.Supports.SegmentCount); // neck + pillar
+        var tip = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip);
+        Assert.Equal(new Vector3(3, 4, 20), tip.Position);
+        Assert.Equal(obj.Id, tip.ContactObjectId);
+        Assert.Equal(0, doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Base).Position.Z);
+        Assert.Single(doc.Supports.Supports());
+
+        doc.Undo();
+        Assert.Equal(0, doc.Supports.NodeCount);
+        Assert.Equal(0, doc.Supports.SegmentCount);
+
+        // A contact near the plate skips the neck.
+        doc.AddManualSupport(obj, new Vector3(0, 0, 2), -Vector3.UnitZ);
+        Assert.Equal(2, doc.Supports.NodeCount);
+        Assert.Equal(1, doc.Supports.SegmentCount);
+    }
+
+    [Fact]
     public void ChangedFiresOnStructuralEdits()
     {
         var g = new SupportGraph();
