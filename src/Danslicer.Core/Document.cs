@@ -28,7 +28,7 @@ public sealed class Document
     public PrinterDefinition Printer { get; set; } = PrinterDefinition.PhotonMonoX;
     public PrintSettings PrintSettings { get; set; } = PrintSettings.Default;
     public PlacementMode PlacementMode { get; set; } = PlacementMode.AutoDrop;
-    public float PlacementHeightMm { get; set; } = 5f;
+    public float PlacementHeightMm { get; set; }
 
     public IReadOnlyCollection<SceneObject> Selection => _selection;
 

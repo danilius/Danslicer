@@ -27,6 +27,10 @@
 - Model landing is enabled for manual and top-down CLI routing. A landing below the configured preferred angle is accepted
   with a deterministic pad enlargement proportional to the angle shortfall instead of being
   rejected outright; the steep-landing fixture verifies the larger pad.
+- The header now has one `Auto Drop` toggle and an always-editable lowest-point offset. Enabled
+  with offset zero maps to the existing Drop mode, enabled with a positive offset maps to Raise,
+  and disabled maps to Off. Legacy Drop settings migrate to enabled/zero; legacy Raise and Off
+  retain their saved height. Ctrl+D and transform undo behavior are unchanged.
 
 ## Status
 
