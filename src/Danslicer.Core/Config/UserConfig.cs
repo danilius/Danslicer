@@ -216,6 +216,12 @@ public sealed class UserConfig
     public List<SupportPreset> SupportPresets { get; set; } = CreateBuiltInSupportPresets();
     public string ActiveSupportPresetName { get; set; } = CadCleanSupportPresetName;
 
+    /// <summary>
+    /// Window-level shortcut overrides keyed by stable action id. Defaults live in the App layer;
+    /// keeping only differences here makes a fresh keymap empty and lets new defaults flow through.
+    /// </summary>
+    public Dictionary<string, string> KeymapOverrides { get; set; } = new();
+
     /// <summary>Window placements keyed by a stable window name ("main", "preferences").</summary>
     public Dictionary<string, WindowStateConfig> Windows { get; set; } = new();
 
@@ -255,6 +261,7 @@ public sealed class UserConfig
             if (config.Placement.Mode == PlacementMode.AutoDrop)
                 config.Placement.HeightMm = 0;
             config.Windows ??= new Dictionary<string, WindowStateConfig>();
+            config.KeymapOverrides ??= new Dictionary<string, string>();
             return config;
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
