@@ -367,26 +367,16 @@ public sealed class Document
     }
 
     /// <summary>
-    /// Adds a manual support at a picked surface point. By default the support is routed by the
-    /// tree router into the spec anatomy (cone tip, optional branch, vertical trunk, disc base)
-    /// against every object and existing support; returns false when no clear path to the plate
-    /// exists, adding nothing. With <paramref name="routeAroundModel"/> false (the override
-    /// gesture) the old straight vertical tree is placed blindly. One undo step either way.
+    /// Adds a manual support at a picked surface point, routed by the tree router into the spec
+    /// anatomy (cone tip, optional branch, vertical trunk, disc base) against every object and
+    /// existing support; returns false when no clear path to the plate exists, adding nothing.
+    /// One undo step. (The old Shift+T blind straight drop was removed 2026-09-03 at the user's
+    /// request — it had no practical use.)
     /// </summary>
-    public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
-        bool routeAroundModel = true)
-        => AddManualSupport(obj, contact, surfaceNormal, out _, routeAroundModel);
+    public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
+        => AddManualSupport(obj, contact, surfaceNormal, out _);
 
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
-        out RoutingFailureReason? failureReason, bool routeAroundModel = true)
-    {
-        if (routeAroundModel) return TryAddRoutedSupport(obj, contact, surfaceNormal, out failureReason);
-        failureReason = null;
-        AddStraightSupport(obj, contact, surfaceNormal);
-        return true;
-    }
-
-    private bool TryAddRoutedSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
         out RoutingFailureReason? failureReason)
     {
         var settings = SupportSettings with { };
@@ -558,62 +548,6 @@ public sealed class Document
         foreach (var segment in source.Segments)
             clone.AddSegment(segment.Clone());
         return clone;
-    }
-
-    private void AddStraightSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
-    {
-        const float neckLength = 2f;
-        const float neckDiameter = 0.8f;
-        const float pillarDiameter = 1.2f;
-
-        var origin = SupportOrigin.ManualFor(obj.Id);
-        var tip = new SupportNode
-        {
-            Type = SupportNodeType.Tip,
-            Position = contact,
-            SurfaceNormal = surfaceNormal,
-            ContactObjectId = obj.Id,
-            Origin = origin,
-        };
-        var baseNode = new SupportNode
-        {
-            Type = SupportNodeType.Base,
-            Position = contact with { Z = 0 },
-            Origin = origin,
-        };
-
-        var nodes = new List<SupportNode> { tip, baseNode };
-        var segments = new List<SupportSegment>();
-        if (contact.Z > neckLength * 1.5f)
-        {
-            var junction = new SupportNode
-            {
-                Type = SupportNodeType.Junction,
-                Position = contact with { Z = contact.Z - neckLength },
-                Origin = origin,
-            };
-            nodes.Add(junction);
-            segments.Add(new SupportSegment
-            {
-                Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = neckDiameter,
-                Origin = origin,
-            });
-            segments.Add(new SupportSegment
-            {
-                Type = SupportSegmentType.Branch, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
-                Origin = origin,
-            });
-        }
-        else
-        {
-            segments.Add(new SupportSegment
-            {
-                Type = SupportSegmentType.Branch, NodeA = tip.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
-                Origin = origin,
-            });
-        }
-
-        Execute(new AddSupportElementsCommand(Supports, nodes, segments));
     }
 
     /// <summary>Hides the selected objects and deselects them. One undo step.</summary>

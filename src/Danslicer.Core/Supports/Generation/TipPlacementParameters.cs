@@ -24,8 +24,19 @@ public sealed record TipPlacementParameters
     /// </summary>
     public float MinSpacingMm { get; init; } = 2.5f;
 
-    /// <summary>Islands smaller than this are ignored.</summary>
-    public float MinIslandAreaMm2 { get; init; } = 0.5f;
+    /// <summary>
+    /// Islands smaller than this are ignored. 0.1 mm² is ~40 Mono X pixels — small spikes such
+    /// as teeth are real printable features and must be supported (user screen test 2026-09-03:
+    /// the old 0.5 default silently dropped tooth apexes).
+    /// </summary>
+    public float MinIslandAreaMm2 { get; init; } = 0.1f;
+
+    /// <summary>
+    /// Dedup radius between island tips. Every island physically needs its own support — two
+    /// separate islands are disconnected until higher layers join them — so island tips are
+    /// exempt from the general spacing rules and only yield to a tip closer than this.
+    /// </summary>
+    public float IslandSpacingMm { get; init; } = 0.5f;
 
     /// <summary>Layer height used when slicing for islands. Reuses <see cref="Slicing.MeshSlicer"/>.</summary>
     public float LayerHeightMm { get; init; } = 0.05f;
