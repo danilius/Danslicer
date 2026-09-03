@@ -12,6 +12,21 @@ public enum SupportNodeType
     Base,
 }
 
+/// <summary>
+/// How a support meets the plate (user spec 2026-09-03): a disc, a disc with a cone rising to the
+/// member diameter, or nothing (raft, or the pre-spec bare member end). Default None keeps every
+/// existing graph bit-identical.
+/// </summary>
+public enum SupportBaseShape
+{
+    /// <summary>No base geometry: the member ends at the node, as before the spec.</summary>
+    None = 0,
+    /// <summary>A flat disc of <see cref="SupportNode.BaseDiameter"/> and <see cref="SupportNode.BaseHeight"/>.</summary>
+    Disc = 1,
+    /// <summary>The disc plus a cone from the disc diameter to the member diameter over <see cref="SupportNode.BaseConeHeight"/>.</summary>
+    DiscCone = 2,
+}
+
 /// <summary>How a tip meets the model. Defaults to a capsule end so existing graphs slice unchanged.</summary>
 public enum SupportTipShape
 {
@@ -25,15 +40,19 @@ public enum SupportTipShape
     Cone = 1,
 }
 
+/// <summary>
+/// Canonical member vocabulary (user decision 2026-09-03): base / trunk / branch / tip + brace.
+/// The old neck and pillar fold into tip and branch respectively.
+/// </summary>
 public enum SupportSegmentType
 {
-    /// <summary>Tip to first junction. Thin, tapered.</summary>
-    Neck,
-    /// <summary>Ordinary vertical or leaning member.</summary>
-    Pillar,
-    /// <summary>Merged pillar of larger diameter.</summary>
+    /// <summary>Contact member from the tip node to the first junction. Thin, tapered, carries the cone.</summary>
+    Tip,
+    /// <summary>Angled member spanning from a trunk or junction toward a tip.</summary>
+    Branch,
+    /// <summary>Vertical (or merged main) member rising from the base.</summary>
     Trunk,
-    /// <summary>Cross-member between two pillars or trunks. Never part of a whole-support selection.</summary>
+    /// <summary>Cross-member between two trunks or branches. Never part of a whole-support selection.</summary>
     Bracing,
 }
 
@@ -94,6 +113,34 @@ public sealed class SupportNode
     /// </summary>
     public float BallDiameter { get; set; } = 0f;
 
+    // Base-only shape parameters; ignored on tips and junctions.
+    /// <summary>Base geometry at the plate. Default <see cref="SupportBaseShape.None"/> slices as before.</summary>
+    public SupportBaseShape BaseShape { get; set; } = SupportBaseShape.None;
+    /// <summary>Disc diameter, millimetres. Unused when <see cref="BaseShape"/> is None.</summary>
+    public float BaseDiameter { get; set; } = 4f;
+    /// <summary>Disc thickness, millimetres. Unused when <see cref="BaseShape"/> is None.</summary>
+    public float BaseHeight { get; set; } = 0.8f;
+    /// <summary>
+    /// Height of the cone from the disc diameter down to the member diameter, millimetres.
+    /// Used only when <see cref="BaseShape"/> is DiscCone.
+    /// </summary>
+    public float BaseConeHeight { get; set; } = 2f;
+
+    /// <summary>
+    /// A copy of this node with every shape and state field, under a new id when given. The
+    /// single place that must know every field, so copy sites cannot silently drop new ones.
+    /// </summary>
+    public SupportNode Clone(Guid? id = null, SupportOrigin? origin = null) => new()
+    {
+        Id = id ?? Id, Type = Type, Position = Position, Origin = origin ?? Origin,
+        Pinned = Pinned, Hidden = Hidden, Disabled = Disabled,
+        SurfaceNormal = SurfaceNormal, TipDiameter = TipDiameter,
+        PenetrationDepth = PenetrationDepth, ContactObjectId = ContactObjectId,
+        TipShape = TipShape, ConeLength = ConeLength, BallDiameter = BallDiameter,
+        BaseShape = BaseShape, BaseDiameter = BaseDiameter, BaseHeight = BaseHeight,
+        BaseConeHeight = BaseConeHeight,
+    };
+
     /// <summary>
     /// Centre of the optional contact ball: the surface point pushed into the model along the
     /// inward normal by <see cref="PenetrationDepth"/>.
@@ -122,6 +169,15 @@ public sealed class SupportSegment
     public bool Pinned { get; set; }
     public bool Hidden { get; set; }
     public bool Disabled { get; set; }
+
+    /// <summary>A copy of this segment, optionally rewiring ids. See <see cref="SupportNode.Clone"/>.</summary>
+    public SupportSegment Clone(Guid? id = null, Guid? nodeA = null, Guid? nodeB = null,
+        SupportOrigin? origin = null) => new()
+    {
+        Id = id ?? Id, Type = Type, NodeA = nodeA ?? NodeA, NodeB = nodeB ?? NodeB,
+        Diameter = Diameter, Origin = origin ?? Origin, Pinned = Pinned,
+        Hidden = Hidden, Disabled = Disabled,
+    };
 }
 
 /// <summary>

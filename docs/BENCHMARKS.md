@@ -141,3 +141,36 @@ Drogon was also rerun with the same 1113-tip default JSON. Top-down completed in
 landing therefore adds 41 honest refusals (+3.7 percentage points) instead of terminating those
 supports on the model. Nodes rose to 8009 and segments to 7262 because every accepted route now
 continues to a plate base (747 bases).
+
+---
+
+## 2026-09-03 — tree strategy (spec anatomy), seated canonical pair
+
+- Branch: `support-geometry` (TreeSupportRouter: base/trunk/branch/tip per
+  docs/SUPPORT-GEOMETRY-SPEC.md; supports never land on the model).
+- Config: Debug, net10.0; same machine and single-process conditions as the baseline.
+- Same seated tips as the seated matrix (`tips --seat --json`: drogon 1087, gripper 445 —
+  counts reproduced exactly). `route --seat --strategy tree --json`, all defaults
+  (trunk/branch Ø 1.2, member angle 45°, tip member 2 mm, max branch 8 mm, disc bases Ø 4).
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `route` | `--seat --strategy tree --json` | 11.192 | 2 | nodes 2062, segs 1753 (tip 691, branch 443, trunk 619, brace 0), **unrouted 396 / 1087**, bases 309, max lean 45.0°, collisionFree **true** | Refusals: ContactBlocked 113, NoClearStep 283, NoLanding 0. First collision-free Drogon run on any strategy. 691 tips share 309 trunks. |
+| gripper | `route` | `--seat --strategy tree --json` | 0.654 | 2 | nodes 1183, segs 1014 (tip 393, branch 231, trunk 390, brace 0), **unrouted 52 / 445**, bases 169, max lean 45.0°, collisionFree **true** | Refusals: ContactBlocked 1, NoClearStep 51 — the same 52-count as seated top-down, at a ninth of the wall time. 393 tips share 169 trunks. |
+
+### Observations
+
+1. **Anatomy is exactly the spec**: every member is a tip, branch or trunk; trunks are
+   vertical; max lean is exactly the 45° member angle on both models (the step routers
+   recorded 89.4° and 56.5°).
+2. **Collision-free on both models** — the step routers never achieved that on Drogon.
+   Element counts are a third of top-down's (1753 vs 7091 segments on Drogon) because one
+   trunk replaces dozens of 2 mm steps, which is also where the wall-time win comes from.
+3. **Refusal trade**: seated Drogon tree refuses 396 vs top-down's 340. The tree shape is
+   deliberately more rigid (no per-step detouring); ContactBlocked rose 21 → 113 because
+   the tip member insists on the clamped-normal departure fan rather than top-down's wider
+   escape search. Candidates for a later pass, recorded not briefed: a second branch level,
+   and reusing top-down's short-departure fallback for rough contacts.
+4. **Trunk sharing is healthy**: 2.2 tips per base (Drogon), 2.3 (gripper).

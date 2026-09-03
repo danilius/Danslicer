@@ -210,7 +210,7 @@ public sealed class RoutingTopDownTests
         existing.AddNode(top);
         var original = new SupportSegment
         {
-            Type = SupportSegmentType.Pillar,
+            Type = SupportSegmentType.Branch,
             NodeA = bottom.Id,
             NodeB = top.Id,
             Diameter = 1.1f,
@@ -232,7 +232,7 @@ public sealed class RoutingTopDownTests
         Assert.Equal(3, existing.SegmentCount);
         Assert.True(top.Pinned);
         Assert.True(original.Pinned);
-        Assert.Equal(SupportSegmentType.Pillar, original.Type);
+        Assert.Equal(SupportSegmentType.Branch, original.Type);
         Assert.Equal(1.1f, original.Diameter);
         Assert.Contains(existing.SegmentsAt(top.Id), segment => segment.Id != original.Id);
     }
@@ -248,8 +248,8 @@ public sealed class RoutingTopDownTests
         Assert.Empty(result.UnroutedTips);
         Assert.Single(result.BasePositions);
         Assert.Equal(0, result.BasePositions[0].Z);
-        Assert.Single(result.Graph.Segments, segment => segment.Type == SupportSegmentType.Neck);
-        Assert.All(result.Graph.Segments.Where(segment => segment.Type == SupportSegmentType.Pillar),
+        Assert.Single(result.Graph.Segments, segment => segment.Type == SupportSegmentType.Tip);
+        Assert.All(result.Graph.Segments.Where(segment => segment.Type == SupportSegmentType.Branch),
             segment => Assert.InRange(MathF.Abs(result.Graph.GetNode(segment.NodeA).Position.Z -
                                                 result.Graph.GetNode(segment.NodeB).Position.Z), 0.99f, 2.01f));
         Assert.Equal(Vector3.UnitZ,

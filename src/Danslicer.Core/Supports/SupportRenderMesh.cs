@@ -6,10 +6,11 @@ namespace Danslicer.Core.Supports;
 /// <summary>Which colour bucket a render part belongs to. Mirrors the segment taxonomy.</summary>
 public enum SupportRenderKind
 {
-    Neck,
-    Pillar,
+    Tip,
+    Branch,
     Trunk,
     Bracing,
+    Base,
 }
 
 /// <summary>
@@ -39,6 +40,9 @@ public static class SupportRenderMesh
     /// <summary>Triangles emitted for one sphere (zero-length segment), for tests.</summary>
     public static int TrianglesPerSphere => 2 * RadialSegments + (2 * CapStacks - 2) * 2 * RadialSegments;
 
+    /// <summary>Triangles emitted for one flat-capped frustum (or cylinder), for tests.</summary>
+    public static int TrianglesPerFrustum => 4 * RadialSegments;
+
     /// <summary>
     /// Builds render meshes for every visible segment of <paramref name="graph"/>, grouped by
     /// (kind, selected, disabled). <paramref name="isSelected"/> may be null when nothing is.
@@ -56,23 +60,115 @@ public static class SupportRenderMesh
 
             var kind = segment.Type switch
             {
-                SupportSegmentType.Neck => SupportRenderKind.Neck,
+                SupportSegmentType.Tip => SupportRenderKind.Tip,
                 SupportSegmentType.Trunk => SupportRenderKind.Trunk,
                 SupportSegmentType.Bracing => SupportRenderKind.Bracing,
-                _ => SupportRenderKind.Pillar,
+                _ => SupportRenderKind.Branch,
             };
             var disabled = segment.Disabled || a.Disabled || b.Disabled;
             var key = (kind, isSelected?.Invoke(segment.Id) ?? false, disabled);
             if (!builders.TryGetValue(key, out var builder))
                 builders[key] = builder = new MeshBuilder();
 
-            AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
+            if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
+                AppendConeTip(builder, tip, other, segment.Diameter * 0.5f);
+            else
+                AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
+        }
+
+        foreach (var node in graph.Nodes)
+        {
+            if (node.Hidden || node.Type != SupportNodeType.Base) continue;
+            if (node.BaseShape == SupportBaseShape.None) continue;
+            var key = (SupportRenderKind.Base, isSelected?.Invoke(node.Id) ?? false, node.Disabled);
+            if (!builders.TryGetValue(key, out var builder))
+                builders[key] = builder = new MeshBuilder();
+            AppendBase(builder, node, MaxVisibleIncidentDiameter(graph, node));
         }
 
         var parts = new List<SupportRenderPart>(builders.Count);
         foreach (var ((kind, selected, disabled), builder) in builders)
             parts.Add(new SupportRenderPart(builder.ToMesh(), kind, selected, disabled));
         return parts;
+    }
+
+    /// <summary>The widest visible member meeting a node; the top radius of a DiscCone base's cone.</summary>
+    private static float MaxVisibleIncidentDiameter(SupportGraph graph, SupportNode node)
+    {
+        var diameter = 0f;
+        foreach (var segment in graph.SegmentsAt(node.Id))
+            if (!segment.Hidden && segment.Diameter > diameter) diameter = segment.Diameter;
+        return diameter;
+    }
+
+    /// <summary>
+    /// Renders a cone-shaped tip member the same way <see cref="SupportSliceGeometry.ConeTipSection"/>
+    /// slices it: a frustum from the contact diameter to the member diameter over the cone length,
+    /// the member remainder as a capsule, and the contact ball (or a contact-radius sphere) at the tip.
+    /// </summary>
+    public static void AppendConeTip(MeshBuilder builder, SupportNode tip, SupportNode other, float radius)
+    {
+        var contactRadius = MathF.Max(tip.TipDiameter * 0.5f, 0f);
+        var axis = other.Position - tip.Position;
+        var length = axis.Length();
+        var coneLength = Math.Min(Math.Max(tip.ConeLength, 0f), length);
+        if (length < 1e-6f || coneLength <= 0)
+        {
+            AppendCapsule(builder, tip.Position, other.Position, radius);
+            return;
+        }
+
+        var direction = axis / length;
+        var coneBase = tip.Position + direction * coneLength;
+        AppendFrustum(builder, tip.Position, coneBase, contactRadius, radius);
+        if (length - coneLength > 1e-4f)
+            AppendCapsule(builder, coneBase, other.Position, radius);
+        else
+            AppendSphere(builder, other.Position, radius);
+        if (tip.BallDiameter > 0)
+            AppendSphere(builder, tip.ContactBallCenter, tip.BallDiameter * 0.5f);
+        else if (contactRadius > 0)
+            AppendSphere(builder, tip.Position, contactRadius);
+    }
+
+    /// <summary>
+    /// Renders a base: the disc as a flat-capped cylinder rising BaseHeight from the node, and for
+    /// DiscCone a frustum from the disc diameter to the member diameter over BaseConeHeight.
+    /// </summary>
+    public static void AppendBase(MeshBuilder builder, SupportNode baseNode, float memberDiameter)
+    {
+        var origin = baseNode.Position;
+        var discTop = origin + Vector3.UnitZ * baseNode.BaseHeight;
+        var discRadius = baseNode.BaseDiameter * 0.5f;
+        AppendFrustum(builder, origin, discTop, discRadius, discRadius);
+        if (baseNode.BaseShape != SupportBaseShape.DiscCone) return;
+        var coneTop = discTop + Vector3.UnitZ * baseNode.BaseConeHeight;
+        AppendFrustum(builder, discTop, coneTop, discRadius, memberDiameter * 0.5f);
+    }
+
+    /// <summary>
+    /// Appends a closed frustum from <paramref name="a"/> (radius <paramref name="radiusA"/>) to
+    /// <paramref name="b"/> (radius <paramref name="radiusB"/>) with flat fan caps at both ends.
+    /// Equal radii give a cylinder.
+    /// </summary>
+    public static void AppendFrustum(MeshBuilder builder, Vector3 a, Vector3 b,
+        float radiusA, float radiusB)
+    {
+        if (radiusA <= 0 && radiusB <= 0) return;
+        var axis = b - a;
+        var length = axis.Length();
+        if (length < 1e-6f) return;
+
+        var w = axis / length;
+        var (u, v) = OrthonormalFrame(w);
+        var rings = new[]
+        {
+            AddRing(builder, a, u, v, MathF.Max(radiusA, 0f)),
+            AddRing(builder, b, u, v, MathF.Max(radiusB, 0f)),
+        };
+        var bottomPole = builder.AddVertex(a);
+        var topPole = builder.AddVertex(b);
+        StitchShell(builder, rings, bottomPole, topPole);
     }
 
     /// <summary>

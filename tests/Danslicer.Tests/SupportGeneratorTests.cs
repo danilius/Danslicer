@@ -79,7 +79,7 @@ public sealed class SupportGeneratorTests
         Assert.All(tips, t => Assert.Equal(5f, t.Position.Z, 2));
         Assert.All(graph.Nodes.Where(n => n.Type == SupportNodeType.Base),
             n => Assert.Equal(0f, n.Position.Z, 3));
-        Assert.Contains(graph.Segments, s => s.Type == SupportSegmentType.Neck);
+        Assert.Contains(graph.Segments, s => s.Type == SupportSegmentType.Tip);
     }
 
     [Fact]

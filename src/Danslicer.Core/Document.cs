@@ -366,9 +366,9 @@ public sealed class Document
 
     /// <summary>
     /// Adds a manual support at a picked surface point. By default the support is routed by the
-    /// top-down router against every object and existing support, descending within lean limits
-    /// and detouring around obstacles (DESIGN.md §8.6); returns false when no clear path to the
-    /// plate exists, adding nothing. With <paramref name="routeAroundModel"/> false (the override
+    /// tree router into the spec anatomy (cone tip, optional branch, vertical trunk, disc base)
+    /// against every object and existing support; returns false when no clear path to the plate
+    /// exists, adding nothing. With <paramref name="routeAroundModel"/> false (the override
     /// gesture) the old straight vertical tree is placed blindly. One undo step either way.
     /// </summary>
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
@@ -388,12 +388,12 @@ public sealed class Document
         out RoutingFailureReason? failureReason)
     {
         var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
-        var rules = GrowthRuleSet.Default;
-        var router = new TopDownSupportRouter(obstacles, rules);
-        var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id);
+        var router = new TreeSupportRouter(obstacles, GrowthRuleSet.Default);
+        var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id,
+            TipShape: SupportTipShape.Cone);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
-        var options = new TopDownRoutingOptions
+        var options = new TreeRoutingOptions
         {
             Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
             Origin = SupportOrigin.ManualFor(obj.Id),
@@ -406,8 +406,6 @@ public sealed class Document
         }
 
         failureReason = null;
-        // A straight descent emits a junction per step; collapse to the minimal shape.
-        SupportGraphSimplifier.CollapseCollinearJunctions(result.Graph);
         Execute(new AddSupportElementsCommand(Supports,
             result.Graph.Nodes.ToList(), result.Graph.Segments.ToList()));
         return true;
@@ -485,28 +483,22 @@ public sealed class Document
         var supportObstacles = new LinearCollisionScene();
         supportObstacles.AddSupportGraph(request.ExistingSupports);
         var obstacles = new CompositeCollisionScene(meshes, supportObstacles);
-        var generated = SupportGenerator.Generate(worldMesh, region, TipPlacementParameters.Default,
-            new GridRoutingOptions { Seed = request.Seed, Origin = origin }, GrowthRuleSet.Default,
+        // Spec-shaped generation: cone tips on trunk/branch trees with disc bases. The capsule
+        // grid/top-down paths remain available through the CLI for comparison.
+        var generated = SupportGenerator.GenerateTree(worldMesh, region,
+            TipPlacementParameters.Default with { TipShape = SupportTipShape.Cone },
+            new TreeRoutingOptions { Seed = request.Seed, Origin = origin }, GrowthRuleSet.Default,
             obstacles, request.ExistingSupports, seed: request.Seed, progress: progress);
         cancellationToken.ThrowIfCancellationRequested();
 
         // Routing ids are deterministic from the seed. Fresh graph ids allow repeated generation
         // with seed zero while preserving deterministic placement and routing geometry.
         var idMap = generated.Routing.Graph.Nodes.ToDictionary(node => node.Id, _ => Guid.NewGuid());
-        var nodes = generated.Routing.Graph.Nodes.Select(node => new SupportNode
-        {
-            Id = idMap[node.Id], Type = node.Type, Position = node.Position, Origin = origin,
-            Pinned = node.Pinned, Hidden = node.Hidden, Disabled = node.Disabled,
-            SurfaceNormal = node.SurfaceNormal, TipDiameter = node.TipDiameter,
-            PenetrationDepth = node.PenetrationDepth, ContactObjectId = node.ContactObjectId,
-            TipShape = node.TipShape, ConeLength = node.ConeLength, BallDiameter = node.BallDiameter,
-        }).ToList();
-        var segments = generated.Routing.Graph.Segments.Select(segment => new SupportSegment
-        {
-            Id = Guid.NewGuid(), Type = segment.Type, NodeA = idMap[segment.NodeA],
-            NodeB = idMap[segment.NodeB], Diameter = segment.Diameter, Origin = origin,
-            Pinned = segment.Pinned, Hidden = segment.Hidden, Disabled = segment.Disabled,
-        }).ToList();
+        var nodes = generated.Routing.Graph.Nodes
+            .Select(node => node.Clone(idMap[node.Id], origin)).ToList();
+        var segments = generated.Routing.Graph.Segments
+            .Select(segment => segment.Clone(Guid.NewGuid(), idMap[segment.NodeA],
+                idMap[segment.NodeB], origin)).ToList();
         var summary = new SupportGenerationSummary(generated.Candidates.Count,
             nodes.Count(node => node.Type == SupportNodeType.Tip), generated.Routing.UnroutedTips.Count);
         return new PreparedSupportGeneration(nodes, segments, summary);
@@ -520,21 +512,9 @@ public sealed class Document
     {
         var clone = new SupportGraph();
         foreach (var node in source.Nodes)
-            clone.AddNode(new SupportNode
-            {
-                Id = node.Id, Type = node.Type, Position = node.Position, Origin = node.Origin,
-                Pinned = node.Pinned, Hidden = node.Hidden, Disabled = node.Disabled,
-                SurfaceNormal = node.SurfaceNormal, TipDiameter = node.TipDiameter,
-                PenetrationDepth = node.PenetrationDepth, ContactObjectId = node.ContactObjectId,
-                TipShape = node.TipShape, ConeLength = node.ConeLength, BallDiameter = node.BallDiameter,
-            });
+            clone.AddNode(node.Clone());
         foreach (var segment in source.Segments)
-            clone.AddSegment(new SupportSegment
-            {
-                Id = segment.Id, Type = segment.Type, NodeA = segment.NodeA, NodeB = segment.NodeB,
-                Diameter = segment.Diameter, Origin = segment.Origin, Pinned = segment.Pinned,
-                Hidden = segment.Hidden, Disabled = segment.Disabled,
-            });
+            clone.AddSegment(segment.Clone());
         return clone;
     }
 
@@ -573,12 +553,12 @@ public sealed class Document
             nodes.Add(junction);
             segments.Add(new SupportSegment
             {
-                Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = neckDiameter,
+                Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = neckDiameter,
                 Origin = origin,
             });
             segments.Add(new SupportSegment
             {
-                Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
+                Type = SupportSegmentType.Branch, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
                 Origin = origin,
             });
         }
@@ -586,7 +566,7 @@ public sealed class Document
         {
             segments.Add(new SupportSegment
             {
-                Type = SupportSegmentType.Pillar, NodeA = tip.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
+                Type = SupportSegmentType.Branch, NodeA = tip.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
                 Origin = origin,
             });
         }

@@ -43,7 +43,7 @@ public sealed class WorkspaceSelectionTests
         graph.AddNode(outside);
         graph.AddNode(hidden);
         var segment = new SupportSegment
-            { Type = SupportSegmentType.Pillar, NodeA = inside.Id, NodeB = outside.Id };
+            { Type = SupportSegmentType.Branch, NodeA = inside.Id, NodeB = outside.Id };
         graph.AddSegment(segment);
 
         var selected = SupportMarqueeSelection.ElementsInside(graph,
@@ -83,7 +83,7 @@ public sealed class WorkspaceSelectionTests
         var hidden = new SupportNode
             { Type = SupportNodeType.Base, Position = Vector3.UnitZ, Hidden = true };
         var segment = new SupportSegment
-            { Type = SupportSegmentType.Pillar, NodeA = visible.Id, NodeB = hidden.Id };
+            { Type = SupportSegmentType.Branch, NodeA = visible.Id, NodeB = hidden.Id };
         doc.Supports.AddNode(visible);
         doc.Supports.AddNode(hidden);
         doc.Supports.AddSegment(segment);

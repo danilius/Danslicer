@@ -595,11 +595,12 @@ public sealed class ViewportControl : OpenGlControlBase
 
     // ----- Manual supports -----
 
-    private static readonly Vector4 NeckColor = new(1f, 0.85f, 0.3f, 0.95f);
-    private static readonly Vector4 PillarColor = new(0.55f, 0.75f, 0.95f, 0.95f);
+    private static readonly Vector4 TipColor = new(1f, 0.85f, 0.3f, 0.95f);
+    private static readonly Vector4 BranchColor = new(0.55f, 0.75f, 0.95f, 0.95f);
     private static readonly Vector4 TrunkColor = new(0.75f, 0.85f, 1f, 0.95f);
     private static readonly Vector4 BracingColor = new(0.5f, 0.9f, 0.6f, 0.95f);
-    private static readonly Vector4 TipColor = new(1f, 0.55f, 0.25f, 1f);
+    private static readonly Vector4 BaseColor = new(0.8f, 0.7f, 0.5f, 0.95f);
+    private static readonly Vector4 TipMarkerColor = new(1f, 0.55f, 0.25f, 1f);
 
     private string? TryAddSupport(Vector2 mouse, bool forceStraight = false)
     {
@@ -763,10 +764,11 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             var color = part.Selected ? SupportSelectedColor : part.Kind switch
             {
-                Danslicer.Core.Supports.SupportRenderKind.Neck => NeckColor,
+                Danslicer.Core.Supports.SupportRenderKind.Tip => TipColor,
                 Danslicer.Core.Supports.SupportRenderKind.Trunk => TrunkColor,
                 Danslicer.Core.Supports.SupportRenderKind.Bracing => BracingColor,
-                _ => PillarColor,
+                Danslicer.Core.Supports.SupportRenderKind.Base => BaseColor,
+                _ => BranchColor,
             };
             _supportMeshes.Add(new AuxMeshDraw(
                 part.Mesh,
@@ -782,7 +784,7 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var node in supports.Nodes)
         {
             if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip) continue;
-            var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipColor;
+            var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipMarkerColor;
             const float s = 0.8f;
             var p = node.Position;
             lines.Add(new OverlayLine(p - new Vector3(s, 0, 0), p + new Vector3(s, 0, 0), color));

@@ -68,6 +68,18 @@ internal static class RouteCommand
                         Origin = options.Origin,
                     });
             }
+            else if (strategy == "tree")
+            {
+                result = new TreeSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips,
+                    new TreeRoutingOptions
+                    {
+                        TrunkDiameter = options.PillarDiameter,
+                        BranchDiameter = options.PillarDiameter,
+                        PlateZ = options.PlateZ,
+                        Seed = options.Seed,
+                        Origin = options.Origin,
+                    });
+            }
             else
             {
                 result = new GridSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips, options);
@@ -107,8 +119,8 @@ internal static class RouteCommand
         out string strategy)
     {
         strategy = value.ToLowerInvariant();
-        if (strategy is not ("grid" or "topdown"))
-            throw new ArgumentException("strategy must be 'grid' or 'topdown'");
+        if (strategy is not ("grid" or "topdown" or "tree"))
+            throw new ArgumentException("strategy must be 'grid', 'topdown' or 'tree'");
         return options;
     }
 
@@ -155,7 +167,7 @@ internal static class RouteCommand
             var start = graph.GetNode(segment.NodeA).Position;
             var end = graph.GetNode(segment.NodeB).Position;
             var radius = segment.Diameter * 0.5f;
-            if (segment.Type == SupportSegmentType.Neck)
+            if (segment.Type == SupportSegmentType.Tip)
             {
                 var nodeA = graph.GetNode(segment.NodeA);
                 var nodeB = graph.GetNode(segment.NodeB);
@@ -249,7 +261,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 

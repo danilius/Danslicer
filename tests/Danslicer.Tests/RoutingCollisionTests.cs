@@ -127,7 +127,7 @@ public sealed class RoutingCollisionTests
         graph.AddNode(junction);
         graph.AddSegment(new SupportSegment
         {
-            Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
         });
 
         var linear = new LinearCollisionScene();
@@ -161,7 +161,7 @@ public sealed class RoutingCollisionTests
         graph.AddNode(junction);
         graph.AddSegment(new SupportSegment
         {
-            Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = 1.2f,
         });
 
         var scene = new LinearCollisionScene();

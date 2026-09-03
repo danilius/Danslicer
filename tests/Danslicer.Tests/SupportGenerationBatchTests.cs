@@ -77,7 +77,7 @@ public sealed class SupportGenerationBatchTests
         }).ToList();
         var segments = Enumerable.Range(0, count - 1).Select(i => new SupportSegment
         {
-            Type = i == 0 ? SupportSegmentType.Neck : SupportSegmentType.Pillar,
+            Type = i == 0 ? SupportSegmentType.Tip : SupportSegmentType.Branch,
             NodeA = nodes[i].Id,
             NodeB = nodes[i + 1].Id,
         }).ToList();

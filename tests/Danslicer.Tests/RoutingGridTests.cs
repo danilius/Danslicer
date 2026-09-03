@@ -132,7 +132,7 @@ public sealed class RoutingGridTests
         Assert.Equal(3, existing.SegmentCount);
         Assert.True(top.Pinned);
         Assert.True(originalSegment.Pinned);
-        Assert.Equal(SupportSegmentType.Pillar, originalSegment.Type);
+        Assert.Equal(SupportSegmentType.Branch, originalSegment.Type);
         Assert.Equal(1.1f, originalSegment.Diameter);
         Assert.Contains(existing.SegmentsAt(top.Id), segment => segment.Id != originalSegment.Id);
     }
@@ -169,7 +169,7 @@ public sealed class RoutingGridTests
         graph.AddNode(top);
         segment = new SupportSegment
         {
-            Type = SupportSegmentType.Pillar,
+            Type = SupportSegmentType.Branch,
             NodeA = bottom.Id,
             NodeB = top.Id,
             Diameter = 1.1f,
@@ -200,8 +200,8 @@ public sealed class RoutingGridTests
         Assert.Equal(3, result.Graph.NodeCount);
         Assert.Equal(2, result.Graph.SegmentCount);
         Assert.Contains(result.Graph.Nodes, n => n.Type == SupportNodeType.Base && n.Position == Vector3.Zero);
-        Assert.Contains(result.Graph.Segments, s => s.Type == SupportSegmentType.Pillar);
-        Assert.Contains(result.Graph.Segments, s => s.Type == SupportSegmentType.Neck);
+        Assert.Contains(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
+        Assert.Contains(result.Graph.Segments, s => s.Type == SupportSegmentType.Tip);
         Assert.InRange(result.MaxLeanAngleDegrees, 0, 35.001f);
     }
 
@@ -230,7 +230,7 @@ public sealed class RoutingGridTests
     public void MergeTooCloseBelowLowestTipKeepsPillarDiameter()
     {
         var rules = GrowthRuleSet.Default;
-        rules.Find<TaperGrowthRule>()!.NeckLength = 1;
+        rules.Find<TaperGrowthRule>()!.TipLength = 1;
         rules.Find<MergeGrowthRule>()!.MinHeightAboveTipsToMerge = 2;
         var router = new GridSupportRouter(new LinearCollisionScene(), rules);
         var tips = new[]
@@ -256,7 +256,7 @@ public sealed class RoutingGridTests
         var result = router.Route(new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.2f) },
             new GridRoutingOptions { PillarDiameter = 1.2f });
 
-        var neck = Assert.Single(result.Graph.Segments, s => s.Type == SupportSegmentType.Neck);
+        var neck = Assert.Single(result.Graph.Segments, s => s.Type == SupportSegmentType.Tip);
         Assert.Equal(0.6f, neck.Diameter, 4);
         var tip = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Tip);
         Assert.Equal(Vector3.UnitZ, tip.SurfaceNormal);

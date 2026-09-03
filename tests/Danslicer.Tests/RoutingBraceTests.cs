@@ -54,7 +54,7 @@ public sealed class RoutingBraceTests
         graph.AddNode(top);
         graph.AddSegment(new SupportSegment
         {
-            Type = SupportSegmentType.Pillar,
+            Type = SupportSegmentType.Branch,
             NodeA = baseNode.Id,
             NodeB = top.Id,
             Diameter = 1,

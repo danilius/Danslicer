@@ -132,7 +132,7 @@ public sealed class GridSupportRouter
     {
         var taper = new GrowthContext
         {
-            Operation = GrowthOperation.Neck,
+            Operation = GrowthOperation.Tip,
             Start = tip.SurfacePoint,
             DesiredEnd = tip.SurfacePoint,
             End = tip.SurfacePoint,
@@ -140,7 +140,7 @@ public sealed class GridSupportRouter
         };
         _rules.Evaluate(taper);
         neckDiameter = MathF.Max(0.05f, taper.Diameter);
-        var neckDrop = MathF.Max(0.1f, taper.NeckLength);
+        var neckDrop = MathF.Max(0.1f, taper.TipLength);
         junction = tip.SurfacePoint - Vector3.UnitZ * neckDrop;
         if (target.Node.Position.Z >= junction.Z - 1e-5f) return false;
 
@@ -194,9 +194,9 @@ public sealed class GridSupportRouter
         var junction = Node(ids, SupportNodeType.Junction, attachment.Junction, options.Origin);
         graph.AddNode(tipNode);
         graph.AddNode(junction);
-        graph.AddSegment(Segment(ids, SupportSegmentType.Neck, tipNode.Id, junction.Id,
+        graph.AddSegment(Segment(ids, SupportSegmentType.Tip, tipNode.Id, junction.Id,
             attachment.NeckDiameter, options.Origin));
-        graph.AddSegment(Segment(ids, SupportSegmentType.Pillar, junction.Id,
+        graph.AddSegment(Segment(ids, SupportSegmentType.Branch, junction.Id,
             attachment.Target.Node.Id, options.PillarDiameter, options.Origin));
         IncludeLean(tipNode.Position, junction.Position, ref maxLean);
         IncludeLean(junction.Position, attachment.Target.Node.Position, ref maxLean);
@@ -208,7 +208,7 @@ public sealed class GridSupportRouter
     {
         var taper = new GrowthContext
         {
-            Operation = GrowthOperation.Neck,
+            Operation = GrowthOperation.Tip,
             Start = tip.SurfacePoint,
             DesiredEnd = tip.SurfacePoint,
             End = tip.SurfacePoint,
@@ -216,7 +216,7 @@ public sealed class GridSupportRouter
         };
         _rules.Evaluate(taper);
         neckDiameter = MathF.Max(0.05f, taper.Diameter);
-        var neckLength = MathF.Max(0.1f, taper.NeckLength);
+        var neckLength = MathF.Max(0.1f, taper.TipLength);
         var horizontal = Vector2.Distance(new(basePosition.X, basePosition.Y),
             new(tip.SurfacePoint.X, tip.SurfacePoint.Y));
         var junctionXy = horizontal <= options.SnapTolerance
@@ -313,7 +313,7 @@ public sealed class GridSupportRouter
             {
                 junction = Node(ids, SupportNodeType.Junction, route.Junction, options.Origin);
                 graph.AddNode(junction);
-                graph.AddSegment(Segment(ids, shared ? SupportSegmentType.Trunk : SupportSegmentType.Pillar,
+                graph.AddSegment(Segment(ids, shared ? SupportSegmentType.Trunk : SupportSegmentType.Branch,
                     previous.Id, junction.Id, shared ? trunkDiameter : options.PillarDiameter, options.Origin));
                 IncludeLean(previous.Position, junction.Position, ref maxLean);
                 previous = junction;
@@ -323,7 +323,7 @@ public sealed class GridSupportRouter
             // Routing input normals point into the model; graph contact normals point outward.
             RoutingUtilities.ApplyContact(tipNode, route.Tip);
             graph.AddNode(tipNode);
-            graph.AddSegment(Segment(ids, SupportSegmentType.Neck, junction.Id, tipNode.Id,
+            graph.AddSegment(Segment(ids, SupportSegmentType.Tip, junction.Id, tipNode.Id,
                 route.NeckDiameter, options.Origin));
             IncludeLean(junction.Position, tipNode.Position, ref maxLean);
         }

@@ -16,7 +16,7 @@ internal static class ExistingSupportTargets
         {
             var loadBearing = graph.SegmentsAt(node.Id)
                 .Where(segment => !segment.Disabled &&
-                    segment.Type is SupportSegmentType.Pillar or SupportSegmentType.Trunk)
+                    segment.Type is SupportSegmentType.Branch or SupportSegmentType.Trunk)
                 .ToList();
             if (loadBearing.Count == 0 || node.Disabled) continue;
 
