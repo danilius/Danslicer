@@ -43,7 +43,9 @@ all application shortcuts is the consistent rule while a text editor owns focus.
 - `CommitTransform(s)` maps every owned support node from the object's old local space into its new
   world space and records the node positions/normals beside the object transform in one composite
   command. Numeric edits, modal/gizmo commits, explicit drop-to-plate, auto-drop and lay-flat all use
-  that path. Modal previews also carry supports live and cancel restores both object and supports.
+  that path. Explicit drop and lay-flat preserve their exact plate-placement semantics rather than
+  inheriting the configurable automatic offset. Modal previews also carry supports live and cancel
+  restores both object and supports.
 - Bracing between supports owned by one object works automatically because both endpoint nodes move
   through the same mapping. If a brace ever spans objects, each endpoint follows its own owning
   object; moving only one object therefore deforms the cross-object brace rather than moving the
@@ -146,5 +148,5 @@ UI structure.
 ## Verification
 
 - `dotnet build --no-restore`: clean, 0 warnings / 0 errors.
-- `dotnet test --no-restore`: **252 passed** after the final added tests.
+- `dotnet test --no-restore`: **254 passed** after the final added tests.
 - No app launch, per the briefs; progress bar and marquee remain for user screen verification.

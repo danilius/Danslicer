@@ -230,7 +230,7 @@ public sealed class Document
             var after = before with { Translation = before.Translation with { Z = before.Translation.Z - minZ } };
             transforms.Add((o, before, after));
         }
-        if (transforms.Count > 0) CommitTransforms(transforms, "Drop to plate");
+        if (transforms.Count > 0) CommitTransforms(transforms, "Drop to plate", applyPlacement: false);
     }
 
     /// <summary>Re-seats an input transform according to the configured placement mode.</summary>
@@ -253,11 +253,13 @@ public sealed class Document
 
     /// <summary>Commits a requested transform and its automatic placement as one undo step.</summary>
     public void CommitTransform(SceneObject obj, Transform before, Transform requested,
-        string name = "Transform") => CommitTransforms(new[] { (obj, before, requested) }, name);
+        string name = "Transform", bool applyPlacement = true) =>
+        CommitTransforms(new[] { (obj, before, requested) }, name, applyPlacement: applyPlacement);
 
     /// <summary>Multi-object transform commit used by both keyboard and gizmo modal edits.</summary>
     public void CommitTransforms(IEnumerable<(SceneObject Object, Transform Before, Transform Requested)> items,
-        string name = "Transform", IReadOnlyDictionary<Guid, SupportPositionSnapshot>? supportBefore = null)
+        string name = "Transform", IReadOnlyDictionary<Guid, SupportPositionSnapshot>? supportBefore = null,
+        bool applyPlacement = true)
     {
         var itemList = items.ToList();
         supportBefore ??= CaptureAssociatedSupportPositions(itemList.Select(item => item.Object));
@@ -265,7 +267,7 @@ public sealed class Document
         var supportEntries = new List<SetSupportPositionsCommand.Entry>();
         foreach (var (obj, before, requested) in itemList)
         {
-            var after = ApplyPlacement(obj, requested);
+            var after = applyPlacement ? ApplyPlacement(obj, requested) : requested;
             obj.Transform = after;
             if (after == before) continue;
             commands.Add(new SetTransformCommand(obj, before, after, name));
@@ -315,14 +317,18 @@ public sealed class Document
     {
         if (!Matrix4x4.Invert(before.ToMatrix(), out var oldWorldToLocal)) return;
         var worldDelta = oldWorldToLocal * after.ToMatrix();
-        if (!Matrix4x4.Invert(worldDelta, out var inverseDelta)) return;
-        var normalTransform = Matrix4x4.Transpose(inverseDelta);
+        var hasNormalTransform = Matrix4x4.Invert(worldDelta, out var inverseDelta);
+        var normalTransform = hasNormalTransform ? Matrix4x4.Transpose(inverseDelta) : Matrix4x4.Identity;
         foreach (var node in Supports.Nodes)
         {
             if (node.Origin.ObjectId != obj.Id ||
                 !supportBefore.TryGetValue(node.Id, out var snapshot)) continue;
             var position = Vector3.Transform(snapshot.Position, worldDelta);
-            var normal = Vector3.TransformNormal(snapshot.SurfaceNormal, normalTransform);
+            // A zero target scale makes the normal transform undefined, but node positions still
+            // have a well-defined result and must continue to follow the object.
+            var normal = hasNormalTransform
+                ? Vector3.TransformNormal(snapshot.SurfaceNormal, normalTransform)
+                : snapshot.SurfaceNormal;
             if (normal.LengthSquared() > 1e-12f) normal = Vector3.Normalize(normal);
             node.Position = position;
             node.SurfaceNormal = normal;
@@ -706,6 +712,6 @@ public sealed class Document
         after = after with { Translation = after.Translation with { Z = after.Translation.Z - minZ } };
 
         if (after == before) return;
-        CommitTransform(obj, before, after, "Lay flat on face");
+        CommitTransform(obj, before, after, "Lay flat on face", applyPlacement: false);
     }
 }

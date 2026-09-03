@@ -94,6 +94,27 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void ScalingObjectToZeroStillCarriesOwnedSupportPositions()
+    {
+        var doc = new Document { PlacementMode = PlacementMode.Off };
+        var obj = new SceneObject("owned", Box(new(-1), new(1)));
+        doc.AddObject(obj);
+        var node = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = new(3, 2, 1),
+            Origin = SupportOrigin.ManualFor(obj.Id),
+        };
+        doc.Supports.AddNode(node);
+
+        doc.CommitTransform(obj, obj.Transform, obj.Transform with { Scale = Vector3.Zero });
+
+        Assert.Equal(Vector3.Zero, node.Position);
+        doc.Undo();
+        Assert.Equal(new Vector3(3, 2, 1), node.Position);
+    }
+
+    [Fact]
     public void RaiseAndOffModesRespectTheRequestedTransform()
     {
         var doc = new Document();
@@ -112,6 +133,27 @@ public sealed class PlacementAndSupportCommandTests
         requested = before with { Translation = new Vector3(4, 5, 13) };
         doc.CommitTransform(obj, before, requested);
         Assert.Equal(requested, obj.Transform);
+    }
+
+    [Fact]
+    public void ExplicitDropToPlateIgnoresAutomaticPlacementOffset()
+    {
+        var doc = new Document
+        {
+            PlacementMode = PlacementMode.RaiseAbovePlate,
+            PlacementHeightMm = 8,
+        };
+        var obj = new SceneObject("box", Box(new(-1, -1, 0), new(1, 1, 2)))
+        {
+            Transform = Transform.Identity with { Translation = new(0, 0, 5) },
+        };
+        doc.AddObject(obj);
+
+        doc.DropSelectionToPlate();
+
+        Assert.Equal(0f, obj.WorldBounds.Min.Z, 5);
+        doc.Undo();
+        Assert.Equal(5f, obj.WorldBounds.Min.Z, 5);
     }
 
     [Fact]
