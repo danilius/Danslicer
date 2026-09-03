@@ -298,13 +298,19 @@ public sealed class Document
     /// </summary>
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
         bool routeAroundModel = true)
+        => AddManualSupport(obj, contact, surfaceNormal, out _, routeAroundModel);
+
+    public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason, bool routeAroundModel = true)
     {
-        if (routeAroundModel) return TryAddRoutedSupport(obj, contact, surfaceNormal);
+        if (routeAroundModel) return TryAddRoutedSupport(obj, contact, surfaceNormal, out failureReason);
+        failureReason = null;
         AddStraightSupport(obj, contact, surfaceNormal);
         return true;
     }
 
-    private bool TryAddRoutedSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
+    private bool TryAddRoutedSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason)
     {
         var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
         var router = new TopDownSupportRouter(obstacles, GrowthRuleSet.Default);
@@ -316,8 +322,13 @@ public sealed class Document
             Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
         };
         var result = router.Route(new[] { tip }, options);
-        if (result.UnroutedTips.Count > 0) return false;
+        if (result.UnroutedTips.Count > 0)
+        {
+            failureReason = result.Failures.Single().Reason;
+            return false;
+        }
 
+        failureReason = null;
         // A straight descent emits a junction per step; collapse to the minimal shape.
         SupportGraphSimplifier.CollapseCollinearJunctions(result.Graph);
         Execute(new AddSupportElementsCommand(Supports,

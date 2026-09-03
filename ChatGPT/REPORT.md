@@ -9,6 +9,17 @@
 - T-routing refusal text is now applied after the key handler's generic status refresh, so it
   remains visible until the next input/status event instead of being overwritten in the same frame.
 
+## Brief 5 routing diagnosis
+
+- Routing results now retain a reason for every refused tip: `ContactBlocked`, `NoClearStep`,
+  `NoLanding`, or `BelowPlate`. The route CLI prints counts for each reason in text and JSON, and
+  manual placement maps contact blockage to a specific App message.
+- A steep-face fixture reproduces the tooth symptom as `ContactBlocked`: the vertical neck remains
+  inside the sloped contact triangle after the old fixed terminal allowance. A rejected steep model
+  landing is separately classified as `NoLanding`. This confirms neck clearance is the first and
+  dominant failure in the sharper repro, so the fix must change the neck's contact departure rather
+  than merely increase detour sampling.
+
 ## Status
 
 Implemented all four brief-4 items after the required clean fast-forward merge of `main`

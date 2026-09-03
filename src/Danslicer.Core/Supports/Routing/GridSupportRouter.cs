@@ -28,8 +28,19 @@ public sealed record GridRoutingOptions
     public IReadOnlySet<object>? KeepCleanObstacleTags { get; init; }
 }
 
+public enum RoutingFailureReason
+{
+    ContactBlocked,
+    NoClearStep,
+    NoLanding,
+    BelowPlate,
+}
+
+public readonly record struct RoutingFailure(RoutingTip Tip, RoutingFailureReason Reason);
+
 public sealed record RoutingResult(SupportGraph Graph, IReadOnlyList<RoutingTip> UnroutedTips,
-    IReadOnlyList<Vector3> BasePositions, float MaxLeanAngleDegrees);
+    IReadOnlyList<Vector3> BasePositions, float MaxLeanAngleDegrees,
+    IReadOnlyList<RoutingFailure> Failures);
 
 /// <summary>Deterministic grid-bottom-up routing into a new support graph.</summary>
 public sealed class GridSupportRouter
@@ -109,7 +120,8 @@ public sealed class GridSupportRouter
             EmitGroup(graph, group.OrderBy(a => a.Junction.Z).ThenBy(a => a.Index).ToList(),
                 options, ids, bases, ref maxLean);
         }
-        return new RoutingResult(graph, unrouted, bases, maxLean);
+        return new RoutingResult(graph, unrouted, bases, maxLean,
+            unrouted.Select(tip => new RoutingFailure(tip, RoutingFailureReason.NoClearStep)).ToList());
     }
 
     private bool TryExistingProposal(RoutingTip tip, ExistingSupportTarget target,

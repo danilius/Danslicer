@@ -7,6 +7,47 @@ namespace Danslicer.Tests;
 public sealed class RoutingTopDownTests
 {
     [Fact]
+    public void SteepContactReportsContactBlocked()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-1, -5, 6), new(1, -5, 14), new(0, 5, 10));
+        var tip = new RoutingTip(new(0, 0, 10), Vector3.Normalize(new Vector3(4, 0, -1)), 0.4f);
+
+        var result = new TopDownSupportRouter(scene, GrowthRuleSet.Default).Route(
+            new[] { tip }, new TopDownRoutingOptions());
+
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(tip, failure.Tip);
+        Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
+    }
+
+    [Fact]
+    public void RejectedSteepLandingReportsNoLanding()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-5, -5, 2), new(5, -5, 12), new(0, 5, 7));
+        var rules = GrowthRuleSet.Default;
+        rules.Find<LandGrowthRule>()!.Enabled = true;
+        rules.Find<LandGrowthRule>()!.AllowLandingOnModel = true;
+
+        var result = new TopDownSupportRouter(scene, rules).Route(
+            new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f) },
+            new TopDownRoutingOptions { DetourRings = 0 });
+
+        Assert.Equal(RoutingFailureReason.NoLanding, Assert.Single(result.Failures).Reason);
+    }
+
+    [Fact]
+    public void TipAtThePlateReportsBelowPlate()
+    {
+        var result = new TopDownSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default).Route(
+            new[] { new RoutingTip(Vector3.Zero, -Vector3.UnitZ, 0.4f) },
+            new TopDownRoutingOptions());
+
+        Assert.Equal(RoutingFailureReason.BelowPlate, Assert.Single(result.Failures).Reason);
+    }
+
+    [Fact]
     public void LandRuleCreatesModelBaseWithConfiguredPadDiameter()
     {
         var objectId = Guid.NewGuid();

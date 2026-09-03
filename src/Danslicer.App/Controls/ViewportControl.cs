@@ -517,8 +517,11 @@ public sealed class ViewportControl : OpenGlControlBase
         if (Document is null) return null;
         var hit = PickSurface(mouse, out _, out var point, out var normal);
         if (hit is null) return null;
-        if (!Document.AddManualSupport(hit, point, normal, routeAroundModel: !forceStraight))
-            return "Support: no clear path to the plate from here · Shift+T forces a straight drop";
+        if (!Document.AddManualSupport(hit, point, normal, out var reason,
+                routeAroundModel: !forceStraight))
+            return reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
+                ? "Support: contact is too tight to the surface · Shift+T forces a straight drop"
+                : "Support: no clear path to the plate from here · Shift+T forces a straight drop";
         return null;
     }
 

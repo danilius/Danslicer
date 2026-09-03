@@ -141,6 +141,8 @@ internal static class RouteCommand
     {
         Console.WriteLine($"Mesh:           {meshPath}");
         Console.WriteLine($"Tips:           {tipCount} ({result.UnroutedTips.Count} unrouted)");
+        foreach (var reason in Enum.GetValues<RoutingFailureReason>())
+            Console.WriteLine($"  {reason,-14} {result.Failures.Count(failure => failure.Reason == reason)}");
         Console.WriteLine($"Nodes:          {result.Graph.NodeCount}");
         Console.WriteLine($"Segments:       {result.Graph.SegmentCount}");
         foreach (var type in Enum.GetValues<SupportSegmentType>())
@@ -161,6 +163,8 @@ internal static class RouteCommand
             segmentCounts = Enum.GetValues<SupportSegmentType>().ToDictionary(type => type.ToString(),
                 type => result.Graph.Segments.Count(segment => segment.Type == type)),
             unroutedTips = result.UnroutedTips.Count,
+            refusalCounts = Enum.GetValues<RoutingFailureReason>().ToDictionary(reason => reason.ToString(),
+                reason => result.Failures.Count(failure => failure.Reason == reason)),
             bases = result.BasePositions.Select(p => new[] { p.X, p.Y, p.Z }),
             maxLeanAngleDegrees = result.MaxLeanAngleDegrees,
             collisionFree,

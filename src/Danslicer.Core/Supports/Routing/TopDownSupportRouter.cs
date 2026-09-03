@@ -51,6 +51,7 @@ public sealed class TopDownSupportRouter
         var lowestTipByNode = new Dictionary<Guid, float>();
         var generatedCapsules = new List<GeneratedCapsule>();
         var unrouted = new List<RoutingTip>();
+        var failures = new List<RoutingFailure>();
         var maxLean = 0f;
         var angleOffset = new Random(options.Seed).NextSingle() * MathF.Tau;
         var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
@@ -60,10 +61,11 @@ public sealed class TopDownSupportRouter
                      .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
         {
             var proposal = Propose(item.Tip, options, routeNodes, lowestTipByNode,
-                generatedCapsules, attachTargets, clearance, angleOffset);
+                generatedCapsules, attachTargets, clearance, angleOffset, out var failureReason);
             if (proposal is null)
             {
                 unrouted.Add(item.Tip);
+                failures.Add(new RoutingFailure(item.Tip, failureReason));
                 continue;
             }
 
@@ -74,16 +76,21 @@ public sealed class TopDownSupportRouter
         var bases = graph.Nodes.Where(node => node.Type == SupportNodeType.Base)
             .Where(node => !originalNodeIds.Contains(node.Id))
             .Select(node => node.Position).OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
-        return new RoutingResult(graph, unrouted, bases, maxLean);
+        return new RoutingResult(graph, unrouted, bases, maxLean, failures);
     }
 
     private RouteProposal? Propose(RoutingTip tip, TopDownRoutingOptions options,
         IReadOnlyList<SupportNode> routeNodes, IReadOnlyDictionary<Guid, float> lowestTipByNode,
         IReadOnlyList<GeneratedCapsule> generatedCapsules,
         IReadOnlyList<ExistingSupportTarget> attachTargets, RoutingClearance clearance,
-        float angleOffset)
+        float angleOffset, out RoutingFailureReason failureReason)
     {
-        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon) return null;
+        failureReason = RoutingFailureReason.NoClearStep;
+        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
+        {
+            failureReason = RoutingFailureReason.BelowPlate;
+            return null;
+        }
 
         var taper = new GrowthContext
         {
@@ -98,8 +105,12 @@ public sealed class TopDownSupportRouter
         var neckDrop = MathF.Min(MathF.Max(0.1f, taper.NeckLength), tip.SurfacePoint.Z - options.PlateZ);
         var first = tip.SurfacePoint - Vector3.UnitZ * neckDrop;
         var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
-        if (!ContactSegmentIsClear(tip.SurfacePoint, first, neckRadius)) return null;
-        if (HitsGenerated(tip.SurfacePoint, first, neckRadius, generatedCapsules, null)) return null;
+        if (!ContactSegmentIsClear(tip.SurfacePoint, first, neckRadius) ||
+            HitsGenerated(tip.SurfacePoint, first, neckRadius, generatedCapsules, null))
+        {
+            failureReason = RoutingFailureReason.ContactBlocked;
+            return null;
+        }
 
         var points = new List<Vector3> { first };
         MergeTarget? mergeTarget = null;
@@ -111,7 +122,8 @@ public sealed class TopDownSupportRouter
                 lowestTipByNode, generatedCapsules, attachTargets, clearance);
             if (mergeTarget is not null) break;
 
-            var landing = FindLanding(current, options, generatedCapsules, clearance);
+            var landing = FindLanding(current, options, generatedCapsules, clearance,
+                out var landingRejected);
             if (landing is not null)
             {
                 points.Add(landing.Hit.Point);
@@ -121,7 +133,13 @@ public sealed class TopDownSupportRouter
             var nextZ = MathF.Max(options.PlateZ, current.Z - options.StepHeight);
             var next = FindClearStep(current, nextZ, tip.SurfacePoint, options,
                 generatedCapsules, clearance, angleOffset + step * 0.381966f);
-            if (next is null) return null;
+            if (next is null)
+            {
+                failureReason = landingRejected
+                    ? RoutingFailureReason.NoLanding
+                    : RoutingFailureReason.NoClearStep;
+                return null;
+            }
             current = next.Value;
             points.Add(current);
         }
@@ -131,13 +149,16 @@ public sealed class TopDownSupportRouter
     }
 
     private ModelLanding? FindLanding(Vector3 current, TopDownRoutingOptions options,
-        IReadOnlyList<GeneratedCapsule> generatedCapsules, RoutingClearance clearance)
+        IReadOnlyList<GeneratedCapsule> generatedCapsules, RoutingClearance clearance,
+        out bool rejected)
     {
+        rejected = false;
         var landRule = _rules.Find<LandGrowthRule>();
         if (landRule is not { Enabled: true, AllowLandingOnModel: true }) return null;
         var maxDistance = MathF.Min(options.StepHeight, current.Z - options.PlateZ);
         var hit = _obstacles.Raycast(current, -Vector3.UnitZ, maxDistance);
         if (hit is null || hit.Value.SurfaceNormal.Z <= 0) return null;
+        rejected = true;
         if (clearance.KeepCleanTags is not null && hit.Value.Tag is not null &&
             clearance.KeepCleanTags.Contains(hit.Value.Tag)) return null;
 
@@ -167,6 +188,7 @@ public sealed class TopDownSupportRouter
         }
         if (HitsGenerated(current, hit.Value.Point,
                 physicalRadius + clearance.ModelDistance, generatedCapsules, null)) return null;
+        rejected = false;
         return new ModelLanding(hit.Value, padDiameter);
     }
 
