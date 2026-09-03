@@ -34,7 +34,7 @@ public static class SupportGenerator
         var tips = candidates.Select(c => new RoutingTip(c.Point, c.InwardNormal, c.TipDiameter));
 
         var router = new GridSupportRouter(obstacles, rules);
-        var result = router.Route(tips, routing with { Seed = seed });
+        var result = router.Route(tips, routing with { Seed = seed }, existingGraph);
         return new GenerationResult(candidates, result);
     }
 }

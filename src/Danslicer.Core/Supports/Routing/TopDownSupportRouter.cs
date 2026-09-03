@@ -11,6 +11,7 @@ public sealed record TopDownRoutingOptions
     public int DirectionsPerRing { get; init; } = 12;
     public int Seed { get; init; } = 1;
     public SupportOrigin Origin { get; init; } = SupportOrigin.Manual;
+    public bool AttachToExisting { get; init; }
 }
 
 /// <summary>
@@ -29,14 +30,21 @@ public sealed class TopDownSupportRouter
         _rules = rules;
     }
 
-    public RoutingResult Route(IEnumerable<RoutingTip> tips, TopDownRoutingOptions options)
+    public RoutingResult Route(IEnumerable<RoutingTip> tips, TopDownRoutingOptions options,
+        SupportGraph? existingGraph = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.StepHeight);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.PillarDiameter);
         ArgumentOutOfRangeException.ThrowIfNegative(options.DetourRings);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.DirectionsPerRing);
 
-        var graph = new SupportGraph();
+        var attachTargets = options.AttachToExisting
+            ? ExistingSupportTargets.From(existingGraph)
+            : Array.Empty<ExistingSupportTarget>();
+        var graph = options.AttachToExisting && existingGraph is not null
+            ? existingGraph
+            : new SupportGraph();
+        var originalNodeIds = graph.Nodes.Select(node => node.Id).ToHashSet();
         var ids = new DeterministicIds(options.Seed);
         var routeNodes = new List<SupportNode>();
         var lowestTipByNode = new Dictionary<Guid, float>();
@@ -51,7 +59,7 @@ public sealed class TopDownSupportRouter
                      .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
         {
             var proposal = Propose(item.Tip, options, routeNodes, lowestTipByNode,
-                generatedCapsules, clearance, angleOffset);
+                generatedCapsules, attachTargets, clearance, angleOffset);
             if (proposal is null)
             {
                 unrouted.Add(item.Tip);
@@ -63,13 +71,15 @@ public sealed class TopDownSupportRouter
         }
 
         var bases = graph.Nodes.Where(node => node.Type == SupportNodeType.Base)
+            .Where(node => !originalNodeIds.Contains(node.Id))
             .Select(node => node.Position).OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
         return new RoutingResult(graph, unrouted, bases, maxLean);
     }
 
     private RouteProposal? Propose(RoutingTip tip, TopDownRoutingOptions options,
         IReadOnlyList<SupportNode> routeNodes, IReadOnlyDictionary<Guid, float> lowestTipByNode,
-        IReadOnlyList<GeneratedCapsule> generatedCapsules, float clearance, float angleOffset)
+        IReadOnlyList<GeneratedCapsule> generatedCapsules,
+        IReadOnlyList<ExistingSupportTarget> attachTargets, float clearance, float angleOffset)
     {
         if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon) return null;
 
@@ -90,13 +100,13 @@ public sealed class TopDownSupportRouter
         if (HitsGenerated(tip.SurfacePoint, first, neckRadius, generatedCapsules, null)) return null;
 
         var points = new List<Vector3> { first };
-        SupportNode? mergeTarget = null;
+        MergeTarget? mergeTarget = null;
         var current = first;
         var maxSteps = (int)MathF.Ceiling((tip.SurfacePoint.Z - options.PlateZ) / options.StepHeight) + 2;
         for (var step = 0; step < maxSteps && current.Z > options.PlateZ + Epsilon; step++)
         {
             mergeTarget = FindMerge(current, tip.SurfacePoint.Z, options, routeNodes,
-                lowestTipByNode, generatedCapsules, clearance);
+                lowestTipByNode, generatedCapsules, attachTargets, clearance);
             if (mergeTarget is not null) break;
 
             var nextZ = MathF.Max(options.PlateZ, current.Z - options.StepHeight);
@@ -111,16 +121,23 @@ public sealed class TopDownSupportRouter
         return new RouteProposal(points, neckDiameter, mergeTarget);
     }
 
-    private SupportNode? FindMerge(Vector3 current, float tipZ, TopDownRoutingOptions options,
+    private MergeTarget? FindMerge(Vector3 current, float tipZ, TopDownRoutingOptions options,
         IReadOnlyList<SupportNode> routeNodes, IReadOnlyDictionary<Guid, float> lowestTipByNode,
-        IReadOnlyList<GeneratedCapsule> generatedCapsules, float clearance)
+        IReadOnlyList<GeneratedCapsule> generatedCapsules,
+        IReadOnlyList<ExistingSupportTarget> attachTargets, float clearance)
     {
-        foreach (var target in routeNodes.Where(node => node.Position.Z < current.Z - Epsilon)
-                     .OrderByDescending(node => node.Position.Z)
-                     .ThenBy(node => Vector3.DistanceSquared(current, node.Position))
-                     .ThenBy(node => node.Id))
+        var candidates = routeNodes.Select(node => new MergeCandidate(node,
+                lowestTipByNode[node.Id], false, null))
+            .Concat(attachTargets.Select(target => new MergeCandidate(target.Node,
+                target.LowestTipZ, true, target)))
+            .Where(candidate => candidate.Node.Position.Z < current.Z - Epsilon)
+            .OrderByDescending(candidate => candidate.Node.Position.Z)
+            .ThenBy(candidate => Vector3.DistanceSquared(current, candidate.Node.Position))
+            .ThenBy(candidate => candidate.Node.Id);
+        foreach (var candidate in candidates)
         {
-            var lowestTip = MathF.Min(tipZ, lowestTipByNode[target.Id]);
+            var target = candidate.Node;
+            var lowestTip = MathF.Min(tipZ, candidate.LowestTipZ);
             var merge = new GrowthContext
             {
                 Operation = GrowthOperation.Merge,
@@ -149,9 +166,12 @@ public sealed class TopDownSupportRouter
 
             // The incoming branch remains pillar-sized; only the shared downstream path is trunk-sized.
             var radius = branch.Diameter * 0.5f + clearance;
-            if (_obstacles.IntersectsCapsule(current, target.Position, radius)) continue;
+            var filter = candidate.Existing
+                ? ExistingSupportTargets.ExcludingIncidentSegments(candidate.Attachment!)
+                : null;
+            if (_obstacles.IntersectsCapsule(current, target.Position, radius, filter)) continue;
             if (HitsGenerated(current, target.Position, radius, generatedCapsules, target.Id)) continue;
-            return target;
+            return new MergeTarget(target, candidate.Existing);
         }
         return null;
     }
@@ -256,10 +276,11 @@ public sealed class TopDownSupportRouter
 
         if (route.MergeTarget is not null)
         {
-            AddSegment(graph, ids, previous!, route.MergeTarget, SupportSegmentType.Pillar,
+            AddSegment(graph, ids, previous!, route.MergeTarget.Node, SupportSegmentType.Pillar,
                 options.PillarDiameter, options.Origin, generatedCapsules, true, ref maxLean);
-            PromoteDownstream(graph, route.MergeTarget, tip.SurfacePoint.Z, lowestTipByNode,
-                generatedCapsules);
+            if (!route.MergeTarget.Existing)
+                PromoteDownstream(graph, route.MergeTarget.Node, tip.SurfacePoint.Z, lowestTipByNode,
+                    generatedCapsules);
         }
     }
 
@@ -322,7 +343,10 @@ public sealed class TopDownSupportRouter
     }
 
     private sealed record RouteProposal(IReadOnlyList<Vector3> Points, float NeckDiameter,
-        SupportNode? MergeTarget);
+        MergeTarget? MergeTarget);
+    private sealed record MergeTarget(SupportNode Node, bool Existing);
+    private sealed record MergeCandidate(SupportNode Node, float LowestTipZ, bool Existing,
+        ExistingSupportTarget? Attachment);
     private readonly record struct GeneratedCapsule(Vector3 Start, Vector3 End, float Radius,
         Guid NodeA, Guid NodeB, Guid SegmentId);
 }

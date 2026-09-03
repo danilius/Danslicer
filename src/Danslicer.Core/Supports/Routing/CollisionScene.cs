@@ -13,8 +13,9 @@ public readonly record struct ObstacleNearestPoint(Vector3 Point, float Distance
 /// </summary>
 public interface ICollisionScene
 {
-    bool IntersectsCapsule(Vector3 start, Vector3 end, float radius);
-    ObstacleNearestPoint? NearestObstacle(Vector3 point);
+    bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
+        Func<object?, bool>? obstacleFilter = null);
+    ObstacleNearestPoint? NearestObstacle(Vector3 point, Func<object?, bool>? obstacleFilter = null);
 }
 
 /// <summary>
@@ -60,7 +61,8 @@ public sealed class LinearCollisionScene : ICollisionScene
         }
     }
 
-    public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius)
+    public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
+        Func<object?, bool>? obstacleFilter = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(radius);
         var bounds = CapsuleBounds(start, end, radius);
@@ -68,6 +70,7 @@ public sealed class LinearCollisionScene : ICollisionScene
 
         foreach (var triangle in _triangles)
         {
+            if (obstacleFilter is not null && !obstacleFilter(triangle.Tag)) continue;
             if (!Overlaps(bounds, triangle.Bounds)) continue;
             if (GeometryDistance.SegmentTriangleSquared(start, end, triangle.A, triangle.B, triangle.C)
                 <= radiusSquared) return true;
@@ -75,6 +78,7 @@ public sealed class LinearCollisionScene : ICollisionScene
 
         foreach (var capsule in _capsules)
         {
+            if (obstacleFilter is not null && !obstacleFilter(capsule.Tag)) continue;
             if (!Overlaps(bounds, capsule.Bounds)) continue;
             var sum = radius + capsule.Radius;
             if (GeometryDistance.SegmentSegmentSquared(start, end, capsule.Start, capsule.End)
@@ -84,17 +88,20 @@ public sealed class LinearCollisionScene : ICollisionScene
         return false;
     }
 
-    public ObstacleNearestPoint? NearestObstacle(Vector3 point)
+    public ObstacleNearestPoint? NearestObstacle(Vector3 point,
+        Func<object?, bool>? obstacleFilter = null)
     {
         ObstacleNearestPoint? nearest = null;
         foreach (var triangle in _triangles)
         {
+            if (obstacleFilter is not null && !obstacleFilter(triangle.Tag)) continue;
             var candidate = GeometryDistance.ClosestPointOnTriangle(point, triangle.A, triangle.B, triangle.C);
             Consider(candidate, Vector3.Distance(point, candidate), triangle.Tag, ref nearest);
         }
 
         foreach (var capsule in _capsules)
         {
+            if (obstacleFilter is not null && !obstacleFilter(capsule.Tag)) continue;
             var axisPoint = GeometryDistance.ClosestPointOnSegment(point, capsule.Start, capsule.End);
             var delta = point - axisPoint;
             var length = delta.Length();

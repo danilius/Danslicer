@@ -7,6 +7,30 @@ namespace Danslicer.Tests;
 public sealed class RoutingGridTests
 {
     [Fact]
+    public void AttachToExistingAddsOnlyNewRouteAndJoiningSegment()
+    {
+        var existing = ExistingPillar(out var top, out var originalSegment);
+        var scene = new LinearCollisionScene();
+        scene.AddSupportGraph(existing);
+        var router = new GridSupportRouter(scene, GrowthRuleSet.Default);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(1, 0, 10), -Vector3.UnitZ, 0.4f) },
+            new GridRoutingOptions { AttachToExisting = true }, existing);
+
+        Assert.Same(existing, result.Graph);
+        Assert.Empty(result.UnroutedTips);
+        Assert.Empty(result.BasePositions);
+        Assert.Equal(4, existing.NodeCount);
+        Assert.Equal(3, existing.SegmentCount);
+        Assert.True(top.Pinned);
+        Assert.True(originalSegment.Pinned);
+        Assert.Equal(SupportSegmentType.Pillar, originalSegment.Type);
+        Assert.Equal(1.1f, originalSegment.Diameter);
+        Assert.Contains(existing.SegmentsAt(top.Id), segment => segment.Id != originalSegment.Id);
+    }
+
+    [Fact]
     public void DegenerateInputNormalUsesDownwardOutwardFallback()
     {
         var router = new GridSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
@@ -17,6 +41,35 @@ public sealed class RoutingGridTests
 
         var tip = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Tip);
         Assert.Equal(-Vector3.UnitZ, tip.SurfaceNormal);
+    }
+
+    private static SupportGraph ExistingPillar(out SupportNode top, out SupportSegment segment)
+    {
+        var graph = new SupportGraph();
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base,
+            Position = Vector3.Zero,
+            Pinned = true,
+        };
+        top = new SupportNode
+        {
+            Type = SupportNodeType.Junction,
+            Position = new Vector3(0, 0, 6),
+            Pinned = true,
+        };
+        graph.AddNode(bottom);
+        graph.AddNode(top);
+        segment = new SupportSegment
+        {
+            Type = SupportSegmentType.Pillar,
+            NodeA = bottom.Id,
+            NodeB = top.Id,
+            Diameter = 1.1f,
+            Pinned = true,
+        };
+        graph.AddSegment(segment);
+        return graph;
     }
 
     [Fact]

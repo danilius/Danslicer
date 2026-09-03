@@ -7,6 +7,53 @@ namespace Danslicer.Tests;
 public sealed class RoutingTopDownTests
 {
     [Fact]
+    public void AttachToExistingDoesNotPromoteOrModifyPinnedPillar()
+    {
+        var existing = new SupportGraph();
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base,
+            Position = Vector3.Zero,
+            Pinned = true,
+        };
+        var top = new SupportNode
+        {
+            Type = SupportNodeType.Junction,
+            Position = new Vector3(0, 0, 6),
+            Pinned = true,
+        };
+        existing.AddNode(bottom);
+        existing.AddNode(top);
+        var original = new SupportSegment
+        {
+            Type = SupportSegmentType.Pillar,
+            NodeA = bottom.Id,
+            NodeB = top.Id,
+            Diameter = 1.1f,
+            Pinned = true,
+        };
+        existing.AddSegment(original);
+        var scene = new LinearCollisionScene();
+        scene.AddSupportGraph(existing);
+        var router = new TopDownSupportRouter(scene, GrowthRuleSet.Default);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(1, 0, 10), -Vector3.UnitZ, 0.4f) },
+            new TopDownRoutingOptions { AttachToExisting = true }, existing);
+
+        Assert.Same(existing, result.Graph);
+        Assert.Empty(result.UnroutedTips);
+        Assert.Empty(result.BasePositions);
+        Assert.Equal(4, existing.NodeCount);
+        Assert.Equal(3, existing.SegmentCount);
+        Assert.True(top.Pinned);
+        Assert.True(original.Pinned);
+        Assert.Equal(SupportSegmentType.Pillar, original.Type);
+        Assert.Equal(1.1f, original.Diameter);
+        Assert.Contains(existing.SegmentsAt(top.Id), segment => segment.Id != original.Id);
+    }
+
+    [Fact]
     public void SingleTipDescendsToPlateInBoundedSteps()
     {
         var router = new TopDownSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
