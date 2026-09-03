@@ -104,3 +104,40 @@ Defaults: layer 0.05 mm, overhang 45°, spacing 2.5 mm (tips) / 5 mm (grid latti
 | 2 | Layer stack from z = 0 when `MinZ` ≫ 0 | gripper checks/areas walk ~63k layers (first solid at 61375); still cheap when empty, but the index is absurd |
 | 3 | Grid routing of off-lattice tips | drogon grid: 459 unrouted, collisionFree false |
 | 4 | Organic area fragmentation | drogon 410 areas / 2653 mm² |
+
+---
+
+## 2026-09-03 — seated canonical matrix, model landing disabled
+
+- Branch: `grid-routing-prototype` after merging `main` at `20c41f`.
+- Config: Debug, net10.0; same machine and single-process conditions as the baseline.
+- Every command below used `--seat`. `tips --seat` supplied the translated candidate JSON to
+  `route --seat`; route translates the mesh only, so translating the tips again would double-shift
+  them.
+- Model landing was disabled in both default top-down entry points. The landing rule remains
+  available only to tests/future profiles that opt in explicitly.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `tips` | `--seat --json` | 29.113 | 0 | **1087** candidates (Island 59, LocalMinimum 193, Corner 282, Edge 210, Overhang 343). Spacing min 2.500 / median 2.629 / mean 2.817 | Seat offset (0, 0, −0.561) removes the false first-layer islands. |
+| drogon | `route` | `--seat --strategy grid --json` | 8.396 | 2 | nodes 1546, segs 1312 (neck 656, pillar 54, trunk 602, brace 0), **unrouted 431 / 1087**, bases 234, max lean 35.0°, collisionFree **false** | All refusals are NoClearStep; NoLanding is 0. |
+| drogon | `route` | `--seat --strategy topdown --json` | 20.266 | 2 | nodes 7814, segs 7091 (neck 747, pillar 6242, trunk 102, brace 0), **unrouted 340 / 1087**, bases 723, max lean 89.4°, collisionFree **false** | Refusals: ContactBlocked 21, NoClearStep 319, NoLanding 0. Every accepted support reaches the plate. |
+| drogon | `checks` | `--seat --json` | 25.719 | 0 | **152** findings (Island 151, OutsideVolume 1) | Still 20 mm wider than the Mono X Y extent. |
+| drogon | `areas` | `--seat --json` | 19.028 | 0 | **426** areas, 2293 mm² (High 170, Medium 202, Low 54) | Largest area 5754 faces / 412 mm². |
+| gripper | `tips` | `--seat --json` | 3.049 | 0 | **445** candidates (Island 36, Edge 113, Overhang 296). Spacing min 2.501 / median 2.812 / mean 3.094 | Seat offset (−349.351, −1235.674, −3068.376). |
+| gripper | `tips` | `--seat --edge 1 --json` | 3.168 | 0 | **604** candidates (Island 36, Edge 566, Overhang 2). Spacing min 2.502 / median 2.539 / mean 2.769 | Edge preference remains deterministic after seating. |
+| gripper | `route` | `--seat --strategy grid --json` | 0.460 | 2 | nodes 1007, segs 780 (neck 390, pillar 99, trunk 291, brace 0), **unrouted 55 / 445**, bases 227, max lean 35.0°, collisionFree **true** | All 55 refusals are NoClearStep; NoLanding is 0. |
+| gripper | `route` | `--seat --strategy topdown --json` | 5.909 | 2 | nodes 7142, segs 6750 (neck 393, pillar 6340, trunk 17, brace 0), **unrouted 52 / 445**, bases 392, max lean 56.5°, collisionFree **true** | The seated run finishes in seconds instead of the unseated 38.8-minute kill. NoLanding is 0. |
+| gripper | `checks` | `--seat --json` | 4.171 | 0 | **53** findings (Island 53) | No OutsideVolume finding after centring and seating. |
+| gripper | `areas` | `--seat --json` | 2.865 | 0 | **53** areas, 3508 mm² (High 13, Low 40) | Largest area remains one 545 mm² CAD triangle. |
+
+### Landing-off comparison on the unchanged Drogon input
+
+For an apples-to-apples comparison with the landing-enabled 302 / 1113 result, the unseated
+Drogon was also rerun with the same 1113-tip default JSON. Top-down completed in 19.970 s with
+**343 / 1113 unrouted**: ContactBlocked 24, NoClearStep 319, NoLanding 0. Disabling model
+landing therefore adds 41 honest refusals (+3.7 percentage points) instead of terminating those
+supports on the model. Nodes rose to 8009 and segments to 7262 because every accepted route now
+continues to a plate base (747 bases).
