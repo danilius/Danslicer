@@ -14,6 +14,10 @@ namespace Danslicer.Core;
 public sealed record SupportGenerationSummary(int CandidateCount, int GeneratedTipCount,
     int UnroutedTipCount);
 
+public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
+public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot Target,
+    IReadOnlyList<SceneMeshSnapshot> SceneMeshes, SupportGraph ExistingSupports, int Seed);
+
 /// <summary>
 /// The single model behind the application: scene, selection, printer and undo history.
 /// Mutations go through <see cref="Execute"/>; selection is transient and not undoable.
@@ -314,9 +318,6 @@ public sealed class Document
     {
         var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
         var rules = GrowthRuleSet.Default;
-        var land = rules.Find<LandGrowthRule>()!;
-        land.Enabled = true;
-        land.AllowLandingOnModel = true;
         var router = new TopDownSupportRouter(obstacles, rules);
         var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id);
         // The seed also drives the router's deterministic ids; vary it per placement or two
@@ -353,15 +354,64 @@ public sealed class Document
     /// </summary>
     public SupportGenerationSummary GenerateSupports(SceneObject obj, int seed = 0)
     {
-        var matrix = obj.Transform.ToMatrix();
-        var worldMesh = new Mesh(obj.Mesh.Positions.Select(p => Vector3.Transform(p, matrix)).ToArray(),
-            (int[])obj.Mesh.Indices.Clone());
+        var prepared = ComputeSupportGeneration(CaptureSupportGeneration(obj, seed));
+        var batch = new SupportGenerationBatch(Supports, History, prepared, int.MaxValue);
+        batch.CommitNextBatch();
+        batch.Complete();
+        return prepared.Summary;
+    }
+
+    public void SelectAllSupportElements()
+    {
+        _supportSelection.Clear();
+        foreach (var node in Supports.Nodes)
+            if (!node.Hidden) _supportSelection.Add(node.Id);
+        foreach (var segment in Supports.Segments)
+            if (!segment.Hidden && !Supports.GetNode(segment.NodeA).Hidden &&
+                !Supports.GetNode(segment.NodeB).Hidden) _supportSelection.Add(segment.Id);
+        SupportSelectionChanged?.Invoke();
+    }
+
+    public void SelectSupportElements(IEnumerable<Guid> ids, bool additive = false)
+    {
+        if (!additive) _supportSelection.Clear();
+        foreach (var id in ids)
+            if (Supports.TryGetNode(id, out var node) && !node.Hidden ||
+                Supports.TryGetSegment(id, out var segment) && !segment.Hidden)
+                _supportSelection.Add(id);
+        SupportSelectionChanged?.Invoke();
+    }
+
+    /// <summary>Captures the mutable document state needed by background generation.</summary>
+    public SupportGenerationRequest CaptureSupportGeneration(SceneObject obj, int seed = 0)
+    {
+        var scene = Scene.Objects.Select(o => new SceneMeshSnapshot(o.Mesh, o.Transform.ToMatrix())).ToList();
+        return new SupportGenerationRequest(obj.Id,
+            new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), scene, CloneGraph(Supports), seed);
+    }
+
+    /// <summary>Runs generation using only a captured snapshot; safe to call off the UI thread.</summary>
+    public static PreparedSupportGeneration ComputeSupportGeneration(SupportGenerationRequest request,
+        CancellationToken cancellationToken = default,
+        IProgress<SupportGenerationProgress>? progress = null)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var worldMesh = TransformMesh(request.Target);
         var region = Enumerable.Range(0, worldMesh.TriangleCount).ToHashSet();
-        var origin = new SupportOrigin(obj.Id, 1);
-        var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
+        var origin = new SupportOrigin(request.ObjectId, 1);
+        var meshes = new BvhCollisionScene();
+        foreach (var snapshot in request.SceneMeshes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            meshes.AddMesh(snapshot.Mesh, snapshot.Transform);
+        }
+        var supportObstacles = new LinearCollisionScene();
+        supportObstacles.AddSupportGraph(request.ExistingSupports);
+        var obstacles = new CompositeCollisionScene(meshes, supportObstacles);
         var generated = SupportGenerator.Generate(worldMesh, region, TipPlacementParameters.Default,
-            new GridRoutingOptions { Seed = seed, Origin = origin }, GrowthRuleSet.Default,
-            obstacles, Supports, seed: seed);
+            new GridRoutingOptions { Seed = request.Seed, Origin = origin }, GrowthRuleSet.Default,
+            obstacles, request.ExistingSupports, seed: request.Seed, progress: progress);
+        cancellationToken.ThrowIfCancellationRequested();
 
         // Routing ids are deterministic from the seed. Fresh graph ids allow repeated generation
         // with seed zero while preserving deterministic placement and routing geometry.
@@ -380,11 +430,35 @@ public sealed class Document
             NodeB = idMap[segment.NodeB], Diameter = segment.Diameter, Origin = origin,
             Pinned = segment.Pinned, Hidden = segment.Hidden, Disabled = segment.Disabled,
         }).ToList();
-        if (nodes.Count > 0)
-            Execute(new AddSupportElementsCommand(Supports, nodes, segments, "Generate supports"));
-
-        return new SupportGenerationSummary(generated.Candidates.Count,
+        var summary = new SupportGenerationSummary(generated.Candidates.Count,
             nodes.Count(node => node.Type == SupportNodeType.Tip), generated.Routing.UnroutedTips.Count);
+        return new PreparedSupportGeneration(nodes, segments, summary);
+    }
+
+    private static Mesh TransformMesh(SceneMeshSnapshot snapshot) => new(
+        snapshot.Mesh.Positions.Select(p => Vector3.Transform(p, snapshot.Transform)).ToArray(),
+        (int[])snapshot.Mesh.Indices.Clone());
+
+    private static SupportGraph CloneGraph(SupportGraph source)
+    {
+        var clone = new SupportGraph();
+        foreach (var node in source.Nodes)
+            clone.AddNode(new SupportNode
+            {
+                Id = node.Id, Type = node.Type, Position = node.Position, Origin = node.Origin,
+                Pinned = node.Pinned, Hidden = node.Hidden, Disabled = node.Disabled,
+                SurfaceNormal = node.SurfaceNormal, TipDiameter = node.TipDiameter,
+                PenetrationDepth = node.PenetrationDepth, ContactObjectId = node.ContactObjectId,
+                TipShape = node.TipShape, ConeLength = node.ConeLength, BallDiameter = node.BallDiameter,
+            });
+        foreach (var segment in source.Segments)
+            clone.AddSegment(new SupportSegment
+            {
+                Id = segment.Id, Type = segment.Type, NodeA = segment.NodeA, NodeB = segment.NodeB,
+                Diameter = segment.Diameter, Origin = segment.Origin, Pinned = segment.Pinned,
+                Hidden = segment.Hidden, Disabled = segment.Disabled,
+            });
+        return clone;
     }
 
     private void AddStraightSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
@@ -448,22 +522,40 @@ public sealed class Document
     }
 
     /// <summary>
-    /// Hides every unselected support element when support elements are selected. Endpoint nodes
-    /// of selected segments remain visible so the selected geometry can still be drawn and picked.
-    /// A selected node does not retain its incident segments, matching vertex-selection semantics.
+    /// Hides every unselected support tree when support elements are selected. Selecting any node
+    /// or segment retains its complete non-bracing connected component, because a support is one
+    /// user-visible thing even when only one of its elements is selected.
     /// </summary>
     public void HideUnselectedSupportElements()
     {
         if (_supportSelection.Count == 0) return;
-        var visibleNodes = Supports.Segments
-            .Where(segment => _supportSelection.Contains(segment.Id))
-            .SelectMany(segment => new[] { segment.NodeA, segment.NodeB })
-            .Concat(_supportSelection)
-            .ToHashSet();
+        var visibleNodes = new HashSet<Guid>();
+        var visibleSegments = new HashSet<Guid>();
+        foreach (var selectedId in _supportSelection)
+        {
+            if (Supports.TryGetNode(selectedId, out var node))
+            {
+                AddComponent(node.Id);
+            }
+            else if (Supports.TryGetSegment(selectedId, out var segment))
+            {
+                AddComponent(segment.NodeA);
+                AddComponent(segment.NodeB);
+                visibleSegments.Add(segment.Id);
+            }
+        }
+
+        void AddComponent(Guid seed)
+        {
+            var component = Supports.Component(seed, includeBracing: false);
+            visibleNodes.UnionWith(component.Nodes);
+            visibleSegments.UnionWith(component.Segments);
+        }
+
         var entries = new List<SetSupportHiddenCommand.Entry>();
         foreach (var node in Supports.Nodes.Where(node => !visibleNodes.Contains(node.Id) && !node.Hidden))
             entries.Add(new SetSupportHiddenCommand.Entry(value => node.Hidden = value, node.Hidden, true));
-        foreach (var segment in Supports.Segments.Where(segment => !_supportSelection.Contains(segment.Id) && !segment.Hidden))
+        foreach (var segment in Supports.Segments.Where(segment => !visibleSegments.Contains(segment.Id) && !segment.Hidden))
             entries.Add(new SetSupportHiddenCommand.Entry(value => segment.Hidden = value, segment.Hidden, true));
         if (entries.Count > 0)
             Execute(new SetSupportHiddenCommand(Supports, entries, "Hide unselected supports"));

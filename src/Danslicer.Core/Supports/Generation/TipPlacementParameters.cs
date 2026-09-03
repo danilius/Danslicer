@@ -41,6 +41,9 @@ public sealed record TipPlacementParameters
     /// <summary>Snap-off ball diameter, millimetres. Zero means no ball. Unused when shape is Capsule.</summary>
     public float BallDiameterMm { get; init; } = 0f;
 
+    /// <summary>How far a cone tip continues past the contact along its axis, millimetres.</summary>
+    public float PenetrationDepthMm { get; init; } = 0f;
+
     /// <summary>
     /// Sharp-feature bias, 0 to 1. Zero ignores edges; 1 strongly prefers ridges and corners
     /// in scoring and extra edge samples. Interior faces still receive tips unless

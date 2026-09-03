@@ -25,7 +25,8 @@ public static class SupportGenerator
         ICollisionScene obstacles,
         SupportGraph? existingGraph = null,
         IReadOnlySet<int>? keepCleanFaces = null,
-        int seed = 0)
+        int seed = 0,
+        IProgress<SupportGenerationProgress>? progress = null)
     {
         // Grid routing expects tips on lattice verticals. When the caller has not already
         // opted into (or out of) grid projection, pass the lattice into placement so Poisson
@@ -34,6 +35,7 @@ public static class SupportGenerator
             ? placement with { Grid = routing }
             : placement;
         var candidates = TipPlacer.Place(mesh, regionFaces, effectivePlacement, existingGraph, keepCleanFaces, seed);
+        progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         // Both sides of this mapping speak the inward (penetration) normal, so it passes through;
         // the router flips to the graph's outward convention when it creates the tip node.
@@ -44,10 +46,16 @@ public static class SupportGenerator
             IsObjectLowest: lowestRegion is { } lowestObject &&
                 MathF.Abs(lowestObject.Point.Z - mesh.Bounds.Min.Z) <= 1e-4f && c.Equals(lowestObject),
             IsRegionLowest: lowestRegion is { } lowest && c.Equals(lowest),
-            TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter));
+            TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter,
+            PenetrationDepth: c.PenetrationDepth));
 
         var router = new GridSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed }, existingGraph);
+        progress?.Report(new SupportGenerationProgress(1, "Tips routed",
+            candidates.Count - result.UnroutedTips.Count, candidates.Count));
         return new GenerationResult(candidates, result);
     }
 }
+
+public readonly record struct SupportGenerationProgress(double Fraction, string Stage,
+    int Completed, int Total);

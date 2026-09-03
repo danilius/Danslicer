@@ -3,12 +3,23 @@ using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
+using System.Text.Json;
 
 namespace Danslicer.Tests;
 
 /// <summary>End-to-end: tip placement into grid routing, the seam between the two stages.</summary>
 public sealed class SupportGeneratorTests
 {
+    [Fact]
+    public void PenetrationDepthRoundTripsThroughThePlacementSchema()
+    {
+        var before = new TipPlacementParameters { PenetrationDepthMm = 0.35f };
+
+        var after = JsonSerializer.Deserialize<TipPlacementParameters>(JsonSerializer.Serialize(before));
+
+        Assert.NotNull(after);
+        Assert.Equal(0.35f, after.PenetrationDepthMm);
+    }
     /// <summary>Axis-aligned box as a welded mesh with outward faces.</summary>
     private static Mesh Box(Vector3 min, Vector3 max)
     {
@@ -185,6 +196,7 @@ public sealed class SupportGeneratorTests
             TipShape = SupportTipShape.Cone,
             ConeLengthMm = 1.5f,
             BallDiameterMm = 0.8f,
+            PenetrationDepthMm = 0.3f,
         };
 
         var result = SupportGenerator.Generate(
@@ -197,6 +209,7 @@ public sealed class SupportGeneratorTests
             Assert.Equal(SupportTipShape.Cone, c.TipShape);
             Assert.Equal(1.5f, c.ConeLength);
             Assert.Equal(0.8f, c.BallDiameter);
+            Assert.Equal(0.3f, c.PenetrationDepth);
         });
         var tips = result.Routing.Graph.Nodes.Where(n => n.Type == SupportNodeType.Tip).ToList();
         Assert.NotEmpty(tips);
@@ -205,6 +218,7 @@ public sealed class SupportGeneratorTests
             Assert.Equal(SupportTipShape.Cone, t.TipShape);
             Assert.Equal(1.5f, t.ConeLength);
             Assert.Equal(0.8f, t.BallDiameter);
+            Assert.Equal(0.3f, t.PenetrationDepth);
         });
     }
 }

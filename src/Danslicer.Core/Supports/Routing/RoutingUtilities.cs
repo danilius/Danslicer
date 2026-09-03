@@ -17,6 +17,7 @@ internal static class RoutingUtilities
         node.TipShape = tip.TipShape;
         node.ConeLength = tip.ConeLength;
         node.BallDiameter = tip.BallDiameter;
+        node.PenetrationDepth = tip.PenetrationDepth;
     }
 
     public static IReadOnlyList<RoutingTip> AddReinforcementTips(IEnumerable<RoutingTip> tips,

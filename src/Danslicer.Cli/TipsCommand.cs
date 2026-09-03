@@ -52,6 +52,7 @@ internal static class TipsCommand
                 }
                 case "--cone-length": parameters = parameters with { ConeLengthMm = F(args[++i]) }; break;
                 case "--ball-diameter": parameters = parameters with { BallDiameterMm = F(args[++i]) }; break;
+                case "--penetration-depth": parameters = parameters with { PenetrationDepthMm = Math.Max(F(args[++i]), 0f) }; break;
                 case "--edge": parameters = parameters with { EdgePreference = F(args[++i]) }; break;
                 case "--force-edges": parameters = parameters with { ForceEdgePlacement = true }; break;
                 case "--sharp-edge": parameters = parameters with { SharpEdgeDegrees = F(args[++i]) }; break;
@@ -89,7 +90,7 @@ internal static class TipsCommand
             Console.Error.WriteLine("Usage:");
             Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--seat] [--spacing 2.5] [--min-spacing 2.5]");
             Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--layer 0.05] [--tip 0.4]");
-            Console.Error.WriteLine("                 [--tip-shape capsule|cone] [--cone-length 2] [--ball-diameter 0]");
+            Console.Error.WriteLine("                 [--tip-shape capsule|cone] [--cone-length 2] [--ball-diameter 0] [--penetration-depth 0]");
             Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
             Console.Error.WriteLine("                 [--grid square|hex] [--grid-spacing 5] [--grid-offset-x 0] [--grid-offset-y 0]");
             Console.Error.WriteLine("                 [--grid-rotation 0] [--keep-clean-distance 0]");
@@ -138,6 +139,7 @@ internal static class TipsCommand
                 TipShape = parameters.TipShape.ToString(),
                 ConeLength = parameters.ConeLengthMm,
                 BallDiameter = parameters.BallDiameterMm,
+                PenetrationDepth = parameters.PenetrationDepthMm,
                 Candidates = tips.Select(t => new CandidateDto
                 {
                     Strategy = t.Strategy.ToString(),
@@ -149,6 +151,7 @@ internal static class TipsCommand
                     TipShape = t.TipShape.ToString(),
                     ConeLength = t.ConeLength,
                     BallDiameter = t.BallDiameter,
+                    PenetrationDepth = t.PenetrationDepth,
                 }).ToList(),
             };
             var opts = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -159,7 +162,7 @@ internal static class TipsCommand
         Console.WriteLine($"File:        {path}");
         Console.WriteLine($"Triangles:   {mesh.TriangleCount.ToString("N0", Ci)}");
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
-        Console.WriteLine($"Tip shape:   {parameters.TipShape}  cone {Fmt(parameters.ConeLengthMm)}  ball {Fmt(parameters.BallDiameterMm)}");
+        Console.WriteLine($"Tip shape:   {parameters.TipShape}  cone {Fmt(parameters.ConeLengthMm)}  ball {Fmt(parameters.BallDiameterMm)}  penetration {Fmt(parameters.PenetrationDepthMm)}");
         Console.WriteLine($"Candidates:  {tips.Count}");
         foreach (var strategy in Enum.GetValues<TipStrategy>())
         {
@@ -222,6 +225,7 @@ internal static class TipsCommand
         public required string TipShape { get; init; }
         public required float ConeLength { get; init; }
         public required float BallDiameter { get; init; }
+        public required float PenetrationDepth { get; init; }
         public required List<CandidateDto> Candidates { get; init; }
     }
 
@@ -236,6 +240,7 @@ internal static class TipsCommand
         public required string TipShape { get; init; }
         public required float ConeLength { get; init; }
         public required float BallDiameter { get; init; }
+        public required float PenetrationDepth { get; init; }
     }
 
     private sealed class SpacingDto

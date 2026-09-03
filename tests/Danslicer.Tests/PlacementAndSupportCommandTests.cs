@@ -72,32 +72,37 @@ public sealed class PlacementAndSupportCommandTests
         var doc = new Document();
         var selected = new SupportNode { Type = SupportNodeType.Tip, Position = new(0, 0, 5) };
         var other = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        var unrelated = new SupportNode { Type = SupportNodeType.Base, Position = new(5, 0, 0) };
         var segment = new SupportSegment
             { Type = SupportSegmentType.Pillar, NodeA = selected.Id, NodeB = other.Id };
         doc.Supports.AddNode(selected);
         doc.Supports.AddNode(other);
+        doc.Supports.AddNode(unrelated);
         doc.Supports.AddSegment(segment);
         doc.SelectSupportElement(selected.Id);
 
         doc.HideUnselectedSupportElements();
 
         Assert.False(selected.Hidden);
-        Assert.True(other.Hidden);
-        Assert.True(segment.Hidden);
+        Assert.False(other.Hidden);
+        Assert.False(segment.Hidden);
+        Assert.True(unrelated.Hidden);
         Assert.Equal("Hide unselected supports", doc.History.UndoName);
         doc.Undo();
         Assert.False(other.Hidden);
         Assert.False(segment.Hidden);
+        Assert.False(unrelated.Hidden);
 
         doc.HideUnselectedSupportElements();
         doc.UnhideAll();
         Assert.False(other.Hidden);
         Assert.False(segment.Hidden);
+        Assert.False(unrelated.Hidden);
         Assert.Equal("Unhide supports", doc.History.UndoName);
     }
 
     [Fact]
-    public void HideUnselectedSupportsKeepsSelectedSegmentAndItsEndpointsVisible()
+    public void HideUnselectedSupportsKeepsTheSelectedElementsWholeTreeVisible()
     {
         var doc = new Document();
         var tip = new SupportNode { Type = SupportNodeType.Tip, Position = new(0, 0, 5) };
@@ -105,10 +110,15 @@ public sealed class PlacementAndSupportCommandTests
         var unrelated = new SupportNode { Type = SupportNodeType.Base, Position = new(5, 0, 0) };
         var selected = new SupportSegment
             { Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id };
+        var baseNode = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        var trunk = new SupportSegment
+            { Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id };
         doc.Supports.AddNode(tip);
         doc.Supports.AddNode(junction);
+        doc.Supports.AddNode(baseNode);
         doc.Supports.AddNode(unrelated);
         doc.Supports.AddSegment(selected);
+        doc.Supports.AddSegment(trunk);
         doc.SelectSupportElement(selected.Id);
 
         doc.HideUnselectedSupportElements();
@@ -116,6 +126,8 @@ public sealed class PlacementAndSupportCommandTests
         Assert.False(selected.Hidden);
         Assert.False(tip.Hidden);
         Assert.False(junction.Hidden);
+        Assert.False(baseNode.Hidden);
+        Assert.False(trunk.Hidden);
         Assert.True(unrelated.Hidden);
     }
 

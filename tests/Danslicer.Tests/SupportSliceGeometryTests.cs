@@ -159,13 +159,54 @@ public class SupportSliceGeometryTests
     }
 
     [Fact]
+    public void EmbeddedConeHasSectionsPastTheContactAndFattensTheSurface()
+    {
+        var g = ConeNeckGraph(ball: false);
+        var tip = Assert.Single(g.Nodes, n => n.Type == SupportNodeType.Tip);
+        tip.PenetrationDepth = 0.5f;
+
+        Assert.NotEmpty(SupportSliceGeometry.SectionsAt(g, 10.25));
+        var surfaceRadius = 0.2 + (0.6 - 0.2) * (0.5 / 2.5);
+        AssertAreaNear(Math.PI * surfaceRadius * surfaceRadius,
+            SupportSliceGeometry.SectionsAt(g, 10));
+    }
+
+    [Fact]
+    public void ZeroEmbeddingDepthMatchesTheOriginalConeSectionsBitForBit()
+    {
+        var g = ConeNeckGraph(ball: false);
+        var tip = Assert.Single(g.Nodes, n => n.Type == SupportNodeType.Tip);
+        tip.PenetrationDepth = 0;
+
+        foreach (var z in new[] { 9.0, 9.5, 10.0 })
+        {
+            var expected = new Paths64();
+            SupportSliceGeometry.ConeSection(new Vector3(0, 0, 10),
+                new Vector3(0, 0, 8), 0.2, 0.6, z, expected);
+            if (z == 10)
+                SupportSliceGeometry.SphereSection(new Vector3(0, 0, 10), 0.2, z, expected);
+            AssertPathsEqual(expected, SupportSliceGeometry.SectionsAt(g, z));
+        }
+    }
+
+    [Fact]
+    public void NegativeEmbeddingDepthClampsToZero()
+    {
+        var tip = new SupportNode
+            { Type = SupportNodeType.Tip, Position = Vector3.Zero, PenetrationDepth = -1f };
+
+        Assert.Equal(0f, tip.PenetrationDepth);
+    }
+
+    [Fact]
     public void ConeAndBallGraphUnionsTheContactSphere()
     {
         var g = ConeNeckGraph(ball: true);
         // Ball centre is at z=10.2 (penetration 0.2 along inward +Z). At the centre, r=0.5.
         AssertAreaNear(Math.PI * 0.25, SupportSliceGeometry.SectionsAt(g, 10.2));
-        // Mid-cone is unchanged: ball does not reach z=9 (centre 10.2, r=0.5 → down to 9.7).
-        AssertAreaNear(Math.PI * 0.4 * 0.4, SupportSliceGeometry.SectionsAt(g, 9));
+        // The same penetration also extends the cone, slightly increasing its radius at z=9.
+        var embeddedRadius = 0.2 + (0.6 - 0.2) * (1.2 / 2.2);
+        AssertAreaNear(Math.PI * embeddedRadius * embeddedRadius, SupportSliceGeometry.SectionsAt(g, 9));
     }
 
     [Fact]
@@ -236,7 +277,7 @@ public class SupportSliceGeometryTests
             Type = SupportNodeType.Tip, Position = tipPos,
             SurfaceNormal = -Vector3.UnitZ, TipDiameter = 0.4f,
             TipShape = SupportTipShape.Cone, ConeLength = 2f,
-            BallDiameter = ball ? 1f : 0f, PenetrationDepth = 0.2f,
+            BallDiameter = ball ? 1f : 0f, PenetrationDepth = ball ? 0.2f : 0f,
         };
         var junction = new SupportNode { Type = SupportNodeType.Junction, Position = tipPos with { Z = 0 } };
         g.AddNode(tip);

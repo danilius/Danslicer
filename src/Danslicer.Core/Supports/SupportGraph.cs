@@ -65,7 +65,16 @@ public sealed class SupportNode
     // Tip-only shape parameters; ignored on junctions and bases.
     public Vector3 SurfaceNormal { get; set; } = Vector3.UnitZ;
     public float TipDiameter { get; set; } = 0.4f;
-    public float PenetrationDepth { get; set; } = 0.2f;
+    private float _penetrationDepth;
+    /// <summary>
+    /// How far the tip embeds past its surface contact, millimetres. For cone tips this extends
+    /// the frustum into the model along the tip axis; it also offsets the optional contact ball.
+    /// </summary>
+    public float PenetrationDepth
+    {
+        get => _penetrationDepth;
+        set => _penetrationDepth = Math.Max(value, 0f);
+    }
     /// <summary>The scene object a tip contacts (or a base lands on when landing on the model).</summary>
     public Guid? ContactObjectId { get; set; }
 

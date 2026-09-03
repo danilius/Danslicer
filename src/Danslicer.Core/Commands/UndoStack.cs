@@ -20,6 +20,17 @@ public sealed class UndoStack
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Records a command whose effects were already applied incrementally. Used by long-running
+    /// operations that must remain one undo step without replaying their mutations at completion.
+    /// </summary>
+    public void RecordExecuted(IDocumentCommand command)
+    {
+        _undo.Push(command);
+        _redo.Clear();
+        Changed?.Invoke();
+    }
+
     public bool Undo()
     {
         if (!_undo.TryPop(out var command)) return false;

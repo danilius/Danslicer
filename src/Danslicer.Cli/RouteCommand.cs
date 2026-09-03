@@ -58,9 +58,6 @@ internal static class RouteCommand
             if (strategy == "topdown")
             {
                 var rules = GrowthRuleSet.Default;
-                var land = rules.Find<LandGrowthRule>()!;
-                land.Enabled = true;
-                land.AllowLandingOnModel = true;
                 result = new TopDownSupportRouter(obstacles, rules).Route(tips,
                     new TopDownRoutingOptions
                     {
@@ -146,7 +143,8 @@ internal static class RouteCommand
             return new RoutingTip(ToVector(point), ToVector(normal), diameter, tip.ContactObjectId,
                 TipShape: ParseShape(tip.TipShape),
                 ConeLength: tip.ConeLength > 0 ? tip.ConeLength : 2f,
-                BallDiameter: tip.BallDiameter);
+                BallDiameter: tip.BallDiameter,
+                PenetrationDepth: Math.Max(tip.PenetrationDepth, 0f));
         }).ToList();
     }
 
@@ -272,5 +270,6 @@ internal static class RouteCommand
         public string? TipShape { get; set; }
         public float ConeLength { get; set; }
         public float BallDiameter { get; set; }
+        public float PenetrationDepth { get; set; }
     }
 }

@@ -403,7 +403,8 @@ public static class TipPlacer
         Vector3 point, Vector3 inward, float diameter, float score, TipStrategy strategy, int face,
         TipPlacementParameters parameters) =>
         new(point, inward, diameter, score, strategy, face,
-            parameters.TipShape, parameters.ConeLengthMm, parameters.BallDiameterMm);
+            parameters.TipShape, parameters.ConeLengthMm, parameters.BallDiameterMm,
+            Math.Max(parameters.PenetrationDepthMm, 0f));
 
     private static float DiameterFor(float baseDiameter, TipStrategy strategy) => strategy switch
     {

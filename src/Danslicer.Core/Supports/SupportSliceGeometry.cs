@@ -85,7 +85,10 @@ public static class SupportSliceGeometry
 
         var dir = axis / segLen;
         var coneBase = tip.Position + dir * coneLen;
-        ConeSection(tip.Position, coneBase, rContact, neckRadius, z, output);
+        // Move the narrow end past the surface while leaving the base fixed. The original
+        // contact plane therefore cuts a slightly wider part of the embedded frustum.
+        var embeddedTip = tip.Position - dir * tip.PenetrationDepth;
+        ConeSection(embeddedTip, coneBase, rContact, neckRadius, z, output);
         CapsuleSection(coneBase, other.Position, neckRadius, z, output);
         if (tip.BallDiameter <= 0 && rContact > 0)
             SphereSection(tip.Position, rContact, z, output);

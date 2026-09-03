@@ -35,4 +35,5 @@ public readonly record struct TipCandidate(
     int FaceIndex,
     SupportTipShape TipShape = SupportTipShape.Capsule,
     float ConeLength = 2f,
-    float BallDiameter = 0f);
+    float BallDiameter = 0f,
+    float PenetrationDepth = 0f);
