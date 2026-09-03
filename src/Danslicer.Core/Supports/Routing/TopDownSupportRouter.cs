@@ -102,8 +102,16 @@ public sealed class TopDownSupportRouter
         };
         _rules.Evaluate(taper);
         var neckDiameter = MathF.Max(0.05f, taper.Diameter);
-        var neckDrop = MathF.Min(MathF.Max(0.1f, taper.NeckLength), tip.SurfacePoint.Z - options.PlateZ);
-        var first = tip.SurfacePoint - Vector3.UnitZ * neckDrop;
+        var neckLength = MathF.Max(0.1f, taper.NeckLength);
+        var outward = -RoutingUtilities.SafeInwardNormal(tip.InwardSurfaceNormal);
+        // Down-facing steep contacts must leave along the surface normal before turning toward
+        // the plate. A vertical departure embeds the neck capsule in the contact face. Up-facing
+        // contacts retain the vertical proposal so they cannot escape through the top of a solid.
+        var departure = outward.Z < -Epsilon ? outward : -Vector3.UnitZ;
+        if (departure.Z < -Epsilon)
+            neckLength = MathF.Min(neckLength,
+                (tip.SurfacePoint.Z - options.PlateZ) / -departure.Z);
+        var first = tip.SurfacePoint + departure * neckLength;
         var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
         if (!ContactSegmentIsClear(tip.SurfacePoint, first, neckRadius) ||
             HitsGenerated(tip.SurfacePoint, first, neckRadius, generatedCapsules, null))
@@ -164,7 +172,6 @@ public sealed class TopDownSupportRouter
 
         var landingAngle = MathF.Asin(Math.Clamp(hit.Value.SurfaceNormal.Z, 0, 1))
             * 180 / MathF.PI;
-        if (landingAngle < landRule.MinLandingAngleDegrees) return null;
         var context = new GrowthContext
         {
             Operation = GrowthOperation.Land,
@@ -176,7 +183,10 @@ public sealed class TopDownSupportRouter
         _rules.Evaluate(context);
         if (!context.Allowed || !context.AllowModelLanding) return null;
 
-        var padDiameter = MathF.Max(options.PillarDiameter, context.LandingPadDiameter);
+        var angleShortfall = MathF.Max(0, landRule.MinLandingAngleDegrees - landingAngle);
+        var steepnessScale = 1 + angleShortfall / MathF.Max(1, landRule.MinLandingAngleDegrees);
+        var padDiameter = MathF.Max(options.PillarDiameter,
+            context.LandingPadDiameter * steepnessScale);
         var physicalRadius = padDiameter * 0.5f;
         var delta = hit.Value.Point - current;
         var length = delta.Length();

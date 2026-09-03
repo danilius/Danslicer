@@ -7,22 +7,26 @@ namespace Danslicer.Tests;
 public sealed class RoutingTopDownTests
 {
     [Fact]
-    public void SteepContactReportsContactBlocked()
+    public void SteepDownFacingContactLeavesAlongNormalAndRoutes()
     {
         var scene = new LinearCollisionScene();
         scene.AddTriangle(new(-1, -5, 6), new(1, -5, 14), new(0, 5, 10));
-        var tip = new RoutingTip(new(0, 0, 10), Vector3.Normalize(new Vector3(4, 0, -1)), 0.4f);
+        var inward = Vector3.Normalize(new Vector3(4, 0, 1));
+        var tip = new RoutingTip(new(0, 0, 10), inward, 0.4f);
 
         var result = new TopDownSupportRouter(scene, GrowthRuleSet.Default).Route(
             new[] { tip }, new TopDownRoutingOptions());
 
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal(tip, failure.Tip);
-        Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
+        Assert.Empty(result.Failures);
+        var tipNode = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Tip);
+        var neck = Assert.Single(result.Graph.SegmentsAt(tipNode.Id));
+        var otherId = neck.NodeA == tipNode.Id ? neck.NodeB : neck.NodeA;
+        var departure = result.Graph.GetNode(otherId).Position - tipNode.Position;
+        Assert.True(Vector3.Dot(Vector3.Normalize(departure), -inward) > 0.999f);
     }
 
     [Fact]
-    public void RejectedSteepLandingReportsNoLanding()
+    public void SteepLandingUsesLargerPadInsteadOfRefusing()
     {
         var scene = new LinearCollisionScene();
         scene.AddTriangle(new(-5, -5, 2), new(5, -5, 12), new(0, 5, 7));
@@ -34,7 +38,59 @@ public sealed class RoutingTopDownTests
             new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f) },
             new TopDownRoutingOptions { DetourRings = 0 });
 
-        Assert.Equal(RoutingFailureReason.NoLanding, Assert.Single(result.Failures).Reason);
+        Assert.Empty(result.Failures);
+        var modelBase = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Base);
+        Assert.True(Assert.Single(result.Graph.SegmentsAt(modelBase.Id)).Diameter >
+                    rules.Find<LandGrowthRule>()!.LandingPadDiameter);
+    }
+
+    [Fact]
+    public void SurfaceNormalDepartureDoesNotTunnelThroughASeparateWall()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-1, -5, 6), new(1, -5, 14), new(0, 5, 10), "contact");
+        scene.AddTriangle(new(-1.5f, -5, 0), new(-1.5f, 5, 0), new(-1.5f, 5, 12), "wall");
+        scene.AddTriangle(new(-1.5f, -5, 0), new(-1.5f, 5, 12), new(-1.5f, -5, 12), "wall");
+        var tip = new RoutingTip(new(0, 0, 10),
+            Vector3.Normalize(new Vector3(4, 0, 1)), 0.4f);
+
+        var result = new TopDownSupportRouter(scene, GrowthRuleSet.Default).Route(
+            new[] { tip }, new TopDownRoutingOptions());
+
+        Assert.Equal(RoutingFailureReason.ContactBlocked, Assert.Single(result.Failures).Reason);
+    }
+
+    [Fact]
+    public void BlockedStepWithoutAValidLandingRemainsAnHonestRefusal()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-10, -10, 7), new(10, -10, 7), new(10, 10, 7));
+        scene.AddTriangle(new(-10, -10, 7), new(10, 10, 7), new(-10, 10, 7));
+        var rules = GrowthRuleSet.Default;
+        rules.Find<LandGrowthRule>()!.Enabled = false;
+
+        var result = new TopDownSupportRouter(scene, rules).Route(
+            new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f) },
+            new TopDownRoutingOptions { DetourRings = 0 });
+
+        Assert.Equal(RoutingFailureReason.NoClearStep, Assert.Single(result.Failures).Reason);
+    }
+
+    [Fact]
+    public void SteepOverhangJoinedToWallRoutesAwayFromThePocket()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-1, -5, 6), new(1, -5, 14), new(0, 5, 10), "overhang");
+        scene.AddTriangle(new(1, -5, 0), new(1, 5, 0), new(1, 5, 14), "wall");
+        scene.AddTriangle(new(1, -5, 0), new(1, 5, 14), new(1, -5, 14), "wall");
+        var tip = new RoutingTip(new(0, 0, 10),
+            Vector3.Normalize(new Vector3(4, 0, 1)), 0.4f);
+
+        var result = new TopDownSupportRouter(scene, GrowthRuleSet.Default).Route(
+            new[] { tip }, new TopDownRoutingOptions());
+
+        Assert.Empty(result.Failures);
+        Assert.Single(result.BasePositions);
     }
 
     [Fact]

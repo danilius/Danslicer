@@ -313,7 +313,11 @@ public sealed class Document
         out RoutingFailureReason? failureReason)
     {
         var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
-        var router = new TopDownSupportRouter(obstacles, GrowthRuleSet.Default);
+        var rules = GrowthRuleSet.Default;
+        var land = rules.Find<LandGrowthRule>()!;
+        land.Enabled = true;
+        land.AllowLandingOnModel = true;
+        var router = new TopDownSupportRouter(obstacles, rules);
         var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.

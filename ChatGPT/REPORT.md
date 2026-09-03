@@ -19,6 +19,14 @@
   landing is separately classified as `NoLanding`. This confirms neck clearance is the first and
   dominant failure in the sharper repro, so the fix must change the neck's contact departure rather
   than merely increase detour sampling.
+- The neck now departs a down-facing steep contact along its outward surface normal before the
+  top-down steps begin. Collision checking still covers the portion beyond the contact allowance;
+  a second-wall regression proves the departure cannot tunnel through unrelated geometry. The
+  overhang-plus-wall pocket fixture now routes successfully, while a sealed step with model landing
+  disabled remains an explicit `NoClearStep` refusal.
+- Model landing is enabled for manual and top-down CLI routing. A landing below the configured preferred angle is accepted
+  with a deterministic pad enlargement proportional to the angle shortfall instead of being
+  rejected outright; the steep-landing fixture verifies the larger pad.
 
 ## Status
 

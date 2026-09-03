@@ -44,8 +44,14 @@ internal static class RouteCommand
             var obstacles = new BvhCollisionScene();
             obstacles.AddMesh(mesh, Matrix4x4.Identity, Path.GetFileName(meshPath));
             var tips = ReadTips(tipsPath);
-            var result = strategy == "topdown"
-                ? new TopDownSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips,
+            RoutingResult result;
+            if (strategy == "topdown")
+            {
+                var rules = GrowthRuleSet.Default;
+                var land = rules.Find<LandGrowthRule>()!;
+                land.Enabled = true;
+                land.AllowLandingOnModel = true;
+                result = new TopDownSupportRouter(obstacles, rules).Route(tips,
                     new TopDownRoutingOptions
                     {
                         StepHeight = stepHeight,
@@ -53,8 +59,12 @@ internal static class RouteCommand
                         PlateZ = options.PlateZ,
                         Seed = options.Seed,
                         Origin = options.Origin,
-                    })
-                : new GridSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips, options);
+                    });
+            }
+            else
+            {
+                result = new GridSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips, options);
+            }
             var collisionFree = IsCollisionFree(result.Graph, obstacles);
             if (json) WriteJson(result, collisionFree);
             else WriteText(meshPath, tips.Count, result, collisionFree);
