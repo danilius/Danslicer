@@ -7,6 +7,12 @@ into this repo. Read them from these paths on the machine:
 | --- | --- | --- | ---: | --- | --- |
 | drogon | `F:\Git Repos\Danslicer\test files\Drogon_flat_surface.stl` | organic extreme | 943,666 | −67.35, −70.00, 0.56 | 134.70 × 140.00 × 52.81 |
 | gripper | `F:\Git Repos\Danslicer\test files\roof gripper T2.obj` | CAD extreme | 34,800 | 291.68, 1180.14, 3068.38 | 115.35 × 111.08 × 90.96 |
+| drogon-lo | `F:\Git Repos\Danslicer\test files\drogon collapse.stl` | organic, fast iteration | 94,366 | −67.36, −69.96, 0.55 | 134.73 × 139.93 × 52.86 |
+
+`drogon-lo` (added by the user 2026-09-03) is a 10× decimation of drogon with the same
+footprint and the same 0.55 mm plate offset. Use it for development iteration — repeated
+`tips`/`route` runs while working on a fix. It is NOT a regression reference: official
+before/after numbers are recorded on `drogon` and `gripper` only.
 
 Photon Mono X plate is 192 × 120 × 245 mm, origin-centred in X/Y, Z from 0.
 
