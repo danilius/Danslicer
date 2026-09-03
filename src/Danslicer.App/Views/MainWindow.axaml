@@ -253,6 +253,11 @@
                                           SnapEnabled="{Binding SnapEnabled, Mode=TwoWay}"
                                           ShowOverhangs="{Binding ShowOverhangs}" />
 
+                <!-- Marquee lives above the viewport: the GL composition surface covers the
+                     viewport's own 2D layer, so a rectangle drawn there is invisible. -->
+                <controls:SelectionRectOverlay IsVisible="{Binding IsModelView}"
+                                               Rect="{Binding #Viewport.MarqueeRect}" />
+
                 <DockPanel IsVisible="{Binding IsLayersView}">
                     <Border DockPanel.Dock="Bottom" Background="#1F2124" BorderBrush="#111" BorderThickness="0,1,0,0" Padding="10,4">
                         <Grid ColumnDefinitions="*,Auto">

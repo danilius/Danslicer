@@ -50,6 +50,11 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> SelectThroughSupportsProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(SelectThroughSupports));
 
+    /// <summary>The live marquee rectangle in viewport coordinates; null when no drag is active.
+    /// Drawn by a sibling overlay control, above the GL composition surface.</summary>
+    public static readonly StyledProperty<Rect?> MarqueeRectProperty =
+        AvaloniaProperty.Register<ViewportControl, Rect?>(nameof(MarqueeRect));
+
     private static readonly bool Trace = Environment.GetEnvironmentVariable("DANSLICER_TRACE") == "1";
     private static void Log(string message) { if (Trace) Console.Error.WriteLine($"[viewport] {message}"); }
 
@@ -72,6 +77,14 @@ public sealed class ViewportControl : OpenGlControlBase
     private Point _marqueeCurrent;
     private bool _marqueeAdditive;
     private bool _borderSelectArmed;
+    /// <summary>A support element under the button-down point: selected on a click-release,
+    /// abandoned once the drag becomes a marquee.</summary>
+    private Guid? _pendingClickSupport;
+    private int _pendingClickCount;
+    private bool _selectionMeshDirty = true;
+    private readonly List<AuxMeshDraw> _combinedAuxMeshes = new();
+    private Mesh? _selectedSupportMesh;
+    private const float MarqueeClickThresholdPixels = 3f;
 
     public Camera Camera { get; } = new();
 
@@ -101,6 +114,7 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool ShowOverhangs { get => GetValue(ShowOverhangsProperty); set => SetValue(ShowOverhangsProperty, value); }
     public bool SupportSelectionMode { get => GetValue(SupportSelectionModeProperty); set => SetValue(SupportSelectionModeProperty, value); }
     public bool SelectThroughSupports { get => GetValue(SelectThroughSupportsProperty); set => SetValue(SelectThroughSupportsProperty, value); }
+    public Rect? MarqueeRect { get => GetValue(MarqueeRectProperty); private set => SetValue(MarqueeRectProperty, value); }
 
     public ViewportControl()
     {
@@ -116,12 +130,6 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
         base.Render(context);
-        if (_marqueeStart is { } start)
-        {
-            var rect = new Rect(start, _marqueeCurrent).Normalize();
-            context.FillRectangle(new SolidColorBrush(Color.FromArgb(28, 80, 150, 255)), rect);
-            context.DrawRectangle(new Pen(new SolidColorBrush(Color.FromArgb(230, 120, 185, 255)), 1), rect);
-        }
     }
 
     protected override void OnGotFocus(FocusChangedEventArgs e)
@@ -140,7 +148,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 _subscribed.Changed -= Redraw;
                 _subscribed.SelectionChanged -= Redraw;
                 _subscribed.SupportSelectionChanged -= Redraw;
-                _subscribed.SupportSelectionChanged -= MarkSupportMeshesDirty;
+                _subscribed.SupportSelectionChanged -= MarkSelectionMeshDirty;
                 _subscribed.Supports.Changed -= MarkSupportMeshesDirty;
             }
             _subscribed = Document;
@@ -150,11 +158,15 @@ public sealed class ViewportControl : OpenGlControlBase
                 _subscribed.Changed += Redraw;
                 _subscribed.SelectionChanged += Redraw;
                 _subscribed.SupportSelectionChanged += Redraw;
-                _subscribed.SupportSelectionChanged += MarkSupportMeshesDirty;
+                // Selection changes rebuild only the small selected-elements overlay; the full
+                // graph mesh rebuilds only when the graph itself changes (a full rebuild froze
+                // the app for seconds after a marquee selection on a generated forest).
+                _subscribed.SupportSelectionChanged += MarkSelectionMeshDirty;
                 _subscribed.Supports.Changed += MarkSupportMeshesDirty;
                 _modal = new ModalTransform(_subscribed, Camera);
             }
             _supportMeshesDirty = true;
+            _selectionMeshDirty = true;
             Redraw();
         }
         else if (change.Property == ShowMoveGizmoProperty || change.Property == ShowRotateGizmoProperty ||
@@ -176,25 +188,13 @@ public sealed class ViewportControl : OpenGlControlBase
         }
     }
 
+    // The marquee lives in a sibling overlay control (MainWindow) because the GL composition
+    // surface draws over this control's own 2D layer: rectangles painted in Render() are
+    // invisible behind it, which is why the earlier InvalidateVisual fix changed nothing.
     private void Redraw()
     {
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            RequestNextFrameRendering();
-#pragma warning disable CS0618 // Required to invalidate the Avalonia overlay drawn by Render().
-            InvalidateVisual();
-#pragma warning restore CS0618
-        }
-        else
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                RequestNextFrameRendering();
-#pragma warning disable CS0618 // Required to invalidate the Avalonia overlay drawn by Render().
-                InvalidateVisual();
-#pragma warning restore CS0618
-            });
-        }
+        if (Dispatcher.UIThread.CheckAccess()) RequestNextFrameRendering();
+        else Dispatcher.UIThread.Post(RequestNextFrameRendering);
     }
 
     // ----- OpenGL lifecycle -----
@@ -221,6 +221,13 @@ public sealed class ViewportControl : OpenGlControlBase
         _overlay.Clear();
         _depthOverlay.Clear();
         if (_supportMeshesDirty) RebuildSupportMeshes();
+        if (_selectionMeshDirty) RebuildSelectionMesh();
+        _combinedAuxMeshes.Clear();
+        _combinedAuxMeshes.AddRange(_supportMeshes);
+        if (_selectedSupportMesh is { } selected)
+            _combinedAuxMeshes.Add(new AuxMeshDraw(selected,
+                new Vector3(SupportSelectedColor.X, SupportSelectedColor.Y, SupportSelectedColor.Z),
+                1f, DepthOverlay: true));
         AppendSupportLines(_depthOverlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         if (!SupportSelectionMode) UpdateGizmo();
@@ -239,7 +246,7 @@ public sealed class ViewportControl : OpenGlControlBase
             Printer = Document.Printer,
             Overlay = _overlay,
             DepthOverlay = _depthOverlay,
-            AuxMeshes = _supportMeshes,
+            AuxMeshes = _combinedAuxMeshes,
             ShowOverhangs = ShowOverhangs,
             OverhangAngleDegrees = Configuration.AppConfig.Current.Viewport.OverhangAngleDegrees,
             PlateOpacityFromBelow = Configuration.AppConfig.Current.Viewport.PlateOpacityFromBelow,
@@ -365,8 +372,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 _marqueeStart = _lastPointer;
                 _marqueeCurrent = _lastPointer;
                 _marqueeAdditive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                _pendingClickSupport = null;
                 e.Pointer.Capture(this);
-                Redraw();
                 e.Handled = true;
                 return;
             }
@@ -392,29 +399,25 @@ public sealed class ViewportControl : OpenGlControlBase
 
             var hitObj = PickSurface(m, out _, out var surfacePoint, out _);
             var objDistance = hitObj is null ? float.PositiveInfinity : Vector3.Distance(Camera.Eye, surfacePoint);
-            Guid? support = null;
-            var supportDistance = float.PositiveInfinity;
-            if (SupportSelectionMode) support = PickSupportElement(m, out supportDistance);
             var additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-            if (SupportSelectionMode && support is null && hitObj is null)
+            if (SupportSelectionMode)
             {
+                // Every LMB press arms a marquee, wherever it starts (Blender box select);
+                // a release inside the click threshold becomes the click instead. The support
+                // under the button-down point is remembered for that click, with lines given
+                // the tie against the surface right behind them because they are thin.
+                var support = PickSupportElement(m, out var supportDistance);
+                _pendingClickSupport =
+                    support is { } element && supportDistance <= objDistance + 0.5f ? element : null;
+                _pendingClickCount = e.ClickCount;
                 _marqueeStart = _lastPointer;
                 _marqueeCurrent = _lastPointer;
                 _marqueeAdditive = additive;
                 e.Pointer.Capture(this);
-                Redraw();
                 e.Handled = true;
                 return;
             }
-            // Support lines are thin, so give them the tie against the surface right behind them.
-            if (support is { } element && supportDistance <= objDistance + 0.5f)
-            {
-                if (!additive) Document.ClearSelection();
-                // Double-click selects the whole support tree; single click the element.
-                if (e.ClickCount >= 2) Document.SelectSupportComponent(element, additive);
-                else Document.SelectSupportElement(element, additive);
-            }
-            else if (SupportSelectionMode || hitObj is null)
+            if (hitObj is null)
             {
                 if (!additive)
                 {
@@ -450,10 +453,11 @@ public sealed class ViewportControl : OpenGlControlBase
             Camera.Pan(dx, dy, (float)Bounds.Height);
             Redraw();
         }
-        else if (_marqueeStart is not null)
+        else if (_marqueeStart is { } marqueeStart)
         {
             _marqueeCurrent = pos;
-            Redraw();
+            var dragged = PointDistance(marqueeStart, pos) >= MarqueeClickThresholdPixels;
+            MarqueeRect = dragged ? new Rect(marqueeStart, pos).Normalize() : null;
         }
         else if (_tipDrag is not null)
         {
@@ -494,8 +498,8 @@ public sealed class ViewportControl : OpenGlControlBase
         else if (_marqueeStart is { } start)
         {
             var end = _marqueeCurrent;
-            if (Document is not null && Vector2.Distance(new Vector2((float)start.X, (float)start.Y),
-                    new Vector2((float)end.X, (float)end.Y)) >= 3f)
+            var dragged = PointDistance(start, end) >= MarqueeClickThresholdPixels;
+            if (Document is not null && dragged)
             {
                 var w = (float)Bounds.Width;
                 var h = (float)Bounds.Height;
@@ -507,11 +511,21 @@ public sealed class ViewportControl : OpenGlControlBase
                     SelectThroughSupports ? null : IsSupportPointVisible);
                 Document.SelectSupportElements(ids, _marqueeAdditive);
             }
+            else if (Document is not null && _pendingClickSupport is { } element)
+            {
+                if (!_marqueeAdditive) Document.ClearSelection();
+                // Double-click selects the whole support tree; single click the element.
+                if (_pendingClickCount >= 2) Document.SelectSupportComponent(element, _marqueeAdditive);
+                else Document.SelectSupportElement(element, _marqueeAdditive);
+            }
             else if (!_marqueeAdditive)
             {
+                Document?.ClearSelection();
                 Document?.ClearSupportSelection();
             }
+            _pendingClickSupport = null;
             _marqueeStart = null;
+            MarqueeRect = null;
             e.Pointer.Capture(null);
             Redraw();
             e.Handled = true;
@@ -726,7 +740,32 @@ public sealed class ViewportControl : OpenGlControlBase
             best = segment.Id;
             cameraDistance = Vector3.Distance(eye, Vector3.Lerp(a.Position, b.Position, t));
         }
+
+        // Bases pick anywhere inside their projected disc. Their score is the distance to the
+        // disc centre, so a thin member crossing the disc still wins near its own line.
+        foreach (var node in supports.Nodes)
+        {
+            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Base) continue;
+            if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
+            var radiusPixels = (float)SupportPickRadiusPixels;
+            if (node.BaseShape != Danslicer.Core.Supports.SupportBaseShape.None &&
+                Camera.WorldToScreen(node.Position + new Vector3(node.BaseDiameter * 0.5f, 0, 0),
+                    w, h) is { } rim)
+                radiusPixels = MathF.Max(radiusPixels, Vector2.Distance(p, rim));
+            var d = Vector2.Distance(mouse, p);
+            if (d > radiusPixels || d >= bestScore) continue;
+            bestScore = d;
+            best = node.Id;
+            cameraDistance = Vector3.Distance(eye, node.Position);
+        }
         return best;
+    }
+
+    private static double PointDistance(Point a, Point b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
     }
 
     private bool IsSupportPointVisible(Vector3 point)
@@ -745,7 +784,24 @@ public sealed class ViewportControl : OpenGlControlBase
     private void MarkSupportMeshesDirty()
     {
         _supportMeshesDirty = true;
+        _selectionMeshDirty = true; // selected elements may have moved or vanished
         Redraw();
+    }
+
+    private void MarkSelectionMeshDirty()
+    {
+        _selectionMeshDirty = true;
+        Redraw();
+    }
+
+    /// <summary>Re-tessellates only the selected elements as a white highlight overlay.</summary>
+    private void RebuildSelectionMesh()
+    {
+        _selectionMeshDirty = false;
+        _selectedSupportMesh = Document is { } document && document.SupportSelection.Count > 0
+            ? Danslicer.Core.Supports.SupportRenderMesh.BuildSelected(
+                document.Supports, document.IsSupportSelected)
+            : null;
     }
 
     /// <summary>
@@ -759,9 +815,10 @@ public sealed class ViewportControl : OpenGlControlBase
         var supports = Document?.Supports;
         if (Document is null || supports is null) return;
 
-        foreach (var part in Danslicer.Core.Supports.SupportRenderMesh.Build(supports, Document.IsSupportSelected))
+        // Built without selection state: the selection is a separate small overlay mesh.
+        foreach (var part in Danslicer.Core.Supports.SupportRenderMesh.Build(supports))
         {
-            var color = part.Selected ? SupportSelectedColor : part.Kind switch
+            var color = part.Kind switch
             {
                 Danslicer.Core.Supports.SupportRenderKind.Tip => TipColor,
                 Danslicer.Core.Supports.SupportRenderKind.Trunk => TrunkColor,
@@ -877,6 +934,11 @@ public sealed class ViewportControl : OpenGlControlBase
                 // Manual support under the cursor (Support mode only), routed around the model.
                 // (Shift+T's blind straight drop was removed 2026-09-03 at the user's request.)
                 case Key.T when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = TryAddSupport(mouse); break;
+                case Key.Escape when _marqueeStart is not null:
+                    _marqueeStart = null;
+                    _pendingClickSupport = null;
+                    MarqueeRect = null;
+                    break;
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
                 case Key.Escape when _borderSelectArmed: _borderSelectArmed = false; break;
                 case Key.Escape when Document.SupportSelection.Count > 0: Document.ClearSupportSelection(); break;
