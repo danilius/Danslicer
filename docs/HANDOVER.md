@@ -5,6 +5,21 @@ supersedes all older state notes below. Read this, then `docs/DESIGN.md` for the
 design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec (updated
 tonight: grid bases, no-shrink bases, mini-supports).
 
+## Addendum 2026-09-03 ~night 2 — full overnight queue loaded (user: "keep as much
+queued overnight as possible")
+
+**main `49f41d1`→ (rolling), 381 green tests at last count.** Jobs 001–009 merged plus
+five Qwen test tasks (~660 lines coverage; unattended pattern validated — hardened
+briefs with embedded source and reference files). ChatGPT queue: 010 slice
+integration (in flight), **011 project save/open** (user-approved tonight; DESIGN §10
+zip container, CLI slice-a-project as end-to-end proof), 012 support presets (§8.1
+minimal, recipes/regions explicitly excluded as user-pending), 013 keymap editing
+(window-level gestures only), 014 tips performance (bit-identity gated, null result
+allowed). Qwen batch 4 running: PhotonRle round-trip + ObjReader edge tests.
+Deliberately NOT queued: viewport G-buffer pass (needs interactive screen checks),
+anything touching the user's pending decisions (grid/pitch verdict, island tweaks,
+recipes design, printer/resin editors).
+
 ## Addendum 2026-09-03 overnight — queue progress (kept current; RECOVERY: read this + the
 `danslicer-multi-agent-workflow` memory, re-arm the queue monitor AND the hourly
 heartbeat monitor, then resume the review/merge loop)
