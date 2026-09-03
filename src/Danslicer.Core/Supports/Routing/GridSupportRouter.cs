@@ -202,7 +202,7 @@ public sealed class GridSupportRouter
 
             var tipNode = Node(ids, SupportNodeType.Tip, route.Tip.SurfacePoint, options.Origin);
             // Routing input normals point into the model; graph contact normals point outward.
-            tipNode.SurfaceNormal = -SafeNormal(route.Tip.InwardSurfaceNormal);
+            tipNode.SurfaceNormal = -RoutingUtilities.SafeInwardNormal(route.Tip.InwardSurfaceNormal);
             tipNode.TipDiameter = route.Tip.TipDiameter;
             tipNode.ContactObjectId = route.Tip.ContactObjectId;
             graph.AddNode(tipNode);
@@ -263,9 +263,6 @@ public sealed class GridSupportRouter
         Guid b, float diameter, SupportOrigin origin) => new()
         { Id = ids.Next(), Type = type, NodeA = a, NodeB = b, Diameter = diameter, Origin = origin };
 
-    private static Vector3 SafeNormal(Vector3 normal) => normal.LengthSquared() > 1e-12f
-        ? Vector3.Normalize(normal) : Vector3.UnitZ;
-
     private static void IncludeLean(Vector3 start, Vector3 end, ref float maxLean)
     {
         var delta = end - start;
@@ -274,15 +271,4 @@ public sealed class GridSupportRouter
         maxLean = MathF.Max(maxLean, angle);
     }
 
-    private sealed class DeterministicIds
-    {
-        private readonly Random _random;
-        public DeterministicIds(int seed) => _random = new Random(seed);
-        public Guid Next()
-        {
-            Span<byte> bytes = stackalloc byte[16];
-            _random.NextBytes(bytes);
-            return new Guid(bytes);
-        }
-    }
 }

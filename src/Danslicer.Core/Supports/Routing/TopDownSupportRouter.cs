@@ -233,7 +233,7 @@ public sealed class TopDownSupportRouter
         ref float maxLean)
     {
         var tipNode = Node(ids, SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
-        tipNode.SurfaceNormal = -SafeNormal(tip.InwardSurfaceNormal);
+        tipNode.SurfaceNormal = -RoutingUtilities.SafeInwardNormal(tip.InwardSurfaceNormal);
         tipNode.TipDiameter = tip.TipDiameter;
         tipNode.ContactObjectId = tip.ContactObjectId;
         graph.AddNode(tipNode);
@@ -258,12 +258,13 @@ public sealed class TopDownSupportRouter
         {
             AddSegment(graph, ids, previous!, route.MergeTarget, SupportSegmentType.Pillar,
                 options.PillarDiameter, options.Origin, generatedCapsules, true, ref maxLean);
-            PromoteDownstream(graph, route.MergeTarget, tip.SurfacePoint.Z, lowestTipByNode);
+            PromoteDownstream(graph, route.MergeTarget, tip.SurfacePoint.Z, lowestTipByNode,
+                generatedCapsules);
         }
     }
 
     private void PromoteDownstream(SupportGraph graph, SupportNode mergeNode, float newTipZ,
-        Dictionary<Guid, float> lowestTipByNode)
+        Dictionary<Guid, float> lowestTipByNode, List<GeneratedCapsule> generatedCapsules)
     {
         var mergeRule = _rules.Find<MergeGrowthRule>();
         var diameter = mergeRule is { Enabled: true }
@@ -283,6 +284,10 @@ public sealed class TopDownSupportRouter
                 if (other.Position.Z > node.Position.Z + Epsilon || !visited.Add(other.Id)) continue;
                 segment.Type = SupportSegmentType.Trunk;
                 segment.Diameter = MathF.Max(segment.Diameter, diameter);
+                var capsuleIndex = generatedCapsules.FindIndex(capsule => capsule.SegmentId == segment.Id);
+                if (capsuleIndex >= 0)
+                    generatedCapsules[capsuleIndex] = generatedCapsules[capsuleIndex] with
+                        { Radius = segment.Diameter * 0.5f };
                 stack.Push(other);
             }
         }
@@ -293,22 +298,20 @@ public sealed class TopDownSupportRouter
         SupportNode end, SupportSegmentType type, float diameter, SupportOrigin origin,
         List<GeneratedCapsule> capsules, bool trackCollision, ref float maxLean)
     {
-        graph.AddSegment(new SupportSegment
+        var segment = new SupportSegment
         {
             Id = ids.Next(), Type = type, NodeA = start.Id, NodeB = end.Id,
             Diameter = diameter, Origin = origin,
-        });
+        };
+        graph.AddSegment(segment);
         if (trackCollision)
             capsules.Add(new GeneratedCapsule(start.Position, end.Position, diameter * 0.5f,
-                start.Id, end.Id));
+                start.Id, end.Id, segment.Id));
         IncludeLean(start.Position, end.Position, ref maxLean);
     }
 
     private static SupportNode Node(DeterministicIds ids, SupportNodeType type, Vector3 position,
         SupportOrigin origin) => new() { Id = ids.Next(), Type = type, Position = position, Origin = origin };
-
-    private static Vector3 SafeNormal(Vector3 normal) => normal.LengthSquared() > 1e-12f
-        ? Vector3.Normalize(normal) : -Vector3.UnitZ;
 
     private static void IncludeLean(Vector3 start, Vector3 end, ref float maxLean)
     {
@@ -321,17 +324,5 @@ public sealed class TopDownSupportRouter
     private sealed record RouteProposal(IReadOnlyList<Vector3> Points, float NeckDiameter,
         SupportNode? MergeTarget);
     private readonly record struct GeneratedCapsule(Vector3 Start, Vector3 End, float Radius,
-        Guid NodeA, Guid NodeB);
-
-    private sealed class DeterministicIds
-    {
-        private readonly Random _random;
-        public DeterministicIds(int seed) => _random = new Random(seed);
-        public Guid Next()
-        {
-            Span<byte> bytes = stackalloc byte[16];
-            _random.NextBytes(bytes);
-            return new Guid(bytes);
-        }
-    }
+        Guid NodeA, Guid NodeB, Guid SegmentId);
 }

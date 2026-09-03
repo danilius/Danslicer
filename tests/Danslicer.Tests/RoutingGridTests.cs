@@ -7,6 +7,19 @@ namespace Danslicer.Tests;
 public sealed class RoutingGridTests
 {
     [Fact]
+    public void DegenerateInputNormalUsesDownwardOutwardFallback()
+    {
+        var router = new GridSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(0, 0, 10), Vector3.Zero, 0.4f) },
+            new GridRoutingOptions());
+
+        var tip = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Tip);
+        Assert.Equal(-Vector3.UnitZ, tip.SurfaceNormal);
+    }
+
+    [Fact]
     public void SingleTipProducesBasePillarNeckAndTip()
     {
         var router = new GridSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);

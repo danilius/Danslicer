@@ -49,6 +49,31 @@ public sealed class RoutingTopDownTests
     }
 
     [Fact]
+    public void LaterRoutesRespectPromotedTrunkRadius()
+    {
+        var rules = GrowthRuleSet.Default;
+        rules.Find<MergeGrowthRule>()!.TriggerDistance = 1.3f;
+        rules.Find<ClearanceGrowthRule>()!.Enabled = false;
+        var router = new TopDownSupportRouter(new LinearCollisionScene(), rules);
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(-1.2f, 0, 10), -Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(1.4f, 0, 9), -Vector3.UnitZ, 0.4f),
+        };
+
+        var result = router.Route(tips, new TopDownRoutingOptions
+        {
+            StepHeight = 2,
+            DetourRings = 0,
+        });
+
+        Assert.Equal(new Vector3(1.4f, 0, 9), Assert.Single(result.UnroutedTips).SurfacePoint);
+        Assert.Contains(result.Graph.Segments, segment =>
+            segment.Type == SupportSegmentType.Trunk && segment.Diameter == 1.8f);
+    }
+
+    [Fact]
     public void BlockedVerticalStepUsesLeanLimitedDetour()
     {
         var scene = new LinearCollisionScene();
