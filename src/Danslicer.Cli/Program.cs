@@ -43,6 +43,8 @@ void Usage()
     Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--spacing 2.5] [--min-spacing 2.5]");
     Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--layer 0.05] [--tip 0.4]");
     Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
+    Console.Error.WriteLine("                 [--grid square|hex] [--grid-spacing 5] [--grid-offset-x 0] [--grid-offset-y 0]");
+    Console.Error.WriteLine("                 [--grid-rotation 0] [--keep-clean-distance 0]");
     Console.Error.WriteLine("  danslicer checks <file.stl|file.obj>... [--json] [--layer 0.05] [--min-island 0.5]");
     Console.Error.WriteLine("                   [--overhang 45] [--min-suction 5] [--drain 0.8]");
     Console.Error.WriteLine("                   [--support-spacing 1] [--model-clearance 0.5] [--object-spacing 1]");

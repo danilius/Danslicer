@@ -1,8 +1,10 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.IO;
 using Danslicer.Core.Supports.Generation;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Cli;
 
@@ -17,6 +19,11 @@ internal static class TipsCommand
         var json = false;
         var parameters = TipPlacementParameters.Default;
         var seed = 0;
+        BaseLatticeType? gridLattice = null;
+        float? gridSpacing = null;
+        var gridOffsetX = 0f;
+        var gridOffsetY = 0f;
+        var gridRotation = 0f;
         for (int i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -31,6 +38,23 @@ internal static class TipsCommand
                 case "--edge": parameters = parameters with { EdgePreference = F(args[++i]) }; break;
                 case "--force-edges": parameters = parameters with { ForceEdgePlacement = true }; break;
                 case "--sharp-edge": parameters = parameters with { SharpEdgeDegrees = F(args[++i]) }; break;
+                case "--keep-clean-distance": parameters = parameters with { KeepCleanDistanceMm = F(args[++i]) }; break;
+                case "--grid":
+                {
+                    var name = args[++i].ToLowerInvariant();
+                    if (name == "square") gridLattice = BaseLatticeType.Square;
+                    else if (name is "hex" or "hexagonal") gridLattice = BaseLatticeType.Hexagonal;
+                    else
+                    {
+                        Console.Error.WriteLine($"unknown lattice: {name}");
+                        return 1;
+                    }
+                    break;
+                }
+                case "--grid-spacing": gridSpacing = F(args[++i]); break;
+                case "--grid-offset-x": gridOffsetX = F(args[++i]); break;
+                case "--grid-offset-y": gridOffsetY = F(args[++i]); break;
+                case "--grid-rotation": gridRotation = F(args[++i]); break;
                 case "--seed": seed = int.Parse(args[++i], Ci); break;
                 default:
                     if (args[i].StartsWith('-'))
@@ -49,7 +73,24 @@ internal static class TipsCommand
             Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--spacing 2.5] [--min-spacing 2.5]");
             Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--layer 0.05] [--tip 0.4]");
             Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
+            Console.Error.WriteLine("                 [--grid square|hex] [--grid-spacing 5] [--grid-offset-x 0] [--grid-offset-y 0]");
+            Console.Error.WriteLine("                 [--grid-rotation 0] [--keep-clean-distance 0]");
             return 1;
+        }
+
+        if (gridLattice is { } lattice)
+        {
+            parameters = parameters with
+            {
+                Grid = new GridRoutingOptions
+                {
+                    Lattice = lattice,
+                    Spacing = gridSpacing ?? parameters.SpacingMm,
+                    Offset = new Vector2(gridOffsetX, gridOffsetY),
+                    RotationDegrees = gridRotation,
+                    PlateZ = parameters.PlateZ,
+                },
+            };
         }
 
         var mesh = MeshFile.Read(path);

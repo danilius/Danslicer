@@ -4,104 +4,49 @@ using Danslicer.Core.Geometry;
 namespace Danslicer.Core.Supports.Generation;
 
 /// <summary>
-/// Per-mesh adjacency, curvature, and sharp-feature flags. Derived on demand for a placement
-/// call; nothing is cached on <see cref="Mesh"/> (DESIGN.md §4.3 is a later change request).
+/// Placement-facing view of <see cref="MeshAnalysis"/>: sharp-edge threshold, local minima,
+/// overhang patches. Topology, curvature and the BVH come from the per-mesh cache.
 /// </summary>
 internal sealed class MeshFeatures
 {
     private readonly Mesh _mesh;
-    private readonly HashSet<int>[] _neighbors;
-    private readonly List<int>[] _facesOf;
-    private readonly Dictionary<(int A, int B), List<int>> _edgeFaces;
-    private readonly float[] _curvature;
-    private readonly HashSet<(int A, int B)> _sharpEdges;
+    private readonly MeshAnalysis _analysis;
+    private readonly IReadOnlySet<(int A, int B)> _sharpEdges;
     private readonly bool[] _isCorner;
 
-    public IReadOnlyList<float> Curvature => _curvature;
+    public MeshAnalysis Analysis => _analysis;
+    public IReadOnlyList<float> Curvature => _analysis.Curvature;
     public IReadOnlySet<(int A, int B)> SharpEdges => _sharpEdges;
     public IReadOnlyList<bool> IsCorner => _isCorner;
 
-    private MeshFeatures(
-        Mesh mesh,
-        HashSet<int>[] neighbors,
-        List<int>[] facesOf,
-        Dictionary<(int A, int B), List<int>> edgeFaces,
-        float[] curvature,
-        HashSet<(int A, int B)> sharpEdges,
-        bool[] isCorner)
+    private MeshFeatures(Mesh mesh, MeshAnalysis analysis, IReadOnlySet<(int A, int B)> sharpEdges, bool[] isCorner)
     {
         _mesh = mesh;
-        _neighbors = neighbors;
-        _facesOf = facesOf;
-        _edgeFaces = edgeFaces;
-        _curvature = curvature;
+        _analysis = analysis;
         _sharpEdges = sharpEdges;
         _isCorner = isCorner;
     }
 
     public static MeshFeatures Build(Mesh mesh, float sharpEdgeDegrees)
     {
-        var n = mesh.VertexCount;
-        var neighbors = new HashSet<int>[n];
-        var facesOf = new List<int>[n];
-        for (int i = 0; i < n; i++)
+        var analysis = MeshAnalysis.For(mesh);
+        var sharp = analysis.SharpEdgesAt(sharpEdgeDegrees);
+        var sharpCount = new int[mesh.VertexCount];
+        foreach (var (a, b) in sharp)
         {
-            neighbors[i] = new HashSet<int>();
-            facesOf[i] = new List<int>(6);
+            sharpCount[a]++;
+            sharpCount[b]++;
         }
-
-        var edgeFaces = new Dictionary<(int A, int B), List<int>>(mesh.TriangleCount * 2);
-        for (int t = 0; t < mesh.TriangleCount; t++)
-        {
-            int ia = mesh.Indices[t * 3], ib = mesh.Indices[t * 3 + 1], ic = mesh.Indices[t * 3 + 2];
-            facesOf[ia].Add(t);
-            facesOf[ib].Add(t);
-            facesOf[ic].Add(t);
-            AddEdge(edgeFaces, ia, ib, t);
-            AddEdge(edgeFaces, ib, ic, t);
-            AddEdge(edgeFaces, ic, ia, t);
-            neighbors[ia].Add(ib); neighbors[ia].Add(ic);
-            neighbors[ib].Add(ia); neighbors[ib].Add(ic);
-            neighbors[ic].Add(ia); neighbors[ic].Add(ib);
-        }
-
-        var minDot = MathF.Cos(sharpEdgeDegrees * MathF.PI / 180f);
-        var sharp = new HashSet<(int A, int B)>();
-        var sharpCount = new int[n];
-        foreach (var (edge, faces) in edgeFaces)
-        {
-            bool isSharp;
-            if (faces.Count < 2)
-            {
-                isSharp = true; // boundary treated as a feature
-            }
-            else
-            {
-                var dot = Vector3.Dot(mesh.FaceNormals[faces[0]], mesh.FaceNormals[faces[1]]);
-                isSharp = dot < minDot;
-            }
-            if (!isSharp) continue;
-            sharp.Add(edge);
-            sharpCount[edge.A]++;
-            sharpCount[edge.B]++;
-        }
-
-        var isCorner = new bool[n];
-        for (int i = 0; i < n; i++)
+        var isCorner = new bool[mesh.VertexCount];
+        for (int i = 0; i < isCorner.Length; i++)
             isCorner[i] = sharpCount[i] >= 3;
-
-        var curvature = ComputeCurvature(mesh, facesOf, edgeFaces);
-        return new MeshFeatures(mesh, neighbors, facesOf, edgeFaces, curvature, sharp, isCorner);
+        return new MeshFeatures(mesh, analysis, sharp, isCorner);
     }
 
     public bool TryGetEdgeFaces(int a, int b, out List<int> faces) =>
-        _edgeFaces.TryGetValue(a < b ? (a, b) : (b, a), out faces!);
+        _analysis.TryGetEdgeFaces(a, b, out faces!);
 
-    public float MaxVertexCurvature(int face)
-    {
-        int ia = _mesh.Indices[face * 3], ib = _mesh.Indices[face * 3 + 1], ic = _mesh.Indices[face * 3 + 2];
-        return MathF.Max(_curvature[ia], MathF.Max(_curvature[ib], _curvature[ic]));
-    }
+    public float MaxVertexCurvature(int face) => _analysis.MaxVertexCurvature(face);
 
     public TipStrategy FeatureAt(Vector3 point, int face, float edgeEpsilon)
     {
@@ -141,7 +86,7 @@ internal sealed class MeshFeatures
 
             int bestFace = -1;
             var bestDown = 0f;
-            foreach (var t in _facesOf[v])
+            foreach (var t in _analysis.FacesOfVertex[v])
             {
                 if (!region.Contains(t)) continue;
                 var down = -_mesh.FaceNormals[t].Z;
@@ -156,7 +101,7 @@ internal sealed class MeshFeatures
             var z = p.Z;
             var hasHigher = false;
             var isMin = true;
-            foreach (var n in _neighbors[v])
+            foreach (var n in _analysis.VertexNeighbors[v])
             {
                 var nz = _mesh.Positions[n].Z;
                 if (nz < z - 1e-5f) { isMin = false; break; }
@@ -235,103 +180,6 @@ internal sealed class MeshFeatures
         return Vector3.DistanceSquared(p, q);
     }
 
-    private static void AddEdge(Dictionary<(int A, int B), List<int>> map, int a, int b, int face)
-    {
-        var key = a < b ? (a, b) : (b, a);
-        if (!map.TryGetValue(key, out var list)) map[key] = list = new List<int>(2);
-        list.Add(face);
-    }
-
-    /// <summary>
-    /// Angle-defect Gaussian curvature, scaled so a cube corner (defect π/2) maps to 1.
-    /// Ridges that are not corners still score via the defect at their vertices.
-    /// </summary>
-    private static float[] ComputeCurvature(Mesh mesh, List<int>[] facesOf, Dictionary<(int A, int B), List<int>> edgeFaces)
-    {
-        var n = mesh.VertexCount;
-        var angleSum = new float[n];
-        for (int t = 0; t < mesh.TriangleCount; t++)
-        {
-            int ia = mesh.Indices[t * 3], ib = mesh.Indices[t * 3 + 1], ic = mesh.Indices[t * 3 + 2];
-            var a = mesh.Positions[ia];
-            var b = mesh.Positions[ib];
-            var c = mesh.Positions[ic];
-            angleSum[ia] += CornerAngle(a, b, c);
-            angleSum[ib] += CornerAngle(b, a, c);
-            angleSum[ic] += CornerAngle(c, a, b);
-        }
-
-        var curvature = new float[n];
-        const float cubeCornerDefect = MathF.PI / 2f;
-        for (int v = 0; v < n; v++)
-        {
-            if (facesOf[v].Count == 0) continue;
-            var defect = MathF.Abs(MathF.PI * 2f - angleSum[v]);
-            curvature[v] = MathF.Min(1f, defect / cubeCornerDefect);
-        }
-
-        // Boost vertices on sharp convex ridges so organic and CAD ridges both light up.
-        foreach (var (edge, faces) in edgeFaces)
-        {
-            if (faces.Count < 2) continue;
-            var dot = Vector3.Dot(mesh.FaceNormals[faces[0]], mesh.FaceNormals[faces[1]]);
-            var dihedral = MathF.Acos(Math.Clamp(dot, -1f, 1f));
-            if (dihedral < 15f * MathF.PI / 180f) continue;
-            var ridge = MathF.Min(1f, dihedral / (MathF.PI / 2f));
-            curvature[edge.A] = MathF.Max(curvature[edge.A], ridge * 0.6f);
-            curvature[edge.B] = MathF.Max(curvature[edge.B], ridge * 0.6f);
-        }
-        return curvature;
-    }
-
-    private static float CornerAngle(Vector3 vertex, Vector3 b, Vector3 c)
-    {
-        var u = Vector3.Normalize(b - vertex);
-        var v = Vector3.Normalize(c - vertex);
-        return MathF.Acos(Math.Clamp(Vector3.Dot(u, v), -1f, 1f));
-    }
-
-    public static Vector3 ClosestPointOnTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c)
-    {
-        var ab = b - a;
-        var ac = c - a;
-        var ap = p - a;
-        var d1 = Vector3.Dot(ab, ap);
-        var d2 = Vector3.Dot(ac, ap);
-        if (d1 <= 0 && d2 <= 0) return a;
-
-        var bp = p - b;
-        var d3 = Vector3.Dot(ab, bp);
-        var d4 = Vector3.Dot(ac, bp);
-        if (d3 >= 0 && d4 <= d3) return b;
-
-        var vc = d1 * d4 - d3 * d2;
-        if (vc <= 0 && d1 >= 0 && d3 <= 0)
-        {
-            var v = d1 / (d1 - d3);
-            return a + v * ab;
-        }
-
-        var cp = p - c;
-        var d5 = Vector3.Dot(ab, cp);
-        var d6 = Vector3.Dot(ac, cp);
-        if (d6 >= 0 && d5 <= d6) return c;
-
-        var vb = d5 * d2 - d1 * d6;
-        if (vb <= 0 && d2 >= 0 && d6 <= 0)
-        {
-            var w = d2 / (d2 - d6);
-            return a + w * ac;
-        }
-
-        var va = d3 * d6 - d5 * d4;
-        if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0)
-        {
-            var w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
-            return b + w * (c - b);
-        }
-
-        var denom = 1f / (va + vb + vc);
-        return a + ab * (vb * denom) + ac * (vc * denom);
-    }
+    public static Vector3 ClosestPointOnTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c) =>
+        TriangleQueries.ClosestPointOnTriangle(p, a, b, c);
 }

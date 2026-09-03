@@ -1,4 +1,5 @@
 using System.Numerics;
+using Danslicer.Core.Geometry;
 
 namespace Danslicer.Core.Supports.Checks;
 
@@ -26,7 +27,7 @@ internal static class ProximityChecker
                 var mb = graph.GetNode(b.NodeB);
                 if (ma.Disabled || mb.Disabled) continue;
                 var rb = b.Diameter * 0.5f;
-                MeshDistanceQuery.ClosestPointsOnSegments(na.Position, nb.Position, ma.Position, mb.Position, out var pa, out var pb);
+                TriangleQueries.ClosestPointsOnSegments(na.Position, nb.Position, ma.Position, mb.Position, out var pa, out var pb);
                 var gap = Vector3.Distance(pa, pb) - ra - rb;
                 if (gap >= threshold) continue;
                 output.Add(new CheckFinding
@@ -44,7 +45,7 @@ internal static class ProximityChecker
     }
 
     public static void SupportModel(
-        SupportGraph graph, IReadOnlyList<MeshDistanceQuery> meshes, float threshold, List<CheckFinding> output)
+        SupportGraph graph, IReadOnlyList<TriangleBvh> meshes, float threshold, List<CheckFinding> output)
     {
         if (graph.SegmentCount == 0 || meshes.Count == 0 || threshold <= 0) return;
         var tips = graph.Nodes.Where(n => n.Type == SupportNodeType.Tip && !n.Disabled).ToList();
@@ -58,7 +59,7 @@ internal static class ProximityChecker
             var radius = seg.Diameter * 0.5f;
             for (int m = 0; m < meshes.Count; m++)
             {
-                var d = meshes[m].ClosestToSegment(na.Position, nb.Position, out var onSeg, out var onMesh);
+                var d = meshes[m].ClosestToSegment(na.Position, nb.Position, out var onSeg, out var onMesh, out _);
                 var gap = d - radius;
                 if (gap >= threshold) continue;
                 if (IsTipContact(onSeg, onMesh, tips, na, nb)) continue;
@@ -76,15 +77,15 @@ internal static class ProximityChecker
         }
     }
 
-    public static void ObjectObject(IReadOnlyList<MeshDistanceQuery> meshes, float threshold, List<CheckFinding> output)
+    public static void ObjectObject(IReadOnlyList<TriangleBvh> meshes, float threshold, List<CheckFinding> output)
     {
         if (meshes.Count < 2 || threshold <= 0) return;
         for (int i = 0; i < meshes.Count; i++)
         for (int j = i + 1; j < meshes.Count; j++)
         {
-            var sep = AabbSep(meshes[i].Bounds, meshes[j].Bounds);
+            var sep = meshes[i].Bounds.Separation(meshes[j].Bounds);
             if (sep >= threshold) continue;
-            var d = meshes[i].ClosestToMesh(meshes[j], out var a, out var b);
+            var d = meshes[i].ClosestTo(meshes[j], out var a, out var b);
             if (d >= threshold) continue;
             output.Add(new CheckFinding
             {
@@ -131,13 +132,5 @@ internal static class ProximityChecker
             next++;
         }
         return id;
-    }
-
-    private static float AabbSep(Geometry.Aabb a, Geometry.Aabb b)
-    {
-        var dx = MathF.Max(0, MathF.Max(a.Min.X - b.Max.X, b.Min.X - a.Max.X));
-        var dy = MathF.Max(0, MathF.Max(a.Min.Y - b.Max.Y, b.Min.Y - a.Max.Y));
-        var dz = MathF.Max(0, MathF.Max(a.Min.Z - b.Max.Z, b.Min.Z - a.Max.Z));
-        return MathF.Sqrt(dx * dx + dy * dy + dz * dz);
     }
 }

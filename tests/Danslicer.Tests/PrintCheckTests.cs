@@ -183,6 +183,29 @@ public class PrintCheckTests
     }
 
     [Fact]
+    public void BvhSupportModelAgreesWithBruteForceDistanceQuery()
+    {
+        var cube = Meshes.Box(10, 10, 10, new Vector3(0, 0, 2));
+        var g = new SupportGraph();
+        Pillar(g, new Vector3(10.3f, 5, 0), new Vector3(10.3f, 5, 8), 0.4f);
+
+        var bvh = MeshAnalysis.For(cube).Bvh;
+        var brute = new MeshDistanceQuery(cube);
+        var seg = g.Segments.Single();
+        var na = g.GetNode(seg.NodeA);
+        var nb = g.GetNode(seg.NodeB);
+
+        var dBvh = bvh.ClosestToSegment(na.Position, nb.Position, out var sBvh, out var mBvh, out _);
+        var dBrute = brute.ClosestToSegment(na.Position, nb.Position, out var sBrute, out var mBrute);
+        Assert.Equal(dBrute, dBvh, 4);
+        Assert.InRange(Vector3.Distance(sBvh, sBrute), 0, 1e-4f);
+        Assert.InRange(Vector3.Distance(mBvh, mBrute), 0, 1e-4f);
+
+        var findings = PrintChecker.Check([cube], g, P(model: 1.0f));
+        Assert.Contains(findings, f => f.Kind == CheckKind.SupportModelProximity);
+    }
+
+    [Fact]
     public void SameInputsAreDeterministic()
     {
         var mesh = OpenBottomCup(20, 16, 12, 2);
