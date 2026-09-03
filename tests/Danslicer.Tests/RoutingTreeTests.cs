@@ -12,9 +12,23 @@ public sealed class RoutingTreeTests
             .Route(tips, options ?? new TreeRoutingOptions());
 
     [Fact]
+    public void NewBasesUseNearestReachablePlateOriginSquareGridPoint()
+    {
+        var result = Route(new[] { new RoutingTip(new(4, 0, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { BaseGridPitch = 10f, MaxBranchLength = 8f });
+
+        Assert.Empty(result.Failures);
+        var supportBase = Assert.Single(result.Graph.Nodes,
+            node => node.Type == SupportNodeType.Base);
+        Assert.Equal(Vector3.Zero, supportBase.Position);
+        Assert.Single(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.Branch);
+    }
+
+    [Fact]
     public void FlatUndersideTipBecomesTipTrunkAndDiscBase()
     {
-        var result = Route(new[] { new RoutingTip(new(3, 4, 10), Vector3.UnitZ, 0.4f) });
+        var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) });
 
         Assert.Empty(result.Failures);
         Assert.Equal(3, result.Graph.NodeCount);
@@ -27,8 +41,8 @@ public sealed class RoutingTreeTests
 
         // Tip member drops vertically for its 2 mm length; the trunk continues to the plate.
         var junction = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Junction);
-        Assert.Equal(new Vector3(3, 4, 8), junction.Position);
-        Assert.Equal(new Vector3(3, 4, 0), baseNode.Position);
+        Assert.Equal(new Vector3(0, 0, 8), junction.Position);
+        Assert.Equal(new Vector3(0, 0, 0), baseNode.Position);
         Assert.Equal(SupportBaseShape.Disc, baseNode.BaseShape);
         Assert.Equal(4f, baseNode.BaseDiameter);
         // Taper rule: the tip member is thinner than the trunk.
@@ -78,6 +92,77 @@ public sealed class RoutingTreeTests
         Assert.Equal(0f, low.X, 2);
         Assert.Equal(0f, low.Y, 2);
         Assert.Equal(4f, low.Z, 2);
+    }
+
+    [Theory]
+    [InlineData(true, 10f, 1)]
+    [InlineData(true, 5f, 2)]
+    [InlineData(false, 10f, 2)]
+    public void ExistingTrunkPreferenceAndRangeAreIndependent(
+        bool preferExisting, float range, int expectedBases)
+    {
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(6, 0, 10), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions
+        {
+            BaseGridPitch = 10f,
+            PreferExistingTrunks = preferExisting,
+            ExistingTrunkBranchRange = range,
+        });
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(expectedBases, result.BasePositions.Count);
+    }
+
+    [Fact]
+    public void MiniSupportsFanFromBranchEndWithConfiguredGeometryAndLimits()
+    {
+        var regular = new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 0, 12), Vector3.UnitZ, 0.4f),
+        };
+        var mini = new[]
+        {
+            new RoutingTip(new(4, 1, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(4, -1, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(5, 0, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(3, 0, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(4, 0, 14), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(20, 0, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+        };
+        var result = Route(regular.Concat(mini), new TreeRoutingOptions
+        {
+            MiniSupportDiameter = 0.7f,
+            MiniSupportTipDiameter = 0.3f,
+            MiniSupportConeLength = 1.2f,
+            MiniSupportMaxLength = 5f,
+            MiniSupportMaxFanPerBranchEnd = 4,
+        });
+
+        Assert.Equal(2, result.Failures.Count); // fifth fan contact and out-of-range contact
+        var miniSegments = result.Graph.Segments
+            .Where(segment => segment.Type == SupportSegmentType.MiniSupport).ToList();
+        Assert.Equal(4, miniSegments.Count);
+        Assert.All(miniSegments, segment => Assert.Equal(0.7f, segment.Diameter));
+        var miniTips = miniSegments.Select(segment =>
+                result.Graph.GetNode(segment.NodeA).Type == SupportNodeType.Tip
+                    ? result.Graph.GetNode(segment.NodeA)
+                    : result.Graph.GetNode(segment.NodeB))
+            .ToList();
+        Assert.All(miniTips, tip =>
+        {
+            Assert.Equal(0.3f, tip.TipDiameter);
+            Assert.Equal(SupportTipShape.Cone, tip.TipShape);
+            Assert.Equal(1.2f, tip.ConeLength);
+        });
+        var branchEnds = miniSegments.Select(segment =>
+                result.Graph.GetNode(segment.NodeA).Type == SupportNodeType.Junction
+                    ? segment.NodeA : segment.NodeB)
+            .Distinct().ToList();
+        Assert.Single(branchEnds);
     }
 
     [Fact]
@@ -145,7 +230,7 @@ public sealed class RoutingTreeTests
         scene.AddTriangle(new(-1.5f, -1.5f, 5), new(1.5f, 1.5f, 5), new(-1.5f, 1.5f, 5));
 
         var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
-            scene: scene);
+            new TreeRoutingOptions { BaseGridPitch = 5f }, scene);
 
         Assert.Empty(result.Failures);
         Assert.Single(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
@@ -158,7 +243,7 @@ public sealed class RoutingTreeTests
     public void BranchFanTriesShallowerAnglesWhenMaximumAngleIsBlocked()
     {
         var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
-            scene: new SteepBranchBlockScene());
+            new TreeRoutingOptions { BaseGridPitch = 4f }, new SteepBranchBlockScene());
 
         Assert.Empty(result.Failures);
         var branch = Assert.Single(result.Graph.Segments,
@@ -201,7 +286,7 @@ public sealed class RoutingTreeTests
         scene.AddTriangle(new(-40, -40, 5), new(40, 40, 5), new(-40, 40, 5));
 
         var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
-            scene: scene);
+            new TreeRoutingOptions { BaseGridPitch = 4f }, scene);
 
         var failure = Assert.Single(result.Failures);
         Assert.Equal(RoutingFailureReason.NoClearStep, failure.Reason);
@@ -291,7 +376,7 @@ public sealed class RoutingTreeTests
         scene.AddTriangle(new(1.2f, -3, 0), new(1.2f, 3, 0), new(1.2f, 0, 2));
 
         var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
-            scene: scene);
+            new TreeRoutingOptions { BaseGridPitch = 5f }, scene);
 
         Assert.Empty(result.Failures);
         var baseNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
@@ -313,7 +398,10 @@ public sealed class RoutingTreeTests
         scene.AddTriangle(new(-0.7f, -3, 0), new(-0.7f, 3, 0), new(-0.7f, 0, 2));
 
         var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
-            new TreeRoutingOptions { TrunkDiameter = 0.6f, BranchDiameter = 0.6f },
+            new TreeRoutingOptions
+            {
+                TrunkDiameter = 0.6f, BranchDiameter = 0.6f, BaseGridPitch = 4f,
+            },
             scene);
 
         Assert.Empty(result.Failures);
@@ -329,7 +417,8 @@ public sealed class RoutingTreeTests
     public void NearPlateTipAnglesToAFullSizeBaseLocation()
     {
         var result = Route(new[] { new RoutingTip(new(0, 0, 1), Vector3.UnitZ, 0.4f) },
-            new TreeRoutingOptions { BaseDiameter = 1f }, new BaseOnlyBlockScene());
+            new TreeRoutingOptions { BaseDiameter = 1f, BaseGridPitch = 1f },
+            new BaseOnlyBlockScene());
 
         Assert.Empty(result.Failures);
         var baseNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
@@ -431,7 +520,7 @@ public sealed class RoutingTreeTests
             new RoutingTip(new(-3, 2, 7), Vector3.UnitZ, 0.4f),
             new RoutingTip(new(4, -2, 5), Vector3.UnitZ, 0.4f),
         };
-        var result = Route(tips);
+        var result = Route(tips, new TreeRoutingOptions { BaseGridPitch = 4f });
 
         Assert.Empty(result.Failures);
         foreach (var segment in result.Graph.Segments)

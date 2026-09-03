@@ -7,6 +7,27 @@ namespace Danslicer.Tests;
 
 public class SupportRenderMeshTests
 {
+    [Fact]
+    public void MiniSupportRendersAsItsOwnCapsuleKind()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode { Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 2) };
+        var end = new SupportNode { Type = SupportNodeType.Junction, Position = Vector3.Zero };
+        graph.AddNode(tip);
+        graph.AddNode(end);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.MiniSupport,
+            NodeA = tip.Id,
+            NodeB = end.Id,
+            Diameter = 0.6f,
+        });
+
+        var part = Assert.Single(SupportRenderMesh.Build(graph));
+        Assert.Equal(SupportRenderKind.MiniSupport, part.Kind);
+        Assert.Equal(0.3f, part.Mesh.Bounds.Max.X, 3);
+    }
+
     private static SupportGraph VerticalPillar(out SupportSegment segment, float diameter = 1.2f)
     {
         var graph = new SupportGraph();

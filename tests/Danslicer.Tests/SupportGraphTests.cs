@@ -111,11 +111,11 @@ public class SupportGraphTests
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
         doc.AddObject(obj);
 
-        doc.AddManualSupport(obj, new Vector3(3, 4, 20), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(20, 20, 20), -Vector3.UnitZ);
         Assert.Equal(3, doc.Supports.NodeCount); // tip, junction, base
         Assert.Equal(2, doc.Supports.SegmentCount); // neck + pillar
         var tip = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip);
-        Assert.Equal(new Vector3(3, 4, 20), tip.Position);
+        Assert.Equal(new Vector3(20, 20, 20), tip.Position);
         Assert.Equal(obj.Id, tip.ContactObjectId);
         Assert.Equal(0, doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Base).Position.Z);
         Assert.Single(doc.Supports.Supports());
@@ -126,7 +126,7 @@ public class SupportGraphTests
 
         // A contact near the plate connects the tip straight to its base: no junction.
         // (Away from the test triangle so the tip member has clearance.)
-        doc.AddManualSupport(obj, new Vector3(5, 5, 1), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(40, 40, 1), -Vector3.UnitZ);
         Assert.Equal(2, doc.Supports.NodeCount);
         Assert.Equal(1, doc.Supports.SegmentCount);
     }
@@ -140,7 +140,7 @@ public class SupportGraphTests
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
         doc.AddObject(obj);
         // Away from the test triangle so the vertical drop is clear: tip, junction, base.
-        doc.AddManualSupport(obj, new Vector3(3, 4, 20), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(20, 20, 20), -Vector3.UnitZ);
 
         // Deleting the trunk strands both remaining fragments (a tipless base, a baseless tip
         // stub), so residue pruning takes the whole tree in one undoable step.
@@ -173,7 +173,7 @@ public class SupportGraphTests
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
         doc.AddObject(obj);
-        doc.AddManualSupport(obj, new Vector3(0, 0, 20), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(20, 20, 20), -Vector3.UnitZ);
 
         var tip = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip);
         doc.SelectSupportElement(tip.Id);
@@ -193,8 +193,8 @@ public class SupportGraphTests
         doc.AddObject(obj);
         // Two routed trees far enough apart that neither branches onto the other's trunk,
         // and clear of the test triangle so both drops are simple verticals.
-        doc.AddManualSupport(obj, new Vector3(3, 4, 20), -Vector3.UnitZ);
-        doc.AddManualSupport(obj, new Vector3(13, 4, 20), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(20, 20, 20), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(40, 20, 20), -Vector3.UnitZ);
 
         // Brace the two trees together; the whole-support pick must still stop at the bracing.
         var junctions = doc.Supports.Nodes.Where(n => n.Type == SupportNodeType.Junction).ToList();
@@ -223,17 +223,17 @@ public class SupportGraphTests
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
         doc.AddObject(obj);
-        doc.AddManualSupport(obj, new Vector3(3, 4, 20), -Vector3.UnitZ);
+        doc.AddManualSupport(obj, new Vector3(20, 20, 20), -Vector3.UnitZ);
 
         var tip = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip);
         var affected = SupportEditing.AffectedByTipMove(doc.Supports, tip.Id);
         Assert.Equal(3, affected.Count); // tip, junction, base
 
-        SupportEditing.MoveTipVertical(doc.Supports, tip.Id, new Vector3(7, -3, 15), Vector3.UnitX);
-        Assert.Equal(new Vector3(7, -3, 15), tip.Position);
+        SupportEditing.MoveTipVertical(doc.Supports, tip.Id, new Vector3(20, 20, 15), Vector3.UnitX);
+        Assert.Equal(new Vector3(20, 20, 15), tip.Position);
         Assert.Equal(Vector3.UnitX, tip.SurfaceNormal);
-        Assert.Equal(new Vector3(7, -3, 13), doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Junction).Position);
-        Assert.Equal(new Vector3(7, -3, 0), doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Base).Position);
+        Assert.Equal(new Vector3(20, 20, 13), doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Junction).Position);
+        Assert.Equal(new Vector3(20, 20, 0), doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Base).Position);
 
         // A tip with extra connections moves alone.
         var junction = doc.Supports.Nodes.Single(n => n.Type == SupportNodeType.Junction);

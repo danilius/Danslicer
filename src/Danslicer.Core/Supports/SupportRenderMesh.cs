@@ -7,6 +7,7 @@ namespace Danslicer.Core.Supports;
 public enum SupportRenderKind
 {
     Tip,
+    MiniSupport,
     Branch,
     Trunk,
     Bracing,
@@ -61,6 +62,7 @@ public static class SupportRenderMesh
             var kind = segment.Type switch
             {
                 SupportSegmentType.Tip => SupportRenderKind.Tip,
+                SupportSegmentType.MiniSupport => SupportRenderKind.MiniSupport,
                 SupportSegmentType.Trunk => SupportRenderKind.Trunk,
                 SupportSegmentType.Bracing => SupportRenderKind.Bracing,
                 _ => SupportRenderKind.Branch,
