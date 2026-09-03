@@ -1,0 +1,110 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Danslicer.App.ViewModels"
+        x:Class="Danslicer.App.Views.ConfigWindow"
+        x:DataType="vm:ConfigViewModel"
+        Width="760" Height="540" MinWidth="560" MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        Background="#23262A"
+        Title="Preferences">
+
+    <Window.Styles>
+        <Style Selector="TextBlock.label">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="#9AA0A6" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="Foreground" Value="#C8CCD0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,14,0,6" />
+        </Style>
+        <Style Selector="TextBlock.value">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="#C8CCD0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <Style Selector="Slider">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="8,0" />
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Left" Width="190" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <TextBox x:Name="SearchBox" DockPanel.Dock="Top" PlaceholderText="Search"
+                         Margin="8,8,8,4" FontSize="12" TextChanged="OnSearchChanged" />
+                <ListBox x:Name="SectionList" Background="Transparent" Margin="4,0"
+                         SelectionChanged="OnSectionSelected">
+                    <ListBoxItem Content="Viewport" />
+                    <ListBoxItem Content="SpaceMouse" />
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- One long scrollable pane holding every section; the list scrolls to a section,
+             the search box hides rows that do not match. -->
+        <ScrollViewer x:Name="Scroll" Padding="16,4,16,16">
+            <StackPanel x:Name="Sections">
+
+                <StackPanel x:Name="ViewportSection">
+                    <TextBlock Text="Viewport" Classes="section" />
+                    <Grid Tag="viewport overhang tint angle threshold degrees" ColumnDefinitions="190,*,52" Margin="0,2">
+                        <TextBlock Text="Overhang tint angle" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="10" Maximum="89" TickFrequency="1" IsSnapToTickEnabled="True"
+                                Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding OverhangAngleDegrees, StringFormat={}{0:0}°}" />
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel x:Name="SpaceMouseSection">
+                    <TextBlock Text="SpaceMouse" Classes="section" />
+                    <TextBlock Tag="spacemouse note live" Classes="label" TextWrapping="Wrap" Margin="0,0,0,6"
+                               Text="Changes apply immediately — tune while moving the cap. Sensitivity 1.00 is the untuned default." />
+                    <Grid Tag="spacemouse orbit rotate sensitivity speed" ColumnDefinitions="190,*,52" Margin="0,2">
+                        <TextBlock Text="Orbit sensitivity" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseOrbitSensitivity, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding SpaceMouseOrbitSensitivity, StringFormat={}{0:0.00}}" />
+                    </Grid>
+                    <Grid Tag="spacemouse pan slide sensitivity speed" ColumnDefinitions="190,*,52" Margin="0,2">
+                        <TextBlock Text="Pan sensitivity" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMousePanSensitivity, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding SpaceMousePanSensitivity, StringFormat={}{0:0.00}}" />
+                    </Grid>
+                    <Grid Tag="spacemouse zoom push sensitivity speed" ColumnDefinitions="190,*,52" Margin="0,2">
+                        <TextBlock Text="Zoom sensitivity" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseZoomSensitivity, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding SpaceMouseZoomSensitivity, StringFormat={}{0:0.00}}" />
+                    </Grid>
+                    <Grid Tag="spacemouse deadzone drift threshold" ColumnDefinitions="190,*,52" Margin="0,2">
+                        <TextBlock Text="Deadzone" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="0" Maximum="0.2" Value="{Binding SpaceMouseDeadzone, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="2" Classes="value" Text="{Binding SpaceMouseDeadzone, StringFormat={}{0:0.000}}" />
+                    </Grid>
+                    <StackPanel Tag="spacemouse invert orbit yaw pitch direction flip" Orientation="Horizontal" Spacing="16" Margin="0,6,0,0">
+                        <TextBlock Text="Invert orbit" Classes="label" Width="174" />
+                        <CheckBox Content="Yaw (twist)" IsChecked="{Binding SpaceMouseInvertOrbitYaw, Mode=TwoWay}" />
+                        <CheckBox Content="Pitch (tilt)" IsChecked="{Binding SpaceMouseInvertOrbitPitch, Mode=TwoWay}" />
+                    </StackPanel>
+                    <StackPanel Tag="spacemouse invert pan direction flip horizontal vertical" Orientation="Horizontal" Spacing="16" Margin="0,2,0,0">
+                        <TextBlock Text="Invert pan" Classes="label" Width="174" />
+                        <CheckBox Content="X (left/right)" IsChecked="{Binding SpaceMouseInvertPanX, Mode=TwoWay}" />
+                        <CheckBox Content="Y (up/down)" IsChecked="{Binding SpaceMouseInvertPanY, Mode=TwoWay}" />
+                    </StackPanel>
+                    <StackPanel Tag="spacemouse invert zoom push pull direction flip" Orientation="Horizontal" Spacing="16" Margin="0,2,0,0">
+                        <TextBlock Text="Invert zoom" Classes="label" Width="174" />
+                        <CheckBox Content="Push/pull" IsChecked="{Binding SpaceMouseInvertZoom, Mode=TwoWay}" />
+                    </StackPanel>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

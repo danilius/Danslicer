@@ -92,6 +92,8 @@
                 <Separator />
                 <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" InputGesture="A" />
                 <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" InputGesture="Delete" />
+                <Separator />
+                <MenuItem Header="_Preferences..." Click="OnPreferencesClick" InputGesture="Ctrl+OemComma" />
             </MenuItem>
             <MenuItem Header="_Object">
                 <MenuItem Header="_Drop to Plate" Command="{Binding DropToPlateCommand}" InputGesture="Ctrl+D" />

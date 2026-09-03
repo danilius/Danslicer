@@ -195,6 +195,7 @@ public sealed class ViewportControl : OpenGlControlBase
             Overlay = _overlay,
             DepthOverlay = _depthOverlay,
             ShowOverhangs = ShowOverhangs,
+            OverhangAngleDegrees = Configuration.AppConfig.Current.Viewport.OverhangAngleDegrees,
         });
     }
 
@@ -806,13 +807,14 @@ public sealed class ViewportControl : OpenGlControlBase
 
     // ----- SpaceMouse -----
 
-    // Step sizes per poll at full cap deflection, expressed in the camera's pixel/step units so the
-    // camera's own clamping applies. Signs follow 3Dconnexion camera mode: push forward to zoom in,
-    // tilt forward to pitch down, twist to yaw. Roll is locked, as designed.
+    // Base step sizes per poll at full cap deflection, expressed in the camera's pixel/step units
+    // so the camera's own clamping applies. Signs follow 3Dconnexion camera mode: push forward to
+    // zoom in, tilt forward to pitch down, twist to yaw. Roll is locked, as designed. The user
+    // scales and flips these through the SpaceMouse section of the config window; settings are
+    // read every poll tick so tuning applies live.
     private const float SpaceMouseOrbitPixels = 6f;
     private const float SpaceMousePanPixels = 8f;
     private const float SpaceMouseZoomSteps = 0.08f;
-    private const float SpaceMouseDeadzone = 0.001f;
 
     private void ConnectSpaceMouse()
     {
@@ -837,20 +839,31 @@ public sealed class ViewportControl : OpenGlControlBase
         var m = _sixAxis.Poll();
         if (m.IsZero) return;
 
+        var config = Configuration.AppConfig.Current.SpaceMouse;
+        var deadzone = config.Deadzone;
+        var orbit = SpaceMouseOrbitPixels * config.OrbitSensitivity;
+        var pan = SpaceMousePanPixels * config.PanSensitivity;
+        var zoom = SpaceMouseZoomSteps * config.ZoomSensitivity;
+
         var moved = false;
-        if (MathF.Abs(m.Rotation.Y) > SpaceMouseDeadzone || MathF.Abs(m.Rotation.X) > SpaceMouseDeadzone)
+        if (MathF.Abs(m.Rotation.Y) > deadzone || MathF.Abs(m.Rotation.X) > deadzone)
         {
-            Camera.Orbit(-m.Rotation.Y * SpaceMouseOrbitPixels, -m.Rotation.X * SpaceMouseOrbitPixels);
+            Camera.Orbit(
+                -m.Rotation.Y * orbit * (config.InvertOrbitYaw ? -1f : 1f),
+                -m.Rotation.X * orbit * (config.InvertOrbitPitch ? -1f : 1f));
             moved = true;
         }
-        if (MathF.Abs(m.Translation.X) > SpaceMouseDeadzone || MathF.Abs(m.Translation.Y) > SpaceMouseDeadzone)
+        if (MathF.Abs(m.Translation.X) > deadzone || MathF.Abs(m.Translation.Y) > deadzone)
         {
-            Camera.Pan(-m.Translation.X * SpaceMousePanPixels, m.Translation.Y * SpaceMousePanPixels, (float)Bounds.Height);
+            Camera.Pan(
+                -m.Translation.X * pan * (config.InvertPanX ? -1f : 1f),
+                m.Translation.Y * pan * (config.InvertPanY ? -1f : 1f),
+                (float)Bounds.Height);
             moved = true;
         }
-        if (MathF.Abs(m.Translation.Z) > SpaceMouseDeadzone)
+        if (MathF.Abs(m.Translation.Z) > deadzone)
         {
-            Camera.Zoom(-m.Translation.Z * SpaceMouseZoomSteps);
+            Camera.Zoom(-m.Translation.Z * zoom * (config.InvertZoom ? -1f : 1f));
             moved = true;
         }
         if (moved) Redraw();

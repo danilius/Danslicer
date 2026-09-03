@@ -21,6 +21,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         KeyBindings.Add(new KeyBinding { Gesture = KeyGesture.Parse("Ctrl+I"), Command = ImportCommand });
         KeyBindings.Add(new KeyBinding { Gesture = KeyGesture.Parse("Ctrl+E"), Command = ExportCommand });
+        KeyBindings.Add(new KeyBinding
+        {
+            Gesture = KeyGesture.Parse("Ctrl+OemComma"),
+            Command = new RelayCommand(() => OnPreferencesClick(this, new RoutedEventArgs())),
+        });
         Viewport.PropertyChanged += (_, e) =>
         {
             if (e.Property == ViewportControl.StatusTextProperty && DataContext is MainViewModel vm)
@@ -33,6 +38,20 @@ public partial class MainWindow : Window
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
+    private ConfigWindow? _configWindow;
+
+    /// <summary>Preferences is non-modal so the viewport stays live while tuning; one instance.</summary>
+    private void OnPreferencesClick(object? sender, RoutedEventArgs e)
+    {
+        if (_configWindow is { } open)
+        {
+            open.Activate();
+            return;
+        }
+        _configWindow = new ConfigWindow();
+        _configWindow.Closed += (_, _) => _configWindow = null;
+        _configWindow.Show(this);
+    }
 
     private async void OnImportClick(object? sender, RoutedEventArgs e)
     {
