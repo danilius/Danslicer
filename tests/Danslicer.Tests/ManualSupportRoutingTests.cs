@@ -170,6 +170,113 @@ public sealed class ManualSupportRoutingTests
     }
 
     [Fact]
+    public void InRangeManualSupportBranchesOntoTheExistingTrunk()
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig { UseBaseGrid = false };
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+        var originalNodes = document.Supports.Nodes.OrderBy(node => node.Id)
+            .Select(node => (node.Id, node.Type, node.Position)).ToList();
+        var originalSegments = document.Supports.Segments.OrderBy(segment => segment.Id)
+            .Select(segment => (segment.Id, segment.Type, segment.NodeA, segment.NodeB)).ToList();
+
+        Assert.True(document.AddManualSupport(box, new Vector3(4, 0, 8), -Vector3.UnitZ));
+
+        Assert.Single(document.Supports.Nodes, node => node.Type == SupportNodeType.Base);
+        Assert.Equal(2, document.Supports.Nodes.Count(node => node.Type == SupportNodeType.Tip));
+        Assert.Single(document.Supports.Segments,
+            segment => segment.Type == SupportSegmentType.Branch);
+        Assert.Single(document.Supports.Supports());
+
+        document.Undo();
+        Assert.Equal(originalNodes, document.Supports.Nodes.OrderBy(node => node.Id)
+            .Select(node => (node.Id, node.Type, node.Position)));
+        Assert.Equal(originalSegments, document.Supports.Segments.OrderBy(segment => segment.Id)
+            .Select(segment => (segment.Id, segment.Type, segment.NodeA, segment.NodeB)));
+    }
+
+    [Fact]
+    public void OutOfRangeManualSupportDropsItsOwnBase()
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig
+        {
+            UseBaseGrid = false,
+            ExistingTrunkBranchRange = 3f,
+        };
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+
+        Assert.True(document.AddManualSupport(box, new Vector3(4, 0, 8), -Vector3.UnitZ));
+
+        Assert.Equal(2, document.Supports.Nodes.Count(node => node.Type == SupportNodeType.Base));
+        Assert.DoesNotContain(document.Supports.Segments,
+            segment => segment.Type == SupportSegmentType.Branch);
+        Assert.Equal(2, document.Supports.Supports().Count());
+    }
+
+    [Fact]
+    public void MiniOnlyManualRouteFansFromAnExistingBranchEnd()
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig { UseBaseGrid = false };
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+        Assert.True(document.AddManualSupport(box, new Vector3(4, 0, 8), -Vector3.UnitZ));
+        var branchEnd = document.Supports.Segments
+            .Single(segment => segment.Type == SupportSegmentType.Branch);
+        var trunkNodeIds = document.Supports.Segments
+            .Where(segment => segment.Type == SupportSegmentType.Trunk)
+            .SelectMany(segment => new[] { segment.NodeA, segment.NodeB }).ToHashSet();
+        var endId = trunkNodeIds.Contains(branchEnd.NodeA) ? branchEnd.NodeB : branchEnd.NodeA;
+        var end = document.Supports.GetNode(endId);
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddSupportGraph(document.Supports);
+        var router = new TreeSupportRouter(obstacles, GrowthRuleSet.Default);
+        var result = router.Route(new[]
+        {
+            new RoutingTip(end.Position + new Vector3(0.5f, 0, 3), Vector3.UnitZ, 0.25f,
+                box.Id, MiniSupportOnly: true),
+        }, new TreeRoutingOptions
+        {
+            UseBaseGrid = false,
+            Origin = SupportOrigin.ManualFor(box.Id),
+        }, document.Supports);
+
+        Assert.Empty(result.Failures);
+        Assert.DoesNotContain(result.Edit.AddedNodes,
+            node => node.Type == SupportNodeType.Base);
+        Assert.Single(result.Edit.AddedSegments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+    }
+
+    [Fact]
+    public void AttachedManualTipHasSaneComponentVisibilityAndDeletion()
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig { UseBaseGrid = false };
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+        Assert.True(document.AddManualSupport(box, new Vector3(4, 0, 8), -Vector3.UnitZ));
+        var attachedTip = document.Supports.Nodes.Single(node =>
+            node.Type == SupportNodeType.Tip && node.Position.X > 3f);
+
+        document.SelectSupportComponent(attachedTip.Id);
+        Assert.Equal(document.Supports.NodeCount + document.Supports.SegmentCount,
+            document.SupportSelection.Count);
+        document.HideSelectedSupportElements();
+        Assert.All(document.Supports.Nodes, node => Assert.True(node.Hidden));
+        Assert.All(document.Supports.Segments, segment => Assert.True(segment.Hidden));
+        document.Undo();
+
+        document.SelectSupportElement(attachedTip.Id);
+        document.DeleteSupportSelection();
+        Assert.Single(document.Supports.Nodes, node => node.Type == SupportNodeType.Tip);
+        Assert.Single(document.Supports.Nodes, node => node.Type == SupportNodeType.Base);
+        Assert.DoesNotContain(document.Supports.Nodes, node =>
+            node.Type == SupportNodeType.Junction &&
+            document.Supports.SegmentsAt(node.Id).Count <= 1);
+        Assert.Single(document.Supports.Supports());
+    }
+
+    [Fact]
     public void RoutedSupportIsOneUndoStep()
     {
         var (document, box) = FloatingBoxDocument();
