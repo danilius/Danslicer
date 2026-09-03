@@ -52,10 +52,17 @@ Add-Type classes with fresh names per call.
    (necks yellow, pillars blue, bracing green, tips orange crosses). Hidden elements skip drawing
    but still slice; disabled ones fade and don't slice. Verified on screen.
 
-Next candidates: support element selection and deletion (click a line, Delete); move tip along the
-surface; SpaceMouse buttons via COM connection points; SpaceMouse sign/sensitivity tuning with the
-user; region painting and generation (milestone 6); the test print (mirror-X question) is still the
-one thing only the user can do. The 74-test suite is green on `main`.
+11. **Support selection, deletion, tip move** — click selects a support element (screen-space pick,
+   depth-arbitrated against the model; Shift toggles; selected draws white); Delete removes it
+   undoably (a node takes its segments); Esc clears support selection before object selection.
+   G with one selected tip drags it along its contact object's surface, re-dropping the simple
+   vertical tree live; LMB/Enter commits "Move tip", RMB/Esc cancels. All verified on screen.
+
+Next candidates: whole-support selection (pick the tree, not the element); Shift+H hide unselected
+on support elements; SpaceMouse buttons via COM connection points; SpaceMouse sign/sensitivity
+tuning with the user; support render meshes (capsules, not lines); region painting and generation
+(milestone 6); the test print (mirror-X question) is still the one thing only the user can do.
+The 78-test suite is green on `main`.
 
 ## What this is
 
