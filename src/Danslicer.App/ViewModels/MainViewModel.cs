@@ -11,17 +11,19 @@ using Danslicer.Core.Config;
 using Danslicer.Core.IO;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
+using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Utilities;
 
 namespace Danslicer.App.ViewModels;
-
-public enum ViewMode { Model, Layers }
 
 public partial class MainViewModel : ViewModelBase
 {
     private bool _syncingSelection;
     private bool _loadingPlacement;
     private CancellationTokenSource? _sliceCancellation;
+    private CancellationTokenSource? _generationCancellation;
+    private bool _applyingGenerationBatch;
+    private WorkspaceMode _lastModelMode = WorkspaceMode.Layout;
 
     public Document Document { get; } = new();
 
@@ -50,19 +52,35 @@ public partial class MainViewModel : ViewModelBase
     // ----- Viewport tools -----
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayersView))]
-    public partial ViewMode ViewMode { get; set; } = ViewMode.Model;
+    [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayoutView), nameof(IsSupportView), nameof(IsLayersView))]
+    public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public bool IsModelView
     {
-        get => ViewMode == ViewMode.Model;
-        set { if (value) ViewMode = ViewMode.Model; }
+        get => ViewMode != WorkspaceMode.Slicing;
+    }
+
+    public bool IsLayoutView
+    {
+        get => ViewMode == WorkspaceMode.Layout;
+        set { if (value) ViewMode = WorkspaceMode.Layout; }
+    }
+
+    public bool IsSupportView
+    {
+        get => ViewMode == WorkspaceMode.Support;
+        set { if (value) ViewMode = WorkspaceMode.Support; }
     }
 
     public bool IsLayersView
     {
-        get => ViewMode == ViewMode.Layers;
-        set { if (value) ViewMode = ViewMode.Layers; }
+        get => ViewMode == WorkspaceMode.Slicing;
+        set { if (value && HasSlice) ViewMode = WorkspaceMode.Slicing; }
+    }
+
+    partial void OnViewModeChanged(WorkspaceMode value)
+    {
+        if (value != WorkspaceMode.Slicing) _lastModelMode = value;
     }
 
     [ObservableProperty]
@@ -90,6 +108,12 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial double SliceProgress { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsGeneratingSupports { get; set; }
+
+    [ObservableProperty]
+    public partial double GenerationProgress { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSlice))]
@@ -232,6 +256,8 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnDocumentChanged()
     {
+        if (IsGeneratingSupports && !_applyingGenerationBatch)
+            _generationCancellation?.Cancel();
         RefreshFields();
         var undo = Document.History.UndoName;
         var redo = Document.History.RedoName;
@@ -304,23 +330,97 @@ public partial class MainViewModel : ViewModelBase
 
     private bool HasSupportSelection() => Document.SupportSelection.Count > 0;
 
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void GenerateSupports()
+    [RelayCommand(CanExecute = nameof(CanGenerateSupports))]
+    private async Task GenerateSupports()
     {
+        if (IsGeneratingSupports) return;
         var obj = SelectedObject;
         if (obj is null) return;
+        var request = Document.CaptureSupportGeneration(obj, seed: 0);
+        _generationCancellation = new CancellationTokenSource();
+        var token = _generationCancellation.Token;
+        SupportGenerationBatch? batch = null;
+        IsGeneratingSupports = true;
+        GenerationProgress = 0;
+        GenerateSupportsCommand.NotifyCanExecuteChanged();
         ViewportStatus = "Generating supports…";
-        var result = Document.GenerateSupports(obj, seed: 0);
-        ViewportStatus = result.CandidateCount == 0
-            ? "Generate supports: no support tips were needed."
-            : $"Generate supports: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
+        try
+        {
+            var generationProgress = new Progress<SupportGenerationProgress>(p =>
+            {
+                GenerationProgress = p.Fraction * 0.8;
+                ViewportStatus = $"{p.Stage}: {p.Completed} / {p.Total}";
+            });
+            var prepared = await Task.Run(
+                () => Document.ComputeSupportGeneration(request, token, generationProgress), token);
+            token.ThrowIfCancellationRequested();
+            batch = new SupportGenerationBatch(Document.Supports, Document.History, prepared);
+            while (!batch.IsFinished)
+            {
+                token.ThrowIfCancellationRequested();
+                _applyingGenerationBatch = true;
+                try { batch.CommitNextBatch(); }
+                finally { _applyingGenerationBatch = false; }
+                GenerationProgress = 0.8 + batch.Progress * 0.2;
+                ViewportStatus = $"Adding supports… {GenerationProgress * 100:0}%";
+                await Task.Yield();
+            }
+            _applyingGenerationBatch = true;
+            try { batch.Complete(); }
+            finally { _applyingGenerationBatch = false; }
+            var result = prepared.Summary;
+            ViewportStatus = result.CandidateCount == 0
+                ? "Generate supports: no support tips were needed."
+                : $"Generate supports: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
+        }
+        catch (OperationCanceledException)
+        {
+            if (batch is not null)
+            {
+                _applyingGenerationBatch = true;
+                try { batch.Cancel(); }
+                finally { _applyingGenerationBatch = false; }
+            }
+            ViewportStatus = "Support generation cancelled; no supports were added.";
+        }
+        catch (Exception ex)
+        {
+            if (batch is not null)
+            {
+                _applyingGenerationBatch = true;
+                try { batch.Cancel(); }
+                finally { _applyingGenerationBatch = false; }
+            }
+            ViewportStatus = $"Support generation failed: {ex.Message}";
+        }
+        finally
+        {
+            IsGeneratingSupports = false;
+            _generationCancellation?.Dispose();
+            _generationCancellation = null;
+            GenerateSupportsCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private bool CanGenerateSupports() => SelectedObject is not null && !IsGeneratingSupports;
+
+    [RelayCommand]
+    private void CancelSupportGeneration()
+    {
+        ViewportStatus = "Cancelling support generation…";
+        _generationCancellation?.Cancel();
     }
 
     [RelayCommand]
-    private void SelectAll() => Document.SelectAll();
+    private void SelectAll() => WorkspaceSelection.SelectAll(Document, ViewMode);
 
     [RelayCommand]
-    private void ToggleView() => ViewMode = ViewMode == ViewMode.Model ? ViewMode.Layers : ViewMode.Model;
+    private void ToggleView()
+    {
+        if (ViewMode == WorkspaceMode.Slicing) ViewMode = _lastModelMode;
+        else if (HasSlice) ViewMode = WorkspaceMode.Slicing;
+        else ViewMode = ViewMode == WorkspaceMode.Layout ? WorkspaceMode.Support : WorkspaceMode.Layout;
+    }
 
     [RelayCommand]
     private void ToggleSnap() => SnapEnabled = !SnapEnabled;
@@ -368,7 +468,7 @@ public partial class MainViewModel : ViewModelBase
             PreviewLayerMax = Math.Max(0, result.LayerCount - 1);
             PreviewLayer = Math.Min(PreviewLayer, PreviewLayerMax);
             UpdatePreview();
-            ViewMode = ViewMode.Layers;
+            ViewMode = WorkspaceMode.Slicing;
             ViewportStatus = $"Sliced {result.LayerCount} layers.  Tab returns to the model view · Page Up/Down or Ctrl+wheel steps layers · wheel zooms · drag pans";
             return result;
         }
@@ -421,7 +521,7 @@ public partial class MainViewModel : ViewModelBase
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Scene changed since the last slice.";
-        if (ViewMode == ViewMode.Layers) ViewMode = ViewMode.Model;
+        if (ViewMode == WorkspaceMode.Slicing) ViewMode = _lastModelMode;
     }
 
     partial void OnPreviewLayerChanged(int value) => UpdatePreview();

@@ -22,6 +22,7 @@
         <KeyBinding Gesture="Delete" Command="{Binding DeleteCommand}" />
         <KeyBinding Gesture="Ctrl+D" Command="{Binding DropToPlateCommand}" />
         <KeyBinding Gesture="Ctrl+G" Command="{Binding GenerateSupportsCommand}" />
+        <KeyBinding Gesture="Ctrl+A" Command="{Binding SelectAllCommand}" />
         <KeyBinding Gesture="Shift+H" Command="{Binding HideUnselectedSupportsCommand}" />
         <KeyBinding Gesture="Ctrl+R" Command="{Binding SliceCommand}" />
     </Window.KeyBindings>
@@ -92,7 +93,7 @@
                 <MenuItem Header="_Undo" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
                 <MenuItem Header="_Redo" Command="{Binding RedoCommand}" InputGesture="Ctrl+Shift+Z" />
                 <Separator />
-                <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" InputGesture="A" />
+                <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" InputGesture="Ctrl+A" />
                 <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" InputGesture="Delete" />
                 <Separator />
                 <MenuItem Header="_Preferences..." Click="OnPreferencesClick" InputGesture="Ctrl+OemComma" />
@@ -120,7 +121,7 @@
                 <MenuItem Header="_Export Print File..." Click="OnExportClick" InputGesture="Ctrl+E" />
             </MenuItem>
             <MenuItem Header="_View">
-                <MenuItem Header="Toggle Model / _Layers" Command="{Binding ToggleViewCommand}" InputGesture="Tab" />
+                <MenuItem Header="Toggle Workspace / _Slicing" Command="{Binding ToggleViewCommand}" InputGesture="Tab" />
                 <Separator />
                 <MenuItem Header="Frame _All" Click="OnFrameAllClick" InputGesture="Home" />
                 <MenuItem Header="Frame _Selected" Click="OnFrameSelectedClick" InputGesture="OemPeriod" />
@@ -139,6 +140,17 @@
                 <ProgressBar Grid.Column="1" Width="160" Height="8" Margin="12,0" Minimum="0" Maximum="1"
                              Value="{Binding SliceProgress}" IsVisible="{Binding IsSlicing}" />
                 <TextBlock Grid.Column="2" Text="{Binding HistoryStatus}" Classes="label" Margin="16,0,0,0" />
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Background="#23262A" Padding="10,5"
+                IsVisible="{Binding IsGeneratingSupports}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <TextBlock Text="Generating supports" Classes="label" VerticalAlignment="Center" />
+                <ProgressBar Grid.Column="1" Minimum="0" Maximum="1"
+                             Value="{Binding GenerationProgress}" Height="10" />
+                <Button Grid.Column="2" Content="Cancel" Command="{Binding CancelSupportGenerationCommand}"
+                        Padding="12,2" />
             </Grid>
         </Border>
 
@@ -205,7 +217,7 @@
         <DockPanel>
             <Border DockPanel.Dock="Top" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,0,1" Padding="8,3">
                 <Grid ColumnDefinitions="Auto,*,Auto">
-                    <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsModelView}">
+                    <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsLayoutView}">
                         <TextBlock Text="Gizmo" Classes="label" Margin="0,0,8,0" />
                         <ToggleButton Classes="tool" Content="Move" IsChecked="{Binding ShowMoveGizmo}" ToolTip.Tip="Show move gizmo" />
                         <ToggleButton Classes="tool" Content="Rotate" IsChecked="{Binding ShowRotateGizmo}" ToolTip.Tip="Show rotate gizmo" />
@@ -219,9 +231,10 @@
                         <TextBlock Text="mm" Classes="label" Margin="4,0,4,0" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <TextBlock Text="View" Classes="label" Margin="0,0,8,0" />
-                        <ToggleButton Classes="tool" Content="Model" IsChecked="{Binding IsModelView}" ToolTip.Tip="3D model view (Tab)" />
-                        <ToggleButton Classes="tool" Content="Layers" IsChecked="{Binding IsLayersView}" IsEnabled="{Binding HasSlice}" ToolTip.Tip="Sliced layer view (Tab)" />
+                        <TextBlock Text="Workspace" Classes="label" Margin="0,0,8,0" />
+                        <ToggleButton Classes="tool" Content="Layout" IsChecked="{Binding IsLayoutView}" />
+                        <ToggleButton Classes="tool" Content="Support" IsChecked="{Binding IsSupportView}" />
+                        <ToggleButton Classes="tool" Content="Slicing" IsChecked="{Binding IsLayersView}" IsEnabled="{Binding HasSlice}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -229,6 +242,7 @@
             <Grid>
                 <controls:ViewportControl x:Name="Viewport" Document="{Binding Document}"
                                           IsVisible="{Binding IsModelView}"
+                                          SupportSelectionMode="{Binding IsSupportView}"
                                           ShowMoveGizmo="{Binding ShowMoveGizmo}"
                                           ShowRotateGizmo="{Binding ShowRotateGizmo}"
                                           ShowScaleGizmo="{Binding ShowScaleGizmo}"

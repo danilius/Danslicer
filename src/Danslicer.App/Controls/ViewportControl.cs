@@ -44,6 +44,9 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> ShowOverhangsProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(ShowOverhangs));
 
+    public static readonly StyledProperty<bool> SupportSelectionModeProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(SupportSelectionMode));
+
     private static readonly bool Trace = Environment.GetEnvironmentVariable("DANSLICER_TRACE") == "1";
     private static void Log(string message) { if (Trace) Console.Error.WriteLine($"[viewport] {message}"); }
 
@@ -62,6 +65,10 @@ public sealed class ViewportControl : OpenGlControlBase
     private bool _supportMeshesDirty = true;
     private ISixAxisInput? _sixAxis;
     private DispatcherTimer? _sixAxisTimer;
+    private Point? _marqueeStart;
+    private Point _marqueeCurrent;
+    private bool _marqueeAdditive;
+    private bool _borderSelectArmed;
 
     public Camera Camera { get; } = new();
 
@@ -89,6 +96,7 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool ShowScaleGizmo { get => GetValue(ShowScaleGizmoProperty); set => SetValue(ShowScaleGizmoProperty, value); }
     public bool SnapEnabled { get => GetValue(SnapEnabledProperty); set => SetValue(SnapEnabledProperty, value); }
     public bool ShowOverhangs { get => GetValue(ShowOverhangsProperty); set => SetValue(ShowOverhangsProperty, value); }
+    public bool SupportSelectionMode { get => GetValue(SupportSelectionModeProperty); set => SetValue(SupportSelectionModeProperty, value); }
 
     public ViewportControl()
     {
@@ -104,6 +112,12 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
         base.Render(context);
+        if (_marqueeStart is { } start)
+        {
+            var rect = new Rect(start, _marqueeCurrent).Normalize();
+            context.FillRectangle(new SolidColorBrush(Color.FromArgb(28, 80, 150, 255)), rect);
+            context.DrawRectangle(new Pen(new SolidColorBrush(Color.FromArgb(230, 120, 185, 255)), 1), rect);
+        }
     }
 
     protected override void OnGotFocus(FocusChangedEventArgs e)
@@ -325,6 +339,18 @@ public sealed class ViewportControl : OpenGlControlBase
                 return;
             }
 
+            if (SupportSelectionMode && _borderSelectArmed)
+            {
+                _borderSelectArmed = false;
+                _marqueeStart = _lastPointer;
+                _marqueeCurrent = _lastPointer;
+                _marqueeAdditive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+                e.Pointer.Capture(this);
+                Redraw();
+                e.Handled = true;
+                return;
+            }
+
             // Gizmo handle: start a constrained modal that ends on release.
             UpdateGizmo();
             var handle = _gizmo.HitTest(Camera, m, (float)Bounds.Width, (float)Bounds.Height);
@@ -347,6 +373,16 @@ public sealed class ViewportControl : OpenGlControlBase
             var objDistance = hitObj is null ? float.PositiveInfinity : Vector3.Distance(Camera.Eye, surfacePoint);
             var support = PickSupportElement(m, out var supportDistance);
             var additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            if (SupportSelectionMode && support is null && hitObj is null)
+            {
+                _marqueeStart = _lastPointer;
+                _marqueeCurrent = _lastPointer;
+                _marqueeAdditive = additive;
+                e.Pointer.Capture(this);
+                Redraw();
+                e.Handled = true;
+                return;
+            }
             // Support lines are thin, so give them the tie against the surface right behind them.
             if (support is { } element && supportDistance <= objDistance + 0.5f)
             {
@@ -391,6 +427,11 @@ public sealed class ViewportControl : OpenGlControlBase
             Camera.Pan(dx, dy, (float)Bounds.Height);
             Redraw();
         }
+        else if (_marqueeStart is not null)
+        {
+            _marqueeCurrent = pos;
+            Redraw();
+        }
         else if (_tipDrag is not null)
         {
             UpdateTipDrag(MouseVector(e));
@@ -426,6 +467,31 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             _orbiting = _panning = false;
             e.Pointer.Capture(null);
+        }
+        else if (_marqueeStart is { } start)
+        {
+            var end = _marqueeCurrent;
+            if (Document is not null && Vector2.Distance(new Vector2((float)start.X, (float)start.Y),
+                    new Vector2((float)end.X, (float)end.Y)) >= 3f)
+            {
+                var w = (float)Bounds.Width;
+                var h = (float)Bounds.Height;
+                var ids = Danslicer.Core.Supports.SupportMarqueeSelection.ElementsInside(
+                    Document.Supports,
+                    point => Camera.WorldToScreen(point, w, h),
+                    new Vector2((float)start.X, (float)start.Y),
+                    new Vector2((float)end.X, (float)end.Y),
+                    IsSupportPointVisible);
+                Document.SelectSupportElements(ids, _marqueeAdditive);
+            }
+            else if (!_marqueeAdditive)
+            {
+                Document?.ClearSupportSelection();
+            }
+            _marqueeStart = null;
+            e.Pointer.Capture(null);
+            Redraw();
+            e.Handled = true;
         }
         else if (_gizmoDragging)
         {
@@ -640,6 +706,16 @@ public sealed class ViewportControl : OpenGlControlBase
         return best;
     }
 
+    private bool IsSupportPointVisible(Vector3 point)
+    {
+        var w = (float)Bounds.Width;
+        var h = (float)Bounds.Height;
+        if (Camera.WorldToScreen(point, w, h) is not { } screen) return false;
+        var hit = PickSurface(screen, out _, out var surface, out _);
+        return hit is null || Vector3.Distance(Camera.Eye, point) <=
+            Vector3.Distance(Camera.Eye, surface) + 0.5f;
+    }
+
     private static readonly Vector4 SupportSelectedColor = new(1f, 1f, 1f, 1f);
     private const float DisabledSupportOpacity = 0.35f;
 
@@ -763,6 +839,10 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.S when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Scale, mouse, w, h); break;
                 case Key.A when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.ClearSelection(); break;
                 case Key.A when !ctrl: Document.SelectAll(); break;
+                case Key.B when !ctrl && SupportSelectionMode:
+                    _borderSelectArmed = true;
+                    statusAfterUpdate = "Border select: drag a box · Shift extends · Esc cancels";
+                    break;
                 // Lay flat on the face under the cursor; with nothing under it, arm a click pick.
                 case Key.F when !ctrl: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
                 case Key.H when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.UnhideAll(); break;
@@ -772,6 +852,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 // old straight vertical drop (the DESIGN §8.6 override).
                 case Key.T when !ctrl: statusAfterUpdate = TryAddSupport(mouse, forceStraight: shift); break;
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
+                case Key.Escape when _borderSelectArmed: _borderSelectArmed = false; break;
                 case Key.Escape when Document.SupportSelection.Count > 0: Document.ClearSupportSelection(); break;
                 case Key.Escape: Document.ClearSelection(); break;
                 case Key.Delete when Document.SupportSelection.Count > 0: Document.DeleteSupportSelection(); break;
