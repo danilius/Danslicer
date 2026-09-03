@@ -52,7 +52,7 @@ public class BenchCommandTests
                                 ["NoClearStep"] = 8,
                             },
                             Bases = 1,
-                            MaxLeanAngleDegrees = 44.5f,
+                            MaxLeanAngleDegrees = 44.56f,
                             CollisionFree = true,
                         },
                     ],
@@ -67,7 +67,7 @@ public class BenchCommandTests
                         "(Island 2, Overhang 10)", markdown);
         Assert.Contains("`--seat --strategy tree --base-grid on --json` | 2.346 | 2", markdown);
         Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);
-        Assert.Contains("**unrouted 9 / 12**, bases **1**, max lean 44.5°, " +
+        Assert.Contains("**unrouted 9 / 12**, bases **1**, max lean 44.6°, " +
                         "collisionFree **true**", markdown);
         Assert.Contains("Refusals: ContactBlocked 1, NoClearStep 8.", markdown);
         Assert.DoesNotContain("MiniIsland 0", markdown);

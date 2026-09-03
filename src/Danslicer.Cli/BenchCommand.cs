@@ -94,7 +94,7 @@ internal static class BenchCommand
                     $"{route.WallSeconds:0.000} | {route.ExitCode} | nodes {route.Nodes}, " +
                     $"segs {route.Segments}{Parenthesize(segments)}, **unrouted " +
                     $"{route.UnroutedTips} / {tips.Candidates}**, bases **{route.Bases}**, " +
-                    $"max lean {F(route.MaxLeanAngleDegrees)}°, collisionFree " +
+                    $"max lean {F1(route.MaxLeanAngleDegrees)}°, collisionFree " +
                     $"**{route.CollisionFree.ToString().ToLowerInvariant()}** | " +
                     $"Refusals: {(refusals.Length == 0 ? "none" : refusals)}. |");
             }
@@ -239,6 +239,7 @@ internal static class BenchCommand
     };
     private static string Escape(string value) => value.Replace("|", "\\|");
     private static string F(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+    private static string F1(float value) => value.ToString("0.0", CultureInfo.InvariantCulture);
 
     private static void Usage() => Console.Error.WriteLine(
         "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--output <summary.json>]");
