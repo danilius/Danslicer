@@ -22,6 +22,8 @@ switch (args[0])
         return Slice(args.Skip(1).ToArray());
     case "inspect":
         return Inspect(args.Skip(1).ToArray());
+    case "route":
+        return RouteCommand.Run(args.Skip(1).ToArray());
     default:
         Usage();
         return 1;
@@ -33,6 +35,7 @@ void Usage()
     Console.Error.WriteLine("  danslicer info <file.stl|file.obj>");
     Console.Error.WriteLine("  danslicer slice <file.stl|file.obj>... -o <out.pwmx> [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
     Console.Error.WriteLine("  danslicer inspect <file.pwmx>");
+    Console.Error.WriteLine("  danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
 }
 
 int Info(string[] a)
