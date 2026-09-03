@@ -1,5 +1,6 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Commands;
+using Danslicer.Core.Supports;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
@@ -15,7 +16,7 @@ public sealed class Document
     private readonly HashSet<SceneObject> _selection = new();
 
     public Scene.Scene Scene { get; } = new();
-    public Supports.SupportGraph Supports { get; } = new();
+    public SupportGraph Supports { get; } = new();
     public UndoStack History { get; } = new();
     public PrinterDefinition Printer { get; set; } = PrinterDefinition.PhotonMonoX;
     public PrintSettings PrintSettings { get; set; } = PrintSettings.Default;
@@ -100,6 +101,60 @@ public sealed class Document
             commands.Add(new SetTransformCommand(o, before, after, "Drop to plate"));
         }
         if (commands.Count > 0) Execute(new CompositeCommand("Drop to plate", commands));
+    }
+
+    /// <summary>
+    /// Adds a simple manual support under a picked surface point: a tip at the contact, a tapered
+    /// neck dropping vertically to a junction, and a pillar straight down to a base on the plate.
+    /// Contacts too close to the plate get a single tip-to-base pillar. One undo step.
+    /// </summary>
+    public void AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
+    {
+        const float neckLength = 2f;
+        const float neckDiameter = 0.8f;
+        const float pillarDiameter = 1.2f;
+
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = contact,
+            SurfaceNormal = surfaceNormal,
+            ContactObjectId = obj.Id,
+        };
+        var baseNode = new SupportNode
+        {
+            Type = SupportNodeType.Base,
+            Position = contact with { Z = 0 },
+        };
+
+        var nodes = new List<SupportNode> { tip, baseNode };
+        var segments = new List<SupportSegment>();
+        if (contact.Z > neckLength * 1.5f)
+        {
+            var junction = new SupportNode
+            {
+                Type = SupportNodeType.Junction,
+                Position = contact with { Z = contact.Z - neckLength },
+            };
+            nodes.Add(junction);
+            segments.Add(new SupportSegment
+            {
+                Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = neckDiameter,
+            });
+            segments.Add(new SupportSegment
+            {
+                Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
+            });
+        }
+        else
+        {
+            segments.Add(new SupportSegment
+            {
+                Type = SupportSegmentType.Pillar, NodeA = tip.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
+            });
+        }
+
+        Execute(new AddSupportElementsCommand(Supports, nodes, segments));
     }
 
     /// <summary>Hides the selected objects and deselects them. One undo step.</summary>
