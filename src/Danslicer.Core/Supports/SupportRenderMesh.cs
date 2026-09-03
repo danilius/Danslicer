@@ -92,6 +92,38 @@ public static class SupportRenderMesh
         return parts;
     }
 
+    /// <summary>
+    /// Builds one mesh containing only the SELECTED visible elements, for drawing as a highlight
+    /// overlay on top of the full build. Selection changes then re-tessellate a handful of
+    /// elements instead of the whole graph (the full rebuild froze the app for seconds on a
+    /// generated forest). Returns null when nothing selected is visible.
+    /// </summary>
+    public static Mesh? BuildSelected(SupportGraph graph, Func<Guid, bool> isSelected)
+    {
+        var builder = new MeshBuilder();
+        var any = false;
+        foreach (var segment in graph.Segments)
+        {
+            if (segment.Hidden || !isSelected(segment.Id)) continue;
+            var a = graph.GetNode(segment.NodeA);
+            var b = graph.GetNode(segment.NodeB);
+            if (a.Hidden || b.Hidden) continue;
+            if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
+                AppendConeTip(builder, tip, other, segment.Diameter * 0.5f);
+            else
+                AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
+            any = true;
+        }
+        foreach (var node in graph.Nodes)
+        {
+            if (node.Hidden || node.Type != SupportNodeType.Base) continue;
+            if (node.BaseShape == SupportBaseShape.None || !isSelected(node.Id)) continue;
+            AppendBase(builder, node, MaxVisibleIncidentDiameter(graph, node));
+            any = true;
+        }
+        return any ? builder.ToMesh() : null;
+    }
+
     /// <summary>The widest visible member meeting a node; the top radius of a DiscCone base's cone.</summary>
     private static float MaxVisibleIncidentDiameter(SupportGraph graph, SupportNode node)
     {

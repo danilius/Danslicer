@@ -6,8 +6,13 @@ using Silk.NET.OpenGL;
 
 namespace Danslicer.Render;
 
-/// <summary>A derived mesh drawn in world space with a flat colour (e.g. support capsules).</summary>
-public readonly record struct AuxMeshDraw(Mesh Mesh, Vector3 Color, float Opacity);
+/// <summary>
+/// A derived mesh drawn in world space with a flat colour (e.g. support capsules). With
+/// <paramref name="DepthOverlay"/> the mesh passes the depth test at EQUAL depth too, so a
+/// highlight copy of geometry already drawn this frame wins cleanly instead of z-fighting.
+/// </summary>
+public readonly record struct AuxMeshDraw(Mesh Mesh, Vector3 Color, float Opacity,
+    bool DepthOverlay = false);
 
 public sealed class RenderFrame
 {
@@ -197,8 +202,10 @@ public sealed class SceneRenderer : IDisposable
                 gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
                 gl.DepthMask(false);
             }
+            if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Lequal);
             BindMeshShader(Matrix4x4.Identity, view, projection, draw.Color, draw.Opacity, backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f);
             gpu.Draw();
+            if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Less);
             if (faded)
             {
                 gl.Disable(EnableCap.Blend);

@@ -259,6 +259,35 @@ public class SupportRenderMeshTests
     }
 
     [Fact]
+    public void BuildSelectedTessellatesOnlyTheSelectedElements()
+    {
+        var graph = new SupportGraph();
+        var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 10) };
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            BaseShape = SupportBaseShape.Disc, BaseDiameter = 4f, BaseHeight = 0.8f,
+        };
+        graph.AddNode(top);
+        graph.AddNode(bottom);
+        var trunk = new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = bottom.Id, Diameter = 1.2f,
+        };
+        graph.AddSegment(trunk);
+
+        Assert.Null(SupportRenderMesh.BuildSelected(graph, _ => false));
+
+        var trunkOnly = SupportRenderMesh.BuildSelected(graph, id => id == trunk.Id);
+        Assert.NotNull(trunkOnly);
+        Assert.Equal(SupportRenderMesh.TrianglesPerCapsule, trunkOnly!.TriangleCount);
+
+        var baseOnly = SupportRenderMesh.BuildSelected(graph, id => id == bottom.Id);
+        Assert.NotNull(baseOnly);
+        Assert.Equal(SupportRenderMesh.TrianglesPerFrustum, baseOnly!.TriangleCount);
+    }
+
+    [Fact]
     public void HiddenBaseNodeRendersNoBase()
     {
         var graph = new SupportGraph();
