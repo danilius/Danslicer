@@ -7,6 +7,121 @@ namespace Danslicer.Tests;
 public sealed class RoutingTopDownTests
 {
     [Fact]
+    public void LandRuleCreatesModelBaseWithConfiguredPadDiameter()
+    {
+        var objectId = Guid.NewGuid();
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-5, -5, 4), new(5, -5, 4), new(5, 5, 4), objectId);
+        scene.AddTriangle(new(-5, -5, 4), new(5, 5, 4), new(-5, 5, 4), objectId);
+        var rules = GrowthRuleSet.Default;
+        var land = rules.Find<LandGrowthRule>()!;
+        land.Enabled = true;
+        land.AllowLandingOnModel = true;
+        land.MinLandingAngleDegrees = 60;
+        land.LandingPadDiameter = 3;
+        var router = new TopDownSupportRouter(scene, rules);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f) },
+            new TopDownRoutingOptions { StepHeight = 2, DetourRings = 0 });
+
+        Assert.Empty(result.UnroutedTips);
+        var modelBase = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Base);
+        Assert.Equal(4, modelBase.Position.Z, 4);
+        Assert.Equal(objectId, modelBase.ContactObjectId);
+        var pad = Assert.Single(result.Graph.SegmentsAt(modelBase.Id));
+        Assert.Equal(3, pad.Diameter);
+    }
+
+    [Fact]
+    public void KeepCleanClearanceCanRejectOtherwiseClearPillar()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(1, -10, 0), new(1, 10, 0), new(1, 10, 20), "keep-clean");
+        scene.AddTriangle(new(1, -10, 0), new(1, 10, 20), new(1, -10, 20), "keep-clean");
+        var router = new TopDownSupportRouter(scene, GrowthRuleSet.Default);
+        var tip = new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f);
+        var options = new TopDownRoutingOptions { DetourRings = 0 };
+
+        Assert.Empty(router.Route(new[] { tip }, options).UnroutedTips);
+        var protectedResult = router.Route(new[] { tip }, options with
+        {
+            KeepCleanObstacleTags = new HashSet<object> { "keep-clean" },
+        });
+
+        Assert.Equal(tip, Assert.Single(protectedResult.UnroutedTips));
+    }
+
+    [Fact]
+    public void ReinforceRoutesRingsOnlyAroundCriticalTips()
+    {
+        var rules = GrowthRuleSet.Default;
+        var reinforce = rules.Find<ReinforceGrowthRule>()!;
+        reinforce.Enabled = true;
+        reinforce.SeedSelector = ReinforceSeedSelector.CriticalTips;
+        reinforce.Count = 2;
+        reinforce.RingRadius = 3;
+        var router = new TopDownSupportRouter(new LinearCollisionScene(), rules);
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f, IsCritical: true),
+            new RoutingTip(new(10, 0, 10), -Vector3.UnitZ, 0.4f),
+        };
+
+        var result = router.Route(tips, new TopDownRoutingOptions { Seed = 23 });
+
+        Assert.Empty(result.UnroutedTips);
+        Assert.Equal(4, result.Graph.Nodes.Count(node => node.Type == SupportNodeType.Tip));
+    }
+
+    [Fact]
+    public void AttachToExistingDoesNotPromoteOrModifyPinnedPillar()
+    {
+        var existing = new SupportGraph();
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base,
+            Position = Vector3.Zero,
+            Pinned = true,
+        };
+        var top = new SupportNode
+        {
+            Type = SupportNodeType.Junction,
+            Position = new Vector3(0, 0, 6),
+            Pinned = true,
+        };
+        existing.AddNode(bottom);
+        existing.AddNode(top);
+        var original = new SupportSegment
+        {
+            Type = SupportSegmentType.Pillar,
+            NodeA = bottom.Id,
+            NodeB = top.Id,
+            Diameter = 1.1f,
+            Pinned = true,
+        };
+        existing.AddSegment(original);
+        var scene = new LinearCollisionScene();
+        scene.AddSupportGraph(existing);
+        var router = new TopDownSupportRouter(scene, GrowthRuleSet.Default);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(1, 0, 10), -Vector3.UnitZ, 0.4f) },
+            new TopDownRoutingOptions { AttachToExisting = true }, existing);
+
+        Assert.Same(existing, result.Graph);
+        Assert.Empty(result.UnroutedTips);
+        Assert.Empty(result.BasePositions);
+        Assert.Equal(4, existing.NodeCount);
+        Assert.Equal(3, existing.SegmentCount);
+        Assert.True(top.Pinned);
+        Assert.True(original.Pinned);
+        Assert.Equal(SupportSegmentType.Pillar, original.Type);
+        Assert.Equal(1.1f, original.Diameter);
+        Assert.Contains(existing.SegmentsAt(top.Id), segment => segment.Id != original.Id);
+    }
+
+    [Fact]
     public void SingleTipDescendsToPlateInBoundedSteps()
     {
         var router = new TopDownSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
@@ -46,6 +161,31 @@ public sealed class RoutingTopDownTests
         var trunks = result.Graph.Segments.Where(segment => segment.Type == SupportSegmentType.Trunk).ToList();
         Assert.NotEmpty(trunks);
         Assert.All(trunks, trunk => Assert.Equal(2.1f, trunk.Diameter));
+    }
+
+    [Fact]
+    public void LaterRoutesRespectPromotedTrunkRadius()
+    {
+        var rules = GrowthRuleSet.Default;
+        rules.Find<MergeGrowthRule>()!.TriggerDistance = 1.3f;
+        rules.Find<ClearanceGrowthRule>()!.Enabled = false;
+        var router = new TopDownSupportRouter(new LinearCollisionScene(), rules);
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(-1.2f, 0, 10), -Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(1.4f, 0, 9), -Vector3.UnitZ, 0.4f),
+        };
+
+        var result = router.Route(tips, new TopDownRoutingOptions
+        {
+            StepHeight = 2,
+            DetourRings = 0,
+        });
+
+        Assert.Equal(new Vector3(1.4f, 0, 9), Assert.Single(result.UnroutedTips).SurfacePoint);
+        Assert.Contains(result.Graph.Segments, segment =>
+            segment.Type == SupportSegmentType.Trunk && segment.Diameter == 1.8f);
     }
 
     [Fact]

@@ -54,7 +54,8 @@ public sealed class BvhCollisionScene : ICollisionScene
                 segment.Diameter * 0.5f, segment.Id);
     }
 
-    public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius)
+    public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
+        Func<object?, bool>? obstacleFilter = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(radius);
         EnsureBuilt();
@@ -69,7 +70,8 @@ public sealed class BvhCollisionScene : ICollisionScene
             if (node.IsLeaf)
             {
                 for (var i = node.Start; i < node.Start + node.Count; i++)
-                    if (Intersects(_ordered[i], start, end, radius)) return true;
+                    if (Included(_ordered[i], obstacleFilter) &&
+                        Intersects(_ordered[i], start, end, radius)) return true;
                 continue;
             }
             stack.Push(node.Left!);
@@ -78,7 +80,8 @@ public sealed class BvhCollisionScene : ICollisionScene
         return false;
     }
 
-    public ObstacleNearestPoint? NearestObstacle(Vector3 point)
+    public ObstacleNearestPoint? NearestObstacle(Vector3 point,
+        Func<object?, bool>? obstacleFilter = null)
     {
         EnsureBuilt();
         if (_root is null) return null;
@@ -93,7 +96,8 @@ public sealed class BvhCollisionScene : ICollisionScene
             if (node.IsLeaf)
             {
                 for (var i = node.Start; i < node.Start + node.Count; i++)
-                    Consider(_ordered[i], point, ref nearest);
+                    if (Included(_ordered[i], obstacleFilter))
+                        Consider(_ordered[i], point, ref nearest);
                 continue;
             }
 
@@ -109,6 +113,27 @@ public sealed class BvhCollisionScene : ICollisionScene
                 stack.Push(node.Left);
                 stack.Push(node.Right);
             }
+        }
+        return nearest;
+    }
+
+    public ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+        Func<object?, bool>? obstacleFilter = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDistance);
+        if (direction.LengthSquared() <= 1e-12f)
+            throw new ArgumentException("Ray direction must be non-zero.", nameof(direction));
+        direction = Vector3.Normalize(direction);
+        ObstacleRayHit? nearest = null;
+        foreach (var triangle in _triangles)
+        {
+            if (obstacleFilter is not null && !obstacleFilter(triangle.Tag)) continue;
+            if (!GeometryDistance.RaycastTriangle(origin, direction, triangle.A, triangle.B,
+                    triangle.C, out var distance) || distance > maxDistance) continue;
+            if (nearest is not null && nearest.Value.Distance <= distance) continue;
+            var normal = Vector3.Cross(triangle.B - triangle.A, triangle.C - triangle.A);
+            normal = normal.LengthSquared() > 1e-12f ? Vector3.Normalize(normal) : Vector3.UnitZ;
+            nearest = new ObstacleRayHit(origin + direction * distance, normal, distance, triangle.Tag);
         }
         return nearest;
     }
@@ -163,6 +188,15 @@ public sealed class BvhCollisionScene : ICollisionScene
         var sum = radius + capsule.Radius;
         return GeometryDistance.SegmentSegmentSquared(start, end, capsule.Start, capsule.End)
                <= sum * sum;
+    }
+
+    private bool Included(Primitive primitive, Func<object?, bool>? obstacleFilter)
+    {
+        if (obstacleFilter is null) return true;
+        var tag = primitive.IsTriangle
+            ? _triangles[primitive.Index].Tag
+            : _capsules[primitive.Index].Tag;
+        return obstacleFilter(tag);
     }
 
     private void Consider(Primitive primitive, Vector3 point, ref ObstacleNearestPoint? nearest)

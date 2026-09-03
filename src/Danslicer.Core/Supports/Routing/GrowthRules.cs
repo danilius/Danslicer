@@ -10,6 +10,7 @@ public enum GrowthOperation
     Brace,
     Neck,
     Land,
+    Reinforce,
 }
 
 /// <summary>Mutable proposal passed through enabled growth rules in profile order.</summary>
@@ -65,10 +66,32 @@ public sealed class GrowthRuleSet
         new BranchGrowthRule(),
         new MergeGrowthRule(),
         new BraceGrowthRule(),
+        new ReinforceGrowthRule(),
         new TaperGrowthRule(),
         new ClearanceGrowthRule(),
         new LandGrowthRule(),
     });
+}
+
+public enum ReinforceSeedSelector
+{
+    LowestPointOfObject,
+    LowestPointOfRegion,
+    CriticalTips,
+}
+
+public sealed class ReinforceGrowthRule : IGrowthRule
+{
+    public string Name => "Reinforce";
+    public bool Enabled { get; set; }
+    public ReinforceSeedSelector SeedSelector { get; set; } = ReinforceSeedSelector.LowestPointOfObject;
+    public int Count { get; set; } = 3;
+    public float RingRadius { get; set; } = 2;
+    public float RingDiameterMultiplier { get; set; } = 1.25f;
+
+    // Tip expansion is consumed before routing because it creates complete routing inputs rather
+    // than changing one segment proposal.
+    public void Evaluate(GrowthContext context) { }
 }
 
 public sealed class BraceGrowthRule : IGrowthRule

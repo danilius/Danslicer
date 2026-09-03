@@ -3,7 +3,8 @@ using System.Numerics;
 namespace Danslicer.Core.Supports.Routing;
 
 public readonly record struct RoutingTip(Vector3 SurfacePoint, Vector3 InwardSurfaceNormal,
-    float TipDiameter, Guid? ContactObjectId = null);
+    float TipDiameter, Guid? ContactObjectId = null, bool IsCritical = false,
+    bool IsObjectLowest = false, bool IsRegionLowest = false);
 
 public enum BaseLatticeType
 {
@@ -23,6 +24,8 @@ public sealed record GridRoutingOptions
     public int CandidateRingCount { get; init; } = 3;
     public int Seed { get; init; } = 1;
     public SupportOrigin Origin { get; init; } = SupportOrigin.Manual;
+    public bool AttachToExisting { get; init; }
+    public IReadOnlySet<object>? KeepCleanObstacleTags { get; init; }
 }
 
 public sealed record RoutingResult(SupportGraph Graph, IReadOnlyList<RoutingTip> UnroutedTips,
@@ -40,29 +43,49 @@ public sealed class GridSupportRouter
         _rules = rules;
     }
 
-    public RoutingResult Route(IEnumerable<RoutingTip> tips, GridRoutingOptions options)
+    public RoutingResult Route(IEnumerable<RoutingTip> tips, GridRoutingOptions options,
+        SupportGraph? existingGraph = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.Spacing);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.PillarDiameter);
         ArgumentOutOfRangeException.ThrowIfNegative(options.SnapTolerance);
         ArgumentOutOfRangeException.ThrowIfNegative(options.CandidateRingCount);
 
-        var orderedTips = tips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
+        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, options.Seed);
+        var orderedTips = expandedTips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
         var candidates = orderedTips.Select(item =>
             (item.Tip, item.Index, Bases: CandidateBases(item.Tip.SurfacePoint, options).ToList())).ToList();
         var assignments = new List<(RoutingTip Tip, int Index, Vector3 Base, Vector3 Junction, float NeckDiameter)>();
+        var attachments = new List<ExistingAssignment>();
         var unrouted = new List<RoutingTip>();
         var branchCounts = new Dictionary<Vector3, int>();
-        var clearance = _rules.Find<ClearanceGrowthRule>();
-        var clearanceDistance = clearance is { Enabled: true } ? clearance.DistanceFromModel : 0;
+        var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
+        var attachTargets = options.AttachToExisting
+            ? ExistingSupportTargets.From(existingGraph)
+            : Array.Empty<ExistingSupportTarget>();
 
         foreach (var candidate in candidates)
         {
             var routed = false;
+            foreach (var target in attachTargets
+                         .Where(target => target.Node.Position.Z < candidate.Tip.SurfacePoint.Z)
+                         .OrderBy(target => Vector3.DistanceSquared(candidate.Tip.SurfacePoint,
+                             target.Node.Position))
+                         .ThenBy(target => target.Node.Id))
+            {
+                if (!TryExistingProposal(candidate.Tip, target, options, clearance,
+                        out var junction, out var neckDiameter)) continue;
+                attachments.Add(new ExistingAssignment(candidate.Tip, candidate.Index, junction,
+                    neckDiameter, target));
+                routed = true;
+                break;
+            }
+            if (routed) continue;
+
             foreach (var basePosition in candidate.Bases)
             {
                 branchCounts.TryGetValue(basePosition, out var branchCount);
-                if (!TryProposal(candidate.Tip, basePosition, branchCount, options, clearanceDistance,
+                if (!TryProposal(candidate.Tip, basePosition, branchCount, options, clearance,
                     out var junction, out var neckDiameter)) continue;
                 assignments.Add((candidate.Tip, candidate.Index, basePosition, junction, neckDiameter));
                 branchCounts[basePosition] = branchCount + 1;
@@ -72,10 +95,15 @@ public sealed class GridSupportRouter
             if (!routed) unrouted.Add(candidate.Tip);
         }
 
-        var graph = new SupportGraph();
+        var graph = options.AttachToExisting && existingGraph is not null
+            ? existingGraph
+            : new SupportGraph();
         var ids = new DeterministicIds(options.Seed);
         var bases = new List<Vector3>();
         var maxLean = 0f;
+        foreach (var attachment in attachments.OrderBy(item => item.Tip.SurfacePoint.Z)
+                     .ThenBy(item => item.Index))
+            EmitAttachment(graph, attachment, options, ids, ref maxLean);
         foreach (var group in assignments.GroupBy(a => a.Base).OrderBy(g => g.Key.X).ThenBy(g => g.Key.Y))
         {
             EmitGroup(graph, group.OrderBy(a => a.Junction.Z).ThenBy(a => a.Index).ToList(),
@@ -84,9 +112,87 @@ public sealed class GridSupportRouter
         return new RoutingResult(graph, unrouted, bases, maxLean);
     }
 
+    private bool TryExistingProposal(RoutingTip tip, ExistingSupportTarget target,
+        GridRoutingOptions options, RoutingClearance clearance, out Vector3 junction,
+        out float neckDiameter)
+    {
+        var taper = new GrowthContext
+        {
+            Operation = GrowthOperation.Neck,
+            Start = tip.SurfacePoint,
+            DesiredEnd = tip.SurfacePoint,
+            End = tip.SurfacePoint,
+            Diameter = options.PillarDiameter,
+        };
+        _rules.Evaluate(taper);
+        neckDiameter = MathF.Max(0.05f, taper.Diameter);
+        var neckDrop = MathF.Max(0.1f, taper.NeckLength);
+        junction = tip.SurfacePoint - Vector3.UnitZ * neckDrop;
+        if (target.Node.Position.Z >= junction.Z - 1e-5f) return false;
+
+        var merge = new GrowthContext
+        {
+            Operation = GrowthOperation.Merge,
+            Start = target.Node.Position,
+            DesiredEnd = junction,
+            End = junction,
+            Diameter = options.PillarDiameter,
+            LowestTipZ = MathF.Min(tip.SurfacePoint.Z, target.LowestTipZ),
+        };
+        _rules.Evaluate(merge);
+        if (!merge.Allowed) return false;
+
+        var horizontal = Vector2.Distance(new(junction.X, junction.Y),
+            new(target.Node.Position.X, target.Node.Position.Y));
+        var branch = new GrowthContext
+        {
+            Operation = GrowthOperation.Branch,
+            Start = junction,
+            DesiredEnd = target.Node.Position,
+            End = target.Node.Position,
+            Diameter = options.PillarDiameter,
+            DistanceToTip = horizontal,
+        };
+        _rules.Evaluate(branch);
+        if (!branch.Allowed || Vector3.DistanceSquared(branch.End, target.Node.Position) > 1e-6f)
+            return false;
+
+        var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
+        if (!ContactSegmentIsClear(tip.SurfacePoint, junction, neckRadius)) return false;
+        return clearance.PillarIsClear(_obstacles, junction, target.Node.Position,
+            branch.Diameter * 0.5f, ExistingSupportTargets.ExcludingIncidentSegments(target));
+    }
+
+    private bool ContactSegmentIsClear(Vector3 tip, Vector3 junction, float radius)
+    {
+        var delta = tip - junction;
+        var length = delta.Length();
+        if (length <= radius * 2 + 0.01f) return true;
+        var clearEnd = tip - delta / length * (radius * 2 + 0.01f);
+        return !_obstacles.IntersectsCapsule(junction, clearEnd, radius);
+    }
+
+    private static void EmitAttachment(SupportGraph graph, ExistingAssignment attachment,
+        GridRoutingOptions options, DeterministicIds ids, ref float maxLean)
+    {
+        var tipNode = Node(ids, SupportNodeType.Tip, attachment.Tip.SurfacePoint, options.Origin);
+        tipNode.SurfaceNormal = -RoutingUtilities.SafeInwardNormal(attachment.Tip.InwardSurfaceNormal);
+        tipNode.TipDiameter = attachment.Tip.TipDiameter;
+        tipNode.ContactObjectId = attachment.Tip.ContactObjectId;
+        var junction = Node(ids, SupportNodeType.Junction, attachment.Junction, options.Origin);
+        graph.AddNode(tipNode);
+        graph.AddNode(junction);
+        graph.AddSegment(Segment(ids, SupportSegmentType.Neck, tipNode.Id, junction.Id,
+            attachment.NeckDiameter, options.Origin));
+        graph.AddSegment(Segment(ids, SupportSegmentType.Pillar, junction.Id,
+            attachment.Target.Node.Id, options.PillarDiameter, options.Origin));
+        IncludeLean(tipNode.Position, junction.Position, ref maxLean);
+        IncludeLean(junction.Position, attachment.Target.Node.Position, ref maxLean);
+    }
+
     private bool TryProposal(RoutingTip tip, Vector3 basePosition, int existingBranchCount,
         GridRoutingOptions options,
-        float clearance, out Vector3 junction, out float neckDiameter)
+        RoutingClearance clearance, out Vector3 junction, out float neckDiameter)
     {
         var taper = new GrowthContext
         {
@@ -142,17 +248,18 @@ public sealed class GridSupportRouter
         _rules.Evaluate(branch);
         if (!branch.Allowed || Vector3.DistanceSquared(branch.End, tip.SurfacePoint) > 1e-6f) return false;
 
-        var queryRadius = MathF.Max(options.PillarDiameter, neckDiameter) * 0.5f + clearance;
-        if (_obstacles.IntersectsCapsule(basePosition, junction, queryRadius)) return false;
+        var physicalRadius = MathF.Max(options.PillarDiameter, neckDiameter) * 0.5f;
+        if (!clearance.PillarIsClear(_obstacles, basePosition, junction, physicalRadius)) return false;
 
         // The last part of a neck intentionally enters the contacted surface. Query only the
         // portion that should remain clear of unrelated geometry.
         var neckVector = tip.SurfacePoint - junction;
         var neckLengthActual = neckVector.Length();
-        if (neckLengthActual > queryRadius * 2 + 0.01f)
+        var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
+        if (neckLengthActual > neckRadius * 2 + 0.01f)
         {
-            var clearEnd = tip.SurfacePoint - neckVector / neckLengthActual * (queryRadius * 2 + 0.01f);
-            if (_obstacles.IntersectsCapsule(junction, clearEnd, queryRadius)) return false;
+            var clearEnd = tip.SurfacePoint - neckVector / neckLengthActual * (neckRadius * 2 + 0.01f);
+            if (_obstacles.IntersectsCapsule(junction, clearEnd, neckRadius)) return false;
         }
         return true;
     }
@@ -202,7 +309,7 @@ public sealed class GridSupportRouter
 
             var tipNode = Node(ids, SupportNodeType.Tip, route.Tip.SurfacePoint, options.Origin);
             // Routing input normals point into the model; graph contact normals point outward.
-            tipNode.SurfaceNormal = -SafeNormal(route.Tip.InwardSurfaceNormal);
+            tipNode.SurfaceNormal = -RoutingUtilities.SafeInwardNormal(route.Tip.InwardSurfaceNormal);
             tipNode.TipDiameter = route.Tip.TipDiameter;
             tipNode.ContactObjectId = route.Tip.ContactObjectId;
             graph.AddNode(tipNode);
@@ -263,9 +370,6 @@ public sealed class GridSupportRouter
         Guid b, float diameter, SupportOrigin origin) => new()
         { Id = ids.Next(), Type = type, NodeA = a, NodeB = b, Diameter = diameter, Origin = origin };
 
-    private static Vector3 SafeNormal(Vector3 normal) => normal.LengthSquared() > 1e-12f
-        ? Vector3.Normalize(normal) : Vector3.UnitZ;
-
     private static void IncludeLean(Vector3 start, Vector3 end, ref float maxLean)
     {
         var delta = end - start;
@@ -274,15 +378,7 @@ public sealed class GridSupportRouter
         maxLean = MathF.Max(maxLean, angle);
     }
 
-    private sealed class DeterministicIds
-    {
-        private readonly Random _random;
-        public DeterministicIds(int seed) => _random = new Random(seed);
-        public Guid Next()
-        {
-            Span<byte> bytes = stackalloc byte[16];
-            _random.NextBytes(bytes);
-            return new Guid(bytes);
-        }
-    }
+    private sealed record ExistingAssignment(RoutingTip Tip, int Index, Vector3 Junction,
+        float NeckDiameter, ExistingSupportTarget Target);
+
 }

@@ -6,6 +6,28 @@ namespace Danslicer.Tests;
 public sealed class RoutingCollisionTests
 {
     [Fact]
+    public void DownwardRaycastReturnsNearestTriangleAndIgnoresSupportCapsules()
+    {
+        var linear = new LinearCollisionScene();
+        var bvh = new BvhCollisionScene();
+        foreach (var scene in new Action<Vector3, Vector3, Vector3, object?>[]
+                 { linear.AddTriangle, bvh.AddTriangle })
+            scene(new(-2, -2, 4), new(2, -2, 4), new(2, 2, 4), "landing");
+        linear.AddCapsule(new(0, 0, 6), new(0, 0, 8), 1, "support");
+        bvh.AddCapsule(new(0, 0, 6), new(0, 0, 8), 1, "support");
+
+        var expected = Assert.IsType<ObstacleRayHit>(
+            linear.Raycast(new(0, 0, 10), -Vector3.UnitZ, 10));
+        var actual = Assert.IsType<ObstacleRayHit>(
+            bvh.Raycast(new(0, 0, 10), -Vector3.UnitZ, 10));
+
+        Assert.Equal("landing", expected.Tag);
+        Assert.Equal(6, expected.Distance, 4);
+        Assert.Equal(Vector3.UnitZ, expected.SurfaceNormal);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
     public void CapsuleDetectsTriangleFaceAndMissesOutsideRadius()
     {
         var scene = new LinearCollisionScene();

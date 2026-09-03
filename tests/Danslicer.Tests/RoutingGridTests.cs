@@ -7,6 +7,124 @@ namespace Danslicer.Tests;
 public sealed class RoutingGridTests
 {
     [Fact]
+    public void KeepCleanTagsUseSeparateLargerPillarClearance()
+    {
+        var scene = KeepCleanWall();
+        var rules = GrowthRuleSet.Default;
+        var router = new GridSupportRouter(scene, rules);
+        var tip = new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f);
+
+        var ordinary = router.Route(new[] { tip }, new GridRoutingOptions());
+        var protectedResult = router.Route(new[] { tip }, new GridRoutingOptions
+        {
+            KeepCleanObstacleTags = new HashSet<object> { "keep-clean" },
+        });
+
+        Assert.Equal(Vector3.Zero, Assert.Single(ordinary.BasePositions));
+        Assert.NotEqual(Vector3.Zero, Assert.Single(protectedResult.BasePositions));
+        Assert.Empty(protectedResult.UnroutedTips);
+    }
+
+    [Fact]
+    public void ReinforceAddsAndRoutesRingTipsAroundLowestSeed()
+    {
+        var rules = GrowthRuleSet.Default;
+        var reinforce = rules.Find<ReinforceGrowthRule>()!;
+        reinforce.Enabled = true;
+        reinforce.SeedSelector = ReinforceSeedSelector.LowestPointOfRegion;
+        reinforce.Count = 3;
+        reinforce.RingRadius = 3;
+        reinforce.RingDiameterMultiplier = 1.5f;
+        var router = new GridSupportRouter(new LinearCollisionScene(), rules);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f, IsRegionLowest: true) },
+            new GridRoutingOptions { Seed = 17 });
+
+        Assert.Empty(result.UnroutedTips);
+        var tips = result.Graph.Nodes.Where(node => node.Type == SupportNodeType.Tip).ToList();
+        Assert.Equal(4, tips.Count);
+        Assert.Single(tips, tip => MathF.Abs(tip.TipDiameter - 0.4f) < 1e-5f);
+        Assert.Equal(3, tips.Count(tip => MathF.Abs(tip.TipDiameter - 0.6f) < 1e-5f));
+        Assert.All(tips.Where(tip => tip.TipDiameter > 0.5f), tip =>
+            Assert.Equal(3, new Vector2(tip.Position.X, tip.Position.Y).Length(), 3));
+    }
+
+    [Fact]
+    public void AttachToExistingAddsOnlyNewRouteAndJoiningSegment()
+    {
+        var existing = ExistingPillar(out var top, out var originalSegment);
+        var scene = new LinearCollisionScene();
+        scene.AddSupportGraph(existing);
+        var router = new GridSupportRouter(scene, GrowthRuleSet.Default);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(1, 0, 10), -Vector3.UnitZ, 0.4f) },
+            new GridRoutingOptions { AttachToExisting = true }, existing);
+
+        Assert.Same(existing, result.Graph);
+        Assert.Empty(result.UnroutedTips);
+        Assert.Empty(result.BasePositions);
+        Assert.Equal(4, existing.NodeCount);
+        Assert.Equal(3, existing.SegmentCount);
+        Assert.True(top.Pinned);
+        Assert.True(originalSegment.Pinned);
+        Assert.Equal(SupportSegmentType.Pillar, originalSegment.Type);
+        Assert.Equal(1.1f, originalSegment.Diameter);
+        Assert.Contains(existing.SegmentsAt(top.Id), segment => segment.Id != originalSegment.Id);
+    }
+
+    [Fact]
+    public void DegenerateInputNormalUsesDownwardOutwardFallback()
+    {
+        var router = new GridSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
+
+        var result = router.Route(
+            new[] { new RoutingTip(new(0, 0, 10), Vector3.Zero, 0.4f) },
+            new GridRoutingOptions());
+
+        var tip = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Tip);
+        Assert.Equal(-Vector3.UnitZ, tip.SurfaceNormal);
+    }
+
+    private static SupportGraph ExistingPillar(out SupportNode top, out SupportSegment segment)
+    {
+        var graph = new SupportGraph();
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base,
+            Position = Vector3.Zero,
+            Pinned = true,
+        };
+        top = new SupportNode
+        {
+            Type = SupportNodeType.Junction,
+            Position = new Vector3(0, 0, 6),
+            Pinned = true,
+        };
+        graph.AddNode(bottom);
+        graph.AddNode(top);
+        segment = new SupportSegment
+        {
+            Type = SupportSegmentType.Pillar,
+            NodeA = bottom.Id,
+            NodeB = top.Id,
+            Diameter = 1.1f,
+            Pinned = true,
+        };
+        graph.AddSegment(segment);
+        return graph;
+    }
+
+    private static LinearCollisionScene KeepCleanWall()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(1, -10, 0), new(1, 10, 0), new(1, 10, 20), "keep-clean");
+        scene.AddTriangle(new(1, -10, 0), new(1, 10, 20), new(1, -10, 20), "keep-clean");
+        return scene;
+    }
+
+    [Fact]
     public void SingleTipProducesBasePillarNeckAndTip()
     {
         var router = new GridSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
