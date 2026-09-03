@@ -132,6 +132,7 @@ public sealed class UserConfigTests : IDisposable
                 TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.3f,
                 PenetrationDepth = 0.15f, TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
                 MemberAngleDegrees = 38f, TipMemberLength = 3f, MaxBranchLength = 11f,
+                PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
                 BaseGridPitch = 18f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 6f, BaseHeight = 1.1f,
                 BaseConeHeight = 2.8f, Spacing = 3.2f, IslandSpacingMm = 0.7f, OverhangAngleDegrees = 51f,
@@ -152,6 +153,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(38f, supports.MemberAngleDegrees);
         Assert.Equal(3f, supports.TipMemberLength);
         Assert.Equal(11f, supports.MaxBranchLength);
+        Assert.False(supports.PreferExistingTrunks);
+        Assert.Equal(9f, supports.ExistingTrunkBranchRange);
         Assert.Equal(18f, supports.BaseGridPitch);
         Assert.Equal(SupportBaseShape.DiscCone, supports.BaseShape);
         Assert.Equal(6f, supports.BaseDiameter);
@@ -177,6 +180,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(45f, supports.MemberAngleDegrees);
         Assert.Equal(2f, supports.TipMemberLength);
         Assert.Equal(8f, supports.MaxBranchLength);
+        Assert.True(supports.PreferExistingTrunks);
+        Assert.Equal(8f, supports.ExistingTrunkBranchRange);
         Assert.Equal(20f, supports.BaseGridPitch);
         Assert.Equal(SupportBaseShape.Disc, supports.BaseShape);
         Assert.Equal(4f, supports.BaseDiameter);

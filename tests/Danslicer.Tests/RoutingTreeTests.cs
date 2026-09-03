@@ -94,6 +94,28 @@ public sealed class RoutingTreeTests
         Assert.Equal(4f, low.Z, 2);
     }
 
+    [Theory]
+    [InlineData(true, 10f, 1)]
+    [InlineData(true, 5f, 2)]
+    [InlineData(false, 10f, 2)]
+    public void ExistingTrunkPreferenceAndRangeAreIndependent(
+        bool preferExisting, float range, int expectedBases)
+    {
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(6, 0, 10), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions
+        {
+            BaseGridPitch = 10f,
+            PreferExistingTrunks = preferExisting,
+            ExistingTrunkBranchRange = range,
+        });
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(expectedBases, result.BasePositions.Count);
+    }
+
     [Fact]
     public void EachMemberUsesItsConfiguredParentDiameter()
     {

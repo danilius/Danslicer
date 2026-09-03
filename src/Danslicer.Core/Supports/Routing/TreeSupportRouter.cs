@@ -18,6 +18,9 @@ public sealed record TreeRoutingOptions
     public float TipMemberLength { get; init; } = 2f;
     /// <summary>Longest branch member allowed, in millimetres along the member.</summary>
     public float MaxBranchLength { get; init; } = 8f;
+    public bool PreferExistingTrunks { get; init; } = true;
+    /// <summary>Maximum actual branch length when attaching to an existing trunk.</summary>
+    public float ExistingTrunkBranchRange { get; init; } = 8f;
     /// <summary>Pitch of the plate-origin-aligned square base grid.</summary>
     public float BaseGridPitch { get; init; } = 20f;
     /// <summary>Directions tried when a branch must swing around an obstacle or reach a trunk.</summary>
@@ -61,6 +64,7 @@ public sealed class TreeSupportRouter
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.TrunkDiameter);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.TipMemberLength);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BaseGridPitch);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.ExistingTrunkBranchRange);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchDirections);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchLengthSteps);
 
@@ -103,7 +107,8 @@ public sealed class TreeSupportRouter
 
         // Branch-first: an existing trunk gets first refusal, and a tip feeding that branch
         // tapers from the configured branch diameter.
-        if (branchJunction is { } branchJ1 && branchJ1.Z > options.PlateZ + Epsilon &&
+        if (options.PreferExistingTrunks && branchJunction is { } branchJ1 &&
+            branchJ1.Z > options.PlateZ + Epsilon &&
             TryAttachToTrunk(tip, branchJ1, options, state, branchTipDiameter)) return true;
 
         var (trunkTipDiameter, _) = TipMemberDimensions(
@@ -155,6 +160,9 @@ public sealed class TreeSupportRouter
                 options, state, branchTipDiameter);
             return true;
         }
+        if (!options.PreferExistingTrunks && branchJunction is { } fallbackJ1 &&
+            fallbackJ1.Z > options.PlateZ + Epsilon &&
+            TryAttachToTrunk(tip, fallbackJ1, options, state, branchTipDiameter)) return true;
         return false;
     }
 
@@ -290,7 +298,7 @@ public sealed class TreeSupportRouter
             if (trunk.BranchCount >= maxBranches) continue;
             var hDist = Vector2.Distance(new(j1.X, j1.Y), trunk.Xy);
             var branchLength = sinAngle > Epsilon ? hDist / sinAngle : float.MaxValue;
-            if (branchLength > options.MaxBranchLength) continue;
+            if (branchLength > options.ExistingTrunkBranchRange) continue;
             // A hair steeper than the exact member angle, so float rounding in the lean rule
             // can never clamp (and thereby reject) a nominally-exact 45° branch.
             var attachZ = j1.Z - (tanAngle > Epsilon ? hDist / tanAngle : 0f) - 1e-3f;

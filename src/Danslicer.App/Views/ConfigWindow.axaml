@@ -147,6 +147,14 @@
                         <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
                                        Value="{Binding SupportMaxBranchLength, Mode=TwoWay}" />
                     </Grid>
+                    <CheckBox Tag="supports members prefer existing trunks branch first"
+                              Content="Prefer existing trunks"
+                              IsChecked="{Binding SupportPreferExistingTrunks, Mode=TwoWay}" Margin="0,4" />
+                    <Grid Tag="supports members existing trunk branch range mm" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Existing trunk range" Classes="label" />
+                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
+                                       Value="{Binding SupportExistingTrunkBranchRange, Mode=TwoWay}" />
+                    </Grid>
 
                     <TextBlock Text="Base" Classes="section" />
                     <Grid Tag="supports base square grid pitch spacing mm" ColumnDefinitions="190,*" Margin="0,2">

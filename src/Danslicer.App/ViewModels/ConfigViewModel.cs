@@ -126,6 +126,18 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.MaxBranchLength = Clamp(value, 0.01f, 1000f, 8f));
     }
 
+    public bool SupportPreferExistingTrunks
+    {
+        get => Supports.PreferExistingTrunks;
+        set => Update(() => Supports.PreferExistingTrunks = value);
+    }
+
+    public float SupportExistingTrunkBranchRange
+    {
+        get => Supports.ExistingTrunkBranchRange;
+        set => Update(() => Supports.ExistingTrunkBranchRange = Clamp(value, 0.01f, 1000f, 8f));
+    }
+
     public float SupportBaseGridPitch
     {
         get => Supports.BaseGridPitch;
