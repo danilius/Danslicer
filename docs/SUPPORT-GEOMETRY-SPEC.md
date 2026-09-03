@@ -54,6 +54,13 @@ Default angle for all angled elements: **45°**. Everything above is configurabl
   next App brief after its current queue merges; recipes UI comes after the
   geometry exists.
 
+## Routing policy (user decision, 2026-09-03 evening)
+
+- **Supports never land on the model, for now.** Every support routes to the plate or
+  refuses. Model landing stays in the code as an opt-in for a future profile setting;
+  no default path enables it. (Reversal of the brief-5-era padded-landing behaviour,
+  after screen testing showed pad blobs on the Drogon's toes.)
+
 ## Still open
 
 - Base grid: assumed to be the existing routing lattice surfaced as a recipe

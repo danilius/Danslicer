@@ -1,10 +1,75 @@
 # Danslicer handover
 
 Written 2026-09-03 for a fresh conversation, updated overnight 2026-09-03, during the
-multi-agent afternoon, and again 2026-09-03 evening (see the next section, which supersedes
-older state notes below). Read this, then `docs/DESIGN.md` for the full design.
+multi-agent afternoon and evening, and finally late 2026-09-03 (see the FIRST section,
+which supersedes all older state notes below). Read this, then `docs/DESIGN.md` for the
+full design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec.
 
-## Multi-agent phase, state as of 2026-09-03 evening
+## State as of 2026-09-03 late — READ THIS SECTION FIRST
+
+**Grok is out of tokens and retired.** ChatGPT is the only implementing agent; it owns
+both former lanes and the file-lock split is dissolved. **Claude's manager-only restriction
+is relaxed** (the 5-hour usage window reset): Claude may implement again alongside managing
+ChatGPT — pick work that cannot collide with ChatGPT's queue (different files/areas, own
+branch, never ChatGPT's worktree), and keep reviewing/merging ChatGPT's commits as before
+(detached scratch worktree: build + full tests, merge-test against main, then merge only
+with the user's per-merge approval, then push).
+
+**main is at `cab0d64` + this handover commit, 233 green tests, pushed.** Merged today,
+in order: ChatGPT's brief 5+6 queue (Shift+H endpoint fix, visible+specific T-refusal
+messages, per-tip routing refusal reasons ContactBlocked/NoClearStep/NoLanding/BelowPlate
+with counts+coordinates in the route CLI, steep-contact neck departure along the outward
+normal + deterministic 12-direction escape fan, padded steep model landings, single
+Auto Drop toggle + offset box with config migration), then Grok's salvaged brief 5
+(`--seat` CLI flag on all commands; cone/ball tip contact schema — `SupportTipShape`
+capsule|cone, ConeLength, TipDiameter, BallDiameter, PenetrationDepth — frustum/sphere
+slice sections, sphere collision primitives, defaults bit-identical; committed by Claude
+after Grok died with it finished-but-uncommitted; one merge conflict in RouteCommand.cs's
+JSON writer was resolved keeping Grok's dictionary form with ChatGPT's refusal fields).
+
+**Benchmark trace (Drogon full-res, top-down, same 1113 tips):** unrouted 586 (baseline)
+→ 434 (normal departure) → 302 (escape fan); ContactBlocked 364 → 44; NoClearStep 232 is
+now dominant. The user added a 10× decimated fast-iteration model:
+`test files\drogon collapse.stl` (`drogon-lo` in BENCHMARKS.md) — dev runs only, official
+numbers stay on the full-res canonical pair.
+
+**User decisions today (all recorded in `docs/SUPPORT-GEOMETRY-SPEC.md`):** support
+anatomy base/trunk/branch/tip(+brace) is canonical vocabulary; tips get end diameter +
+embedding depth; everything configurable, 45° defaults; recipes = complete geometry
+bundles, user-editable; batched non-blocking generation with a progress bar above the
+status bar, ONE undo step, cancel ROLLS BACK; **supports never land on the model for now**
+(landing stays compiled but opt-in only — the padded-landing behaviour merged today put
+blobs on Drogon's toes and is being disabled in brief 10).
+
+**ChatGPT's queue (briefs in `F:\Git Repos\Danslicer-chatgpt\ChatGPT\`):**
+1. `INSTRUCTIONS-10.md` — screen-test bugs: Shift+H must keep the whole connected support
+   (`SupportGraph.Component`, bracing excluded), and disable model landing per the user
+   decision above (expect Drogon unrouted to rise vs 302; accepted).
+2. `INSTRUCTIONS-9.md` — Grok-lane handover: reconcile the user's embedding depth with
+   Grok's `PenetrationDepth` (one concept, one name; cone continues past the contact),
+   plus write the seated benchmark section Grok CLAIMED but never wrote (its REPORT lies
+   about this — audit finding; run `--seat` matrix on both full-res models).
+3. `INSTRUCTIONS-8.md` (non-blocking generation) and `INSTRUCTIONS-11.md` (Layout/Support/
+   Slicing window modes, mode-dependent Ctrl+A = objects/supports/nothing, marquee box
+   selection for supports) — ChatGPT picks the order, both touch MainWindow.
+
+ChatGPT protocol notes: it once committed `ChatGPT/REPORT.md` into its branch (mailbox
+files must stay untracked; strip at merge if it happens again — it was told to
+`git rm --cached` it). Reviews go newest-at-top in `ChatGPT/REVIEW.md`; answers to
+questions live there. Grok's worktree (`F:\Git Repos\Danslicer-grok`) is kept for
+reference only (its REPORT/QUESTIONS/REVIEW hold the tip-geometry context) — nothing
+runs there any more.
+
+**Start a persistent Monitor** in the new session polling ChatGPT's mailbox
+(REPORT/QUESTIONS mtimes) and `grid-routing-prototype`'s head each minute. The old
+session's monitor is stopped.
+
+**User-only outstanding:** screen-test after brief 10 lands (Shift+H whole-tree, no more
+toe blobs, teeth T behaviour), the Reinforce visuals (needs profile UI), and the physical
+mirror-X test print. A transient Anthropic classifier outage today also broke the user's
+`/auto-mode-setup` runs — suggest re-running it when convenient.
+
+## Multi-agent phase, state as of 2026-09-03 evening (SUPERSEDED by the section above)
 
 Three AI agents work this repo in parallel; **Claude is manager/integrator ONLY** (user
 directive after hitting a usage limit: no implementation, only briefs, reviews, merges, and
