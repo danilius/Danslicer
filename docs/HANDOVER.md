@@ -64,6 +64,20 @@ tuning with the user; support render meshes (capsules, not lines); region painti
 (milestone 6); the test print (mirror-X question) is still the one thing only the user can do.
 The 78-test suite is green on `main`.
 
+**Auto-drop to plate (user request 2026-09-03, not yet built).** After any object transform
+commit (move, rotate or scale; modal, gizmo or numeric), the object should re-seat on the plate
+using the lowest point of the mesh in its current orientation. Three modes:
+
+1. *Auto-drop* (the default): lowest point lands exactly on Z = 0 after every transform.
+2. *Raise above plate*: like auto-drop but the lowest point lands at a user-entered height
+   (edit box for the distance).
+3. *Off*: the object stays wherever it is put (today's behaviour).
+
+Design notes: with auto-drop on, a G/Z move is immediately overridden — decide whether to
+suppress the Z axis in move tools while the mode is active or simply let the drop win on
+commit. Ctrl+D (Drop to Plate) remains as the manual one-shot. The drop must be part of the
+same undo step as the transform that triggered it.
+
 ## What this is
 
 Danslicer is a resin (MSLA) slicer for power users, targeting the Anycubic Photon Mono X first.
