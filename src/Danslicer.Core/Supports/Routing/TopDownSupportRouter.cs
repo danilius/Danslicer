@@ -87,6 +87,7 @@ public sealed class TopDownSupportRouter
         var first = tip.SurfacePoint - Vector3.UnitZ * neckDrop;
         var neckRadius = neckDiameter * 0.5f + clearance;
         if (!ContactSegmentIsClear(tip.SurfacePoint, first, neckRadius)) return null;
+        if (HitsGenerated(tip.SurfacePoint, first, neckRadius, generatedCapsules, null)) return null;
 
         var points = new List<Vector3> { first };
         SupportNode? mergeTarget = null;
@@ -146,7 +147,8 @@ public sealed class TopDownSupportRouter
             _rules.Evaluate(branch);
             if (!branch.Allowed || Vector3.DistanceSquared(branch.End, target.Position) > 1e-6f) continue;
 
-            var radius = MathF.Max(branch.Diameter, merge.Diameter) * 0.5f + clearance;
+            // The incoming branch remains pillar-sized; only the shared downstream path is trunk-sized.
+            var radius = branch.Diameter * 0.5f + clearance;
             if (_obstacles.IntersectsCapsule(current, target.Position, radius)) continue;
             if (HitsGenerated(current, target.Position, radius, generatedCapsules, target.Id)) continue;
             return target;
@@ -246,7 +248,7 @@ public sealed class TopDownSupportRouter
             var type = index == 0 ? SupportSegmentType.Neck : SupportSegmentType.Pillar;
             var diameter = index == 0 ? route.NeckDiameter : options.PillarDiameter;
             AddSegment(graph, ids, previous, node, type, diameter, options.Origin,
-                generatedCapsules, index != 0, ref maxLean);
+                generatedCapsules, true, ref maxLean);
             routeNodes.Add(node);
             lowestTipByNode[node.Id] = tip.SurfacePoint.Z;
             previous = node;

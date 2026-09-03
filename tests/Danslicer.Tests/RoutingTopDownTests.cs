@@ -30,11 +30,12 @@ public sealed class RoutingTopDownTests
     {
         var rules = GrowthRuleSet.Default;
         rules.Find<MergeGrowthRule>()!.ResultingTrunkDiameter = 2.1f;
+        rules.Find<ClearanceGrowthRule>()!.Enabled = false;
         var router = new TopDownSupportRouter(new LinearCollisionScene(), rules);
         var tips = new[]
         {
             new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f),
-            new RoutingTip(new(1, 0, 10), -Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(1.3f, 0, 10), -Vector3.UnitZ, 0.4f),
         };
 
         var result = router.Route(tips, new TopDownRoutingOptions { StepHeight = 2 });
