@@ -292,6 +292,87 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(0, doc.Supports.NodeCount);
     }
 
+    [Fact]
+    public void GenerationRequestSnapshotsSupportSettings()
+    {
+        var doc = new Document
+        {
+            SupportSettings = new SupportConfig
+            {
+                TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.2f,
+                PenetrationDepth = 0.1f, TrunkDiameter = 1.6f, BranchDiameter = 1.3f,
+                MemberAngleDegrees = 37f, TipMemberLength = 2.8f, MaxBranchLength = 12f,
+                BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 5f, BaseHeight = 1f,
+                BaseConeHeight = 2.3f, Spacing = 3.5f, OverhangAngleDegrees = 52f,
+                MinIslandAreaMm2 = 0.75f,
+            },
+        };
+        var obj = new SceneObject("floating", Box(new(-5, -5, 5), new(5, 5, 15)));
+        doc.AddObject(obj);
+
+        var request = doc.CaptureSupportGeneration(obj, seed: 4);
+        doc.SupportSettings.TipDiameter = 9f;
+
+        Assert.Equal(0.55f, request.Settings.TipDiameter);
+        Assert.Equal(2.5f, request.Settings.ConeLength);
+        Assert.Equal(0.2f, request.Settings.BallDiameter);
+        Assert.Equal(0.1f, request.Settings.PenetrationDepth);
+        Assert.Equal(1.6f, request.Settings.TrunkDiameter);
+        Assert.Equal(1.3f, request.Settings.BranchDiameter);
+        Assert.Equal(37f, request.Settings.MemberAngleDegrees);
+        Assert.Equal(2.8f, request.Settings.TipMemberLength);
+        Assert.Equal(12f, request.Settings.MaxBranchLength);
+        Assert.Equal(SupportBaseShape.DiscCone, request.Settings.BaseShape);
+        Assert.Equal(5f, request.Settings.BaseDiameter);
+        Assert.Equal(1f, request.Settings.BaseHeight);
+        Assert.Equal(2.3f, request.Settings.BaseConeHeight);
+        Assert.Equal(3.5f, request.Settings.Spacing);
+        Assert.Equal(52f, request.Settings.OverhangAngleDegrees);
+        Assert.Equal(0.75f, request.Settings.MinIslandAreaMm2);
+    }
+
+    [Fact]
+    public void GeneratedSupportsUseCapturedTipRoutingAndBaseSettings()
+    {
+        var doc = new Document
+        {
+            SupportSettings = new SupportConfig
+            {
+                TipDiameter = 0.65f, ConeLength = 2.6f, BallDiameter = 0.2f,
+                PenetrationDepth = 0.1f, TrunkDiameter = 1.7f, BranchDiameter = 1.35f,
+                TipMemberLength = 2.7f, BaseShape = SupportBaseShape.DiscCone,
+                BaseDiameter = 5.2f, BaseHeight = 1.1f, BaseConeHeight = 2.4f,
+            },
+        };
+        var obj = new SceneObject("floating", Box(new(-5, -5, 5), new(5, 5, 15)));
+        doc.AddObject(obj);
+
+        var request = doc.CaptureSupportGeneration(obj);
+        doc.SupportSettings = new SupportConfig();
+        var prepared = Document.ComputeSupportGeneration(request);
+
+        var tips = prepared.Nodes.Where(n => n.Type == SupportNodeType.Tip).ToList();
+        Assert.NotEmpty(tips);
+        Assert.All(tips, tip =>
+        {
+            Assert.Equal(0.65f, tip.TipDiameter);
+            Assert.Equal(2.6f, tip.ConeLength);
+            Assert.Equal(0.2f, tip.BallDiameter);
+            Assert.Equal(0.1f, tip.PenetrationDepth);
+        });
+        Assert.All(prepared.Segments.Where(s => s.Type == SupportSegmentType.Trunk),
+            segment => Assert.Equal(1.7f, segment.Diameter));
+        var bases = prepared.Nodes.Where(n => n.Type == SupportNodeType.Base).ToList();
+        Assert.NotEmpty(bases);
+        Assert.All(bases, supportBase =>
+        {
+            Assert.Equal(SupportBaseShape.DiscCone, supportBase.BaseShape);
+            Assert.Equal(5.2f, supportBase.BaseDiameter);
+            Assert.Equal(1.1f, supportBase.BaseHeight);
+            Assert.Equal(2.4f, supportBase.BaseConeHeight);
+        });
+    }
+
     private sealed class Vector3Comparer(float tolerance) : IEqualityComparer<Vector3>
     {
         public bool Equals(Vector3 x, Vector3 y) => Vector3.Distance(x, y) <= tolerance;

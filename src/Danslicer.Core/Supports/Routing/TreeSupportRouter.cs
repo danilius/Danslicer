@@ -44,6 +44,7 @@ public sealed record TreeRoutingOptions
 public sealed class TreeSupportRouter
 {
     private const float Epsilon = 1e-5f;
+    private const float SiblingBranchFusionDistance = 0.5f;
     private readonly ICollisionScene _obstacles;
     private readonly GrowthRuleSet _rules;
 
@@ -232,39 +233,56 @@ public sealed class TreeSupportRouter
             // The spec's member angle governs branch geometry here; the lean rule's step-router
             // clamps (including its tighter near-tip angle) do not apply to tree anatomy.
             var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
-            if (!MemberIsClear(j1, attach, options.BranchDiameter * 0.5f, state,
-                    excludeSegments: trunk.SegmentIds)) continue;
+            var branchRadius = options.BranchDiameter * 0.5f;
+            if (!state.Clearance.PillarIsClear(_obstacles, j1, attach, branchRadius)) continue;
+            if (state.HitsGeneratedForTrunkAttachment(j1, attach,
+                    branchRadius + state.Clearance.ModelDistance, trunk,
+                    SiblingBranchFusionDistance)) continue;
 
             var attachNode = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
                 ? state.Graph.GetNode(trunk.TopNodeId)
                 : SplitTrunk(trunk, attachZ, state);
             var tipNode = EmitTipMember(tip, j1, options, state, tipMemberDiameter);
-            state.AddSegment(SupportSegmentType.Branch, tipNode.Junction, attachNode,
+            var branch = state.AddSegment(SupportSegmentType.Branch, tipNode.Junction, attachNode,
                 options.BranchDiameter, options.Origin);
+            trunk.BranchSegmentIds.Add(branch.Id);
             trunk.BranchCount++;
             return true;
         }
         return false;
     }
 
-    /// <summary>Vertical drop line candidates: straight below the junction, then a one-branch fan.</summary>
+    /// <summary>
+    /// Vertical drop line candidates: straight below the junction, then one-branch fans from the
+    /// configured maximum angle down through 30° and 15°. The configured angle is a maximum;
+    /// shallower branches can find drop lines that a steep fan overshoots in dense geometry.
+    /// </summary>
     private IEnumerable<Vector3> TrunkTopCandidates(Vector3 j1, TreeRoutingOptions options,
         float angleOffset)
     {
         yield return j1;
-        var maxAngle = options.MaxMemberAngleDegrees * MathF.PI / 180f;
-        for (var step = 1; step <= options.BranchLengthSteps; step++)
+        var angles = new[]
         {
-            var length = options.MaxBranchLength * step / options.BranchLengthSteps;
-            for (var index = 0; index < options.BranchDirections; index++)
+            options.MaxMemberAngleDegrees,
+            MathF.Min(options.MaxMemberAngleDegrees, 30f),
+            MathF.Min(options.MaxMemberAngleDegrees, 15f),
+        }.Distinct();
+        foreach (var angleDegrees in angles)
+        {
+            var angle = angleDegrees * MathF.PI / 180f;
+            for (var step = 1; step <= options.BranchLengthSteps; step++)
             {
-                var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
-                var direction = new Vector3(
-                    MathF.Cos(theta) * MathF.Sin(maxAngle),
-                    MathF.Sin(theta) * MathF.Sin(maxAngle),
-                    -MathF.Cos(maxAngle));
-                var end = j1 + direction * length;
-                if (end.Z > options.PlateZ + options.BaseHeight + Epsilon) yield return end;
+                var length = options.MaxBranchLength * step / options.BranchLengthSteps;
+                for (var index = 0; index < options.BranchDirections; index++)
+                {
+                    var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
+                    var direction = new Vector3(
+                        MathF.Cos(theta) * MathF.Sin(angle),
+                        MathF.Sin(theta) * MathF.Sin(angle),
+                        -MathF.Cos(angle));
+                    var end = j1 + direction * length;
+                    if (end.Z > options.PlateZ + options.BaseHeight + Epsilon) yield return end;
+                }
             }
         }
     }
@@ -356,18 +374,19 @@ public sealed class TreeSupportRouter
         var (_, junction) = EmitTipMember(tip, branchFrom ?? trunkTop, options, state,
             tipMemberDiameter);
         SupportNode top = junction;
+        Guid? branchSegmentId = null;
         if (branchFrom is not null)
         {
             top = state.NewNode(SupportNodeType.Junction, trunkTop, options.Origin);
             state.Graph.AddNode(top);
-            state.AddSegment(SupportSegmentType.Branch, junction, top,
-                options.BranchDiameter, options.Origin);
+            branchSegmentId = state.AddSegment(SupportSegmentType.Branch, junction, top,
+                options.BranchDiameter, options.Origin).Id;
         }
         state.Graph.AddNode(baseNode);
         var trunkSegment = state.AddSegment(SupportSegmentType.Trunk, top, baseNode,
             options.TrunkDiameter, options.Origin);
         state.Trunks.Add(new TrunkRecord(new Vector2(trunkTop.X, trunkTop.Y), trunkTop.Z,
-            top.Id, baseNode.Id, trunkSegment.Id, state));
+            top.Id, baseNode.Id, trunkSegment.Id, branchSegmentId, state));
     }
 
     /// <summary>
@@ -396,16 +415,18 @@ public sealed class TreeSupportRouter
         public Guid BaseNodeId { get; }
         public int BranchCount { get; set; }
         public List<Guid> SegmentIds { get; }
+        public List<Guid> BranchSegmentIds { get; }
         private readonly RouteState _state;
 
         public TrunkRecord(Vector2 xy, float topZ, Guid topNodeId, Guid baseNodeId,
-            Guid segmentId, RouteState state)
+            Guid segmentId, Guid? branchSegmentId, RouteState state)
         {
             Xy = xy;
             TopZ = topZ;
             TopNodeId = topNodeId;
             BaseNodeId = baseNodeId;
             SegmentIds = new List<Guid> { segmentId };
+            BranchSegmentIds = branchSegmentId is { } id ? new List<Guid> { id } : new List<Guid>();
             _state = state;
         }
 
@@ -485,6 +506,68 @@ public sealed class TreeSupportRouter
                     <= sum * sum) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Tests a branch joining an existing trunk. Branches already attached to that trunk may
+        /// overlap inside a small fusion zone around the trunk axis, but remain ordinary collision
+        /// obstacles beyond it. Trunk segments are excluded because they are the join target.
+        /// </summary>
+        public bool HitsGeneratedForTrunkAttachment(Vector3 start, Vector3 end, float radius,
+            TrunkRecord trunk, float fusionDistance)
+        {
+            foreach (var capsule in _capsules)
+            {
+                if (trunk.SegmentIds.Contains(capsule.SegmentId)) continue;
+                var sum = radius + capsule.Radius;
+                if (!trunk.BranchSegmentIds.Contains(capsule.SegmentId))
+                {
+                    if (GeometryDistance.SegmentSegmentSquared(
+                            start, end, capsule.Start, capsule.End) <= sum * sum) return true;
+                    continue;
+                }
+
+                // Ignore only the near-axis portions, expanded by both capsule radii so their
+                // hemispherical cut ends do not create a false collision at the fusion boundary.
+                var outsideRadius = fusionDistance + sum;
+                if (!TryOutsideSegment(start, end, trunk.Xy, outsideRadius,
+                        out var proposedStart, out var proposedEnd) ||
+                    !TryOutsideSegment(capsule.Start, capsule.End, trunk.Xy, outsideRadius,
+                        out var existingStart, out var existingEnd)) continue;
+                if (GeometryDistance.SegmentSegmentSquared(proposedStart, proposedEnd,
+                        existingStart, existingEnd) <= sum * sum) return true;
+            }
+            return false;
+        }
+
+        private static bool TryOutsideSegment(Vector3 a, Vector3 b, Vector2 axis,
+            float excludedRadius, out Vector3 outer, out Vector3 boundary)
+        {
+            var distanceA = Vector2.Distance(new Vector2(a.X, a.Y), axis);
+            var distanceB = Vector2.Distance(new Vector2(b.X, b.Y), axis);
+            float outerDistance;
+            float innerDistance;
+            if (distanceA >= distanceB)
+            {
+                outer = a;
+                boundary = b;
+                outerDistance = distanceA;
+                innerDistance = distanceB;
+            }
+            else
+            {
+                outer = b;
+                boundary = a;
+                outerDistance = distanceB;
+                innerDistance = distanceA;
+            }
+            if (outerDistance <= excludedRadius + Epsilon) return false;
+            if (innerDistance >= excludedRadius - Epsilon) return true;
+
+            var fraction = (outerDistance - excludedRadius) /
+                MathF.Max(Epsilon, outerDistance - innerDistance);
+            boundary = Vector3.Lerp(outer, boundary, fraction);
+            return true;
         }
 
         public void RemoveGeneratedCapsule(Guid segmentId)

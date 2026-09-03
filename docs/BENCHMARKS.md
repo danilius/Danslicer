@@ -174,3 +174,32 @@ continues to a plate base (747 bases).
    escape search. Candidates for a later pass, recorded not briefed: a second branch level,
    and reusing top-down's short-departure fallback for rough contacts.
 4. **Trunk sharing is healthy**: 2.2 tips per base (Drogon), 2.3 (gripper).
+
+---
+
+## 2026-09-03 night — dense-branch routing after island coverage
+
+- Branch: `grid-routing-prototype` at `f17b740`, after merging main `ae009c1` (island
+  coverage, fitted bases and short tip fallback).
+- Config: Debug, net10.0; same machine and single-process conditions as the earlier seated run.
+- Fresh `tips --seat --json` output was used for each model. Main's island-coverage change means
+  these candidate sets are intentionally larger than the earlier 1087 / 445 reference sets.
+- Tree routing adds shallower 30° / 15° fans and permits sibling branches to fuse only within
+  0.5 mm of their shared trunk axis; all other collision checks are unchanged.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `tips` | `--seat --json` | 29.649 | 0 | **1479** candidates (Island 639, LocalMinimum 116, Corner 275, Edge 180, Overhang 269). Spacing min 0.502 / median 2.524 / mean 2.041 | Guaranteed island representatives account for the increase and may sit inside ordinary spacing. |
+| drogon | `route` | `--seat --strategy tree --json` | 16.916 | 2 | nodes 2507, segs 2192 (tip 850, branch 581, trunk 761, brace 0), **unrouted 629 / 1479**, bases 315, max lean 45.0°, collisionFree **true** | Refusals: ContactBlocked 233, NoClearStep 396, NoLanding 0. 850 tips share 315 trunks. |
+| gripper | `tips` | `--seat --json` | 4.042 | 0 | **460** candidates (Island 91, Edge 93, Overhang 276). Spacing min 0.512 / median 2.739 / mean 2.747 | Fresh post-island-coverage candidate set. |
+| gripper | `route` | `--seat --strategy tree --json` | 1.484 | 2 | nodes 1127, segs 993 (tip 376, branch 244, trunk 373, brace 0), **unrouted 84 / 460**, bases 134, max lean 45.0°, collisionFree **true** | Refusals: ContactBlocked 34, NoClearStep 50, NoLanding 0. 376 tips share 134 trunks. |
+
+### Observations
+
+1. Both canonical runs remain collision-free and keep the one-branch maximum anatomy.
+2. Candidate-count changes dominate comparison with the prior table: the island-coverage merge
+   adds 392 Drogon and 15 gripper candidates, so these totals are not an isolated router A/B.
+3. The like-for-like router A/B is the Drogon-low development run recorded in `ChatGPT/REPORT.md`:
+   437 → 422 unrouted on the same 1195 tips, with NoClearStep 244 → 218.

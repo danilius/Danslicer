@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Danslicer.Core.Supports;
 
 namespace Danslicer.Core.Config;
 
@@ -55,6 +56,59 @@ public sealed class PlacementConfig
     public float HeightMm { get; set; }
 }
 
+/// <summary>Basic support generation geometry and placement settings, in millimetres/degrees.</summary>
+public sealed record SupportConfig
+{
+    public float TipDiameter { get; set; } = 0.4f;
+    public float ConeLength { get; set; } = 2f;
+    public float BallDiameter { get; set; }
+    public float PenetrationDepth { get; set; }
+
+    public float TrunkDiameter { get; set; } = 1.2f;
+    public float BranchDiameter { get; set; } = 1.2f;
+    public float MemberAngleDegrees { get; set; } = 45f;
+    public float TipMemberLength { get; set; } = 2f;
+    public float MaxBranchLength { get; set; } = 8f;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public SupportBaseShape BaseShape { get; set; } = SupportBaseShape.Disc;
+    public float BaseDiameter { get; set; } = 4f;
+    public float BaseHeight { get; set; } = 0.8f;
+    public float BaseConeHeight { get; set; } = 2f;
+
+    public float Spacing { get; set; } = 2.5f;
+    public float OverhangAngleDegrees { get; set; } = 45f;
+    public float MinIslandAreaMm2 { get; set; } = 0.5f;
+
+    internal void Normalize()
+    {
+        TipDiameter = Positive(TipDiameter, 0.4f);
+        ConeLength = Positive(ConeLength, 2f);
+        BallDiameter = NonNegative(BallDiameter);
+        PenetrationDepth = NonNegative(PenetrationDepth);
+        TrunkDiameter = Positive(TrunkDiameter, 1.2f);
+        BranchDiameter = Positive(BranchDiameter, 1.2f);
+        MemberAngleDegrees = float.IsFinite(MemberAngleDegrees)
+            ? Math.Clamp(MemberAngleDegrees, 1f, 89f) : 45f;
+        TipMemberLength = Positive(TipMemberLength, 2f);
+        MaxBranchLength = Positive(MaxBranchLength, 8f);
+        if (!Enum.IsDefined(BaseShape)) BaseShape = SupportBaseShape.Disc;
+        BaseDiameter = Positive(BaseDiameter, 4f);
+        BaseHeight = NonNegative(BaseHeight);
+        BaseConeHeight = NonNegative(BaseConeHeight);
+        Spacing = Positive(Spacing, 2.5f);
+        OverhangAngleDegrees = float.IsFinite(OverhangAngleDegrees)
+            ? Math.Clamp(OverhangAngleDegrees, 0f, 90f) : 45f;
+        MinIslandAreaMm2 = NonNegative(MinIslandAreaMm2);
+    }
+
+    private static float Positive(float value, float fallback) =>
+        float.IsFinite(value) && value > 0 ? value : fallback;
+
+    private static float NonNegative(float value) =>
+        float.IsFinite(value) ? MathF.Max(0, value) : 0;
+}
+
 /// <summary>Saved placement of one window, in screen pixels.</summary>
 public sealed class WindowStateConfig
 {
@@ -78,6 +132,7 @@ public sealed class UserConfig
     public SpaceMouseConfig SpaceMouse { get; set; } = new();
     public ViewportConfig Viewport { get; set; } = new();
     public PlacementConfig Placement { get; set; } = new();
+    public SupportConfig Supports { get; set; } = new();
 
     /// <summary>Window placements keyed by a stable window name ("main", "preferences").</summary>
     public Dictionary<string, WindowStateConfig> Windows { get; set; } = new();
@@ -105,6 +160,8 @@ public sealed class UserConfig
             config.SpaceMouse ??= new SpaceMouseConfig();
             config.Viewport ??= new ViewportConfig();
             config.Placement ??= new PlacementConfig();
+            config.Supports ??= new SupportConfig();
+            config.Supports.Normalize();
             config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
                 ? MathF.Max(0, config.Placement.HeightMm)
                 : 0;

@@ -96,6 +96,22 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void SiblingBranchesMayFuseNearTheirSharedTrunk()
+    {
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(2, 0, 10), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(0, 2, 9), Vector3.UnitZ, 0.4f),
+        });
+
+        Assert.Empty(result.Failures);
+        Assert.Single(result.BasePositions);
+        Assert.Equal(2, result.Graph.Segments.Count(
+            segment => segment.Type == SupportSegmentType.Branch));
+    }
+
+    [Fact]
     public void BlockedColumnSwingsOneBranchToAClearDropLine()
     {
         // A 3 x 3 shelf at z = 5 blocks the straight drop; one 45° branch must clear it.
@@ -111,6 +127,44 @@ public sealed class RoutingTreeTests
         Assert.Single(result.Graph.Segments, s => s.Type == SupportSegmentType.Trunk);
         var baseNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
         Assert.True(new Vector2(baseNode.Position.X, baseNode.Position.Y).Length() > 1.5f);
+    }
+
+    [Fact]
+    public void BranchFanTriesShallowerAnglesWhenMaximumAngleIsBlocked()
+    {
+        var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
+            scene: new SteepBranchBlockScene());
+
+        Assert.Empty(result.Failures);
+        var branch = Assert.Single(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.Branch);
+        var a = result.Graph.GetNode(branch.NodeA).Position;
+        var b = result.Graph.GetNode(branch.NodeB).Position;
+        var delta = b - a;
+        var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
+            * 180 / MathF.PI;
+        Assert.Equal(30f, lean, 2);
+    }
+
+    private sealed class SteepBranchBlockScene : ICollisionScene
+    {
+        public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
+            Func<object?, bool>? obstacleFilter = null)
+        {
+            var delta = end - start;
+            var horizontal = new Vector2(delta.X, delta.Y).Length();
+            if (horizontal <= 1e-4f)
+                return MathF.Min(start.Z, end.Z) <= 0.01f &&
+                    new Vector2(start.X, start.Y).Length() <= 1e-4f;
+            var lean = MathF.Atan2(horizontal, MathF.Abs(delta.Z)) * 180 / MathF.PI;
+            return lean > 35f;
+        }
+
+        public ObstacleNearestPoint? NearestObstacle(Vector3 point,
+            Func<object?, bool>? obstacleFilter = null) => null;
+
+        public ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+            Func<object?, bool>? obstacleFilter = null) => null;
     }
 
     [Fact]
