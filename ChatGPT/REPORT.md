@@ -30,6 +30,29 @@ programmatic Ctrl+I, Ctrl+E and Ctrl+, bindings use the same central path as a p
 This is especially visible for Ctrl+A, Delete, undo/redo and literal uppercase H entry, but yielding
 all application shortcuts is the consistent rule while a text editor owns focus.
 
+### 3. Workspace semantics and owned-support transforms
+
+- Support mode clears viewport object selection and suppresses object hit-selection, gizmos,
+  G/R/S object transforms and lay-flat. The Objects list retains an independent `SelectedObject`,
+  so it remains the generation target without making that object viewport-selected. Support click,
+  marquee, tip move and support deletion remain available.
+- Layout clears support selection and suppresses all support hit-testing. Object selection and every
+  transform path remain available there.
+- `SupportOrigin` now records `ObjectId`. Generated, routed-manual and straight-manual support nodes
+  and segments all receive the target object's id.
+- `CommitTransform(s)` maps every owned support node from the object's old local space into its new
+  world space and records the node positions/normals beside the object transform in one composite
+  command. Numeric edits, modal/gizmo commits, explicit drop-to-plate, auto-drop and lay-flat all use
+  that path. Modal previews also carry supports live and cancel restores both object and supports.
+- Bracing between supports owned by one object works automatically because both endpoint nodes move
+  through the same mapping. If a brace ever spans objects, each endpoint follows its own owning
+  object; moving only one object therefore deforms the cross-object brace rather than moving the
+  other object's support.
+- Tab uses a tested state machine: with a slice, Layout → Support → Slicing → Layout; without one,
+  Layout ↔ Support (and Slicing → Layout if invoked while an empty slicing view is open).
+- Slicing is always enterable from the header. An absent or invalidated slice leaves the user in the
+  empty layer view with print controls available, and slicing completes in Slicing mode.
+
 ## Brief 10 — screen-test fixes
 
 The reported diagnosis matched the code, so no divergent finding was required before work.

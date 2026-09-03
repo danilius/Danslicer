@@ -221,7 +221,7 @@
                         <TextBlock Text="Workspace" Classes="label" Margin="0,0,8,0" />
                         <ToggleButton Classes="tool" Content="Layout" IsChecked="{Binding IsLayoutView}" />
                         <ToggleButton Classes="tool" Content="Support" IsChecked="{Binding IsSupportView}" />
-                        <ToggleButton Classes="tool" Content="Slicing" IsChecked="{Binding IsLayersView}" IsEnabled="{Binding HasSlice}" />
+                        <ToggleButton Classes="tool" Content="Slicing" IsChecked="{Binding IsLayersView}" />
                     </StackPanel>
                 </Grid>
             </Border>

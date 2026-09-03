@@ -219,9 +219,10 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_supportMeshesDirty) RebuildSupportMeshes();
         AppendSupportLines(_depthOverlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
-        UpdateGizmo();
+        if (!SupportSelectionMode) UpdateGizmo();
         // Hide the gizmo during keyboard-driven modals; keep it while dragging a handle.
-        if (_modal is not { IsActive: true } || _gizmoDragging) _gizmo.AppendLines(Camera, _overlay);
+        if (!SupportSelectionMode && (_modal is not { IsActive: true } || _gizmoDragging))
+            _gizmo.AppendLines(Camera, _overlay);
 
         _renderer.Render(new RenderFrame
         {
@@ -345,7 +346,7 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             var m = MouseVector(e);
 
-            if (_layFlatPick)
+            if (!SupportSelectionMode && _layFlatPick)
             {
                 _layFlatPick = false;
                 TryLayFlat(m);
@@ -368,8 +369,9 @@ public sealed class ViewportControl : OpenGlControlBase
 
             // Gizmo handle: start a constrained modal that ends on release.
             UpdateGizmo();
-            var handle = _gizmo.HitTest(Camera, m, (float)Bounds.Width, (float)Bounds.Height);
-            if (handle != GizmoHandle.None && Document.Selection.Count > 0)
+            var handle = SupportSelectionMode ? GizmoHandle.None :
+                _gizmo.HitTest(Camera, m, (float)Bounds.Width, (float)Bounds.Height);
+            if (!SupportSelectionMode && handle != GizmoHandle.None && Document.Selection.Count > 0)
             {
                 var (mode, axis, plane) = Gizmo.ToTransform(handle);
                 ApplySnap(e.KeyModifiers);
@@ -386,7 +388,9 @@ public sealed class ViewportControl : OpenGlControlBase
 
             var hitObj = PickSurface(m, out _, out var surfacePoint, out _);
             var objDistance = hitObj is null ? float.PositiveInfinity : Vector3.Distance(Camera.Eye, surfacePoint);
-            var support = PickSupportElement(m, out var supportDistance);
+            Guid? support = null;
+            var supportDistance = float.PositiveInfinity;
+            if (SupportSelectionMode) support = PickSupportElement(m, out supportDistance);
             var additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
             if (SupportSelectionMode && support is null && hitObj is null)
             {
@@ -406,7 +410,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 if (e.ClickCount >= 2) Document.SelectSupportComponent(element, additive);
                 else Document.SelectSupportElement(element, additive);
             }
-            else if (hitObj is null)
+            else if (SupportSelectionMode || hitObj is null)
             {
                 if (!additive)
                 {
@@ -457,7 +461,7 @@ public sealed class ViewportControl : OpenGlControlBase
             _modal.Update(MouseVector(e));
             UpdateStatus();
         }
-        else if (Document is not null && Document.Selection.Count > 0)
+        else if (!SupportSelectionMode && Document is not null && Document.Selection.Count > 0)
         {
             UpdateGizmo();
             var handle = _gizmo.HitTest(Camera, MouseVector(e), (float)Bounds.Width, (float)Bounds.Height);
@@ -848,24 +852,25 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.Enter when _tipDrag is not null: CommitTipDrag(); break;
                 case Key.Escape when _tipDrag is not null: CancelTipDrag(); break;
                 // G with one tip selected moves the tip along the surface; otherwise the object modal.
-                case Key.G when !ctrl && SelectedTip() is { } tipId: BeginTipDrag(tipId); break;
-                case Key.G when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Move, mouse, w, h); break;
-                case Key.R when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Rotate, mouse, w, h); break;
-                case Key.S when !ctrl: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Scale, mouse, w, h); break;
+                case Key.G when !ctrl && SupportSelectionMode && SelectedTip() is { } tipId: BeginTipDrag(tipId); break;
+                case Key.G when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Move, mouse, w, h); break;
+                case Key.R when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Rotate, mouse, w, h); break;
+                case Key.S when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Scale, mouse, w, h); break;
                 case Key.A when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.ClearSelection(); break;
+                case Key.A when !ctrl && SupportSelectionMode: Document.SelectAllSupportElements(); break;
                 case Key.A when !ctrl: Document.SelectAll(); break;
                 case Key.B when !ctrl && SupportSelectionMode:
                     _borderSelectArmed = true;
                     statusAfterUpdate = "Border select: drag a box · Shift extends · Esc cancels";
                     break;
                 // Lay flat on the face under the cursor; with nothing under it, arm a click pick.
-                case Key.F when !ctrl: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
+                case Key.F when !ctrl && !SupportSelectionMode: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
                 case Key.H when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.UnhideAll(); break;
                 case Key.H when shift && !ctrl: Document.HideUnselectedSupportElements(); break;
                 case Key.H when !ctrl: Document.HideSelection(); break;
                 // Manual support under the cursor: routed around the model; Shift+T forces the
                 // old straight vertical drop (the DESIGN §8.6 override).
-                case Key.T when !ctrl: statusAfterUpdate = TryAddSupport(mouse, forceStraight: shift); break;
+                case Key.T when !ctrl && SupportSelectionMode: statusAfterUpdate = TryAddSupport(mouse, forceStraight: shift); break;
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
                 case Key.Escape when _borderSelectArmed: _borderSelectArmed = false; break;
                 case Key.Escape when Document.SupportSelection.Count > 0: Document.ClearSupportSelection(); break;

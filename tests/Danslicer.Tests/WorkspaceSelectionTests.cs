@@ -55,6 +55,16 @@ public sealed class WorkspaceSelectionTests
         Assert.DoesNotContain(hidden.Id, selected);
     }
 
+    [Theory]
+    [InlineData(WorkspaceMode.Layout, false, WorkspaceMode.Support)]
+    [InlineData(WorkspaceMode.Support, false, WorkspaceMode.Layout)]
+    [InlineData(WorkspaceMode.Slicing, false, WorkspaceMode.Layout)]
+    [InlineData(WorkspaceMode.Layout, true, WorkspaceMode.Support)]
+    [InlineData(WorkspaceMode.Support, true, WorkspaceMode.Slicing)]
+    [InlineData(WorkspaceMode.Slicing, true, WorkspaceMode.Layout)]
+    public void TabCyclesWorkspaces(WorkspaceMode current, bool hasSlice, WorkspaceMode expected)
+        => Assert.Equal(expected, WorkspaceNavigation.Next(current, hasSlice));
+
     private static Mesh Triangle() => new(
         [Vector3.Zero, Vector3.UnitX, Vector3.UnitY], [0, 1, 2]);
 }

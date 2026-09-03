@@ -13,6 +13,7 @@ namespace Danslicer.Core;
 
 public sealed record SupportGenerationSummary(int CandidateCount, int GeneratedTipCount,
     int UnroutedTipCount);
+public readonly record struct SupportPositionSnapshot(Vector3 Position, Vector3 SurfaceNormal);
 
 public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
 public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot Target,
@@ -217,16 +218,16 @@ public sealed class Document
     /// <summary>Moves each selected object so its lowest point sits on the plate.</summary>
     public void DropSelectionToPlate()
     {
-        var commands = new List<IDocumentCommand>();
+        var transforms = new List<(SceneObject Object, Transform Before, Transform Requested)>();
         foreach (var o in _selection)
         {
             var minZ = o.WorldBounds.Min.Z;
             if (MathF.Abs(minZ) < 1e-6f) continue;
             var before = o.Transform;
             var after = before with { Translation = before.Translation with { Z = before.Translation.Z - minZ } };
-            commands.Add(new SetTransformCommand(o, before, after, "Drop to plate"));
+            transforms.Add((o, before, after));
         }
-        if (commands.Count > 0) Execute(new CompositeCommand("Drop to plate", commands));
+        if (transforms.Count > 0) CommitTransforms(transforms, "Drop to plate");
     }
 
     /// <summary>Re-seats an input transform according to the configured placement mode.</summary>
@@ -253,17 +254,78 @@ public sealed class Document
 
     /// <summary>Multi-object transform commit used by both keyboard and gizmo modal edits.</summary>
     public void CommitTransforms(IEnumerable<(SceneObject Object, Transform Before, Transform Requested)> items,
-        string name = "Transform")
+        string name = "Transform", IReadOnlyDictionary<Guid, SupportPositionSnapshot>? supportBefore = null)
     {
+        var itemList = items.ToList();
+        supportBefore ??= CaptureAssociatedSupportPositions(itemList.Select(item => item.Object));
         var commands = new List<IDocumentCommand>();
-        foreach (var (obj, before, requested) in items)
+        var supportEntries = new List<SetSupportPositionsCommand.Entry>();
+        foreach (var (obj, before, requested) in itemList)
         {
             var after = ApplyPlacement(obj, requested);
             obj.Transform = after;
-            if (after != before) commands.Add(new SetTransformCommand(obj, before, after, name));
+            if (after == before) continue;
+            commands.Add(new SetTransformCommand(obj, before, after, name));
+            AppendAssociatedSupportTransform(obj, before, after, supportBefore, supportEntries);
         }
+        if (supportEntries.Count > 0)
+            commands.Add(new SetSupportPositionsCommand(Supports, supportEntries, name));
         if (commands.Count > 0) Execute(new CompositeCommand(name, commands));
         else NotifyTransientChange();
+    }
+
+    public IReadOnlyDictionary<Guid, SupportPositionSnapshot> CaptureAssociatedSupportPositions(
+        IEnumerable<SceneObject> objects)
+    {
+        var objectIds = objects.Select(obj => obj.Id).ToHashSet();
+        return Supports.Nodes
+            .Where(node => node.Origin.ObjectId is { } id && objectIds.Contains(id))
+            .ToDictionary(node => node.Id,
+                node => new SupportPositionSnapshot(node.Position, node.SurfaceNormal));
+    }
+
+    /// <summary>Moves owned supports during a live modal preview from the immutable start state.</summary>
+    public void ApplyAssociatedSupportTransformsTransient(
+        IEnumerable<(SceneObject Object, Transform Before)> items,
+        IReadOnlyDictionary<Guid, SupportPositionSnapshot> supportBefore)
+    {
+        var entries = new List<SetSupportPositionsCommand.Entry>();
+        foreach (var (obj, before) in items)
+            AppendAssociatedSupportTransform(obj, before, obj.Transform, supportBefore, entries);
+        if (entries.Count > 0) Supports.NotifyChanged();
+    }
+
+    public void RestoreSupportPositions(IReadOnlyDictionary<Guid, SupportPositionSnapshot> snapshots)
+    {
+        foreach (var (id, snapshot) in snapshots)
+        {
+            if (!Supports.TryGetNode(id, out var node)) continue;
+            node.Position = snapshot.Position;
+            node.SurfaceNormal = snapshot.SurfaceNormal;
+        }
+        if (snapshots.Count > 0) Supports.NotifyChanged();
+    }
+
+    private void AppendAssociatedSupportTransform(SceneObject obj, Transform before, Transform after,
+        IReadOnlyDictionary<Guid, SupportPositionSnapshot> supportBefore,
+        List<SetSupportPositionsCommand.Entry> entries)
+    {
+        if (!Matrix4x4.Invert(before.ToMatrix(), out var oldWorldToLocal)) return;
+        var worldDelta = oldWorldToLocal * after.ToMatrix();
+        if (!Matrix4x4.Invert(worldDelta, out var inverseDelta)) return;
+        var normalTransform = Matrix4x4.Transpose(inverseDelta);
+        foreach (var node in Supports.Nodes)
+        {
+            if (node.Origin.ObjectId != obj.Id ||
+                !supportBefore.TryGetValue(node.Id, out var snapshot)) continue;
+            var position = Vector3.Transform(snapshot.Position, worldDelta);
+            var normal = Vector3.TransformNormal(snapshot.SurfaceNormal, normalTransform);
+            if (normal.LengthSquared() > 1e-12f) normal = Vector3.Normalize(normal);
+            node.Position = position;
+            node.SurfaceNormal = normal;
+            entries.Add(new SetSupportPositionsCommand.Entry(node, snapshot.Position,
+                snapshot.SurfaceNormal, position, normal));
+        }
     }
 
     /// <summary>
@@ -325,6 +387,7 @@ public sealed class Document
         var options = new TopDownRoutingOptions
         {
             Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
+            Origin = SupportOrigin.ManualFor(obj.Id),
         };
         var result = router.Route(new[] { tip }, options);
         if (result.UnroutedTips.Count > 0)
@@ -398,7 +461,7 @@ public sealed class Document
         cancellationToken.ThrowIfCancellationRequested();
         var worldMesh = TransformMesh(request.Target);
         var region = Enumerable.Range(0, worldMesh.TriangleCount).ToHashSet();
-        var origin = new SupportOrigin(request.ObjectId, 1);
+        var origin = new SupportOrigin(request.ObjectId, 1, request.ObjectId);
         var meshes = new BvhCollisionScene();
         foreach (var snapshot in request.SceneMeshes)
         {
@@ -467,17 +530,20 @@ public sealed class Document
         const float neckDiameter = 0.8f;
         const float pillarDiameter = 1.2f;
 
+        var origin = SupportOrigin.ManualFor(obj.Id);
         var tip = new SupportNode
         {
             Type = SupportNodeType.Tip,
             Position = contact,
             SurfaceNormal = surfaceNormal,
             ContactObjectId = obj.Id,
+            Origin = origin,
         };
         var baseNode = new SupportNode
         {
             Type = SupportNodeType.Base,
             Position = contact with { Z = 0 },
+            Origin = origin,
         };
 
         var nodes = new List<SupportNode> { tip, baseNode };
@@ -488,15 +554,18 @@ public sealed class Document
             {
                 Type = SupportNodeType.Junction,
                 Position = contact with { Z = contact.Z - neckLength },
+                Origin = origin,
             };
             nodes.Add(junction);
             segments.Add(new SupportSegment
             {
                 Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id, Diameter = neckDiameter,
+                Origin = origin,
             });
             segments.Add(new SupportSegment
             {
                 Type = SupportSegmentType.Pillar, NodeA = junction.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
+                Origin = origin,
             });
         }
         else
@@ -504,6 +573,7 @@ public sealed class Document
             segments.Add(new SupportSegment
             {
                 Type = SupportSegmentType.Pillar, NodeA = tip.Id, NodeB = baseNode.Id, Diameter = pillarDiameter,
+                Origin = origin,
             });
         }
 
@@ -610,6 +680,6 @@ public sealed class Document
         after = after with { Translation = after.Translation with { Z = after.Translation.Z - minZ } };
 
         if (after == before) return;
-        Execute(new SetTransformCommand(obj, before, after, "Lay flat on face"));
+        CommitTransform(obj, before, after, "Lay flat on face");
     }
 }

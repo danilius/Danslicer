@@ -46,6 +46,54 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void ObjectTransformCarriesOnlyItsOwnedSupportNodesInTheSameUndoStep()
+    {
+        var doc = new Document { PlacementMode = PlacementMode.Off };
+        var obj = new SceneObject("owned", Box(new(-1), new(1)));
+        var other = new SceneObject("other", Box(new(-1), new(1)));
+        doc.AddObject(obj);
+        doc.AddObject(other);
+        var owned = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = new(2, 0, 0),
+            SurfaceNormal = Vector3.UnitX,
+            Origin = SupportOrigin.ManualFor(obj.Id),
+        };
+        var untouched = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = new(9, 9, 9),
+            Origin = SupportOrigin.ManualFor(other.Id),
+        };
+        doc.Supports.AddNode(owned);
+        doc.Supports.AddNode(untouched);
+        var before = obj.Transform;
+        var requested = before with
+        {
+            Translation = new(10, 0, 0),
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2),
+            Scale = new(2),
+        };
+
+        doc.CommitTransform(obj, before, requested, "Move object and supports");
+
+        Assert.Equal(new Vector3(10, 4, 0), owned.Position, new Vector3Comparer(1e-5f));
+        Assert.Equal(Vector3.UnitY, owned.SurfaceNormal, new Vector3Comparer(1e-5f));
+        Assert.Equal(new Vector3(9, 9, 9), untouched.Position);
+        Assert.Equal("Move object and supports", doc.History.UndoName);
+
+        doc.Undo();
+        Assert.Equal(before, obj.Transform);
+        Assert.Equal(new Vector3(2, 0, 0), owned.Position);
+        Assert.Equal(new Vector3(9, 9, 9), untouched.Position);
+
+        doc.Redo();
+        Assert.Equal(requested, obj.Transform);
+        Assert.Equal(new Vector3(10, 4, 0), owned.Position, new Vector3Comparer(1e-5f));
+    }
+
+    [Fact]
     public void RaiseAndOffModesRespectTheRequestedTransform()
     {
         var doc = new Document();
@@ -144,7 +192,15 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal("Generate supports", doc.History.UndoName);
         Assert.All(doc.Supports.Nodes, node => Assert.False(node.Origin.IsManual));
         Assert.All(doc.Supports.Segments, segment => Assert.False(segment.Origin.IsManual));
+        Assert.All(doc.Supports.Nodes, node => Assert.Equal(obj.Id, node.Origin.ObjectId));
+        Assert.All(doc.Supports.Segments, segment => Assert.Equal(obj.Id, segment.Origin.ObjectId));
         doc.Undo();
         Assert.Equal(0, doc.Supports.NodeCount);
+    }
+
+    private sealed class Vector3Comparer(float tolerance) : IEqualityComparer<Vector3>
+    {
+        public bool Equals(Vector3 x, Vector3 y) => Vector3.Distance(x, y) <= tolerance;
+        public int GetHashCode(Vector3 obj) => 0;
     }
 }
