@@ -5,6 +5,31 @@ supersedes all older state notes below. Read this, then `docs/DESIGN.md` for the
 design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec (updated
 tonight: grid bases, no-shrink bases, mini-supports).
 
+## Addendum 2026-09-03 ~21:00 — brief 16 merged, user screen-test feedback
+
+**main is at merge `89eca94`, 305 green tests, pushed** — ChatGPT's whole brief 16
+(grid bases 20 mm pitch, branch-first config, mini-supports + island feed + CLI +
+benchmarks) merged with the user's approval and rebuilt. Benchmarks: bases 315→17 /
+134→17, refusals 629→1690 / 84→352 under 20 mm pitch + 8 mm branch reach — the user
+has been shown these numbers; grid-pitch policy decision PENDING.
+
+**User feedback from Lychee comparison (screenshots, 2026-09-03 evening):** added
+`test files/drogon_collapse with Lychee supports.stl` (low-poly drogon with Lychee
+supports, reference target for support shape; not in git). Branch X-crossing
+"weirdness" still present; Lychee's tree shape (no grid, near-vertical trunks,
+Y-merges) is the target look. Some tips look like minis in regular-support places →
+brief 18 (`INSTRUCTIONS-18.md`, classification control; root cause: refused regular
+candidates silently retry as minis). Queue order for ChatGPT: refusal-reason
+micro-commit → brief 18 → brief 17 (`INSTRUCTIONS-17.md`, mode-scoped controls per the
+user's Layout/Slicing visibility principle) → brief 19 (branch shaping toward the
+Lychee reference, NOT WRITTEN — blocked on the user's grid decision).
+
+**Feature note for later (user, do not brief yet): support display modes** — show just
+contact points; just lines (the old line rendering) for the supports; just tips;
+transparent/ghost supports with or without contact points; Claude's suggestions:
+per-element-type visibility toggles (tips/branches/trunks/bases/minis) and dimmed
+supports outside Support mode. User explicitly invited other suggestions.
+
 ## State as of 2026-09-03 ~20:00 — READ THIS SECTION FIRST
 
 **main is at `350cad0`, 297 green tests, pushed.** Merged today after the night section
