@@ -5,6 +5,21 @@ supersedes all older state notes below. Read this, then `docs/DESIGN.md` for the
 design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec (updated
 tonight: grid bases, no-shrink bases, mini-supports).
 
+## Addendum 2026-09-03 ~21:30 — ChatGPT overnight queue LIVE
+
+The overnight run is started for ChatGPT (Qwen joins later this evening, per the user).
+ChatGPT now works as a Codex scheduled task: every ~5 min a FRESH chat claims the
+lowest-numbered job from `Danslicer-chatgpt\ChatGPT\inbox\` (atomic move to `working\`,
+results to `completed\`/`failed\`) per `ChatGPT\PROTOCOL.md`, which answers its setup
+questions (inbox path, `NNN-slug.md` format with `Requires:`, 5-min interval,
+completion = granular commits + clean build + full tests + result file). Queue loaded:
+001 refusal reasons, 002 mini classification (brief 18), 003 grid optional (user
+decision: pitch stays configurable AND grid gets an on/off toggle, both for screen
+experimentation), 004 mode-scoped UI (brief 17) + ALL support configs also shown in the
+right panel in Support mode "for now", 005 branch shaping toward the Lychee reference.
+Claude merges autonomously overnight (standing grant), triages failed/stale claims,
+refills the inbox. Monitor watches the queue folders + QUESTIONS + branch head.
+
 ## Addendum 2026-09-03 ~21:00 — brief 16 merged, user screen-test feedback
 
 **main is at merge `89eca94`, 305 green tests, pushed** — ChatGPT's whole brief 16
