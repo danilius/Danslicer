@@ -6,18 +6,22 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Danslicer.App.Controls;
 using Danslicer.App.ViewModels;
+using Danslicer.Core;
 
 namespace Danslicer.App.Views;
 
 public partial class MainWindow : Window
 {
     public ICommand ImportCommand { get; }
-    public ICommand ExportCommand { get; }
+    public ModeScopedCommand ExportCommand { get; }
 
     public MainWindow()
     {
         ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
-        ExportCommand = new RelayCommand(() => OnExportClick(this, new RoutedEventArgs()));
+        ExportCommand = new ModeScopedCommand(
+            new RelayCommand(() => OnExportClick(this, new RoutedEventArgs())),
+            () => ViewModel?.ViewMode ?? WorkspaceMode.Layout,
+            WorkspaceMode.Slicing);
         InitializeComponent();
         Configuration.WindowStatePersistence.Track(this, "main",
             WorkspaceGrid.ColumnDefinitions[0], WorkspaceGrid.ColumnDefinitions[4]);
@@ -25,11 +29,11 @@ public partial class MainWindow : Window
         AddWindowKeyBinding("Ctrl+Shift+Z", () => ViewModel?.RedoCommand);
         AddWindowKeyBinding("Ctrl+Y", () => ViewModel?.RedoCommand);
         AddWindowKeyBinding("Delete", () => ViewModel?.DeleteCommand);
-        AddWindowKeyBinding("Ctrl+D", () => ViewModel?.DropToPlateCommand);
-        AddWindowKeyBinding("Ctrl+G", () => ViewModel?.GenerateSupportsCommand);
+        AddWindowKeyBinding("Ctrl+D", () => ViewModel?.DropToPlateScopedCommand);
+        AddWindowKeyBinding("Ctrl+G", () => ViewModel?.GenerateSupportsScopedCommand);
         AddWindowKeyBinding("Ctrl+A", () => ViewModel?.SelectAllCommand);
-        AddWindowKeyBinding("Shift+H", () => ViewModel?.HideUnselectedSupportsCommand);
-        AddWindowKeyBinding("Ctrl+R", () => ViewModel?.SliceCommand);
+        AddWindowKeyBinding("Shift+H", () => ViewModel?.HideUnselectedSupportsScopedCommand);
+        AddWindowKeyBinding("Ctrl+R", () => ViewModel?.SliceScopedCommand);
         AddWindowKeyBinding("Ctrl+I", () => ImportCommand);
         AddWindowKeyBinding("Ctrl+E", () => ExportCommand);
         AddWindowKeyBinding("Ctrl+OemComma",
@@ -128,7 +132,7 @@ public partial class MainWindow : Window
 
     private async void OnExportClick(object? sender, RoutedEventArgs e)
     {
-        if (ViewModel is null) return;
+        if (ViewModel is not { IsLayersView: true }) return;
         var printer = ViewModel.Document.Printer;
         var suggested = ViewModel.Document.Scene.Objects.FirstOrDefault()?.Name ?? "print";
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -148,6 +152,7 @@ public partial class MainWindow : Window
 
     private void OnLayFlatClick(object? sender, RoutedEventArgs e)
     {
+        if (ViewModel is not { IsLayoutView: true }) return;
         Viewport.BeginLayFlatPick();
         Viewport.Focus();
     }
