@@ -179,6 +179,30 @@ public sealed class Document
             foreach (var attached in Supports.SegmentsAt(id))
                 removedSegments.Add(attached.Id);
 
+        // A tip attached to a shared trunk owns a short branch twig. Removing only that tip must
+        // not leave a junction-and-branch dead end on the surviving tree. Peel non-terminal leaf
+        // junctions until the remaining topology is load-bearing again; bases and tips are the
+        // intentional terminals.
+        while (true)
+        {
+            var deadEnds = Supports.Nodes.Where(node =>
+            {
+                if (nodes.Contains(node.Id) || node.Type != SupportNodeType.Junction) return false;
+                var liveIncident = Supports.SegmentsAt(node.Id).Count(segment =>
+                    segment.Type != SupportSegmentType.Bracing &&
+                    !removedSegments.Contains(segment.Id) &&
+                    !nodes.Contains(segment.NodeA) && !nodes.Contains(segment.NodeB));
+                return liveIncident <= 1;
+            }).ToList();
+            if (deadEnds.Count == 0) break;
+            foreach (var deadEnd in deadEnds)
+            {
+                nodes.Add(deadEnd.Id);
+                foreach (var attached in Supports.SegmentsAt(deadEnd.Id))
+                    removedSegments.Add(attached.Id);
+            }
+        }
+
         var visited = new HashSet<Guid>();
         foreach (var start in Supports.Nodes)
         {
@@ -420,7 +444,7 @@ public sealed class Document
             Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
             Origin = SupportOrigin.ManualFor(obj.Id),
         };
-        var result = router.Route(new[] { tip }, options);
+        var result = router.Route(new[] { tip }, options, Supports);
         if (result.UnroutedTips.Count > 0)
         {
             failureReason = result.Failures.Single().Reason;
@@ -428,8 +452,7 @@ public sealed class Document
         }
 
         failureReason = null;
-        Execute(new AddSupportElementsCommand(Supports,
-            result.Graph.Nodes.ToList(), result.Graph.Segments.ToList()));
+        Execute(new ApplySupportGraphEditCommand(Supports, result.Edit));
         return true;
     }
 

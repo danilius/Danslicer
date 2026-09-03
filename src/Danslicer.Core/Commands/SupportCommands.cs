@@ -1,4 +1,5 @@
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Core.Commands;
 
@@ -70,6 +71,40 @@ public sealed class SetSupportPositionsCommand : IDocumentCommand
             e.Node.SurfaceNormal = e.BeforeNormal;
         }
         _graph.NotifyChanged();
+    }
+}
+
+/// <summary>
+/// Applies a routed graph edit as one undoable step. Removals support splitting an existing trunk
+/// at a new branch attachment; undo restores the exact original segment and topology.
+/// </summary>
+public sealed class ApplySupportGraphEditCommand : IDocumentCommand
+{
+    private readonly SupportGraph _graph;
+    private readonly SupportGraphEdit _edit;
+
+    public ApplySupportGraphEditCommand(SupportGraph graph, SupportGraphEdit edit,
+        string name = "Add support")
+    {
+        _graph = graph;
+        _edit = edit;
+        Name = name;
+    }
+
+    public string Name { get; }
+
+    public void Execute()
+    {
+        foreach (var segment in _edit.RemovedSegments) _graph.RemoveSegment(segment.Id);
+        foreach (var node in _edit.AddedNodes) _graph.AddNode(node);
+        foreach (var segment in _edit.AddedSegments) _graph.AddSegment(segment);
+    }
+
+    public void Undo()
+    {
+        foreach (var segment in _edit.AddedSegments) _graph.RemoveSegment(segment.Id);
+        foreach (var node in _edit.AddedNodes) _graph.RemoveNode(node.Id);
+        foreach (var segment in _edit.RemovedSegments) _graph.AddSegment(segment);
     }
 }
 
