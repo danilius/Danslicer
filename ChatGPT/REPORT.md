@@ -20,7 +20,11 @@
   dominant failure in the sharper repro, so the fix must change the neck's contact departure rather
   than merely increase detour sampling.
 - The neck now departs a down-facing steep contact along its outward surface normal before the
-  top-down steps begin. Collision checking still covers the portion beyond the contact allowance;
+  top-down steps begin. If that interpolated normal is blocked by rough local facets, a fixed
+  twelve-direction outward/downward fan searches for a deterministic escape. Collision checking
+  still covers the portion beyond the contact allowance. If rough facets obstruct the full
+  configured neck, the same search retries only the contact-sized length and lets ordinary
+  collision-checked routing escape from there;
   a second-wall regression proves the departure cannot tunnel through unrelated geometry. The
   overhang-plus-wall pocket fixture now routes successfully, while a sealed step with model landing
   disabled remains an explicit `NoClearStep` refusal.
@@ -31,6 +35,10 @@
   with offset zero maps to the existing Drop mode, enabled with a positive offset maps to Raise,
   and disabled maps to Off. Legacy Drop settings migrate to enabled/zero; legacy Raise and Off
   retain their saved height. Ctrl+D and transform undo behavior are unchanged.
+- Canonical Drogon CLI verification used the 12 elevated island contacts from a deterministic
+  coarse tip pass, including the previously refusing tooth contact at approximately
+  `(0.777, -53.467, 12.353)`. Result: 12/12 routed, zero `ContactBlocked`, `NoClearStep`,
+  `NoLanding`, or `BelowPlate` refusals, and the collision audit passed.
 
 ## Status
 

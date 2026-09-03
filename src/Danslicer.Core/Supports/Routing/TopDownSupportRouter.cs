@@ -107,22 +107,21 @@ public sealed class TopDownSupportRouter
         // Down-facing steep contacts must leave along the surface normal before turning toward
         // the plate. A vertical departure embeds the neck capsule in the contact face. Up-facing
         // contacts retain the vertical proposal so they cannot escape through the top of a solid.
-        var departure = outward.Z < -Epsilon ? outward : -Vector3.UnitZ;
-        if (departure.Z < -Epsilon)
-            neckLength = MathF.Min(neckLength,
-                (tip.SurfacePoint.Z - options.PlateZ) / -departure.Z);
-        var first = tip.SurfacePoint + departure * neckLength;
         var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
-        if (!ContactSegmentIsClear(tip.SurfacePoint, first, neckRadius) ||
-            HitsGenerated(tip.SurfacePoint, first, neckRadius, generatedCapsules, null))
+        // The contact end is tip-sized and tapers toward the wider neck. Using the full neck
+        // capsule at the surface overstates the occupied volume on rough organic contacts.
+        var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) + clearance.ModelDistance;
+        var first = FindContactDeparture(tip.SurfacePoint, outward, neckLength, options.PlateZ,
+            contactRadius, neckRadius, generatedCapsules, angleOffset);
+        if (first is null)
         {
             failureReason = RoutingFailureReason.ContactBlocked;
             return null;
         }
 
-        var points = new List<Vector3> { first };
+        var points = new List<Vector3> { first.Value };
         MergeTarget? mergeTarget = null;
-        var current = first;
+        var current = first.Value;
         var maxSteps = (int)MathF.Ceiling((tip.SurfacePoint.Z - options.PlateZ) / options.StepHeight) + 2;
         for (var step = 0; step < maxSteps && current.Z > options.PlateZ + Epsilon; step++)
         {
@@ -315,6 +314,51 @@ public sealed class TopDownSupportRouter
         if (length <= radius * 2 + 0.01f) return true;
         var clearEnd = tip - delta / length * (radius * 2 + 0.01f);
         return !_obstacles.IntersectsCapsule(junction, clearEnd, radius);
+    }
+
+    private Vector3? FindContactDeparture(Vector3 tip, Vector3 outward, float length,
+        float plateZ, float contactRadius, float neckRadius,
+        IReadOnlyList<GeneratedCapsule> generatedCapsules, float angleOffset)
+    {
+        var shortLength = MathF.Min(length, contactRadius * 2);
+        foreach (var candidateLengthUnclamped in new[] { length, shortLength }.Distinct())
+        {
+            foreach (var direction in ContactDepartureDirections(outward, angleOffset))
+            {
+                var candidateLength = direction.Z < -Epsilon
+                    ? MathF.Min(candidateLengthUnclamped, (tip.Z - plateZ) / -direction.Z)
+                    : candidateLengthUnclamped;
+                var end = tip + direction * candidateLength;
+                if (!ContactSegmentIsClear(tip, end, contactRadius)) continue;
+                if (HitsGenerated(tip, end, neckRadius, generatedCapsules, null)) continue;
+                return end;
+            }
+        }
+        return null;
+    }
+
+    private static IEnumerable<Vector3> ContactDepartureDirections(Vector3 outward,
+        float angleOffset)
+    {
+        if (outward.Z >= -Epsilon)
+        {
+            yield return -Vector3.UnitZ;
+            yield break;
+        }
+
+        yield return outward;
+        // Rough or tightly faceted contacts can obstruct the exact interpolated normal. Search a
+        // small, deterministic fan in the outward/downward hemisphere before refusing the tip.
+        const int directions = 12;
+        const float lateralWeight = 0.75f;
+        for (var index = 0; index < directions; index++)
+        {
+            var angle = angleOffset + index * MathF.Tau / directions;
+            var lateral = new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
+            var candidate = Vector3.Normalize(outward + lateral * lateralWeight);
+            if (candidate.Z < -Epsilon && Vector3.Dot(candidate, outward) > 0)
+                yield return candidate;
+        }
     }
 
     private static bool HitsGenerated(Vector3 start, Vector3 end, float radius,

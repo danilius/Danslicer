@@ -49,15 +49,31 @@ public sealed class RoutingTopDownTests
     {
         var scene = new LinearCollisionScene();
         scene.AddTriangle(new(-1, -5, 6), new(1, -5, 14), new(0, 5, 10), "contact");
-        scene.AddTriangle(new(-1.5f, -5, 0), new(-1.5f, 5, 0), new(-1.5f, 5, 12), "wall");
-        scene.AddTriangle(new(-1.5f, -5, 0), new(-1.5f, 5, 12), new(-1.5f, -5, 12), "wall");
+        scene.AddTriangle(new(-10, -10, 9), new(10, -10, 9), new(10, 10, 9), "wall");
+        scene.AddTriangle(new(-10, -10, 9), new(10, 10, 9), new(-10, 10, 9), "wall");
         var tip = new RoutingTip(new(0, 0, 10),
             Vector3.Normalize(new Vector3(4, 0, 1)), 0.4f);
 
         var result = new TopDownSupportRouter(scene, GrowthRuleSet.Default).Route(
             new[] { tip }, new TopDownRoutingOptions());
 
-        Assert.Equal(RoutingFailureReason.ContactBlocked, Assert.Single(result.Failures).Reason);
+        Assert.Single(result.Failures);
+        Assert.Empty(result.Graph.Segments);
+    }
+
+    [Fact]
+    public void RoughContactFallsBackToShortNormalDeparture()
+    {
+        var tip = new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f);
+        var result = new TopDownSupportRouter(new LongContactBlockScene(tip.SurfacePoint),
+            GrowthRuleSet.Default).Route(new[] { tip }, new TopDownRoutingOptions());
+
+        Assert.Empty(result.Failures);
+        var tipNode = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Tip);
+        var neck = Assert.Single(result.Graph.SegmentsAt(tipNode.Id));
+        var otherId = neck.NodeA == tipNode.Id ? neck.NodeB : neck.NodeA;
+        Assert.InRange(Vector3.Distance(tipNode.Position,
+            result.Graph.GetNode(otherId).Position), 0.89f, 0.91f);
     }
 
     [Fact]
@@ -326,4 +342,17 @@ public sealed class RoutingTopDownTests
         graph.Nodes.OrderBy(node => node.Id).Select(node => $"N:{node.Id}:{node.Type}:{node.Position}")
             .Concat(graph.Segments.OrderBy(segment => segment.Id)
                 .Select(segment => $"S:{segment.Id}:{segment.Type}:{segment.NodeA}:{segment.NodeB}:{segment.Diameter}")));
+
+    private sealed class LongContactBlockScene(Vector3 contact) : ICollisionScene
+    {
+        public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
+            Func<object?, bool>? obstacleFilter = null) => start.Z >= contact.Z - 2 &&
+                                                           end.Z >= contact.Z - 2;
+
+        public ObstacleNearestPoint? NearestObstacle(Vector3 point,
+            Func<object?, bool>? obstacleFilter = null) => null;
+
+        public ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+            Func<object?, bool>? obstacleFilter = null) => null;
+    }
 }

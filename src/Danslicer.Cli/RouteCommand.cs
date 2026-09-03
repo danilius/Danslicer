@@ -133,13 +133,18 @@ internal static class RouteCommand
             var radius = segment.Diameter * 0.5f;
             if (segment.Type == SupportSegmentType.Neck)
             {
-                var tipAtA = graph.GetNode(segment.NodeA).Type == SupportNodeType.Tip;
-                var tip = tipAtA ? start : end;
+                var nodeA = graph.GetNode(segment.NodeA);
+                var nodeB = graph.GetNode(segment.NodeB);
+                var tipAtA = nodeA.Type == SupportNodeType.Tip;
+                var tipNode = tipAtA ? nodeA : nodeB;
+                var tip = tipNode.Position;
                 var other = tipAtA ? end : start;
                 var delta = tip - other;
                 var length = delta.Length();
-                if (length <= radius * 2 + 0.01f) continue;
-                tip -= delta / length * (radius * 2 + 0.01f);
+                radius = MathF.Max(0.025f, tipNode.TipDiameter * 0.5f);
+                var contactAllowance = (radius + 0.25f) * 2 + 0.01f;
+                if (length <= contactAllowance) continue;
+                tip -= delta / length * contactAllowance;
                 if (tipAtA) start = tip; else end = tip;
             }
             if (obstacles.IntersectsCapsule(start, end, radius)) return false;
@@ -153,6 +158,10 @@ internal static class RouteCommand
         Console.WriteLine($"Tips:           {tipCount} ({result.UnroutedTips.Count} unrouted)");
         foreach (var reason in Enum.GetValues<RoutingFailureReason>())
             Console.WriteLine($"  {reason,-14} {result.Failures.Count(failure => failure.Reason == reason)}");
+        foreach (var failure in result.Failures)
+            Console.WriteLine($"  refused {Format(failure.Tip.SurfacePoint.X)}, " +
+                              $"{Format(failure.Tip.SurfacePoint.Y)}, " +
+                              $"{Format(failure.Tip.SurfacePoint.Z)}: {failure.Reason}");
         Console.WriteLine($"Nodes:          {result.Graph.NodeCount}");
         Console.WriteLine($"Segments:       {result.Graph.SegmentCount}");
         foreach (var type in Enum.GetValues<SupportSegmentType>())
@@ -175,6 +184,12 @@ internal static class RouteCommand
             unroutedTips = result.UnroutedTips.Count,
             refusalCounts = Enum.GetValues<RoutingFailureReason>().ToDictionary(reason => reason.ToString(),
                 reason => result.Failures.Count(failure => failure.Reason == reason)),
+            refusals = result.Failures.Select(failure => new
+            {
+                point = new[] { failure.Tip.SurfacePoint.X, failure.Tip.SurfacePoint.Y,
+                    failure.Tip.SurfacePoint.Z },
+                reason = failure.Reason.ToString(),
+            }),
             bases = result.BasePositions.Select(p => new[] { p.X, p.Y, p.Z }),
             maxLeanAngleDegrees = result.MaxLeanAngleDegrees,
             collisionFree,
