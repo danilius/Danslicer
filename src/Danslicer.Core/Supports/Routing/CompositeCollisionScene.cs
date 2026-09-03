@@ -13,22 +13,37 @@ public sealed class CompositeCollisionScene : ICollisionScene
 
     public CompositeCollisionScene(params ICollisionScene[] children) => _children = children;
 
-    public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius)
+    public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
+        Func<object?, bool>? obstacleFilter = null)
     {
         foreach (var child in _children)
-            if (child.IntersectsCapsule(start, end, radius)) return true;
+            if (child.IntersectsCapsule(start, end, radius, obstacleFilter)) return true;
         return false;
     }
 
-    public ObstacleNearestPoint? NearestObstacle(Vector3 point)
+    public ObstacleNearestPoint? NearestObstacle(Vector3 point,
+        Func<object?, bool>? obstacleFilter = null)
     {
         ObstacleNearestPoint? nearest = null;
         foreach (var child in _children)
         {
-            var candidate = child.NearestObstacle(point);
+            var candidate = child.NearestObstacle(point, obstacleFilter);
             if (candidate is { } hit && (nearest is null || hit.Distance < nearest.Value.Distance))
                 nearest = hit;
         }
         return nearest;
+    }
+
+    public ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+        Func<object?, bool>? obstacleFilter = null)
+    {
+        ObstacleRayHit? closest = null;
+        foreach (var child in _children)
+        {
+            var candidate = child.Raycast(origin, direction, maxDistance, obstacleFilter);
+            if (candidate is { } hit && (closest is null || hit.Distance < closest.Value.Distance))
+                closest = hit;
+        }
+        return closest;
     }
 }
