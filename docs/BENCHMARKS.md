@@ -303,3 +303,43 @@ continues to a plate base (747 bases).
 3. Every emitted base still uses the configured full-size geometry and both grid-off outputs remain
    collision-free. `NoReachableGridPoint` correctly disappears when no lattice constraint applies;
    geometry-bound `ContactBlocked` and `NoClearStep` refusals remain explicit.
+
+---
+
+## 2026-09-03 overnight — branch shaping and mini-angle cap
+
+- Branch: `grid-routing-prototype` at `9d95faa`; compact branch selection and projected near-pass
+  avoidance are in `ea7d708`, with the configurable 75° mini-support limit in `9d95faa`.
+- Config: Debug, net10.0; same machine and single-process conditions as the preceding runs.
+- Fresh `tips --seat --json` output was generated for both canonical models. Each candidate set was
+  routed once with `route --seat --strategy tree --base-grid on|off --json`; regular-tip fallback
+  to mini supports remained at its default OFF.
+- The stricter visual near-pass rule is derived from the configured branch diameter. It rejects
+  projected X crossings even when their Z separation would be collision-clear, so increased honest
+  refusals are an expected structural trade rather than collision regressions.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `tips` | `--seat --json` | 26.960 | 0 | **1961** candidates (Island 639, MiniIsland 492, LocalMinimum 106, Corner 275, Edge 180, Overhang 269) | Fresh candidate set is identical to the preceding A/B. |
+| drogon | `route` | `--seat --strategy tree --base-grid on --json` | 8.358 | 2 | nodes 363, segs 346 (tip 85, mini-support 105, branch 85, trunk 71), **unrouted 1771 / 1961**, bases **17**, max lean 73.8°, collisionFree **true** | Refusals: ContactBlocked 34, NoClearStep 389, NoReachableGridPoint 1086, NoBranchEndInRange 262. |
+| drogon | `route` | `--seat --strategy tree --base-grid off --json` | 19.640 | 2 | nodes 2400, segs 2163 (tip 675, mini-support 342, branch 488, trunk 658), **unrouted 944 / 1961**, bases **237**, max lean 74.8°, collisionFree **true** | Refusals: ContactBlocked 186, NoClearStep 709, NoReachableGridPoint 0, NoBranchEndInRange 49. |
+| gripper | `tips` | `--seat --json` | 3.160 | 0 | **482** candidates (Island 91, MiniIsland 22, Edge 93, Overhang 276) | Fresh candidate set is identical to the preceding A/B. |
+| gripper | `route` | `--seat --strategy tree --base-grid on --json` | 0.440 | 2 | nodes 243, segs 226 (tip 76, mini-support 6, branch 76, trunk 68), **unrouted 400 / 482**, bases **17**, max lean 45.0°, collisionFree **true** | Refusals: ContactBlocked 7, NoClearStep 36, NoReachableGridPoint 342, NoBranchEndInRange 15. |
+| gripper | `route` | `--seat --strategy tree --base-grid off --json` | 0.957 | 2 | nodes 1130, segs 989 (tip 370, mini-support 18, branch 231, trunk 370), **unrouted 94 / 482**, bases **141**, max lean 45.0°, collisionFree **true** | Refusals: ContactBlocked 34, NoClearStep 58, NoReachableGridPoint 0, NoBranchEndInRange 2. |
+
+### Observations
+
+1. All four outputs remain collision-free and every refusal retains a concrete routing reason.
+2. The mini-angle cap removes the near-horizontal canonical outliers: Drogon maximum lean falls
+   from 88.8° to 73.8° with the grid and from 89.6° to 74.8° without it. Gripper was already
+   bounded by ordinary 45° members in both modes.
+3. Projected near-pass avoidance and compact branch ordering trade acceptance for less tangled
+   geometry. Against the preceding A/B, refusals rise by 12 / 62 on Drogon (grid on / off) and by
+   3 / 3 on the gripper. The large Drogon grid bottleneck remains `NoReachableGridPoint`; shaping
+   does not conceal or relax it.
+4. Free placement now uses more independent short, shallow branches and trunks: Drogon bases rise
+   190 → 237 while branches fall 576 → 488; gripper bases rise 129 → 141 while branches fall
+   245 → 231. That moves the topology toward the mined Lychee reference's dense, freely placed
+   near-vertical trunks, at the cost of plate density that the user should judge on screen.
