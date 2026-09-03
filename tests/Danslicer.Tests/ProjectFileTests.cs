@@ -33,6 +33,7 @@ public sealed class ProjectFileTests
         Assert.Equal(view, loaded.ViewState);
         Assert.False(loaded.Document.History.CanUndo);
         Assert.Equal(document.PrintSettings, loaded.Document.PrintSettings);
+        Assert.Equal(document.Printer, loaded.Document.Printer);
         Assert.Equal(document.Scene.Objects.Count, loaded.Document.Scene.Objects.Count);
         for (var i = 0; i < document.Scene.Objects.Count; i++)
         {
@@ -145,8 +146,7 @@ public sealed class ProjectFileTests
         foreach (var node in routed.Graph.Nodes) document.Supports.AddNode(node.Clone());
         foreach (var segment in routed.Graph.Segments) document.Supports.AddSegment(segment.Clone());
 
-        var printer = new PrinterDefinition("Project test", "Project test", "test",
-            new Vector3(20, 20, 20), 160, 160, MirrorX: false, MirrorY: false);
+        var printer = TestPrinter("generated-support-test");
         var before = Slicer.Slice(document.Scene.Objects, printer, document.PrintSettings,
             supports: document.Supports);
         ProjectFile.Save(file.Path, document, new ProjectViewState());
@@ -164,6 +164,7 @@ public sealed class ProjectFileTests
     {
         var document = new Document
         {
+            Printer = TestPrinter("complete-document"),
             PrintSettings = PrintSettings.Default with
             {
                 LayerHeight = 0.075f, BottomLayers = 7, BottomExposure = 32,
@@ -217,6 +218,10 @@ public sealed class ProjectFileTests
         });
         return document;
     }
+
+    private static PrinterDefinition TestPrinter(string id) => new(
+        id, false, "Project test", "Project test", "pwmx",
+        20, 20, 20, 160, 160, MirrorX: false, MirrorY: true, FormatVersion: 516);
 
     private static void AssertGraphEqual(SupportGraph expected, SupportGraph actual)
     {

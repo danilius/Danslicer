@@ -18,8 +18,8 @@ public sealed class SupportSliceIntegrationTests
     private const float MiniConeLength = 0.2f;
 
     private static readonly PrinterDefinition TestPrinter = new(
-        "Support slice test", "Support slice test", "test",
-        new Vector3(48, 30, 30), 480, 300, MirrorX: false, MirrorY: false);
+        "support-slice-test", false, "Support slice test", "Support slice test", "test",
+        48, 30, 30, 480, 300, MirrorX: false, MirrorY: false, FormatVersion: 516);
 
     [Theory]
     [InlineData(true)]

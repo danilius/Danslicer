@@ -165,6 +165,43 @@ public class SlicingTests
     }
 
     [Fact]
+    public void CustomPrinterResolutionAndMirrorsDriveLayerBuffers()
+    {
+        var obj = new SceneObject("asymmetric", Box(1, 1, 1))
+        {
+            Transform = Transform.Identity with { Translation = new Vector3(-3, 1, 0) },
+        };
+        var printer = new PrinterDefinition(
+            "custom-mirror", false, "Custom mirror", "Custom mirror", "pwmx",
+            8, 6, 10, 8, 6, MirrorX: false, MirrorY: false, FormatVersion: 516);
+        var settings = PrintSettings.Default with { LayerHeight = 0.5f, AntiAliasing = false };
+
+        var plain = Slicer.Slice([obj], printer, settings);
+        var mirrorX = Slicer.Slice([obj], printer with { MirrorX = true }, settings);
+        var mirrorY = Slicer.Slice([obj], printer with { MirrorY = true }, settings);
+
+        Assert.Equal(8, plain.Printer.ResolutionX);
+        Assert.Equal(6, plain.Printer.ResolutionY);
+        Assert.Equal(8 * 6, Decode(plain).Length);
+        Assert.Equal((1, 1), SingleLitPixel(Decode(plain), 8));
+        Assert.Equal((6, 1), SingleLitPixel(Decode(mirrorX), 8));
+        Assert.Equal((1, 4), SingleLitPixel(Decode(mirrorY), 8));
+    }
+
+    private static byte[] Decode(SliceResult result)
+    {
+        var pixels = new byte[result.Printer.ResolutionX * result.Printer.ResolutionY];
+        result.Layers[0].Decode(result.Printer.ResolutionX, result.Printer.ResolutionY, pixels);
+        return pixels;
+    }
+
+    private static (int X, int Y) SingleLitPixel(byte[] pixels, int width)
+    {
+        var index = Assert.Single(Enumerable.Range(0, pixels.Length), i => pixels[i] != 0);
+        return (index % width, index / width);
+    }
+
+    [Fact]
     public void RefusesGeometryBelowPlate()
     {
         var obj = new SceneObject("box", Box(10, 10, 10));

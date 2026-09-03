@@ -126,6 +126,7 @@ int Slice(string[] a)
             return 1;
         }
         var project = ProjectFile.Load(projectInputs[0]).Document;
+        printer = project.Printer;
         objects = project.Scene.Objects.ToList();
         supports = project.Supports;
         settings = project.PrintSettings;

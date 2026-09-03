@@ -1,4 +1,5 @@
 using Danslicer.Core.Config;
+using Danslicer.Core.Printers;
 using Danslicer.Core.Supports;
 
 namespace Danslicer.Tests;
@@ -146,6 +147,66 @@ public sealed class UserConfigTests : IDisposable
         var loaded = UserConfig.Load(path);
         Assert.Equal(0.1f, loaded.SpaceMouse.ZoomSensitivity);
         Assert.Equal(1f, loaded.SpaceMouse.OrbitSensitivity); // untouched default
+    }
+
+    [Fact]
+    public void PrinterDefinitionsRoundTripEveryConsumedField()
+    {
+        var config = new UserConfig();
+        var custom = PrinterDefinition.PhotonMonoX.CreateUserCopy("Workshop custom") with
+        {
+            MachineName = "Workshop machine",
+            FileExtension = "pwma",
+            DisplayWidthMm = 130.5f,
+            DisplayHeightMm = 81.25f,
+            ZTravelMm = 190,
+            ResolutionX = 2560,
+            ResolutionY = 1620,
+            MirrorX = false,
+            MirrorY = true,
+            FormatVersion = 517,
+        };
+        config.AddPrinter(custom);
+        var path = PathFor("printers.json");
+
+        config.Save(path);
+        var loaded = UserConfig.Load(path);
+
+        Assert.Equal(custom, loaded.FindPrinter(custom.Id));
+        Assert.True(loaded.FindPrinter(PrinterDefinition.PhotonMonoXId)!.IsBuiltIn);
+    }
+
+    [Fact]
+    public void MissingOrModifiedBuiltInPrinterIsRecreatedOnLoad()
+    {
+        var path = PathFor("missing-printer.json");
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(path, """
+            {
+              "Printers": [
+                {
+                  "Id": "anycubic-photon-mono-x",
+                  "IsBuiltIn": false,
+                  "Name": "Changed built-in",
+                  "MachineName": "Wrong",
+                  "FileExtension": "bad",
+                  "DisplayWidthMm": 1,
+                  "DisplayHeightMm": 1,
+                  "ZTravelMm": 1,
+                  "ResolutionX": 1,
+                  "ResolutionY": 1,
+                  "MirrorX": false,
+                  "MirrorY": true,
+                  "FormatVersion": 1
+                }
+              ]
+            }
+            """);
+
+        var loaded = UserConfig.Load(path);
+
+        Assert.Equal(PrinterDefinition.PhotonMonoX,
+            loaded.FindPrinter(PrinterDefinition.PhotonMonoXId));
     }
 
     [Fact]
