@@ -146,15 +146,21 @@ public sealed class TreeSupportRouter
     {
         var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) + state.Clearance.ModelDistance;
         var memberRadius = tipMemberDiameter * 0.5f + state.Clearance.ModelDistance;
-        foreach (var direction in TipDirections(tip, options, state.AngleOffset))
+        // Rough or tightly packed contacts (teeth) can block every full-length departure; a
+        // short member still gets the support off the surface, as in the top-down router.
+        var shortLength = MathF.Min(tipMemberLength, contactRadius * 2);
+        foreach (var candidateLength in new[] { tipMemberLength, shortLength }.Distinct())
         {
-            var length = direction.Z < -Epsilon
-                ? MathF.Min(tipMemberLength, (tip.SurfacePoint.Z - options.PlateZ) / -direction.Z)
-                : tipMemberLength;
-            var end = tip.SurfacePoint + direction * length;
-            if (!ContactMemberIsClear(tip.SurfacePoint, end, contactRadius)) continue;
-            if (state.HitsGenerated(tip.SurfacePoint, end, memberRadius)) continue;
-            return end;
+            foreach (var direction in TipDirections(tip, options, state.AngleOffset))
+            {
+                var length = direction.Z < -Epsilon
+                    ? MathF.Min(candidateLength, (tip.SurfacePoint.Z - options.PlateZ) / -direction.Z)
+                    : candidateLength;
+                var end = tip.SurfacePoint + direction * length;
+                if (!ContactMemberIsClear(tip.SurfacePoint, end, contactRadius)) continue;
+                if (state.HitsGenerated(tip.SurfacePoint, end, memberRadius)) continue;
+                return end;
+            }
         }
         return null;
     }

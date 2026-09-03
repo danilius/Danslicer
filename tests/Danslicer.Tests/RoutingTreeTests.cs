@@ -215,6 +215,40 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void RoughContactFallsBackToAShortTipMember()
+    {
+        // Every full-length departure is blocked near the contact (spiky terrain, e.g. teeth);
+        // the short-member fallback must still get the support off the surface and route.
+        var contact = new Vector3(0, 0, 10);
+        var result = new TreeSupportRouter(new NearContactBlockScene(contact),
+            GrowthRuleSet.Default).Route(
+            new[] { new RoutingTip(contact, Vector3.UnitZ, 0.4f) }, new TreeRoutingOptions());
+
+        Assert.Empty(result.Failures);
+        var tipNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Tip);
+        var member = Assert.Single(result.Graph.SegmentsAt(tipNode.Id));
+        var otherId = member.NodeA == tipNode.Id ? member.NodeB : member.NodeA;
+        var length = Vector3.Distance(tipNode.Position, result.Graph.GetNode(otherId).Position);
+        Assert.True(length < 1f, $"expected a short tip member, got {length} mm");
+    }
+
+    /// <summary>Blocks any queried capsule lying wholly in the slab just below the contact.</summary>
+    private sealed class NearContactBlockScene(Vector3 contact) : ICollisionScene
+    {
+        public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
+            Func<object?, bool>? obstacleFilter = null) =>
+            InSlab(start.Z) && InSlab(end.Z);
+
+        private bool InSlab(float z) => z > contact.Z - 2.1f && z < contact.Z - 0.2f;
+
+        public ObstacleNearestPoint? NearestObstacle(Vector3 point,
+            Func<object?, bool>? obstacleFilter = null) => null;
+
+        public ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+            Func<object?, bool>? obstacleFilter = null) => null;
+    }
+
+    [Fact]
     public void SameSeedProducesIdenticalGraphs()
     {
         var tips = new[]
