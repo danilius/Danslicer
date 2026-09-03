@@ -7,6 +7,7 @@ public enum GrowthOperation
     Grow,
     Branch,
     Merge,
+    Brace,
     Neck,
     Land,
 }
@@ -20,8 +21,11 @@ public sealed class GrowthContext
     public Vector3 End { get; set; }
     public float Diameter { get; set; }
     public float DistanceToTip { get; set; }
+    /// <summary>The lowest tip served by a proposed merge, in world Z.</summary>
+    public float LowestTipZ { get; set; }
     public int ExistingBranchCount { get; set; }
     public int BranchLevel { get; set; }
+    public float Slenderness { get; set; }
     public bool Allowed { get; set; } = true;
     public bool AllowModelLanding { get; set; }
     public float LandingPadDiameter { get; set; }
@@ -60,10 +64,33 @@ public sealed class GrowthRuleSet
         new LeanGrowthRule(),
         new BranchGrowthRule(),
         new MergeGrowthRule(),
+        new BraceGrowthRule(),
         new TaperGrowthRule(),
         new ClearanceGrowthRule(),
         new LandGrowthRule(),
     });
+}
+
+public sealed class BraceGrowthRule : IGrowthRule
+{
+    public string Name => "Brace";
+    public bool Enabled { get; set; } = true;
+    public float MinHeight { get; set; } = 5;
+    public float MinSlenderness { get; set; } = 6;
+    public float PreferredAngleDegrees { get; set; } = 35;
+    public float MaxLength { get; set; } = 12;
+    public float NeighbourDistance { get; set; } = 10;
+
+    public void Evaluate(GrowthContext context)
+    {
+        if (context.Operation != GrowthOperation.Brace) return;
+        var delta = context.DesiredEnd - context.Start;
+        var horizontal = new Vector2(delta.X, delta.Y).Length();
+        if (MathF.Min(context.Start.Z, context.DesiredEnd.Z) < MinHeight ||
+            context.Slenderness < MinSlenderness || delta.Length() > MaxLength ||
+            horizontal > NeighbourDistance)
+            context.Allowed = false;
+    }
 }
 
 public sealed class LeanGrowthRule : IGrowthRule
@@ -119,8 +146,9 @@ public sealed class MergeGrowthRule : IGrowthRule
     public void Evaluate(GrowthContext context)
     {
         if (context.Operation != GrowthOperation.Merge) return;
+        var distanceBelowTips = context.LowestTipZ - context.Start.Z;
         if (Vector2.Distance(new(context.Start.X, context.Start.Y), new(context.DesiredEnd.X, context.DesiredEnd.Y))
-            > TriggerDistance || context.Start.Z < MinHeightAboveTipsToMerge)
+            > TriggerDistance || distanceBelowTips < MinHeightAboveTipsToMerge)
             context.Allowed = false;
         else
             context.Diameter = MathF.Max(context.Diameter, ResultingTrunkDiameter);

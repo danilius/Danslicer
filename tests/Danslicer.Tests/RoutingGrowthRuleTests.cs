@@ -71,6 +71,27 @@ public sealed class RoutingGrowthRuleTests
         Assert.Equal(0.3f, context.Diameter, 4);
     }
 
+    [Fact]
+    public void MergeRequiresClearanceBelowLowestTip()
+    {
+        var rule = new MergeGrowthRule
+        {
+            TriggerDistance = 2,
+            MinHeightAboveTipsToMerge = 3,
+            ResultingTrunkDiameter = 2,
+        };
+        var allowed = Context(GrowthOperation.Merge, new(0, 0, 5), new(1, 0, 5));
+        allowed.LowestTipZ = 8;
+        rule.Evaluate(allowed);
+        Assert.True(allowed.Allowed);
+        Assert.Equal(2, allowed.Diameter);
+
+        var tooClose = Context(GrowthOperation.Merge, new(0, 0, 6), new(1, 0, 6));
+        tooClose.LowestTipZ = 8;
+        rule.Evaluate(tooClose);
+        Assert.False(tooClose.Allowed);
+    }
+
     private static GrowthContext Context(GrowthOperation operation, Vector3 start = default,
         Vector3 end = default) => new()
     {

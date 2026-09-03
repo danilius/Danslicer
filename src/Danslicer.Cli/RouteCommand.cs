@@ -17,6 +17,8 @@ internal static class RouteCommand
             var meshPath = args[0];
             string? tipsPath = null;
             var options = new GridRoutingOptions();
+            var strategy = "grid";
+            var stepHeight = 2f;
             var json = false;
             for (var i = 1; i < args.Length; i++)
             {
@@ -29,6 +31,8 @@ internal static class RouteCommand
                     "--rotation" => options with { RotationDegrees = Parse(args[++i]) },
                     "--snap" => options with { SnapTolerance = Parse(args[++i]) },
                     "--seed" => options with { Seed = int.Parse(args[++i], Ci) },
+                    "--strategy" => SetStrategy(options, args[++i], out strategy),
+                    "--step-height" => SetStepHeight(options, args[++i], out stepHeight),
                     "--tips" => SetTips(options, args[++i], out tipsPath),
                     "--json" => SetJson(options, out json),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
@@ -37,10 +41,20 @@ internal static class RouteCommand
             if (tipsPath is null) return UsageError("--tips <tips.json> is required");
 
             var mesh = MeshFile.Read(meshPath);
-            var obstacles = new LinearCollisionScene();
+            var obstacles = new BvhCollisionScene();
             obstacles.AddMesh(mesh, Matrix4x4.Identity, Path.GetFileName(meshPath));
             var tips = ReadTips(tipsPath);
-            var result = new GridSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips, options);
+            var result = strategy == "topdown"
+                ? new TopDownSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips,
+                    new TopDownRoutingOptions
+                    {
+                        StepHeight = stepHeight,
+                        PillarDiameter = options.PillarDiameter,
+                        PlateZ = options.PlateZ,
+                        Seed = options.Seed,
+                        Origin = options.Origin,
+                    })
+                : new GridSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips, options);
             var collisionFree = IsCollisionFree(result.Graph, obstacles);
             if (json) WriteJson(result, collisionFree);
             else WriteText(meshPath, tips.Count, result, collisionFree);
@@ -63,6 +77,22 @@ internal static class RouteCommand
     private static GridRoutingOptions SetJson(GridRoutingOptions options, out bool json)
     {
         json = true;
+        return options;
+    }
+
+    private static GridRoutingOptions SetStrategy(GridRoutingOptions options, string value,
+        out string strategy)
+    {
+        strategy = value.ToLowerInvariant();
+        if (strategy is not ("grid" or "topdown"))
+            throw new ArgumentException("strategy must be 'grid' or 'topdown'");
+        return options;
+    }
+
+    private static GridRoutingOptions SetStepHeight(GridRoutingOptions options, string value,
+        out float stepHeight)
+    {
+        stepHeight = Parse(value);
         return options;
     }
 
@@ -152,7 +182,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--strategy grid|topdown] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 

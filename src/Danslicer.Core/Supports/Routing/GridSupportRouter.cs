@@ -94,7 +94,7 @@ public sealed class GridSupportRouter
             Start = tip.SurfacePoint,
             DesiredEnd = tip.SurfacePoint,
             End = tip.SurfacePoint,
-            Diameter = tip.TipDiameter,
+            Diameter = options.PillarDiameter,
         };
         _rules.Evaluate(taper);
         neckDiameter = MathF.Max(0.05f, taper.Diameter);
@@ -173,10 +173,11 @@ public sealed class GridSupportRouter
             var merge = new GrowthContext
             {
                 Operation = GrowthOperation.Merge,
-                Start = basePosition,
-                DesiredEnd = basePosition,
-                End = basePosition,
+                Start = group[0].Junction,
+                DesiredEnd = group[0].Junction,
+                End = group[0].Junction,
                 Diameter = trunkDiameter,
+                LowestTipZ = group.Min(route => route.Tip.SurfacePoint.Z),
             };
             _rules.Evaluate(merge);
             if (merge.Allowed) trunkDiameter = merge.Diameter;
@@ -200,9 +201,8 @@ public sealed class GridSupportRouter
             }
 
             var tipNode = Node(ids, SupportNodeType.Tip, route.Tip.SurfacePoint, options.Origin);
-            // Convention boundary: RoutingTip carries the INWARD (penetration) normal, but
-            // SupportNode.SurfaceNormal is OUTWARD everywhere else (viewport picking, tip move).
-            tipNode.SurfaceNormal = SafeNormal(-route.Tip.InwardSurfaceNormal);
+            // Routing input normals point into the model; graph contact normals point outward.
+            tipNode.SurfaceNormal = -SafeNormal(route.Tip.InwardSurfaceNormal);
             tipNode.TipDiameter = route.Tip.TipDiameter;
             tipNode.ContactObjectId = route.Tip.ContactObjectId;
             graph.AddNode(tipNode);
