@@ -25,9 +25,9 @@ public partial class SupportPresetEditorWindow : Window
         Configuration.WindowStatePersistence.Track(this, "support-preset-editor");
     }
 
-    private void OnOpened(object? sender, EventArgs e) => PreviewViewport.FrameAll();
+    private void OnOpened(object? sender, EventArgs e) => PreviewSurface.FrameAll();
 
-    private void FramePreview() => PreviewViewport.FrameAll();
+    private void FramePreview() => PreviewSurface.FrameAll();
 
     private void OnCloseRequested(bool saved) => Close();
 

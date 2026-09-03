@@ -23,11 +23,9 @@
                           SelectedIndex="{Binding SelectedDisplayModeIndex, Mode=TwoWay}" />
             </Grid>
             <Border Grid.Row="1" Background="#17191C" BorderBrush="#404348" BorderThickness="1">
-                <controls:ViewportControl x:Name="PreviewViewport"
-                                          Document="{Binding PreviewDocument}"
-                                          SupportDisplay="{Binding PreviewSupportDisplay}"
-                                          ShowMoveGizmo="False" ShowRotateGizmo="False"
-                                          ShowScaleGizmo="False" />
+                <controls:SupportPreviewSurface x:Name="PreviewSurface"
+                                                Document="{Binding PreviewDocument}"
+                                                SupportDisplay="{Binding PreviewSupportDisplay}" />
             </Border>
             <ProgressBar Grid.Row="2" Minimum="0" Maximum="1" Value="{Binding GenerationProgress}"
                          IsVisible="{Binding IsGenerating}" Height="4" Margin="0,6,0,0" />
