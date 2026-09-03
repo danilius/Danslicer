@@ -71,7 +71,10 @@ public sealed class UserConfigTests : IDisposable
     {
         var config = new UserConfig();
         config.Windows["main"] = new WindowStateConfig
-            { X = -8, Y = 120, Width = 1400.5, Height = 900, Maximized = true };
+        {
+            X = -8, Y = 120, Width = 1400.5, Height = 900, Maximized = true,
+            LeftPanelWidth = 245, RightPanelWidth = 365,
+        };
         var path = PathFor("windows.json");
 
         config.Save(path);
@@ -83,6 +86,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(1400.5, main.Width);
         Assert.Equal(900, main.Height);
         Assert.True(main.Maximized);
+        Assert.Equal(245, main.LeftPanelWidth);
+        Assert.Equal(365, main.RightPanelWidth);
     }
 
     [Fact]

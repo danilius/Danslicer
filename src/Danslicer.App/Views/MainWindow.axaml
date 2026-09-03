@@ -141,7 +141,16 @@
             </Grid>
         </Border>
 
-        <Border DockPanel.Dock="Left" Width="220" Background="#23262A" BorderBrush="#111" BorderThickness="0,0,1,0">
+        <Grid x:Name="WorkspaceGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" MinWidth="140" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" MinWidth="320" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="320" MinWidth="220" />
+            </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#23262A" BorderBrush="#111" BorderThickness="0,0,1,0">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top" Text="Objects" Classes="section" Margin="10,8,10,4" />
                 <ListBox ItemsSource="{Binding Objects}" SelectedItem="{Binding SelectedObject}"
@@ -155,53 +164,57 @@
             </DockPanel>
         </Border>
 
-        <Border DockPanel.Dock="Right" Width="320" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0">
-            <TabControl Padding="10,4">
-                <TabItem Header="Object">
-                    <ScrollViewer>
-                        <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
-                            <TextBlock Text="Object" Classes="section" />
-                            <TextBlock Text="{Binding SelectedObject.Name, FallbackValue=''}" FontSize="13" />
-                            <TextBlock Text="{Binding TriangleText}" Classes="label" />
-                            <TextBlock Text="{Binding DimensionsText}" Classes="label" />
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="#151719" />
 
-                            <TextBlock Text="Position" Classes="section" />
-                            <ItemsControl ItemsSource="{Binding Position}" ItemTemplate="{StaticResource FieldTemplate}" />
+        <Border Grid.Column="4" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0" Padding="10,4">
+            <Grid>
+                <ScrollViewer IsVisible="{Binding IsLayoutView}">
+                    <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <TextBlock Text="Object" Classes="section" />
+                        <TextBlock Text="{Binding SelectedObject.Name, FallbackValue=''}" FontSize="13" />
+                        <TextBlock Text="{Binding TriangleText}" Classes="label" />
+                        <TextBlock Text="{Binding DimensionsText}" Classes="label" />
 
-                            <TextBlock Text="Rotation" Classes="section" />
-                            <ItemsControl ItemsSource="{Binding Rotation}" ItemTemplate="{StaticResource FieldTemplate}" />
+                        <TextBlock Text="Position" Classes="section" />
+                        <ItemsControl ItemsSource="{Binding Position}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                            <TextBlock Text="Scale" Classes="section" />
-                            <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
+                        <TextBlock Text="Rotation" Classes="section" />
+                        <ItemsControl ItemsSource="{Binding Rotation}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                            <TextBlock Text="Supports" Classes="section" />
-                            <Button Content="Generate Supports" Command="{Binding GenerateSupportsCommand}"
-                                    HorizontalAlignment="Left" MinWidth="130" />
+                        <TextBlock Text="Scale" Classes="section" />
+                        <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
+
+                        <TextBlock Text="Supports" Classes="section" />
+                        <Button Content="Generate Supports" Command="{Binding GenerateSupportsCommand}"
+                                HorizontalAlignment="Left" MinWidth="130" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <StackPanel IsVisible="{Binding IsSupportView}">
+                    <TextBlock Text="Support" Classes="section" />
+                </StackPanel>
+
+                <ScrollViewer IsVisible="{Binding IsLayersView}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Document.Printer.Name}" Classes="section" />
+                        <ItemsControl ItemsSource="{Binding PrintSettings.Fields}" ItemTemplate="{StaticResource WideFieldTemplate}" />
+                        <CheckBox Content="Anti-aliasing (16 levels)" IsChecked="{Binding PrintSettings.AntiAliasing}" Margin="0,6,0,0" FontSize="12" />
+
+                        <TextBlock Text="Slice" Classes="section" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Slice" Command="{Binding SliceCommand}" MinWidth="80" />
+                            <Button Content="Export…" Click="OnExportClick" MinWidth="80" />
                         </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-
-                <TabItem Header="Print">
-                    <ScrollViewer>
-                        <StackPanel>
-                            <TextBlock Text="{Binding Document.Printer.Name}" Classes="section" />
-                            <ItemsControl ItemsSource="{Binding PrintSettings.Fields}" ItemTemplate="{StaticResource WideFieldTemplate}" />
-                            <CheckBox Content="Anti-aliasing (16 levels)" IsChecked="{Binding PrintSettings.AntiAliasing}" Margin="0,6,0,0" FontSize="12" />
-
-                            <TextBlock Text="Slice" Classes="section" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Slice" Command="{Binding SliceCommand}" MinWidth="80" />
-                                <Button Content="Export…" Click="OnExportClick" MinWidth="80" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding SliceSummary}" Classes="label" Margin="0,8,0,0" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-            </TabControl>
+                        <TextBlock Text="{Binding SliceSummary}" Classes="label" Margin="0,8,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Border>
 
+        <GridSplitter Grid.Column="3" ResizeDirection="Columns" Background="#151719" />
+
         <!-- Main area: header strip, then either the 3D model view or the layer view. -->
-        <DockPanel>
+        <DockPanel Grid.Column="2">
             <Border DockPanel.Dock="Top" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,0,1" Padding="8,3">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsLayoutView}">
@@ -248,5 +261,6 @@
                 </DockPanel>
             </Grid>
         </DockPanel>
+        </Grid>
     </DockPanel>
 </Window>

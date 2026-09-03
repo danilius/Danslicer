@@ -19,7 +19,8 @@ public partial class MainWindow : Window
         ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
         ExportCommand = new RelayCommand(() => OnExportClick(this, new RoutedEventArgs()));
         InitializeComponent();
-        Configuration.WindowStatePersistence.Track(this, "main");
+        Configuration.WindowStatePersistence.Track(this, "main",
+            WorkspaceGrid.ColumnDefinitions[0], WorkspaceGrid.ColumnDefinitions[4]);
         AddWindowKeyBinding("Ctrl+Z", () => ViewModel?.UndoCommand);
         AddWindowKeyBinding("Ctrl+Shift+Z", () => ViewModel?.RedoCommand);
         AddWindowKeyBinding("Ctrl+Y", () => ViewModel?.RedoCommand);

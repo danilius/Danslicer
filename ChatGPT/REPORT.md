@@ -53,6 +53,17 @@ all application shortcuts is the consistent rule while a text editor owns focus.
 - Slicing is always enterable from the header. An absent or invalidated slice leaves the user in the
   empty layer view with print controls available, and slicing completes in Slicing mode.
 
+### 4. Mode-specific right panel and resizable sidebars
+
+- Removed the Object/Print tab control. The right panel now follows the workspace directly: Layout
+  shows object transforms and generation, Support shows the support-control area, and Slicing shows
+  print settings, anti-aliasing, slice/export actions and the slice summary.
+- Replaced fixed DockPanel sidebars with grid columns and two `GridSplitter`s. Left and right panel
+  widths resize independently with minimum widths of 140 and 220 px.
+- `WindowStateConfig` now stores both panel widths beside the existing main-window bounds/state.
+  `WindowStatePersistence.Track` restores valid saved widths and captures actual widths on close.
+  Config round-trip coverage includes the two new values.
+
 ## Brief 10 — screen-test fixes
 
 The reported diagnosis matched the code, so no divergent finding was required before work.
