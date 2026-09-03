@@ -10,4 +10,8 @@
     <PackageReference Include="Clipper2" Version="2.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Danslicer.Tests" />
+  </ItemGroup>
+
 </Project>

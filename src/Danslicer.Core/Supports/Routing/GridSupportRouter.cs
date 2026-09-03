@@ -214,46 +214,14 @@ public sealed class GridSupportRouter
 
     private static IEnumerable<Vector3> CandidateBases(Vector3 tip, GridRoutingOptions options)
     {
-        var radians = -options.RotationDegrees * MathF.PI / 180;
-        var local = Rotate(new Vector2(tip.X, tip.Y) - options.Offset, radians);
+        var local = BaseLattice.WorldToLocal(new Vector2(tip.X, tip.Y), options);
         var seeds = options.Lattice == BaseLatticeType.Square
-            ? SquareCoordinates(local, options.Spacing, options.CandidateRingCount)
-            : HexCoordinates(local, options.Spacing, options.CandidateRingCount);
-        var forward = -radians;
-        return seeds.Select(p => Rotate(p, forward) + options.Offset)
+            ? BaseLattice.SquareRing(local, options.Spacing, options.CandidateRingCount)
+            : BaseLattice.HexRing(local, options.Spacing, options.CandidateRingCount);
+        return seeds.Select(p => BaseLattice.LocalToWorld(p, options))
             .Select(p => new Vector3(p, options.PlateZ))
             .OrderBy(p => Vector2.DistanceSquared(new(p.X, p.Y), new(tip.X, tip.Y)))
             .ThenBy(p => p.X).ThenBy(p => p.Y);
-    }
-
-    private static IEnumerable<Vector2> SquareCoordinates(Vector2 point, float spacing, int rings)
-    {
-        var x = (int)MathF.Round(point.X / spacing);
-        var y = (int)MathF.Round(point.Y / spacing);
-        for (var ring = 0; ring <= rings; ring++)
-            for (var iy = y - ring; iy <= y + ring; iy++)
-                for (var ix = x - ring; ix <= x + ring; ix++)
-                    if (ring == 0 || Math.Max(Math.Abs(ix - x), Math.Abs(iy - y)) == ring)
-                        yield return new Vector2(ix * spacing, iy * spacing);
-    }
-
-    private static IEnumerable<Vector2> HexCoordinates(Vector2 point, float spacing, int rings)
-    {
-        var rowHeight = spacing * MathF.Sqrt(3) * 0.5f;
-        var row = (int)MathF.Round(point.Y / rowHeight);
-        var column = (int)MathF.Round(point.X / spacing - (row & 1) * 0.5f);
-        for (var ring = 0; ring <= rings; ring++)
-            for (var r = row - ring; r <= row + ring; r++)
-                for (var q = column - ring; q <= column + ring; q++)
-                    if (ring == 0 || Math.Max(Math.Abs(q - column), Math.Abs(r - row)) == ring)
-                        yield return new Vector2((q + (r & 1) * 0.5f) * spacing, r * rowHeight);
-    }
-
-    private static Vector2 Rotate(Vector2 p, float radians)
-    {
-        var c = MathF.Cos(radians);
-        var s = MathF.Sin(radians);
-        return new Vector2(p.X * c - p.Y * s, p.X * s + p.Y * c);
     }
 
     private static SupportNode Node(DeterministicIds ids, SupportNodeType type, Vector3 position,

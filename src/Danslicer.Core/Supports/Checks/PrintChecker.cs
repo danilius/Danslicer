@@ -19,11 +19,11 @@ public static class PrintChecker
         var p = parameters ?? PrintCheckParameters.Default;
         var findings = new List<CheckFinding>();
 
-        var queries = new List<MeshDistanceQuery>(objects.Count);
+        var queries = new List<TriangleBvh>(objects.Count);
         for (int i = 0; i < objects.Count; i++)
         {
             var mesh = objects[i];
-            queries.Add(new MeshDistanceQuery(mesh));
+            queries.Add(MeshAnalysis.For(mesh).Bvh);
             var layers = LayerStack.Slice(mesh, p.LayerHeightMm);
             SuctionCupDetector.Find(layers, p, i, findings);
 

@@ -15,6 +15,11 @@ public enum TipStrategy
     Edge,
     /// <summary>Sample on a sharp corner (CAD preference).</summary>
     Corner,
+    /// <summary>
+    /// Lattice vertical from the base grid (DESIGN.md §8.4 strategy 4) hitting a downward
+    /// region face. XY matches the bases the grid router will choose.
+    /// </summary>
+    GridProjection,
 }
 
 /// <summary>

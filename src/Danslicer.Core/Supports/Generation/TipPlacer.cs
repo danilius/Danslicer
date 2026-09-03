@@ -1,5 +1,6 @@
 using System.Numerics;
 using Danslicer.Core.Geometry;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Core.Supports.Generation;
 
@@ -42,6 +43,11 @@ public static class TipPlacer
         var spacing = MathF.Max(parameters.SpacingMm, 1e-3f);
         var minSpacing = MathF.Max(parameters.MinSpacingMm, 1e-4f);
         var features = MeshFeatures.Build(mesh, parameters.SharpEdgeDegrees);
+        var bvh = features.Analysis.Bvh;
+        var keepCleanBvh = keepClean is not null && parameters.KeepCleanDistanceMm > 0
+            ? features.Analysis.BvhForTriangles(keepClean)
+            : null;
+        var keepCleanDistance = MathF.Max(0, parameters.KeepCleanDistanceMm);
 
         var graphGrid = new PointGrid(minSpacing);
         if (existingGraph is not null)
@@ -64,11 +70,12 @@ public static class TipPlacer
                      .ThenBy(i => i.Centroid.X)
                      .ThenBy(i => i.Centroid.Y))
         {
-            if (!TryProjectToRegion(mesh, region, island.Centroid, parameters, out var point, out var outward, out var face))
+            if (!TryProjectToRegion(mesh, bvh, region, island.Centroid, parameters, out var point, out var outward, out var face))
                 continue;
             var score = 10f + MathF.Log(1f + island.AreaMm2);
             TryAcceptRequired(
-                keepClean, graphGrid, placedGrid, accepted, minSpacing, parameters,
+                keepClean, keepCleanBvh, keepCleanDistance,
+                graphGrid, placedGrid, accepted, minSpacing, parameters,
                 point, outward, face, score, TipStrategy.Island);
         }
 
@@ -76,13 +83,16 @@ public static class TipPlacer
         {
             var score = 10f + features.Curvature[vertex];
             TryAcceptRequired(
-                keepClean, graphGrid, placedGrid, accepted, minSpacing, parameters,
+                keepClean, keepCleanBvh, keepCleanDistance,
+                graphGrid, placedGrid, accepted, minSpacing, parameters,
                 position, outward, face, score, TipStrategy.LocalMinimum);
         }
 
         var patchArea = features.OverhangPatchArea(region, parameters);
         var rng = new Random(seed);
-        var samples = CollectOverhangSamples(mesh, region, parameters, features, patchArea, rng, graphGrid, minSpacing, spacing);
+        var samples = parameters.Grid is not null
+            ? CollectGridSamples(mesh, bvh, region, parameters, features, patchArea, graphGrid, minSpacing, spacing)
+            : CollectOverhangSamples(mesh, region, parameters, features, patchArea, rng, graphGrid, minSpacing, spacing);
         foreach (var sample in samples
                      .OrderByDescending(s => s.Score)
                      .ThenBy(s => s.Point.X)
@@ -90,10 +100,12 @@ public static class TipPlacer
                      .ThenBy(s => s.Point.Z)
                      .ThenBy(s => s.FaceIndex))
         {
-            if (keepClean is not null && keepClean.Contains(sample.FaceIndex)) continue;
+            if (ViolatesKeepClean(sample.FaceIndex, sample.Point, keepClean, keepCleanBvh, keepCleanDistance))
+                continue;
             if (IsOnPlate(sample.Point, parameters)) continue;
             if (graphGrid.AnyWithin(sample.Point, minSpacing)) continue;
-            if (placedGrid.AnyWithin(sample.Point, spacing)) continue;
+            var limit = sample.Strategy == TipStrategy.GridProjection ? minSpacing : spacing;
+            if (placedGrid.AnyWithin(sample.Point, limit)) continue;
             placedGrid.Add(sample.Point);
             accepted.Add(sample);
         }
@@ -103,6 +115,8 @@ public static class TipPlacer
 
     private static void TryAcceptRequired(
         HashSet<int>? keepClean,
+        TriangleBvh? keepCleanBvh,
+        float keepCleanDistance,
         PointGrid graphGrid,
         PointGrid placedGrid,
         List<TipCandidate> accepted,
@@ -114,7 +128,7 @@ public static class TipPlacer
         float score,
         TipStrategy strategy)
     {
-        if (keepClean is not null && keepClean.Contains(face)) return;
+        if (ViolatesKeepClean(face, point, keepClean, keepCleanBvh, keepCleanDistance)) return;
         if (IsOnPlate(point, parameters)) return;
         if (graphGrid.AnyWithin(point, minSpacing)) return;
         if (placedGrid.AnyWithin(point, minSpacing)) return;
@@ -271,6 +285,7 @@ public static class TipPlacer
 
     private static bool TryProjectToRegion(
         Mesh mesh,
+        TriangleBvh bvh,
         HashSet<int> region,
         Vector3 xyAtZ,
         TipPlacementParameters parameters,
@@ -280,48 +295,89 @@ public static class TipPlacer
     {
         var origin = new Vector3(xyAtZ.X, xyAtZ.Y, mesh.Bounds.Min.Z - 1f);
         var ray = new Ray(origin, Vector3.UnitZ);
-        float? bestT = null;
-        face = -1;
-        foreach (var t in region)
-        {
-            if (mesh.FaceNormals[t].Z >= -1e-3f) continue;
-            mesh.GetTriangle(t, out var a, out var b, out var c);
-            var hit = ray.IntersectTriangle(a, b, c);
-            if (hit is { } d && d > 0 && (bestT is null || d < bestT))
-            {
-                bestT = d;
-                face = t;
-            }
-        }
+        bool DownwardRegion(int t) => region.Contains(t) && mesh.FaceNormals[t].Z < -1e-3f;
 
-        if (bestT is { } tHit && face >= 0)
+        if (bvh.RayCast(ray, out face, out var tHit, DownwardRegion) && face >= 0)
         {
             point = ray.At(tHit);
             outward = mesh.FaceNormals[face];
             return parameters.IsOverhang(outward) || mesh.FaceNormals[face].Z < -1e-3f;
         }
 
-        // Fallback: closest downward region face to the island centroid.
         var probe = xyAtZ;
-        var bestD2 = float.PositiveInfinity;
+        if (bvh.ClosestPoint(probe, out point, out face, DownwardRegion) < float.PositiveInfinity && face >= 0)
+        {
+            outward = mesh.FaceNormals[face];
+            return true;
+        }
+
         face = -1;
         point = default;
         outward = default;
+        return false;
+    }
+
+    private static List<TipCandidate> CollectGridSamples(
+        Mesh mesh,
+        TriangleBvh bvh,
+        HashSet<int> region,
+        TipPlacementParameters parameters,
+        MeshFeatures features,
+        float[] patchArea,
+        PointGrid graphGrid,
+        float minSpacing,
+        float spacing)
+    {
+        var grid = parameters.Grid ?? throw new ArgumentException("Grid options are required.", nameof(parameters));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(grid.Spacing);
+
+        var list = new List<TipCandidate>();
+        var edgeEpsilon = MathF.Max(1e-3f, spacing * 0.02f);
+        var forceEdges = parameters.ForceEdgePlacement;
+        var edgePref = Math.Clamp(parameters.EdgePreference, 0f, 1f);
+
+        var regionBox = Aabb.Empty;
         foreach (var t in region)
         {
-            if (mesh.FaceNormals[t].Z >= -1e-3f) continue;
             mesh.GetTriangle(t, out var a, out var b, out var c);
-            var q = MeshFeatures.ClosestPointOnTriangle(probe, a, b, c);
-            var d2 = Vector3.DistanceSquared(probe, q);
-            if (d2 < bestD2)
-            {
-                bestD2 = d2;
-                point = q;
-                outward = mesh.FaceNormals[t];
-                face = t;
-            }
+            regionBox = regionBox.Include(a).Include(b).Include(c);
         }
-        return face >= 0;
+        if (regionBox.IsEmpty) return list;
+
+        var originZ = MathF.Min(mesh.Bounds.Min.Z, parameters.PlateZ) - 1f;
+        bool DownwardRegion(int t) => region.Contains(t) && mesh.FaceNormals[t].Z < -1e-3f;
+
+        foreach (var xy in BaseLattice.WorldPointsCovering(
+                     new Vector2(regionBox.Min.X, regionBox.Min.Y),
+                     new Vector2(regionBox.Max.X, regionBox.Max.Y),
+                     grid))
+        {
+            var ray = new Ray(new Vector3(xy.X, xy.Y, originZ), Vector3.UnitZ);
+            if (!bvh.RayCast(ray, out var face, out var tHit, DownwardRegion)) continue;
+            var p = ray.At(tHit);
+            if (IsOnPlate(p, parameters)) continue;
+            if (graphGrid.AnyWithin(p, minSpacing)) continue;
+
+            var outward = mesh.FaceNormals[face];
+            var feature = features.FeatureAt(p, face, edgeEpsilon);
+            if (forceEdges && feature == TipStrategy.Overhang) continue;
+            var score = Score(p, outward, face, feature, parameters, features, patchArea, graphGrid, spacing, edgePref);
+            list.Add(new TipCandidate(p, Inward(outward), parameters.TipDiameterMm, score, TipStrategy.GridProjection, face));
+        }
+
+        return list;
+    }
+
+    private static bool ViolatesKeepClean(
+        int face,
+        Vector3 point,
+        HashSet<int>? keepClean,
+        TriangleBvh? keepCleanBvh,
+        float distance)
+    {
+        if (keepClean is not null && keepClean.Contains(face)) return true;
+        if (keepCleanBvh is null || distance <= 0) return false;
+        return keepCleanBvh.ClosestPoint(point, out _, out _) < distance;
     }
 
     private static Vector3 RandomPointOnTriangle(Random rng, Vector3 a, Vector3 b, Vector3 c)

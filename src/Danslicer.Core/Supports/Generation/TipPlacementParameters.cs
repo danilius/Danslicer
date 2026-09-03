@@ -1,4 +1,5 @@
 using System.Numerics;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Core.Supports.Generation;
 
@@ -49,6 +50,22 @@ public sealed record TipPlacementParameters
 
     /// <summary>Z at or below this (plus one layer) is the plate; no tip is placed there.</summary>
     public float PlateZ { get; init; } = 0f;
+
+    /// <summary>
+    /// When set, Poisson overhang sampling is replaced by grid projection: lattice verticals
+    /// from <see cref="GridRoutingOptions"/> (square/hex, spacing, offset, rotation) are cast
+    /// +Z and emit a tip where they hit a downward region face. Islands and minima still run.
+    /// Reuses the routing option shape so tips line up with the bases the grid router chooses.
+    /// </summary>
+    public GridRoutingOptions? Grid { get; init; }
+
+    /// <summary>
+    /// Minimum Euclidean distance to any keep-clean face. Zero (default) is membership only:
+    /// a candidate on an allowed face is kept even if it shares an edge with a keep-clean face.
+    /// Positive values drop candidates whose closest point on the keep-clean subset is nearer
+    /// than this, using the mesh BVH.
+    /// </summary>
+    public float KeepCleanDistanceMm { get; init; } = 0f;
 
     public static TipPlacementParameters Default { get; } = new();
 

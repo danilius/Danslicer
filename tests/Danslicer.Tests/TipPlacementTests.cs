@@ -2,6 +2,7 @@ using System.Numerics;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Generation;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Tests;
 
@@ -227,6 +228,102 @@ public class TipPlacementTests
     }
 
     [Fact]
+    public void GridProjectionTipsSitOnLatticeVerticals()
+    {
+        var mesh = Meshes.FloatingBox(10, 10, 10, z: 5);
+        var grid = new GridRoutingOptions { Lattice = BaseLatticeType.Square, Spacing = 5f };
+        var tips = Place(mesh, P(spacing: 5, minSpacing: 1f) with { Grid = grid });
+        var projected = tips.Where(c => c.Strategy == TipStrategy.GridProjection).ToList();
+        Assert.NotEmpty(projected);
+        Assert.DoesNotContain(tips, c => c.Strategy == TipStrategy.Overhang);
+
+        var lattice = BaseLattice.WorldPointsCovering(new Vector2(0, 0), new Vector2(10, 10), grid).ToList();
+        Assert.All(projected, t =>
+        {
+            Assert.True(lattice.Any(p => Vector2.Distance(p, new Vector2(t.Point.X, t.Point.Y)) < 1e-3f),
+                $"tip XY ({t.Point.X},{t.Point.Y}) is not on the lattice");
+            Assert.InRange(t.Point.Z, 4.9f, 5.1f);
+            Assert.True(t.InwardNormal.Z > 0.5f);
+        });
+    }
+
+    [Fact]
+    public void GridProjectionTipRoutesToTheSameLatticeBase()
+    {
+        var mesh = Meshes.FloatingBox(10, 10, 10, z: 5);
+        var grid = new GridRoutingOptions { Lattice = BaseLatticeType.Square, Spacing = 5f, PlateZ = 0 };
+        var tips = Place(mesh, P(spacing: 5, minSpacing: 1f) with { Grid = grid });
+        var projected = tips.Where(c => c.Strategy == TipStrategy.GridProjection).ToList();
+        Assert.NotEmpty(projected);
+
+        var router = new GridSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
+        foreach (var tip in projected)
+        {
+            var result = router.Route(
+                [new RoutingTip(tip.Point, tip.InwardNormal, tip.TipDiameter)],
+                grid);
+            var b = Assert.Single(result.BasePositions);
+            Assert.InRange(Vector2.Distance(new Vector2(b.X, b.Y), new Vector2(tip.Point.X, tip.Point.Y)), 0, 1e-3f);
+        }
+    }
+
+    [Fact]
+    public void HexGridWithOffsetAndRotationStaysOnTheLattice()
+    {
+        var mesh = Meshes.FloatingBox(12, 12, 6, z: 4);
+        var grid = new GridRoutingOptions
+        {
+            Lattice = BaseLatticeType.Hexagonal,
+            Spacing = 4f,
+            Offset = new Vector2(1.25f, -0.5f),
+            RotationDegrees = 30f,
+        };
+        var tips = Place(mesh, P(spacing: 4, minSpacing: 1f) with { Grid = grid });
+        var projected = tips.Where(c => c.Strategy == TipStrategy.GridProjection).ToList();
+        Assert.NotEmpty(projected);
+        var lattice = BaseLattice.WorldPointsCovering(new Vector2(-1, -1), new Vector2(13, 13), grid).ToList();
+        Assert.All(projected, t =>
+            Assert.True(lattice.Any(p => Vector2.Distance(p, new Vector2(t.Point.X, t.Point.Y)) < 1e-3f),
+                $"hex tip ({t.Point.X},{t.Point.Y}) is not on the rotated lattice"));
+    }
+
+    [Fact]
+    public void GridProjectionIsDeterministic()
+    {
+        var mesh = Meshes.FloatingBox(10, 10, 10, z: 5);
+        var p = P(spacing: 4, minSpacing: 1f) with { Grid = new GridRoutingOptions { Spacing = 4f } };
+        Assert.Equal(Place(mesh, p, seed: 3), Place(mesh, p, seed: 3));
+        // Seed does not affect grid samples (no RNG); islands/minima are seed-independent too.
+        Assert.Equal(Place(mesh, p, seed: 3), Place(mesh, p, seed: 99));
+    }
+
+    [Fact]
+    public void KeepCleanDistanceDropsCandidatesNearKeepCleanFaces()
+    {
+        var mesh = Meshes.FloatingBox(10, 10, 10, z: 5);
+        var bottom = DownwardFaces(mesh);
+        var keepOne = new HashSet<int> { bottom.Min() };
+
+        var membershipOnly = Place(mesh, keepClean: keepOne);
+        Assert.NotEmpty(membershipOnly);
+        Assert.All(membershipOnly, c => Assert.DoesNotContain(c.FaceIndex, keepOne));
+
+        var far = Place(mesh, P() with { KeepCleanDistanceMm = 20f }, keepClean: keepOne);
+        Assert.Empty(far);
+    }
+
+    [Fact]
+    public void KeepCleanDistanceZeroIsMembershipOnly()
+    {
+        var mesh = Meshes.FloatingBox(10, 10, 10, z: 5);
+        var bottom = DownwardFaces(mesh);
+        var keepOne = new HashSet<int> { bottom.Min() };
+        var tips = Place(mesh, P() with { KeepCleanDistanceMm = 0f }, keepClean: keepOne);
+        Assert.NotEmpty(tips);
+        Assert.All(tips, c => Assert.DoesNotContain(c.FaceIndex, keepOne));
+    }
+
+    [Fact]
     public void InvalidFaceIndexThrows()
     {
         var mesh = Meshes.Box(4, 4, 4);
@@ -337,6 +434,37 @@ internal static class Meshes
             b00, b11, b01,
         };
         return Mesh.FromTriangleSoup(soup);
+    }
+
+    /// <summary>
+    /// Regular grid of quads in XY, Z = amplitude * sin/cos. <paramref name="cells"/> quads
+    /// on a side → 2·cells² triangles.
+    /// </summary>
+    public static Mesh Heightfield(int cells, float size, float amplitude)
+    {
+        var nx = cells + 1;
+        var positions = new Vector3[nx * nx];
+        var step = size / cells;
+        for (int y = 0; y < nx; y++)
+        for (int x = 0; x < nx; x++)
+        {
+            var z = amplitude * MathF.Sin(x * 0.13f) * MathF.Cos(y * 0.11f);
+            positions[y * nx + x] = new Vector3(x * step, y * step, z);
+        }
+
+        var indices = new int[cells * cells * 6];
+        int n = 0;
+        for (int y = 0; y < cells; y++)
+        for (int x = 0; x < cells; x++)
+        {
+            int i00 = y * nx + x;
+            int i10 = i00 + 1;
+            int i01 = i00 + nx;
+            int i11 = i01 + 1;
+            indices[n++] = i00; indices[n++] = i10; indices[n++] = i11;
+            indices[n++] = i00; indices[n++] = i11; indices[n++] = i01;
+        }
+        return new Mesh(positions, indices);
     }
 
     public static Mesh UvSphere(float radius, Vector3 center, int slices, int stacks)
