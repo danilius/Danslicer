@@ -271,3 +271,35 @@ continues to a plate base (747 bases).
    delta to classification policy rather than placement or base routing.
 3. Both outputs remain collision-free. The refusal breakdown now distinguishes unreachable grid
    points and mini contacts with no branch end in range from generic routing-step failures.
+
+---
+
+## 2026-09-03 late night — optional base grid A/B
+
+- Branch: `grid-routing-prototype` at `fc8540c`; `UseBaseGrid` defaults ON and OFF restores the
+  pre-grid free trunk-top fan and near-plate base-relocation fan.
+- Config: Debug, net10.0; same machine and single-process conditions as the earlier seated runs.
+- The fresh seated 1961-candidate Drogon and 482-candidate gripper tip files from the immediately
+  preceding mini-classification run were reused unchanged. Each model was routed once grid-on and
+  once grid-off with `route --seat --strategy tree --base-grid on|off --json`.
+- Regular-tip fallback to mini supports remained at its default OFF in every run.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `route` | `--seat --strategy tree --base-grid on --json` | 8.427 | 2 | nodes 393, segs 376 (tip 87, mini-support 115, branch 87, trunk 87), **unrouted 1759 / 1961**, bases **17**, max lean 88.8°, collisionFree **true** | Bit-identical to the preceding grid-on result. Refusals: ContactBlocked 31, NoClearStep 396, NoReachableGridPoint 1085, NoBranchEndInRange 247. |
+| drogon | `route` | `--seat --strategy tree --base-grid off --json` | 18.320 | 2 | nodes 2555, segs 2365 (tip 710, mini-support 369, branch 576, trunk 710), **unrouted 882 / 1961**, bases **190**, max lean 89.6°, collisionFree **true** | Refusals: ContactBlocked 193, NoClearStep 641, NoReachableGridPoint 0, NoBranchEndInRange 48. |
+| gripper | `route` | `--seat --strategy tree --base-grid on --json` | 0.436 | 2 | nodes 260, segs 243 (tip 79, mini-support 6, branch 79, trunk 79), **unrouted 397 / 482**, bases **17**, max lean 45.0°, collisionFree **true** | Bit-identical to the preceding grid-on result. Refusals: ContactBlocked 6, NoClearStep 35, NoReachableGridPoint 342, NoBranchEndInRange 14. |
+| gripper | `route` | `--seat --strategy tree --base-grid off --json` | 0.935 | 2 | nodes 1137, segs 1008 (tip 372, mini-support 19, branch 245, trunk 372), **unrouted 91 / 482**, bases **129**, max lean 45.0°, collisionFree **true** | Refusals: ContactBlocked 34, NoClearStep 55, NoReachableGridPoint 0, NoBranchEndInRange 2. |
+
+### Observations
+
+1. Grid-on is behaviorally unchanged: both canonical summaries reproduce the preceding table's
+   nodes, segment counts, refusal breakdowns, bases, maximum lean and collision-free status.
+2. Free placement removes the grid-reachability bottleneck. Refusals fall **1759 → 882** on
+   Drogon and **397 → 91** on the gripper, while full-size bases rise **17 → 190** and
+   **17 → 129** respectively. The trade is denser, less regular plate contact geometry.
+3. Every emitted base still uses the configured full-size geometry and both grid-off outputs remain
+   collision-free. `NoReachableGridPoint` correctly disappears when no lattice constraint applies;
+   geometry-bound `ContactBlocked` and `NoClearStep` refusals remain explicit.

@@ -11,18 +11,24 @@ public sealed class RoutingTreeTests
         => new TreeSupportRouter(scene ?? new LinearCollisionScene(), GrowthRuleSet.Default)
             .Route(tips, options ?? new TreeRoutingOptions());
 
-    [Fact]
-    public void NewBasesUseNearestReachablePlateOriginSquareGridPoint()
+    [Theory]
+    [InlineData(true, 0f, 1)]
+    [InlineData(false, 4f, 0)]
+    public void NewBasesFollowTheSelectedPlacementMode(
+        bool useBaseGrid, float expectedBaseX, int expectedBranches)
     {
         var result = Route(new[] { new RoutingTip(new(4, 0, 10), Vector3.UnitZ, 0.4f) },
-            new TreeRoutingOptions { BaseGridPitch = 10f, MaxBranchLength = 8f });
+            new TreeRoutingOptions
+            {
+                UseBaseGrid = useBaseGrid, BaseGridPitch = 10f, MaxBranchLength = 8f,
+            });
 
         Assert.Empty(result.Failures);
         var supportBase = Assert.Single(result.Graph.Nodes,
             node => node.Type == SupportNodeType.Base);
-        Assert.Equal(Vector3.Zero, supportBase.Position);
-        Assert.Single(result.Graph.Segments,
-            segment => segment.Type == SupportSegmentType.Branch);
+        Assert.Equal(expectedBaseX, supportBase.Position.X, 3);
+        Assert.Equal(expectedBranches, result.Graph.Segments.Count(
+            segment => segment.Type == SupportSegmentType.Branch));
     }
 
     [Fact]
@@ -330,8 +336,10 @@ public sealed class RoutingTreeTests
             Func<object?, bool>? obstacleFilter = null) => null;
     }
 
-    [Fact]
-    public void FullyBlockedTipRefusesInsteadOfLandingOnTheModel()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void FullyBlockedTipRefusesInsteadOfLandingOnTheModel(bool useBaseGrid)
     {
         // A wide floor at z = 5 no branch can clear: the tip must refuse, never land on it.
         var scene = new LinearCollisionScene();
@@ -339,7 +347,7 @@ public sealed class RoutingTreeTests
         scene.AddTriangle(new(-40, -40, 5), new(40, 40, 5), new(-40, 40, 5));
 
         var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
-            new TreeRoutingOptions { BaseGridPitch = 4f }, scene);
+            new TreeRoutingOptions { UseBaseGrid = useBaseGrid, BaseGridPitch = 4f }, scene);
 
         var failure = Assert.Single(result.Failures);
         Assert.Equal(RoutingFailureReason.NoClearStep, failure.Reason);
@@ -466,11 +474,14 @@ public sealed class RoutingTreeTests
             baseNode.Position + Vector3.UnitZ * baseNode.BaseHeight, 2.25f));
     }
 
-    [Fact]
-    public void NearPlateTipAnglesToAFullSizeBaseLocation()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void NearPlateTipAnglesToAFullSizeBaseLocation(bool useBaseGrid)
     {
         var result = Route(new[] { new RoutingTip(new(0, 0, 1), Vector3.UnitZ, 0.4f) },
-            new TreeRoutingOptions { BaseDiameter = 1f, BaseGridPitch = 1f },
+            new TreeRoutingOptions
+                { UseBaseGrid = useBaseGrid, BaseDiameter = 1f, BaseGridPitch = 1f },
             new BaseOnlyBlockScene());
 
         Assert.Empty(result.Failures);

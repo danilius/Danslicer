@@ -307,7 +307,7 @@ public sealed class PlacementAndSupportCommandTests
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxFanPerBranchEnd = 5,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
-                BaseGridPitch = 18f,
+                UseBaseGrid = false, BaseGridPitch = 18f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 5f, BaseHeight = 1f,
                 BaseConeHeight = 2.3f, Spacing = 3.5f, OverhangAngleDegrees = 52f,
                 MinIslandAreaMm2 = 0.75f,
@@ -337,6 +337,7 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(5, request.Settings.MiniSupportMaxFanPerBranchEnd);
         Assert.True(request.Settings.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, request.Settings.MiniIslandMaxAreaMm2);
+        Assert.False(request.Settings.UseBaseGrid);
         Assert.Equal(18f, request.Settings.BaseGridPitch);
         Assert.Equal(SupportBaseShape.DiscCone, request.Settings.BaseShape);
         Assert.Equal(5f, request.Settings.BaseDiameter);

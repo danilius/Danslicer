@@ -52,6 +52,27 @@ public sealed class ManualSupportRoutingTests
         Assert.NotEmpty(bases);
     }
 
+    [Theory]
+    [InlineData(true, 0f)]
+    [InlineData(false, 4f)]
+    public void ManualSupportSnapshotsTheSelectedBasePlacementMode(
+        bool useBaseGrid, float expectedBaseX)
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig
+        {
+            UseBaseGrid = useBaseGrid,
+            BaseGridPitch = 20f,
+        };
+
+        Assert.True(document.AddManualSupport(
+            box, new Vector3(4, 0, 8), -Vector3.UnitZ));
+
+        var supportBase = Assert.Single(document.Supports.Nodes,
+            node => node.Type == SupportNodeType.Base);
+        Assert.Equal(expectedBaseX, supportBase.Position.X, 3);
+    }
+
     [Fact]
     public void RoutedSupportUsesCurrentTipMemberAndBaseSettings()
     {
