@@ -21,6 +21,11 @@ public sealed record TreeRoutingOptions
     public bool PreferExistingTrunks { get; init; } = true;
     /// <summary>Maximum actual branch length when attaching to an existing trunk.</summary>
     public float ExistingTrunkBranchRange { get; init; } = 8f;
+    public float MiniSupportDiameter { get; init; } = 0.6f;
+    public float MiniSupportTipDiameter { get; init; } = 0.25f;
+    public float MiniSupportConeLength { get; init; } = 1f;
+    public float MiniSupportMaxLength { get; init; } = 5f;
+    public int MiniSupportMaxFanPerBranchEnd { get; init; } = 4;
     /// <summary>Pitch of the plate-origin-aligned square base grid.</summary>
     public float BaseGridPitch { get; init; } = 20f;
     /// <summary>Directions tried when a branch must swing around an obstacle or reach a trunk.</summary>
@@ -65,6 +70,11 @@ public sealed class TreeSupportRouter
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.TipMemberLength);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BaseGridPitch);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.ExistingTrunkBranchRange);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportDiameter);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportTipDiameter);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportConeLength);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportMaxLength);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportMaxFanPerBranchEnd);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchDirections);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchLengthSteps);
 
@@ -77,17 +87,66 @@ public sealed class TreeSupportRouter
         var failures = new List<RoutingFailure>();
 
         var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, _obstacles, options.Seed);
+        var pendingMini = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
         foreach (var item in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
                      .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
         {
-            if (RouteOne(item.Tip, options, state, out var reason)) continue;
-            unrouted.Add(item.Tip);
-            failures.Add(new RoutingFailure(item.Tip, reason));
+            var reason = RoutingFailureReason.NoClearStep;
+            if (!item.Tip.MiniSupportOnly && RouteOne(item.Tip, options, state, out reason))
+                continue;
+            pendingMini.Add((item.Tip, item.Index, reason));
+        }
+        foreach (var pending in pendingMini.OrderByDescending(item => item.Tip.SurfacePoint.Z)
+                     .ThenBy(item => item.Index))
+        {
+            if (TryRouteMiniSupport(pending.Tip, options, state)) continue;
+            unrouted.Add(pending.Tip);
+            failures.Add(new RoutingFailure(pending.Tip, pending.Reason));
         }
 
         var bases = graph.Nodes.Where(node => node.Type == SupportNodeType.Base)
             .Select(node => node.Position).OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
         return new RoutingResult(graph, unrouted, bases, state.MaxLean, failures);
+    }
+
+    private bool TryRouteMiniSupport(RoutingTip tip, TreeRoutingOptions options, RouteState state)
+    {
+        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon) return false;
+        foreach (var branchEnd in state.BranchEnds
+                     .Where(node => state.MiniFanCount(node.Id) < options.MiniSupportMaxFanPerBranchEnd)
+                     .OrderBy(node => Vector3.DistanceSquared(node.Position, tip.SurfacePoint))
+                     .ThenBy(node => node.Id))
+        {
+            var length = Vector3.Distance(branchEnd.Position, tip.SurfacePoint);
+            if (length > options.MiniSupportMaxLength + Epsilon || length <= Epsilon) continue;
+            var bodyRadius = options.MiniSupportDiameter * 0.5f;
+            var queryRadius = bodyRadius + state.Clearance.ModelDistance;
+            var delta = tip.SurfacePoint - branchEnd.Position;
+            var contactAllowance = MathF.Max(options.MiniSupportTipDiameter * 0.5f,
+                queryRadius) * 2 + 0.01f;
+            var clearEnd = length > contactAllowance
+                ? tip.SurfacePoint - delta / length * contactAllowance
+                : branchEnd.Position;
+            if (clearEnd != branchEnd.Position &&
+                _obstacles.IntersectsCapsule(branchEnd.Position, clearEnd, queryRadius)) continue;
+            var incident = state.Graph.SegmentsAt(branchEnd.Id).Select(segment => segment.Id).ToList();
+            if (state.HitsGenerated(branchEnd.Position, clearEnd, queryRadius, incident)) continue;
+
+            var miniTip = state.NewNode(SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
+            RoutingUtilities.ApplyContact(miniTip, tip with
+            {
+                TipDiameter = options.MiniSupportTipDiameter,
+                TipShape = SupportTipShape.Cone,
+                ConeLength = options.MiniSupportConeLength,
+                BallDiameter = 0f,
+            });
+            state.Graph.AddNode(miniTip);
+            state.AddSegment(SupportSegmentType.MiniSupport, branchEnd, miniTip,
+                options.MiniSupportDiameter, options.Origin);
+            state.IncrementMiniFan(branchEnd.Id);
+            return true;
+        }
+        return false;
     }
 
     private bool RouteOne(RoutingTip tip, TreeRoutingOptions options, RouteState state,
@@ -322,6 +381,7 @@ public sealed class TreeSupportRouter
             var tipNode = EmitTipMember(tip, j1, options, state, tipMemberDiameter);
             var branch = state.AddSegment(SupportSegmentType.Branch, tipNode.Junction, attachNode,
                 options.BranchDiameter, options.Origin);
+            state.RegisterBranchEnd(tipNode.Junction);
             trunk.BranchSegmentIds.Add(branch.Id);
             trunk.BranchCount++;
             return true;
@@ -442,6 +502,7 @@ public sealed class TreeSupportRouter
             state.Graph.AddNode(top);
             branchSegmentId = state.AddSegment(SupportSegmentType.Branch, junction, top,
                 options.BranchDiameter, options.Origin).Id;
+            state.RegisterBranchEnd(junction);
         }
         state.Graph.AddNode(baseNode);
         var trunkSegment = state.AddSegment(SupportSegmentType.Trunk, top, baseNode,
@@ -521,9 +582,12 @@ public sealed class TreeSupportRouter
         public RoutingClearance Clearance { get; }
         public float AngleOffset { get; }
         public List<TrunkRecord> Trunks { get; } = new();
+        public IEnumerable<SupportNode> BranchEnds => _branchEndIds.Select(Graph.GetNode);
         public float MaxLean { get; private set; }
         private readonly DeterministicIds _ids;
         private readonly List<GeneratedCapsule> _capsules = new();
+        private readonly HashSet<Guid> _branchEndIds = new();
+        private readonly Dictionary<Guid, int> _miniFanCounts = new();
 
         public RouteState(SupportGraph graph, DeterministicIds ids, RoutingClearance clearance,
             float angleOffset)
@@ -536,6 +600,11 @@ public sealed class TreeSupportRouter
 
         public SupportNode NewNode(SupportNodeType type, Vector3 position, SupportOrigin origin)
             => new() { Id = _ids.Next(), Type = type, Position = position, Origin = origin };
+
+        public void RegisterBranchEnd(SupportNode node) => _branchEndIds.Add(node.Id);
+        public int MiniFanCount(Guid nodeId) => _miniFanCounts.GetValueOrDefault(nodeId);
+        public void IncrementMiniFan(Guid nodeId) =>
+            _miniFanCounts[nodeId] = MiniFanCount(nodeId) + 1;
 
         public SupportSegment AddSegment(SupportSegmentType type, SupportNode a, SupportNode b,
             float diameter, SupportOrigin origin)

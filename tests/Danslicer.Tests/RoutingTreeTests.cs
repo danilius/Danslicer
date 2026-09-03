@@ -117,6 +117,55 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void MiniSupportsFanFromBranchEndWithConfiguredGeometryAndLimits()
+    {
+        var regular = new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 0, 12), Vector3.UnitZ, 0.4f),
+        };
+        var mini = new[]
+        {
+            new RoutingTip(new(4, 1, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(4, -1, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(5, 0, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(3, 0, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(4, 0, 14), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+            new RoutingTip(new(20, 0, 11), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+        };
+        var result = Route(regular.Concat(mini), new TreeRoutingOptions
+        {
+            MiniSupportDiameter = 0.7f,
+            MiniSupportTipDiameter = 0.3f,
+            MiniSupportConeLength = 1.2f,
+            MiniSupportMaxLength = 5f,
+            MiniSupportMaxFanPerBranchEnd = 4,
+        });
+
+        Assert.Equal(2, result.Failures.Count); // fifth fan contact and out-of-range contact
+        var miniSegments = result.Graph.Segments
+            .Where(segment => segment.Type == SupportSegmentType.MiniSupport).ToList();
+        Assert.Equal(4, miniSegments.Count);
+        Assert.All(miniSegments, segment => Assert.Equal(0.7f, segment.Diameter));
+        var miniTips = miniSegments.Select(segment =>
+                result.Graph.GetNode(segment.NodeA).Type == SupportNodeType.Tip
+                    ? result.Graph.GetNode(segment.NodeA)
+                    : result.Graph.GetNode(segment.NodeB))
+            .ToList();
+        Assert.All(miniTips, tip =>
+        {
+            Assert.Equal(0.3f, tip.TipDiameter);
+            Assert.Equal(SupportTipShape.Cone, tip.TipShape);
+            Assert.Equal(1.2f, tip.ConeLength);
+        });
+        var branchEnds = miniSegments.Select(segment =>
+                result.Graph.GetNode(segment.NodeA).Type == SupportNodeType.Junction
+                    ? segment.NodeA : segment.NodeB)
+            .Distinct().ToList();
+        Assert.Single(branchEnds);
+    }
+
+    [Fact]
     public void EachMemberUsesItsConfiguredParentDiameter()
     {
         var rules = GrowthRuleSet.Default;
