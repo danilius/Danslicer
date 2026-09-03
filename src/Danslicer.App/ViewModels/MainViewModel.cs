@@ -167,6 +167,7 @@ public partial class MainViewModel : ViewModelBase
         RefreshFields();
         DeleteCommand.NotifyCanExecuteChanged();
         DropToPlateCommand.NotifyCanExecuteChanged();
+        HideCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedObjectChanged(SceneObject? value)
@@ -247,6 +248,12 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void DropToPlate() => Document.DropSelectionToPlate();
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void Hide() => Document.HideSelection();
+
+    [RelayCommand]
+    private void UnhideAll() => Document.UnhideAll();
 
     [RelayCommand]
     private void SelectAll() => Document.SelectAll();

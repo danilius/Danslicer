@@ -512,6 +512,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.A when !ctrl: Document.SelectAll(); break;
                 // Lay flat on the face under the cursor; with nothing under it, arm a click pick.
                 case Key.F when !ctrl: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
+                case Key.H when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.UnhideAll(); break;
+                case Key.H when !ctrl: Document.HideSelection(); break;
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
                 case Key.Escape: Document.ClearSelection(); break;
                 case Key.Home: FrameAll(); break;
