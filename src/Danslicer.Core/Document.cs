@@ -431,12 +431,21 @@ public sealed class Document
         Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Hide {commands.Count} objects", commands));
     }
 
-    /// <summary>Hides every unselected support element when support elements are selected.</summary>
+    /// <summary>
+    /// Hides every unselected support element when support elements are selected. Endpoint nodes
+    /// of selected segments remain visible so the selected geometry can still be drawn and picked.
+    /// A selected node does not retain its incident segments, matching vertex-selection semantics.
+    /// </summary>
     public void HideUnselectedSupportElements()
     {
         if (_supportSelection.Count == 0) return;
+        var visibleNodes = Supports.Segments
+            .Where(segment => _supportSelection.Contains(segment.Id))
+            .SelectMany(segment => new[] { segment.NodeA, segment.NodeB })
+            .Concat(_supportSelection)
+            .ToHashSet();
         var entries = new List<SetSupportHiddenCommand.Entry>();
-        foreach (var node in Supports.Nodes.Where(node => !_supportSelection.Contains(node.Id) && !node.Hidden))
+        foreach (var node in Supports.Nodes.Where(node => !visibleNodes.Contains(node.Id) && !node.Hidden))
             entries.Add(new SetSupportHiddenCommand.Entry(value => node.Hidden = value, node.Hidden, true));
         foreach (var segment in Supports.Segments.Where(segment => !_supportSelection.Contains(segment.Id) && !segment.Hidden))
             entries.Add(new SetSupportHiddenCommand.Entry(value => segment.Hidden = value, segment.Hidden, true));

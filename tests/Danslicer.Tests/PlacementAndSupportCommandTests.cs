@@ -97,6 +97,29 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void HideUnselectedSupportsKeepsSelectedSegmentAndItsEndpointsVisible()
+    {
+        var doc = new Document();
+        var tip = new SupportNode { Type = SupportNodeType.Tip, Position = new(0, 0, 5) };
+        var junction = new SupportNode { Type = SupportNodeType.Junction, Position = new(0, 0, 3) };
+        var unrelated = new SupportNode { Type = SupportNodeType.Base, Position = new(5, 0, 0) };
+        var selected = new SupportSegment
+            { Type = SupportSegmentType.Neck, NodeA = tip.Id, NodeB = junction.Id };
+        doc.Supports.AddNode(tip);
+        doc.Supports.AddNode(junction);
+        doc.Supports.AddNode(unrelated);
+        doc.Supports.AddSegment(selected);
+        doc.SelectSupportElement(selected.Id);
+
+        doc.HideUnselectedSupportElements();
+
+        Assert.False(selected.Hidden);
+        Assert.False(tip.Hidden);
+        Assert.False(junction.Hidden);
+        Assert.True(unrelated.Hidden);
+    }
+
+    [Fact]
     public void GenerateSupportsCommitsOneNonManualUndoablePass()
     {
         var doc = new Document();
