@@ -201,5 +201,5 @@ continues to a plate base (747 bases).
 1. Both canonical runs remain collision-free and keep the one-branch maximum anatomy.
 2. Candidate-count changes dominate comparison with the prior table: the island-coverage merge
    adds 392 Drogon and 15 gripper candidates, so these totals are not an isolated router A/B.
-3. The like-for-like router A/B is the Drogon-low development run recorded in `ChatGPT/REPORT.md`:
-   437 → 422 unrouted on the same 1195 tips, with NoClearStep 244 → 218.
+3. The like-for-like router A/B is a drogon-lo development run (same 1195 tips, not a
+   regression reference): 437 → 422 unrouted, with NoClearStep 244 → 218.
