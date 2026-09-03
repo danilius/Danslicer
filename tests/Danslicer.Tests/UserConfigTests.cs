@@ -1,4 +1,5 @@
 using Danslicer.Core.Config;
+using Danslicer.Core.Supports;
 
 namespace Danslicer.Tests;
 
@@ -122,6 +123,67 @@ public sealed class UserConfigTests : IDisposable
     }
 
     [Fact]
+    public void RoundTripsAllSupportSettings()
+    {
+        var config = new UserConfig
+        {
+            Supports = new SupportConfig
+            {
+                TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.3f,
+                PenetrationDepth = 0.15f, TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
+                MemberAngleDegrees = 38f, TipMemberLength = 3f, MaxBranchLength = 11f,
+                BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 6f, BaseHeight = 1.1f,
+                BaseConeHeight = 2.8f, Spacing = 3.2f, OverhangAngleDegrees = 51f,
+                MinIslandAreaMm2 = 0.9f,
+            },
+        };
+        var path = PathFor("supports.json");
+
+        config.Save(path);
+        var supports = UserConfig.Load(path).Supports;
+
+        Assert.Equal(0.55f, supports.TipDiameter);
+        Assert.Equal(2.5f, supports.ConeLength);
+        Assert.Equal(0.3f, supports.BallDiameter);
+        Assert.Equal(0.15f, supports.PenetrationDepth);
+        Assert.Equal(1.8f, supports.TrunkDiameter);
+        Assert.Equal(1.4f, supports.BranchDiameter);
+        Assert.Equal(38f, supports.MemberAngleDegrees);
+        Assert.Equal(3f, supports.TipMemberLength);
+        Assert.Equal(11f, supports.MaxBranchLength);
+        Assert.Equal(SupportBaseShape.DiscCone, supports.BaseShape);
+        Assert.Equal(6f, supports.BaseDiameter);
+        Assert.Equal(1.1f, supports.BaseHeight);
+        Assert.Equal(2.8f, supports.BaseConeHeight);
+        Assert.Equal(3.2f, supports.Spacing);
+        Assert.Equal(51f, supports.OverhangAngleDegrees);
+        Assert.Equal(0.9f, supports.MinIslandAreaMm2);
+    }
+
+    [Fact]
+    public void FreshSupportSettingsMatchGenerationDefaults()
+    {
+        var supports = new UserConfig().Supports;
+
+        Assert.Equal(0.4f, supports.TipDiameter);
+        Assert.Equal(2f, supports.ConeLength);
+        Assert.Equal(0f, supports.BallDiameter);
+        Assert.Equal(0f, supports.PenetrationDepth);
+        Assert.Equal(1.2f, supports.TrunkDiameter);
+        Assert.Equal(1.2f, supports.BranchDiameter);
+        Assert.Equal(45f, supports.MemberAngleDegrees);
+        Assert.Equal(2f, supports.TipMemberLength);
+        Assert.Equal(8f, supports.MaxBranchLength);
+        Assert.Equal(SupportBaseShape.Disc, supports.BaseShape);
+        Assert.Equal(4f, supports.BaseDiameter);
+        Assert.Equal(0.8f, supports.BaseHeight);
+        Assert.Equal(2f, supports.BaseConeHeight);
+        Assert.Equal(2.5f, supports.Spacing);
+        Assert.Equal(45f, supports.OverhangAngleDegrees);
+        Assert.Equal(0.5f, supports.MinIslandAreaMm2);
+    }
+
+    [Fact]
     public void ExplicitNullPlacementSectionIsTreatedAsMissing()
     {
         var path = PathFor("null-section.json");
@@ -132,6 +194,19 @@ public sealed class UserConfigTests : IDisposable
 
         Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
         Assert.Equal(0f, loaded.Placement.HeightMm);
+    }
+
+    [Fact]
+    public void ExplicitNullSupportSectionIsTreatedAsMissing()
+    {
+        var path = PathFor("null-support-section.json");
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(path, """{ "Supports": null }""");
+
+        var loaded = UserConfig.Load(path);
+
+        Assert.Equal(0.4f, loaded.Supports.TipDiameter);
+        Assert.Equal(SupportBaseShape.Disc, loaded.Supports.BaseShape);
     }
 
     [Fact]
