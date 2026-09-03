@@ -115,11 +115,16 @@ public sealed class TreeSupportRouter
         {
             if (trunkJ1.Z <= options.PlateZ + Epsilon)
             {
-                EmitSupport(tip, new Vector3(trunkJ1.X, trunkJ1.Y, options.PlateZ), null,
-                    tipOnly: true, options, state, trunkTipDiameter);
-                return true;
+                var baseJunction = FindTipBaseJunction(tip, options, state,
+                    trunkTipDiameter, tipMemberLength);
+                if (baseJunction is { } baseJ1)
+                {
+                    EmitSupport(tip, new Vector3(baseJ1.X, baseJ1.Y, options.PlateZ), null,
+                        tipOnly: true, options, state, trunkTipDiameter);
+                    return true;
+                }
             }
-            if (TrunkIsClear(trunkJ1, options, state))
+            else if (TrunkIsClear(trunkJ1, options, state))
             {
                 EmitSupport(tip, trunkJ1, null, tipOnly: false,
                     options, state, trunkTipDiameter);
@@ -172,6 +177,29 @@ public sealed class TreeSupportRouter
     private Vector3? FindTipJunction(RoutingTip tip, TreeRoutingOptions options, RouteState state,
         float tipMemberDiameter, float tipMemberLength)
     {
+        foreach (var candidate in TipJunctionCandidates(tip, options, state,
+                     tipMemberDiameter, tipMemberLength, includeBaseRelocationFan: false))
+            return candidate;
+        return null;
+    }
+
+    private Vector3? FindTipBaseJunction(RoutingTip tip, TreeRoutingOptions options,
+        RouteState state, float tipMemberDiameter, float tipMemberLength)
+    {
+        foreach (var candidate in TipJunctionCandidates(tip, options, state,
+                     tipMemberDiameter, tipMemberLength, includeBaseRelocationFan: true))
+        {
+            if (candidate.Z > options.PlateZ + Epsilon) continue;
+            var basePosition = new Vector3(candidate.X, candidate.Y, options.PlateZ);
+            if (BaseIsClear(basePosition, options, state)) return candidate;
+        }
+        return null;
+    }
+
+    private IEnumerable<Vector3> TipJunctionCandidates(RoutingTip tip,
+        TreeRoutingOptions options, RouteState state, float tipMemberDiameter,
+        float tipMemberLength, bool includeBaseRelocationFan)
+    {
         var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) + state.Clearance.ModelDistance;
         var memberRadius = tipMemberDiameter * 0.5f + state.Clearance.ModelDistance;
         // Rough or tightly packed contacts (teeth) can block every full-length departure; a
@@ -179,7 +207,10 @@ public sealed class TreeSupportRouter
         var shortLength = MathF.Min(tipMemberLength, contactRadius * 2);
         foreach (var candidateLength in new[] { tipMemberLength, shortLength }.Distinct())
         {
-            foreach (var direction in TipDirections(tip, options, state.AngleOffset))
+            var directions = includeBaseRelocationFan
+                ? TipToBaseDirections(tip, options, state.AngleOffset)
+                : TipDirections(tip, options, state.AngleOffset);
+            foreach (var direction in directions)
             {
                 var length = direction.Z < -Epsilon
                     ? MathF.Min(candidateLength, (tip.SurfacePoint.Z - options.PlateZ) / -direction.Z)
@@ -187,10 +218,36 @@ public sealed class TreeSupportRouter
                 var end = tip.SurfacePoint + direction * length;
                 if (!ContactMemberIsClear(tip.SurfacePoint, end, contactRadius)) continue;
                 if (state.HitsGenerated(tip.SurfacePoint, end, memberRadius)) continue;
-                return end;
+                yield return end;
             }
         }
-        return null;
+    }
+
+    /// <summary>
+    /// Near the plate, a flat underside's normal produces only a straight-down tip direction.
+    /// Add angled directions so a full-size base can move off blocked plate geometry.
+    /// </summary>
+    private IEnumerable<Vector3> TipToBaseDirections(RoutingTip tip, TreeRoutingOptions options,
+        float angleOffset)
+    {
+        foreach (var direction in TipDirections(tip, options, angleOffset)) yield return direction;
+        foreach (var angleDegrees in new[]
+                 {
+                     options.MaxMemberAngleDegrees,
+                     MathF.Min(options.MaxMemberAngleDegrees, 30f),
+                     MathF.Min(options.MaxMemberAngleDegrees, 15f),
+                 }.Distinct())
+        {
+            var angle = angleDegrees * MathF.PI / 180f;
+            for (var index = 0; index < options.BranchDirections; index++)
+            {
+                var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
+                yield return Vector3.Normalize(new Vector3(
+                    MathF.Cos(theta) * MathF.Sin(angle),
+                    MathF.Sin(theta) * MathF.Sin(angle),
+                    -MathF.Cos(angle)));
+            }
+        }
     }
 
     private IEnumerable<Vector3> TipDirections(RoutingTip tip, TreeRoutingOptions options,
@@ -317,31 +374,16 @@ public sealed class TreeSupportRouter
     private bool TrunkIsClear(Vector3 top, TreeRoutingOptions options, RouteState state)
     {
         var basePosition = new Vector3(top.X, top.Y, options.PlateZ);
-        return MemberIsClear(top, basePosition, options.TrunkDiameter * 0.5f, state);
+        return MemberIsClear(top, basePosition, options.TrunkDiameter * 0.5f, state) &&
+               BaseIsClear(basePosition, options, state);
     }
 
-    /// <summary>
-    /// The largest base disc that clears the MODEL at this position: full diameter first, then
-    /// shrink steps down to the member diameter, then no base at all (the member itself already
-    /// proved clear). Other supports are ignored — neighbouring bases overlap and fuse on the
-    /// plate by design; only base-into-model collisions are avoided (user screen test
-    /// 2026-09-03: full-size discs were sinking into the model near plate-level geometry).
-    /// </summary>
-    private (SupportBaseShape Shape, float Diameter) FitBase(Vector3 basePosition,
-        float memberDiameter, TreeRoutingOptions options, RouteState state)
+    private bool BaseIsClear(Vector3 basePosition, TreeRoutingOptions options, RouteState state)
     {
-        if (options.BaseShape == SupportBaseShape.None)
-            return (SupportBaseShape.None, options.BaseDiameter);
+        if (options.BaseShape == SupportBaseShape.None) return true;
         var discTop = basePosition + Vector3.UnitZ * options.BaseHeight;
-        var floor = MathF.Max(memberDiameter, 0.1f);
-        foreach (var fraction in new[] { 1f, 0.75f, 0.5f, 0f })
-        {
-            var diameter = MathF.Max(floor, options.BaseDiameter * fraction);
-            if (state.Clearance.PillarIsClear(_obstacles, basePosition, discTop, diameter * 0.5f))
-                return (options.BaseShape, diameter);
-            if (diameter <= floor + 1e-4f) break;
-        }
-        return (SupportBaseShape.None, options.BaseDiameter);
+        return state.Clearance.PillarIsClear(_obstacles, basePosition, discTop,
+            options.BaseDiameter * 0.5f);
     }
 
     private bool MemberIsClear(Vector3 start, Vector3 end, float physicalRadius, RouteState state,
@@ -379,11 +421,9 @@ public sealed class TreeSupportRouter
         TreeRoutingOptions options, RouteState state, float tipMemberDiameter)
     {
         var basePosition = new Vector3(trunkTop.X, trunkTop.Y, options.PlateZ);
-        var (baseShape, baseDiameter) = FitBase(basePosition,
-            tipOnly ? tipMemberDiameter : options.TrunkDiameter, options, state);
         var baseNode = state.NewNode(SupportNodeType.Base, basePosition, options.Origin);
-        baseNode.BaseShape = baseShape;
-        baseNode.BaseDiameter = baseDiameter;
+        baseNode.BaseShape = options.BaseShape;
+        baseNode.BaseDiameter = options.BaseDiameter;
         baseNode.BaseHeight = options.BaseHeight;
         baseNode.BaseConeHeight = options.BaseConeHeight;
 
