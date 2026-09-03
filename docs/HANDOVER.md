@@ -18,7 +18,15 @@ minimal, recipes/regions explicitly excluded as user-pending), 013 keymap editin
 allowed). Qwen batch 4 running: PhotonRle round-trip + ObjReader edge tests.
 Deliberately NOT queued: viewport G-buffer pass (needs interactive screen checks),
 anything touching the user's pending decisions (grid/pitch verdict, island tweaks,
-recipes design, printer/resin editors).
+recipes design).
+
+**Later that night the user EXTENDED the queue** (supersedes the older "do not brief
+printer/resin editors" note): 012b preset editor with live 3D preview pane, sample
+shapes incl. current selection, stats strip (user liked Claude's additions); 015
+printer definitions + editor (hardcoded Mono X becomes a seeded, user-editable
+collection); 016 resin presets + editor, with the PrintSettings
+printer/resin/per-print field split proposed in the result file as an assumption.
+Final order: 011 → 012 → 012b → 013 → 014 → 015 → 016.
 
 ## Addendum 2026-09-03 overnight — queue progress (kept current; RECOVERY: read this + the
 `danslicer-multi-agent-workflow` memory, re-arm the queue monitor AND the hourly
