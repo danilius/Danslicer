@@ -90,7 +90,17 @@ int Slice(string[] a)
         if (percent / 10 != lastPercent / 10) Console.Error.Write($"{percent}% ");
         lastPercent = percent;
     });
-    var result = Slicer.Slice(objects, printer, settings, progress);
+    SliceResult result;
+    try
+    {
+        result = Slicer.Slice(objects, printer, settings, progress);
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine();
+        Console.Error.WriteLine($"error: {ex.Message}");
+        return 2;
+    }
     Console.Error.WriteLine();
     PhotonWorkshopWriter.Write(result, output);
     sw.Stop();

@@ -171,4 +171,24 @@ public class SlicingTests
         obj.Transform = Transform.Identity with { Translation = new Vector3(0, 0, -1) };
         Assert.Throws<InvalidOperationException>(() => Slicer.Slice(new[] { obj }, Printer, PrintSettings.Default));
     }
+
+    [Fact]
+    public void RefusesGeometryOutsideBuildArea()
+    {
+        // Wider than the 192 mm plate even when centred.
+        var wide = new SceneObject("wide", Box(300, 10, 10));
+        wide.Transform = Transform.Identity with { Translation = new Vector3(-150, -5, 0) };
+        var ex = Assert.Throws<InvalidOperationException>(() => Slicer.Slice(new[] { wide }, Printer, PrintSettings.Default));
+        Assert.Contains("plate", ex.Message);
+
+        // Fits in size, but shifted off the plate edge.
+        var shifted = new SceneObject("shifted", Box(10, 10, 10));
+        shifted.Transform = Transform.Identity with { Translation = new Vector3(90, -5, 0) };
+        Assert.Throws<InvalidOperationException>(() => Slicer.Slice(new[] { shifted }, Printer, PrintSettings.Default));
+
+        // Centred and inside: fine.
+        var ok = new SceneObject("ok", Box(10, 10, 10));
+        ok.Transform = Transform.Identity with { Translation = new Vector3(-5, -5, 0) };
+        Assert.NotNull(Slicer.Slice(new[] { ok }, Printer, PrintSettings.Default));
+    }
 }

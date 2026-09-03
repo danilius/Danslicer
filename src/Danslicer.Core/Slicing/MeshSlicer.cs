@@ -24,6 +24,10 @@ public static class MeshSlicer
         public double[] TriMaxZ { get; }
         /// <summary>World-space face normal XY components, used to orient segments.</summary>
         public Vector2[] NormalXy { get; }
+        public double MinX { get; }
+        public double MaxX { get; }
+        public double MinY { get; }
+        public double MaxY { get; }
         public double MinZ { get; }
         public double MaxZ { get; }
         public int TriangleCount => Indices.Length / 3;
@@ -34,17 +38,26 @@ public static class MeshSlicer
             X = new double[n];
             Y = new double[n];
             Z = new double[n];
-            var minZ = double.PositiveInfinity;
-            var maxZ = double.NegativeInfinity;
+            var minX = double.PositiveInfinity; var maxX = double.NegativeInfinity;
+            var minY = double.PositiveInfinity; var maxY = double.NegativeInfinity;
+            var minZ = double.PositiveInfinity; var maxZ = double.NegativeInfinity;
             for (int i = 0; i < n; i++)
             {
                 var p = Vector3.Transform(mesh.Positions[i], world);
                 X[i] = p.X;
                 Y[i] = p.Y;
                 Z[i] = p.Z;
+                if (p.X < minX) minX = p.X;
+                if (p.X > maxX) maxX = p.X;
+                if (p.Y < minY) minY = p.Y;
+                if (p.Y > maxY) maxY = p.Y;
                 if (p.Z < minZ) minZ = p.Z;
                 if (p.Z > maxZ) maxZ = p.Z;
             }
+            MinX = minX;
+            MaxX = maxX;
+            MinY = minY;
+            MaxY = maxY;
             MinZ = minZ;
             MaxZ = maxZ;
 

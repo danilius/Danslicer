@@ -64,6 +64,23 @@ public static class Slicer
         if (minZ < -1e-3) throw new InvalidOperationException($"Geometry extends {-minZ:0.###} mm below the plate.");
         if (maxZ > printer.BuildVolume.Z + 1e-3) throw new InvalidOperationException($"Geometry exceeds the {printer.BuildVolume.Z} mm build height.");
 
+        // The plate is the LCD, centred on the origin: anything outside would be silently cropped.
+        var halfX = printer.BuildVolume.X / 2.0;
+        var halfY = printer.BuildVolume.Y / 2.0;
+        var overX = Math.Max(prepared.Max(m => m.MaxX) - halfX, -halfX - prepared.Min(m => m.MinX));
+        var overY = Math.Max(prepared.Max(m => m.MaxY) - halfY, -halfY - prepared.Min(m => m.MinY));
+        if (overX > 1e-3 || overY > 1e-3)
+        {
+            var axes = string.Join(" and ", new[]
+            {
+                overX > 1e-3 ? $"{overX:0.#} mm in X" : null,
+                overY > 1e-3 ? $"{overY:0.#} mm in Y" : null,
+            }.Where(s => s is not null));
+            throw new InvalidOperationException(
+                $"Geometry extends past the plate by {axes} " +
+                $"(build area {printer.BuildVolume.X:0.#} × {printer.BuildVolume.Y:0.#} mm). Scale, rotate or move it to fit.");
+        }
+
         var h = (double)settings.LayerHeight;
         var layerCount = (int)Math.Ceiling(maxZ / h - 1e-6);
         if (layerCount <= 0) throw new InvalidOperationException("Model has no height.");
