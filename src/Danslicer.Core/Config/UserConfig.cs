@@ -52,7 +52,7 @@ public sealed class PlacementConfig
 {
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public PlacementMode Mode { get; set; } = PlacementMode.AutoDrop;
-    public float HeightMm { get; set; } = 5f;
+    public float HeightMm { get; set; }
 }
 
 /// <summary>Saved placement of one window, in screen pixels.</summary>
@@ -103,6 +103,13 @@ public sealed class UserConfig
             config.SpaceMouse ??= new SpaceMouseConfig();
             config.Viewport ??= new ViewportConfig();
             config.Placement ??= new PlacementConfig();
+            config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
+                ? MathF.Max(0, config.Placement.HeightMm)
+                : 0;
+            // Legacy Drop ignored its stored Raise height. In the toggle model it migrates to
+            // enabled with zero offset; Raise and Off preserve their editable offset.
+            if (config.Placement.Mode == PlacementMode.AutoDrop)
+                config.Placement.HeightMm = 0;
             config.Windows ??= new Dictionary<string, WindowStateConfig>();
             return config;
         }

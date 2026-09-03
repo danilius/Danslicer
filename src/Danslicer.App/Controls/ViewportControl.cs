@@ -512,17 +512,17 @@ public sealed class ViewportControl : OpenGlControlBase
     private static readonly Vector4 BracingColor = new(0.5f, 0.9f, 0.6f, 0.95f);
     private static readonly Vector4 TipColor = new(1f, 0.55f, 0.25f, 1f);
 
-    private bool TryAddSupport(Vector2 mouse, bool forceStraight = false)
+    private string? TryAddSupport(Vector2 mouse, bool forceStraight = false)
     {
-        if (Document is null) return false;
+        if (Document is null) return null;
         var hit = PickSurface(mouse, out _, out var point, out var normal);
-        if (hit is null) return false;
-        if (!Document.AddManualSupport(hit, point, normal, routeAroundModel: !forceStraight))
-        {
-            StatusText = "Support: no clear path to the plate from here · Shift+T forces a straight drop";
-            return false;
-        }
-        return true;
+        if (hit is null) return null;
+        if (!Document.AddManualSupport(hit, point, normal, out var reason,
+                routeAroundModel: !forceStraight))
+            return reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
+                ? "Support: contact is too tight to the surface · Shift+T forces a straight drop"
+                : "Support: no clear path to the plate from here · Shift+T forces a straight drop";
+        return null;
     }
 
     // ----- Tip move (G with a single tip selected) -----
@@ -718,6 +718,7 @@ public sealed class ViewportControl : OpenGlControlBase
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         var handled = true;
+        string? statusAfterUpdate = null;
 
         if (e.Key is Key.LeftCtrl or Key.RightCtrl)
         {
@@ -769,7 +770,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.H when !ctrl: Document.HideSelection(); break;
                 // Manual support under the cursor: routed around the model; Shift+T forces the
                 // old straight vertical drop (the DESIGN §8.6 override).
-                case Key.T when !ctrl: TryAddSupport(mouse, forceStraight: shift); break;
+                case Key.T when !ctrl: statusAfterUpdate = TryAddSupport(mouse, forceStraight: shift); break;
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
                 case Key.Escape when Document.SupportSelection.Count > 0: Document.ClearSupportSelection(); break;
                 case Key.Escape: Document.ClearSelection(); break;
@@ -791,6 +792,7 @@ public sealed class ViewportControl : OpenGlControlBase
         if (handled)
         {
             UpdateStatus();
+            if (statusAfterUpdate is not null) StatusText = statusAfterUpdate;
             e.Handled = true;
         }
     }

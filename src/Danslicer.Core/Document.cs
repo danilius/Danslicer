@@ -28,7 +28,7 @@ public sealed class Document
     public PrinterDefinition Printer { get; set; } = PrinterDefinition.PhotonMonoX;
     public PrintSettings PrintSettings { get; set; } = PrintSettings.Default;
     public PlacementMode PlacementMode { get; set; } = PlacementMode.AutoDrop;
-    public float PlacementHeightMm { get; set; } = 5f;
+    public float PlacementHeightMm { get; set; }
 
     public IReadOnlyCollection<SceneObject> Selection => _selection;
 
@@ -298,16 +298,26 @@ public sealed class Document
     /// </summary>
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
         bool routeAroundModel = true)
+        => AddManualSupport(obj, contact, surfaceNormal, out _, routeAroundModel);
+
+    public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason, bool routeAroundModel = true)
     {
-        if (routeAroundModel) return TryAddRoutedSupport(obj, contact, surfaceNormal);
+        if (routeAroundModel) return TryAddRoutedSupport(obj, contact, surfaceNormal, out failureReason);
+        failureReason = null;
         AddStraightSupport(obj, contact, surfaceNormal);
         return true;
     }
 
-    private bool TryAddRoutedSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
+    private bool TryAddRoutedSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason)
     {
         var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
-        var router = new TopDownSupportRouter(obstacles, GrowthRuleSet.Default);
+        var rules = GrowthRuleSet.Default;
+        var land = rules.Find<LandGrowthRule>()!;
+        land.Enabled = true;
+        land.AllowLandingOnModel = true;
+        var router = new TopDownSupportRouter(obstacles, rules);
         var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
@@ -316,8 +326,13 @@ public sealed class Document
             Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
         };
         var result = router.Route(new[] { tip }, options);
-        if (result.UnroutedTips.Count > 0) return false;
+        if (result.UnroutedTips.Count > 0)
+        {
+            failureReason = result.Failures.Single().Reason;
+            return false;
+        }
 
+        failureReason = null;
         // A straight descent emits a junction per step; collapse to the minimal shape.
         SupportGraphSimplifier.CollapseCollinearJunctions(result.Graph);
         Execute(new AddSupportElementsCommand(Supports,
@@ -431,12 +446,21 @@ public sealed class Document
         Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Hide {commands.Count} objects", commands));
     }
 
-    /// <summary>Hides every unselected support element when support elements are selected.</summary>
+    /// <summary>
+    /// Hides every unselected support element when support elements are selected. Endpoint nodes
+    /// of selected segments remain visible so the selected geometry can still be drawn and picked.
+    /// A selected node does not retain its incident segments, matching vertex-selection semantics.
+    /// </summary>
     public void HideUnselectedSupportElements()
     {
         if (_supportSelection.Count == 0) return;
+        var visibleNodes = Supports.Segments
+            .Where(segment => _supportSelection.Contains(segment.Id))
+            .SelectMany(segment => new[] { segment.NodeA, segment.NodeB })
+            .Concat(_supportSelection)
+            .ToHashSet();
         var entries = new List<SetSupportHiddenCommand.Entry>();
-        foreach (var node in Supports.Nodes.Where(node => !_supportSelection.Contains(node.Id) && !node.Hidden))
+        foreach (var node in Supports.Nodes.Where(node => !visibleNodes.Contains(node.Id) && !node.Hidden))
             entries.Add(new SetSupportHiddenCommand.Entry(value => node.Hidden = value, node.Hidden, true));
         foreach (var segment in Supports.Segments.Where(segment => !_supportSelection.Contains(segment.Id) && !segment.Hidden))
             entries.Add(new SetSupportHiddenCommand.Entry(value => segment.Hidden = value, segment.Hidden, true));

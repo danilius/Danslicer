@@ -57,9 +57,11 @@ public sealed class ManualSupportRoutingTests
         var (document, box) = FloatingBoxDocument();
 
         // On top of the box the only way down is through the solid: refuse, add nothing.
-        var added = document.AddManualSupport(box, new Vector3(0, 0, 14), Vector3.UnitZ);
+        var added = document.AddManualSupport(box, new Vector3(0, 0, 14), Vector3.UnitZ,
+            out var failureReason);
 
         Assert.False(added);
+        Assert.Equal(RoutingFailureReason.NoClearStep, failureReason);
         Assert.Equal(0, document.Supports.NodeCount);
         Assert.Equal(0, document.Supports.SegmentCount);
     }

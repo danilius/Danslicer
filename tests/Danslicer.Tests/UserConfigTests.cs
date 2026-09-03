@@ -92,6 +92,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(1f, loaded.SpaceMouse.OrbitSensitivity);
         Assert.False(loaded.SpaceMouse.InvertZoom);
         Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
+        Assert.Equal(0f, loaded.Placement.HeightMm);
     }
 
     [Fact]
@@ -125,6 +126,24 @@ public sealed class UserConfigTests : IDisposable
         var loaded = UserConfig.Load(path);
 
         Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
-        Assert.Equal(5f, loaded.Placement.HeightMm);
+        Assert.Equal(0f, loaded.Placement.HeightMm);
+    }
+
+    [Fact]
+    public void LegacyPlacementModesMigrateToToggleAndOffsetSemantics()
+    {
+        Directory.CreateDirectory(_dir);
+        var dropPath = PathFor("old-drop.json");
+        File.WriteAllText(dropPath, """{ "Placement": { "Mode": "AutoDrop", "HeightMm": 9 } }""");
+        var offPath = PathFor("old-off.json");
+        File.WriteAllText(offPath, """{ "Placement": { "Mode": "Off", "HeightMm": 9 } }""");
+
+        var drop = UserConfig.Load(dropPath);
+        var off = UserConfig.Load(offPath);
+
+        Assert.Equal(PlacementMode.AutoDrop, drop.Placement.Mode);
+        Assert.Equal(0f, drop.Placement.HeightMm);
+        Assert.Equal(PlacementMode.Off, off.Placement.Mode);
+        Assert.Equal(9f, off.Placement.HeightMm);
     }
 }

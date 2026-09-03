@@ -51,6 +51,7 @@ public sealed class TopDownSupportRouter
         var lowestTipByNode = new Dictionary<Guid, float>();
         var generatedCapsules = new List<GeneratedCapsule>();
         var unrouted = new List<RoutingTip>();
+        var failures = new List<RoutingFailure>();
         var maxLean = 0f;
         var angleOffset = new Random(options.Seed).NextSingle() * MathF.Tau;
         var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
@@ -60,10 +61,11 @@ public sealed class TopDownSupportRouter
                      .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
         {
             var proposal = Propose(item.Tip, options, routeNodes, lowestTipByNode,
-                generatedCapsules, attachTargets, clearance, angleOffset);
+                generatedCapsules, attachTargets, clearance, angleOffset, out var failureReason);
             if (proposal is null)
             {
                 unrouted.Add(item.Tip);
+                failures.Add(new RoutingFailure(item.Tip, failureReason));
                 continue;
             }
 
@@ -74,16 +76,21 @@ public sealed class TopDownSupportRouter
         var bases = graph.Nodes.Where(node => node.Type == SupportNodeType.Base)
             .Where(node => !originalNodeIds.Contains(node.Id))
             .Select(node => node.Position).OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
-        return new RoutingResult(graph, unrouted, bases, maxLean);
+        return new RoutingResult(graph, unrouted, bases, maxLean, failures);
     }
 
     private RouteProposal? Propose(RoutingTip tip, TopDownRoutingOptions options,
         IReadOnlyList<SupportNode> routeNodes, IReadOnlyDictionary<Guid, float> lowestTipByNode,
         IReadOnlyList<GeneratedCapsule> generatedCapsules,
         IReadOnlyList<ExistingSupportTarget> attachTargets, RoutingClearance clearance,
-        float angleOffset)
+        float angleOffset, out RoutingFailureReason failureReason)
     {
-        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon) return null;
+        failureReason = RoutingFailureReason.NoClearStep;
+        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
+        {
+            failureReason = RoutingFailureReason.BelowPlate;
+            return null;
+        }
 
         var taper = new GrowthContext
         {
@@ -95,15 +102,26 @@ public sealed class TopDownSupportRouter
         };
         _rules.Evaluate(taper);
         var neckDiameter = MathF.Max(0.05f, taper.Diameter);
-        var neckDrop = MathF.Min(MathF.Max(0.1f, taper.NeckLength), tip.SurfacePoint.Z - options.PlateZ);
-        var first = tip.SurfacePoint - Vector3.UnitZ * neckDrop;
+        var neckLength = MathF.Max(0.1f, taper.NeckLength);
+        var outward = -RoutingUtilities.SafeInwardNormal(tip.InwardSurfaceNormal);
+        // Down-facing steep contacts must leave along the surface normal before turning toward
+        // the plate. A vertical departure embeds the neck capsule in the contact face. Up-facing
+        // contacts retain the vertical proposal so they cannot escape through the top of a solid.
         var neckRadius = neckDiameter * 0.5f + clearance.ModelDistance;
-        if (!ContactSegmentIsClear(tip.SurfacePoint, first, neckRadius)) return null;
-        if (HitsGenerated(tip.SurfacePoint, first, neckRadius, generatedCapsules, null)) return null;
+        // The contact end is tip-sized and tapers toward the wider neck. Using the full neck
+        // capsule at the surface overstates the occupied volume on rough organic contacts.
+        var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) + clearance.ModelDistance;
+        var first = FindContactDeparture(tip.SurfacePoint, outward, neckLength, options.PlateZ,
+            contactRadius, neckRadius, generatedCapsules, angleOffset);
+        if (first is null)
+        {
+            failureReason = RoutingFailureReason.ContactBlocked;
+            return null;
+        }
 
-        var points = new List<Vector3> { first };
+        var points = new List<Vector3> { first.Value };
         MergeTarget? mergeTarget = null;
-        var current = first;
+        var current = first.Value;
         var maxSteps = (int)MathF.Ceiling((tip.SurfacePoint.Z - options.PlateZ) / options.StepHeight) + 2;
         for (var step = 0; step < maxSteps && current.Z > options.PlateZ + Epsilon; step++)
         {
@@ -111,7 +129,8 @@ public sealed class TopDownSupportRouter
                 lowestTipByNode, generatedCapsules, attachTargets, clearance);
             if (mergeTarget is not null) break;
 
-            var landing = FindLanding(current, options, generatedCapsules, clearance);
+            var landing = FindLanding(current, options, generatedCapsules, clearance,
+                out var landingRejected);
             if (landing is not null)
             {
                 points.Add(landing.Hit.Point);
@@ -121,7 +140,13 @@ public sealed class TopDownSupportRouter
             var nextZ = MathF.Max(options.PlateZ, current.Z - options.StepHeight);
             var next = FindClearStep(current, nextZ, tip.SurfacePoint, options,
                 generatedCapsules, clearance, angleOffset + step * 0.381966f);
-            if (next is null) return null;
+            if (next is null)
+            {
+                failureReason = landingRejected
+                    ? RoutingFailureReason.NoLanding
+                    : RoutingFailureReason.NoClearStep;
+                return null;
+            }
             current = next.Value;
             points.Add(current);
         }
@@ -131,19 +156,21 @@ public sealed class TopDownSupportRouter
     }
 
     private ModelLanding? FindLanding(Vector3 current, TopDownRoutingOptions options,
-        IReadOnlyList<GeneratedCapsule> generatedCapsules, RoutingClearance clearance)
+        IReadOnlyList<GeneratedCapsule> generatedCapsules, RoutingClearance clearance,
+        out bool rejected)
     {
+        rejected = false;
         var landRule = _rules.Find<LandGrowthRule>();
         if (landRule is not { Enabled: true, AllowLandingOnModel: true }) return null;
         var maxDistance = MathF.Min(options.StepHeight, current.Z - options.PlateZ);
         var hit = _obstacles.Raycast(current, -Vector3.UnitZ, maxDistance);
         if (hit is null || hit.Value.SurfaceNormal.Z <= 0) return null;
+        rejected = true;
         if (clearance.KeepCleanTags is not null && hit.Value.Tag is not null &&
             clearance.KeepCleanTags.Contains(hit.Value.Tag)) return null;
 
         var landingAngle = MathF.Asin(Math.Clamp(hit.Value.SurfaceNormal.Z, 0, 1))
             * 180 / MathF.PI;
-        if (landingAngle < landRule.MinLandingAngleDegrees) return null;
         var context = new GrowthContext
         {
             Operation = GrowthOperation.Land,
@@ -155,7 +182,10 @@ public sealed class TopDownSupportRouter
         _rules.Evaluate(context);
         if (!context.Allowed || !context.AllowModelLanding) return null;
 
-        var padDiameter = MathF.Max(options.PillarDiameter, context.LandingPadDiameter);
+        var angleShortfall = MathF.Max(0, landRule.MinLandingAngleDegrees - landingAngle);
+        var steepnessScale = 1 + angleShortfall / MathF.Max(1, landRule.MinLandingAngleDegrees);
+        var padDiameter = MathF.Max(options.PillarDiameter,
+            context.LandingPadDiameter * steepnessScale);
         var physicalRadius = padDiameter * 0.5f;
         var delta = hit.Value.Point - current;
         var length = delta.Length();
@@ -167,6 +197,7 @@ public sealed class TopDownSupportRouter
         }
         if (HitsGenerated(current, hit.Value.Point,
                 physicalRadius + clearance.ModelDistance, generatedCapsules, null)) return null;
+        rejected = false;
         return new ModelLanding(hit.Value, padDiameter);
     }
 
@@ -283,6 +314,51 @@ public sealed class TopDownSupportRouter
         if (length <= radius * 2 + 0.01f) return true;
         var clearEnd = tip - delta / length * (radius * 2 + 0.01f);
         return !_obstacles.IntersectsCapsule(junction, clearEnd, radius);
+    }
+
+    private Vector3? FindContactDeparture(Vector3 tip, Vector3 outward, float length,
+        float plateZ, float contactRadius, float neckRadius,
+        IReadOnlyList<GeneratedCapsule> generatedCapsules, float angleOffset)
+    {
+        var shortLength = MathF.Min(length, contactRadius * 2);
+        foreach (var candidateLengthUnclamped in new[] { length, shortLength }.Distinct())
+        {
+            foreach (var direction in ContactDepartureDirections(outward, angleOffset))
+            {
+                var candidateLength = direction.Z < -Epsilon
+                    ? MathF.Min(candidateLengthUnclamped, (tip.Z - plateZ) / -direction.Z)
+                    : candidateLengthUnclamped;
+                var end = tip + direction * candidateLength;
+                if (!ContactSegmentIsClear(tip, end, contactRadius)) continue;
+                if (HitsGenerated(tip, end, neckRadius, generatedCapsules, null)) continue;
+                return end;
+            }
+        }
+        return null;
+    }
+
+    private static IEnumerable<Vector3> ContactDepartureDirections(Vector3 outward,
+        float angleOffset)
+    {
+        if (outward.Z >= -Epsilon)
+        {
+            yield return -Vector3.UnitZ;
+            yield break;
+        }
+
+        yield return outward;
+        // Rough or tightly faceted contacts can obstruct the exact interpolated normal. Search a
+        // small, deterministic fan in the outward/downward hemisphere before refusing the tip.
+        const int directions = 12;
+        const float lateralWeight = 0.75f;
+        for (var index = 0; index < directions; index++)
+        {
+            var angle = angleOffset + index * MathF.Tau / directions;
+            var lateral = new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0);
+            var candidate = Vector3.Normalize(outward + lateral * lateralWeight);
+            if (candidate.Z < -Epsilon && Vector3.Dot(candidate, outward) > 0)
+                yield return candidate;
+        }
     }
 
     private static bool HitsGenerated(Vector3 start, Vector3 end, float radius,

@@ -20,6 +20,7 @@ public enum ViewMode { Model, Layers }
 public partial class MainViewModel : ViewModelBase
 {
     private bool _syncingSelection;
+    private bool _loadingPlacement;
     private CancellationTokenSource? _sliceCancellation;
 
     public Document Document { get; } = new();
@@ -80,26 +81,7 @@ public partial class MainViewModel : ViewModelBase
     public partial bool ShowOverhangs { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsAutoDrop), nameof(IsRaiseAbovePlate), nameof(IsPlacementOff))]
-    public partial PlacementMode AutoPlacementMode { get; set; } = PlacementMode.AutoDrop;
-
-    public bool IsAutoDrop
-    {
-        get => AutoPlacementMode == PlacementMode.AutoDrop;
-        set { if (value) AutoPlacementMode = PlacementMode.AutoDrop; }
-    }
-
-    public bool IsRaiseAbovePlate
-    {
-        get => AutoPlacementMode == PlacementMode.RaiseAbovePlate;
-        set { if (value) AutoPlacementMode = PlacementMode.RaiseAbovePlate; }
-    }
-
-    public bool IsPlacementOff
-    {
-        get => AutoPlacementMode == PlacementMode.Off;
-        set { if (value) AutoPlacementMode = PlacementMode.Off; }
-    }
+    public partial bool AutoDropEnabled { get; set; } = true;
 
     // ----- Slicing -----
 
@@ -143,15 +125,18 @@ public partial class MainViewModel : ViewModelBase
         Scale = MakeAxisFields(UnitKind.Scalar, "0.####", (t, axis, v) => t with { Scale = SetAxis(t.Scale, axis, (float)v) });
         var placement = AppConfig.Current.Placement;
         placement.HeightMm = MathF.Max(0, placement.HeightMm);
-        Document.PlacementMode = placement.Mode;
         Document.PlacementHeightMm = placement.HeightMm;
-        AutoPlacementMode = placement.Mode;
+        _loadingPlacement = true;
+        AutoDropEnabled = placement.Mode != PlacementMode.Off;
+        _loadingPlacement = false;
+        ApplyAutoPlacementMode(save: false);
         NumericField? placementHeight = null;
         placementHeight = new NumericField("Height", UnitKind.Length, "0.###", value =>
         {
             var height = MathF.Max(0, (float)value);
             Document.PlacementHeightMm = height;
             AppConfig.Current.Placement.HeightMm = height;
+            ApplyAutoPlacementMode(save: false);
             AppConfig.Save();
             placementHeight!.SetValue(height);
         });
@@ -228,11 +213,21 @@ public partial class MainViewModel : ViewModelBase
         RefreshFields();
     }
 
-    partial void OnAutoPlacementModeChanged(PlacementMode value)
+    partial void OnAutoDropEnabledChanged(bool value)
     {
-        Document.PlacementMode = value;
-        AppConfig.Current.Placement.Mode = value;
-        AppConfig.Save();
+        if (!_loadingPlacement) ApplyAutoPlacementMode(save: true);
+    }
+
+    private void ApplyAutoPlacementMode(bool save)
+    {
+        var mode = !AutoDropEnabled
+            ? PlacementMode.Off
+            : Document.PlacementHeightMm <= 1e-6f
+                ? PlacementMode.AutoDrop
+                : PlacementMode.RaiseAbovePlate;
+        Document.PlacementMode = mode;
+        AppConfig.Current.Placement.Mode = mode;
+        if (save) AppConfig.Save();
     }
 
     private void OnDocumentChanged()
