@@ -73,6 +73,20 @@ using the lowest point of the mesh in its current orientation. Three modes:
    (edit box for the distance).
 3. *Off*: the object stays wherever it is put (today's behaviour).
 
+**Support "recipes" (user rumination 2026-09-03, later stage).** Largely DESIGN.md's existing
+profiles (§8.1: named parameter sets, "CAD clean" vs "organic dense") plus regions (§8.3), with
+three genuinely new elements worth designing when profiles land:
+
+1. *Auto-detection painting*: a tool that reads the model, finds areas needing support, and
+   paints each detected area a distinct random colour; the user then selects an area and applies
+   a recipe to it. (Overhang/island analysis from tip placement already computes the raw data.)
+2. *Modifier-style attachment*: a recipe attached to an auto-detected area the way Blender
+   modifiers attach — non-destructive, re-evaluated, per-area — rather than a one-shot apply.
+3. *Import/export*: recipes as shareable files so users can exchange them.
+
+Different recipes within one model type (several CAD recipes for different problems) should be
+normal, not an edge case.
+
 Design notes (user decision 2026-09-03): the drop applies after ANY transform commit,
 including a G/Z move — the move happens exactly per the user's input, then the object snaps
 back to the correct level; rotation likewise commits first, then drops. Never suppress an

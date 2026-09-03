@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using Danslicer.Core.Commands;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Routing;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
@@ -221,7 +222,72 @@ public sealed class Document
     /// neck dropping vertically to a junction, and a pillar straight down to a base on the plate.
     /// Contacts too close to the plate get a single tip-to-base pillar. One undo step.
     /// </summary>
-    public void AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
+    private BvhCollisionScene? _meshObstacleCache;
+    private string? _meshObstacleSignature;
+
+    /// <summary>
+    /// The collision scene over every scene object's world-space triangles, rebuilt only when an
+    /// object is added, removed or transformed. The first query after a change pays the BVH
+    /// build; repeated support placements between changes reuse it.
+    /// </summary>
+    private BvhCollisionScene MeshObstacles()
+    {
+        var signature = string.Join(";", Scene.Objects.Select(o => $"{o.Id}:{o.Transform.ToMatrix().GetHashCode()}"));
+        if (_meshObstacleCache is null || signature != _meshObstacleSignature)
+        {
+            var scene = new BvhCollisionScene();
+            foreach (var obj in Scene.Objects)
+                scene.AddSceneObject(obj);
+            _meshObstacleCache = scene;
+            _meshObstacleSignature = signature;
+        }
+        return _meshObstacleCache;
+    }
+
+    /// <summary>
+    /// Adds a manual support at a picked surface point. By default the support is routed by the
+    /// top-down router against every object and existing support, descending within lean limits
+    /// and detouring around obstacles (DESIGN.md §8.6); returns false when no clear path to the
+    /// plate exists, adding nothing. With <paramref name="routeAroundModel"/> false (the override
+    /// gesture) the old straight vertical tree is placed blindly. One undo step either way.
+    /// </summary>
+    public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        bool routeAroundModel = true)
+    {
+        if (routeAroundModel) return TryAddRoutedSupport(obj, contact, surfaceNormal);
+        AddStraightSupport(obj, contact, surfaceNormal);
+        return true;
+    }
+
+    private bool TryAddRoutedSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
+    {
+        var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
+        var router = new TopDownSupportRouter(obstacles, GrowthRuleSet.Default);
+        var tip = new RoutingTip(contact, -surfaceNormal, 0.4f, obj.Id);
+        // The seed also drives the router's deterministic ids; vary it per placement or two
+        // supports in one document would collide on identical Guid sequences.
+        var options = new TopDownRoutingOptions
+        {
+            Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
+        };
+        var result = router.Route(new[] { tip }, options);
+        if (result.UnroutedTips.Count > 0) return false;
+
+        // A straight descent emits a junction per step; collapse to the minimal shape.
+        SupportGraphSimplifier.CollapseCollinearJunctions(result.Graph);
+        Execute(new AddSupportElementsCommand(Supports,
+            result.Graph.Nodes.ToList(), result.Graph.Segments.ToList()));
+        return true;
+    }
+
+    private LinearCollisionScene SupportObstacles()
+    {
+        var scene = new LinearCollisionScene();
+        scene.AddSupportGraph(Supports);
+        return scene;
+    }
+
+    private void AddStraightSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal)
     {
         const float neckLength = 2f;
         const float neckDiameter = 0.8f;

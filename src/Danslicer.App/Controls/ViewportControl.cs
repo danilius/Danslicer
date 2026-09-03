@@ -512,12 +512,16 @@ public sealed class ViewportControl : OpenGlControlBase
     private static readonly Vector4 BracingColor = new(0.5f, 0.9f, 0.6f, 0.95f);
     private static readonly Vector4 TipColor = new(1f, 0.55f, 0.25f, 1f);
 
-    private bool TryAddSupport(Vector2 mouse)
+    private bool TryAddSupport(Vector2 mouse, bool forceStraight = false)
     {
         if (Document is null) return false;
         var hit = PickSurface(mouse, out _, out var point, out var normal);
         if (hit is null) return false;
-        Document.AddManualSupport(hit, point, normal);
+        if (!Document.AddManualSupport(hit, point, normal, routeAroundModel: !forceStraight))
+        {
+            StatusText = "Support: no clear path to the plate from here · Shift+T forces a straight drop";
+            return false;
+        }
         return true;
     }
 
@@ -762,8 +766,9 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.F when !ctrl: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
                 case Key.H when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.UnhideAll(); break;
                 case Key.H when !ctrl: Document.HideSelection(); break;
-                // Manual support: a vertical tip-neck-pillar-base tree under the cursor.
-                case Key.T when !ctrl: TryAddSupport(mouse); break;
+                // Manual support under the cursor: routed around the model; Shift+T forces the
+                // old straight vertical drop (the DESIGN §8.6 override).
+                case Key.T when !ctrl: TryAddSupport(mouse, forceStraight: shift); break;
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
                 case Key.Escape when Document.SupportSelection.Count > 0: Document.ClearSupportSelection(); break;
                 case Key.Escape: Document.ClearSelection(); break;
