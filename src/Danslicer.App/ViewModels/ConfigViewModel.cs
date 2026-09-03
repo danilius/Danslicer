@@ -156,6 +156,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.Spacing = Clamp(value, 0.01f, 1000f, 2.5f));
     }
 
+    public float SupportIslandSpacingMm
+    {
+        get => Supports.IslandSpacingMm;
+        set => Update(() => Supports.IslandSpacingMm = Clamp(value, 0.01f, 1000f, 0.5f));
+    }
+
     public float SupportOverhangAngleDegrees
     {
         get => Supports.OverhangAngleDegrees;
@@ -165,7 +171,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public float SupportMinIslandAreaMm2
     {
         get => Supports.MinIslandAreaMm2;
-        set => Update(() => Supports.MinIslandAreaMm2 = Clamp(value, 0f, 1_000_000f, 0.5f));
+        set => Update(() => Supports.MinIslandAreaMm2 = Clamp(value, 0f, 1_000_000f, 0.1f));
     }
 
     private static float Clamp(float value, float minimum, float maximum, float fallback) =>

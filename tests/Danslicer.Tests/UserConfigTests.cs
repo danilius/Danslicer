@@ -133,7 +133,7 @@ public sealed class UserConfigTests : IDisposable
                 PenetrationDepth = 0.15f, TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
                 MemberAngleDegrees = 38f, TipMemberLength = 3f, MaxBranchLength = 11f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 6f, BaseHeight = 1.1f,
-                BaseConeHeight = 2.8f, Spacing = 3.2f, OverhangAngleDegrees = 51f,
+                BaseConeHeight = 2.8f, Spacing = 3.2f, IslandSpacingMm = 0.7f, OverhangAngleDegrees = 51f,
                 MinIslandAreaMm2 = 0.9f,
             },
         };
@@ -156,6 +156,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(1.1f, supports.BaseHeight);
         Assert.Equal(2.8f, supports.BaseConeHeight);
         Assert.Equal(3.2f, supports.Spacing);
+        Assert.Equal(0.7f, supports.IslandSpacingMm);
         Assert.Equal(51f, supports.OverhangAngleDegrees);
         Assert.Equal(0.9f, supports.MinIslandAreaMm2);
     }
@@ -179,8 +180,9 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.8f, supports.BaseHeight);
         Assert.Equal(2f, supports.BaseConeHeight);
         Assert.Equal(2.5f, supports.Spacing);
+        Assert.Equal(0.5f, supports.IslandSpacingMm);
         Assert.Equal(45f, supports.OverhangAngleDegrees);
-        Assert.Equal(0.5f, supports.MinIslandAreaMm2);
+        Assert.Equal(0.1f, supports.MinIslandAreaMm2);
     }
 
     [Fact]

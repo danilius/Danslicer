@@ -77,8 +77,9 @@ public sealed record SupportConfig
     public float BaseConeHeight { get; set; } = 2f;
 
     public float Spacing { get; set; } = 2.5f;
+    public float IslandSpacingMm { get; set; } = 0.5f;
     public float OverhangAngleDegrees { get; set; } = 45f;
-    public float MinIslandAreaMm2 { get; set; } = 0.5f;
+    public float MinIslandAreaMm2 { get; set; } = 0.1f;
 
     internal void Normalize()
     {
@@ -97,6 +98,7 @@ public sealed record SupportConfig
         BaseHeight = NonNegative(BaseHeight);
         BaseConeHeight = NonNegative(BaseConeHeight);
         Spacing = Positive(Spacing, 2.5f);
+        IslandSpacingMm = Positive(IslandSpacingMm, 0.5f);
         OverhangAngleDegrees = float.IsFinite(OverhangAngleDegrees)
             ? Math.Clamp(OverhangAngleDegrees, 0f, 90f) : 45f;
         MinIslandAreaMm2 = NonNegative(MinIslandAreaMm2);

@@ -176,6 +176,11 @@
                         <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
                                        Value="{Binding SupportSpacing, Mode=TwoWay}" />
                     </Grid>
+                    <Grid Tag="supports placement island spacing dedup radius mm" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Island spacing" Classes="label" />
+                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
+                                       Value="{Binding SupportIslandSpacingMm, Mode=TwoWay}" />
+                    </Grid>
                     <Grid Tag="supports placement overhang angle degrees threshold" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Overhang angle °" Classes="label" />
                         <NumericUpDown Grid.Column="1" Minimum="0" Maximum="90" Increment="1" FormatString="0"

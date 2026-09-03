@@ -503,6 +503,7 @@ public sealed class Document
                 PenetrationDepthMm = request.Settings.PenetrationDepth,
                 SpacingMm = request.Settings.Spacing,
                 MinSpacingMm = request.Settings.Spacing,
+                IslandSpacingMm = request.Settings.IslandSpacingMm,
                 OverhangAngleDegrees = request.Settings.OverhangAngleDegrees,
                 MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
             },
