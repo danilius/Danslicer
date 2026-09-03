@@ -200,7 +200,9 @@ public sealed class GridSupportRouter
             }
 
             var tipNode = Node(ids, SupportNodeType.Tip, route.Tip.SurfacePoint, options.Origin);
-            tipNode.SurfaceNormal = SafeNormal(route.Tip.InwardSurfaceNormal);
+            // Convention boundary: RoutingTip carries the INWARD (penetration) normal, but
+            // SupportNode.SurfaceNormal is OUTWARD everywhere else (viewport picking, tip move).
+            tipNode.SurfaceNormal = SafeNormal(-route.Tip.InwardSurfaceNormal);
             tipNode.TipDiameter = route.Tip.TipDiameter;
             tipNode.ContactObjectId = route.Tip.ContactObjectId;
             graph.AddNode(tipNode);

@@ -1,0 +1,147 @@
+using System.Numerics;
+using Danslicer.Core.Geometry;
+using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Generation;
+using Danslicer.Core.Supports.Routing;
+
+namespace Danslicer.Tests;
+
+/// <summary>End-to-end: tip placement into grid routing, the seam between the two stages.</summary>
+public sealed class SupportGeneratorTests
+{
+    /// <summary>Axis-aligned box as a welded mesh with outward faces.</summary>
+    private static Mesh Box(Vector3 min, Vector3 max)
+    {
+        var (a, b) = (min, max);
+        var corners = new Vector3[]
+        {
+            new(a.X, a.Y, a.Z), new(b.X, a.Y, a.Z), new(b.X, b.Y, a.Z), new(a.X, b.Y, a.Z),
+            new(a.X, a.Y, b.Z), new(b.X, a.Y, b.Z), new(b.X, b.Y, b.Z), new(a.X, b.Y, b.Z),
+        };
+        int[] quads = // outward winding
+        [
+            0, 3, 2, 1, // bottom (-Z)
+            4, 5, 6, 7, // top (+Z)
+            0, 1, 5, 4, // -Y
+            2, 3, 7, 6, // +Y
+            0, 4, 7, 3, // -X
+            1, 2, 6, 5, // +X
+        ];
+        var soup = new List<Vector3>();
+        for (int q = 0; q < quads.Length; q += 4)
+        {
+            soup.Add(corners[quads[q]]); soup.Add(corners[quads[q + 1]]); soup.Add(corners[quads[q + 2]]);
+            soup.Add(corners[quads[q]]); soup.Add(corners[quads[q + 2]]); soup.Add(corners[quads[q + 3]]);
+        }
+        return Mesh.FromTriangleSoup(soup.ToArray());
+    }
+
+    private static IReadOnlySet<int> AllFaces(Mesh mesh) =>
+        Enumerable.Range(0, mesh.TriangleCount).ToHashSet();
+
+    private static GenerationResult GenerateForFloatingBox(int seed)
+    {
+        var mesh = Box(new Vector3(-5, -5, 5), new Vector3(5, 5, 15));
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddMesh(mesh, Matrix4x4.Identity);
+        return SupportGenerator.Generate(
+            mesh,
+            AllFaces(mesh),
+            new TipPlacementParameters { SpacingMm = 4f },
+            new GridRoutingOptions { Spacing = 4f },
+            GrowthRuleSet.Default,
+            obstacles,
+            seed: seed);
+    }
+
+    [Fact]
+    public void FloatingBoxGetsAFullySupportedUnderside()
+    {
+        var result = GenerateForFloatingBox(seed: 7);
+
+        Assert.NotEmpty(result.Candidates);
+        Assert.Empty(result.Routing.UnroutedTips);
+
+        var graph = result.Routing.Graph;
+        var tips = graph.Nodes.Where(n => n.Type == SupportNodeType.Tip).ToList();
+        Assert.Equal(result.Candidates.Count, tips.Count);
+        Assert.All(tips, t => Assert.Equal(5f, t.Position.Z, 2));
+        Assert.All(graph.Nodes.Where(n => n.Type == SupportNodeType.Base),
+            n => Assert.Equal(0f, n.Position.Z, 3));
+        Assert.Contains(graph.Segments, s => s.Type == SupportSegmentType.Neck);
+    }
+
+    [Fact]
+    public void TipNodesGetTheOutwardSurfaceNormal()
+    {
+        var result = GenerateForFloatingBox(seed: 7);
+
+        // Underside candidates carry the inward normal +Z; graph nodes must hold outward -Z.
+        Assert.All(result.Candidates, c => Assert.True(c.InwardNormal.Z > 0.9f));
+        var tips = result.Routing.Graph.Nodes.Where(n => n.Type == SupportNodeType.Tip);
+        Assert.All(tips, t => Assert.True(t.SurfaceNormal.Z < -0.9f,
+            $"tip normal {t.SurfaceNormal} should point outward (down)"));
+    }
+
+    [Fact]
+    public void SameSeedIsDeterministicAcrossTheWholePipeline()
+    {
+        var first = GenerateForFloatingBox(seed: 11);
+        var second = GenerateForFloatingBox(seed: 11);
+
+        Assert.Equal(first.Candidates, second.Candidates);
+        Assert.Equal(
+            first.Routing.Graph.Nodes.Select(n => (n.Id, n.Type, n.Position)),
+            second.Routing.Graph.Nodes.Select(n => (n.Id, n.Type, n.Position)));
+        Assert.Equal(
+            first.Routing.Graph.Segments.Select(s => (s.Id, s.Type, s.NodeA, s.NodeB, s.Diameter)),
+            second.Routing.Graph.Segments.Select(s => (s.Id, s.Type, s.NodeA, s.NodeB, s.Diameter)));
+    }
+
+    [Fact]
+    public void RoutedSupportsClearTheModelExceptAtTheContacts()
+    {
+        var result = GenerateForFloatingBox(seed: 7);
+        var mesh = Box(new Vector3(-5, -5, 5), new Vector3(5, 5, 15));
+        var audit = new LinearCollisionScene();
+        audit.AddMesh(mesh, Matrix4x4.Identity);
+
+        var graph = result.Routing.Graph;
+        foreach (var segment in graph.Segments)
+        {
+            var a = graph.GetNode(segment.NodeA);
+            var b = graph.GetNode(segment.NodeB);
+            // Necks end at the surface by design; audit only the model-free portion.
+            var (from, to) = (a.Position, b.Position);
+            if (a.Type == SupportNodeType.Tip || b.Type == SupportNodeType.Tip)
+            {
+                var tip = a.Type == SupportNodeType.Tip ? a : b;
+                var other = a.Type == SupportNodeType.Tip ? b.Position : a.Position;
+                var axis = tip.Position - other;
+                var length = axis.Length();
+                if (length < 1.5f) continue;
+                (from, to) = (other, other + axis * ((length - 1.5f) / length));
+            }
+            Assert.False(audit.IntersectsCapsule(from, to, segment.Diameter * 0.5f),
+                $"{segment.Type} {from} -> {to} intersects the model");
+        }
+    }
+
+    [Fact]
+    public void BoxOnThePlateGeneratesNothing()
+    {
+        var mesh = Box(new Vector3(-5, -5, 0), new Vector3(5, 5, 10));
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddMesh(mesh, Matrix4x4.Identity);
+
+        var result = SupportGenerator.Generate(
+            mesh, AllFaces(mesh),
+            TipPlacementParameters.Default,
+            new GridRoutingOptions(),
+            GrowthRuleSet.Default,
+            obstacles);
+
+        Assert.Empty(result.Candidates);
+        Assert.Equal(0, result.Routing.Graph.NodeCount);
+    }
+}
