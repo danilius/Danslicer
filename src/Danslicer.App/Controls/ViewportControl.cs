@@ -8,6 +8,7 @@ using Avalonia.OpenGL;
 using Avalonia.OpenGL.Controls;
 using Avalonia.Threading;
 using Danslicer.App.Editing;
+using Danslicer.App.Input;
 using Danslicer.Core;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
@@ -52,6 +53,8 @@ public sealed class ViewportControl : OpenGlControlBase
     private bool _gizmoDragging;
     private bool _ctrlHeld;
     private readonly List<OverlayLine> _overlay = new();
+    private ISixAxisInput? _sixAxis;
+    private DispatcherTimer? _sixAxisTimer;
 
     public Camera Camera { get; } = new();
 
@@ -547,7 +550,8 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         var projection = Camera.Orthographic ? "Ortho" : "Persp";
         var snap = SnapEnabled ? "Snap on" : "Snap off";
-        StatusText = $"{projection} · {snap}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
+        var spaceMouse = _sixAxis is { IsConnected: true } ? " · SpaceMouse" : "";
+        StatusText = $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab layers · Home frame all · 1/3/7 views · 5 projection";
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -556,6 +560,68 @@ public sealed class ViewportControl : OpenGlControlBase
         _gizmo.ShowMove = ShowMoveGizmo;
         _gizmo.ShowRotate = ShowRotateGizmo;
         _gizmo.ShowScale = ShowScaleGizmo;
+        ConnectSpaceMouse();
         UpdateStatus();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _sixAxisTimer?.Stop();
+        _sixAxisTimer = null;
+        _sixAxis?.Dispose();
+        _sixAxis = null;
+    }
+
+    // ----- SpaceMouse -----
+
+    // Step sizes per poll at full cap deflection, expressed in the camera's pixel/step units so the
+    // camera's own clamping applies. Signs follow 3Dconnexion camera mode: push forward to zoom in,
+    // tilt forward to pitch down, twist to yaw. Roll is locked, as designed.
+    private const float SpaceMouseOrbitPixels = 6f;
+    private const float SpaceMousePanPixels = 8f;
+    private const float SpaceMouseZoomSteps = 0.08f;
+    private const float SpaceMouseDeadzone = 0.001f;
+
+    private void ConnectSpaceMouse()
+    {
+        if (!OperatingSystem.IsWindows() || _sixAxis is not null) return;
+        var device = new TdxSpaceMouse();
+        if (!device.TryConnect())
+        {
+            Log("SpaceMouse: 3DxWare COM not available");
+            device.Dispose();
+            return;
+        }
+        Log("SpaceMouse connected via 3DxWare COM");
+        _sixAxis = device;
+        _sixAxisTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(15) };
+        _sixAxisTimer.Tick += (_, _) => PollSpaceMouse();
+        _sixAxisTimer.Start();
+    }
+
+    private void PollSpaceMouse()
+    {
+        if (_sixAxis is null) return;
+        var m = _sixAxis.Poll();
+        if (m.IsZero) return;
+
+        var moved = false;
+        if (MathF.Abs(m.Rotation.Y) > SpaceMouseDeadzone || MathF.Abs(m.Rotation.X) > SpaceMouseDeadzone)
+        {
+            Camera.Orbit(-m.Rotation.Y * SpaceMouseOrbitPixels, -m.Rotation.X * SpaceMouseOrbitPixels);
+            moved = true;
+        }
+        if (MathF.Abs(m.Translation.X) > SpaceMouseDeadzone || MathF.Abs(m.Translation.Y) > SpaceMouseDeadzone)
+        {
+            Camera.Pan(-m.Translation.X * SpaceMousePanPixels, m.Translation.Y * SpaceMousePanPixels, (float)Bounds.Height);
+            moved = true;
+        }
+        if (MathF.Abs(m.Translation.Z) > SpaceMouseDeadzone)
+        {
+            Camera.Zoom(-m.Translation.Z * SpaceMouseZoomSteps);
+            moved = true;
+        }
+        if (moved) Redraw();
     }
 }

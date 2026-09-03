@@ -1,0 +1,29 @@
+using System.Numerics;
+
+namespace Danslicer.App.Input;
+
+/// <summary>
+/// One reading from a six-axis device. Axes follow the 3Dconnexion convention seen from the user:
+/// translation X right, Y up, Z toward the user; rotation is the axis-angle product, so tilting the
+/// cap forward is +X, twisting it is +Y, rolling it sideways is +Z. Units are driver-scaled and
+/// roughly -1..1 per axis at full deflection; zero means the cap is at rest.
+/// </summary>
+public readonly record struct SixAxisMotion(Vector3 Translation, Vector3 Rotation)
+{
+    public bool IsZero => Translation == Vector3.Zero && Rotation == Vector3.Zero;
+}
+
+/// <summary>
+/// A six-axis input device, polled by the viewport at frame rate. Implementations must be cheap to
+/// poll and must return zeros rather than throw when the device goes away.
+/// </summary>
+public interface ISixAxisInput : IDisposable
+{
+    bool IsConnected { get; }
+
+    /// <summary>Attempts to connect. Safe to call when the driver or device is absent.</summary>
+    bool TryConnect();
+
+    /// <summary>Current deflection, or zeros when idle or disconnected.</summary>
+    SixAxisMotion Poll();
+}
