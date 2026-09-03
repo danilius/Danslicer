@@ -203,3 +203,39 @@ continues to a plate base (747 bases).
    adds 392 Drogon and 15 gripper candidates, so these totals are not an isolated router A/B.
 3. The like-for-like router A/B is a drogon-lo development run (same 1195 tips, not a
    regression reference): 437 → 422 unrouted, with NoClearStep 244 → 218.
+
+---
+
+## 2026-09-03 late night — 20 mm grid bases and mini-support pass
+
+- Branch: `grid-routing-prototype` at `85efcef` plus CLI benchmark plumbing `a262264`.
+- Config: Debug, net10.0; same machine and single-process conditions as the earlier seated runs.
+- Fresh `tips --seat --json` output was used for each model, followed by
+  `route --seat --strategy tree --json` with defaults. Mini-island placement is enabled in the
+  CLI to mirror app generation.
+- New defaults in this run: plate-origin square base grid at 20 mm pitch; full 4 mm bases never
+  shrink; existing-trunk preference on with 8 mm range; mini rod Ø 0.6, contact Ø 0.25, cone
+  length 1 mm, maximum length 5 mm, maximum fan 4.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `tips` | `--seat --json` | 27.908 | 0 | **1961** candidates (Island 639, MiniIsland 492, LocalMinimum 106, Corner 275, Edge 180, Overhang 269). Spacing min 0.499 / median 1.053 / mean 1.599 | Fine islands are below 0.1 mm² but at least the 0.049 mm² contact footprint; ordinary placement retains priority. |
+| drogon | `route` | `--seat --strategy tree --json` | 8.654 | 2 | nodes 462, segs 445 (tip 87, mini-support 184, branch 87, trunk 87, brace 0), **unrouted 1690 / 1961**, bases **17**, max lean 89.9°, collisionFree **true** | Refusals: ContactBlocked 17, NoClearStep 1673. Mini pass routes 184 fine/refused contacts. |
+| gripper | `tips` | `--seat --json` | 3.173 | 0 | **482** candidates (Island 91, MiniIsland 22, Edge 93, Overhang 276). Spacing min 0.512 / median 2.712 / mean 2.622 | 22 physically viable below-threshold islands join the previous 460-candidate distribution. |
+| gripper | `route` | `--seat --strategy tree --json` | 0.491 | 2 | nodes 305, segs 288 (tip 79, mini-support 51, branch 79, trunk 79, brace 0), **unrouted 352 / 482**, bases **17**, max lean 88.0°, collisionFree **true** | Refusals: ContactBlocked 0, NoClearStep 352. Mini pass routes 51 fine/refused contacts. |
+
+### Observations
+
+1. **Base counts changed by design.** The prior dense-tree run used 315 Drogon / 134 gripper
+   off-grid bases. Requiring the existing 8 mm maximum branch to reach a 20 mm square lattice
+   leaves only 17 viable bases on each model; blocked or unreachable lattice points are now honest
+   refusals rather than off-grid or shrunken bases.
+2. The grid/range combination is correspondingly restrictive: total refusals rise from 629 / 84
+   to 1690 / 352. These numbers should guide screen testing of the proposed 20 mm pitch and existing
+   8 mm branch-length default; the implementation does not silently relax either user-visible value.
+3. Mini-supports recover 184 Drogon and 51 gripper contacts by fanning from actual branch ends,
+   capped at four per end. Their unrestricted fine-rod direction accounts for max lean above 45°.
+4. Both outputs remain collision-free, and every emitted base is full-size and exactly on the
+   plate-origin grid.
