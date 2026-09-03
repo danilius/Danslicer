@@ -123,19 +123,29 @@ namespace Danslicer.Tests
         [Fact]
         public void ZeroMaxBranchLengthStillRoutesStraightDrops()
         {
-            var options = new TreeRoutingOptions { Seed = 7, PlateZ = 0f, MaxBranchLength = 0.001f };
+            var options = new TreeRoutingOptions { Seed = 7, PlateZ = 0f, MaxBranchLength = 0.001f, UseBaseGrid = false, PreferExistingTrunks = false };
             var tips = new List<RoutingTip>();
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 5; i++)
             {
-                float x = (float)(Random.NextDouble() * 80 - 40);
-                float y = (float)(Random.NextDouble() * 80 - 40);
-                tips.Add(new RoutingTip(new Vector3(x, y, 10f), -Vector3.UnitZ, 1.2f));
+                for (int j = 0; j < 4; j++)
+                {
+                    float x = i * 9 + 0.7f;
+                    float y = j * 9 + 0.7f;
+                    tips.Add(new RoutingTip(new Vector3(x, y, 10f), -Vector3.UnitZ, 1.2f));
+                }
             }
             var router = new TreeSupportRouter(EmptyScene, GrowthRuleSet.Default);
             var result = router.Route(tips, options);
 
             Assert.Equal(tips.Count, result.Graph.Nodes.Count(n => n.Type == SupportNodeType.Tip));
             Assert.Empty(result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Branch));
+            Assert.All(result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Tip), segment =>
+            {
+                var tipNode = result.Graph.GetNode(segment.NodeA);
+                var junctionNode = result.Graph.GetNode(segment.NodeB);
+                var direction = junctionNode.Position - tipNode.Position;
+                Assert.True(direction.Z < 0, "Tip segment does not route straight down");
+            });
         }
 
         [Fact]
@@ -167,6 +177,24 @@ namespace Danslicer.Tests
                     Assert.True(branchCount <= 6, $"Trunk at {trunkNode.Position} has more than 6 branches: {branchCount}");
                 }
             }
+        }
+
+        [Fact]
+        public void GridModeRefusesOffLatticeStraightDropsWhenBranchesDisabled()
+        {
+            var options = new TreeRoutingOptions { Seed = 7, PlateZ = 0f, MaxBranchLength = 0.001f, UseBaseGrid = true, BaseGridPitch = 20f };
+            var tips = new List<RoutingTip>();
+            for (int i = 0; i < 20; i++)
+            {
+                float x = (float)(Random.NextDouble() * 80 - 40) + 7.3f;
+                float y = (float)(Random.NextDouble() * 80 - 40) + 7.3f;
+                tips.Add(new RoutingTip(new Vector3(x, y, 10f), -Vector3.UnitZ, 1.2f));
+            }
+            var router = new TreeSupportRouter(EmptyScene, GrowthRuleSet.Default);
+            var result = router.Route(tips, options);
+
+            Assert.Equal(tips.Count, result.UnroutedTips.Count);
+            Assert.All(result.Failures, failure => Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason));
         }
     }
 }
