@@ -5,30 +5,49 @@ Written 2026-09-03 for a fresh conversation, updated overnight 2026-09-03. Read 
 
 ## Overnight session 2026-09-03 (while the user slept)
 
-The user tested the gizmo branch, approved commit/merge/push; `gizmos-and-layer-view` is merged to
-`main`. **Push is blocked**: no git remote exists and the permission classifier refused `gh repo create`,
-so the user must create the remote (a private repo was intended) and push.
+The user approved commit/merge/push and full autonomy mid-session. Everything below is **merged to
+`main` and pushed** to the private repo `https://github.com/danilius/Danslicer` (created with the
+user's gh credentials; all feature branches pushed too, old milestone branches deleted locally).
 
-Three new branches, each built, tested and verified, all merging cleanly (proven on
-`overnight-integration`, which is `main` + all three, 58 tests passing — the user can merge that
-or the branches individually; merges are the user's call):
+1. **Slicing stack-overflow fix** — the crash on large files: `stackalloc` inside the per-triangle
+   loop in `MeshSlicer.CollectSegments` blew the 1 MB worker stack (0xC00000FD). Hoisted. Both
+   ~1M-triangle test STLs slice (53 MB knocker dragon 18.6 s, 47 MB Drogon 5.1 s).
+2. **OBJ import** — reader (v/f, v/vt/vn, negative indices, fan triangulation), `MeshFile`
+   dispatch, picker/CLI/argument import; `ImportStl` renamed `ImportMesh`. Verified with the
+   roof gripper.
+3. **Lay flat on face** — F over a face (or Object menu, then click): picked triangle grows into a
+   ≤3° cluster, model rotates face-down and rests exactly on the plate, one undo step. Verified on
+   screen (Viper shell 180°, gripper fin compound rotation).
+4. **Build-volume check** — slicing now refuses geometry past the plate in X/Y (it was silently
+   cropped), like the existing Z checks; CLI reports it cleanly with exit 2.
+5. **SpaceMouse (milestone 3 core)** — `ISixAxisInput` + `TdxSpaceMouse` late-bound 3DxWare COM
+   backend, 66 Hz UI-thread polling, twist/tilt→orbit, slide→pan, push→zoom, roll locked; status
+   bar shows "SpaceMouse". Connects to the real driver. **Motion signs/sensitivity await the
+   user's hands**; constants in `ViewportControl` (SpaceMouseOrbitPixels etc.). Buttons and HID
+   fallback not done.
+6. **Overhang tint (milestone 4 start)** — Object > Overhang Tint colours faces past 45° from
+   vertical, yellow at threshold to red on flat undersides, via world-space normals in the mesh
+   shader. Verified on a table-shaped test mesh. Also fixed a latent bug: `MenuItem.IsChecked`
+   binds one-way by default, so ALL menu checkboxes (gizmos, snapping) never wrote to the view
+   model; now `Mode=TwoWay`.
+7. **Hide/unhide** — H hides selection (deselects, undoable), Alt+H unhides all; menu items.
+8. **Support graph foundation (milestone 5 start)** — `Supports/SupportGraph.cs`: typed nodes and
+   segments with origin tags, pinned/hidden/disabled, referential integrity, component queries
+   (bracing excluded = one support), unpinned-elements-of-region for regeneration; and
+   `SupportSliceGeometry.cs`: analytic capsule cross-sections per layer (ellipse body + cap
+   circles, 64-gon in Clipper units), `SectionsAt(graph, z)` ready to union into the slicer.
+   Not yet wired into `Slicer.Slice` or any UI.
 
-1. `fix-slicing-stack-overflow` — the crash the user hit slicing a large file: `stackalloc` inside
-   the per-triangle loop in `MeshSlicer.CollectSegments` blew the 1 MB worker stack (0xC00000FD).
-   Hoisted out of the loop. Both ~1M-triangle test STLs now slice (53 MB knocker dragon 18.6 s,
-   47 MB Drogon 5.1 s).
-2. `obj-import` — Wavefront OBJ reader (v/f lines, v/vt/vn and negative indices, fan triangulation),
-   `MeshFile` extension dispatch, file picker/CLI/argument import accept both formats,
-   `ImportStl` renamed `ImportMesh`. Verified with `test files/roof gripper T2.obj`.
-3. `lay-flat-on-face` — press F over a face (or Object > Lay Flat on Face, then click): the picked
-   triangle grows into a connected cluster within 3° of its normal, the model rotates so that face
-   points down and rests exactly on the plate. One undo step. Verified on screen: Viper shell
-   flipped 180°; roof gripper fin face gave a compound rotation with the face planted.
+Also: rotate and scale gizmo drags verified on screen (the outstanding debt from the last session);
+gizmo rotate drag committed "Rotate", scale drag committed "Scale", undo clean.
 
-A `test files/` folder (gitignored) holds the user's large STLs and the roof gripper OBJ.
+Verification notes for this machine: after the Alt-key foreground trick, press Escape before
+typing — the menu bar is armed and F opens File. PowerShell tool calls don't share state; redefine
+Add-Type classes with fresh names per call.
 
-Known issue spotted, not fixed: slicing does not warn when the model exceeds the build volume
-(knocker dragon footprint is 158×263 mm against the Mono X's 192×120 mm plate yet slices happily).
+Next candidates: wire support sections into `Slicer.Slice`; manual tip add/edit UI on the graph;
+SpaceMouse buttons via COM connection points; sign/sensitivity tuning with the user; the test print
+(mirror-X question) is still the one thing only the user can do.
 
 ## What this is
 
