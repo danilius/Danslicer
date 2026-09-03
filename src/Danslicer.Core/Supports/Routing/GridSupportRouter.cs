@@ -43,9 +43,27 @@ public enum RoutingFailureReason
 
 public readonly record struct RoutingFailure(RoutingTip Tip, RoutingFailureReason Reason);
 
+/// <summary>
+/// The graph mutation emitted by a route. Existing-context routes can replace a trunk segment
+/// while joining it, so additions and removals travel together as one undoable edit.
+/// </summary>
+public sealed record SupportGraphEdit(
+    IReadOnlyList<SupportNode> AddedNodes,
+    IReadOnlyList<SupportSegment> AddedSegments,
+    IReadOnlyList<SupportSegment> RemovedSegments);
+
 public sealed record RoutingResult(SupportGraph Graph, IReadOnlyList<RoutingTip> UnroutedTips,
     IReadOnlyList<Vector3> BasePositions, float MaxLeanAngleDegrees,
-    IReadOnlyList<RoutingFailure> Failures);
+    IReadOnlyList<RoutingFailure> Failures)
+{
+    /// <summary>
+    /// Elements emitted by this route. For ordinary fresh-graph routes this is the whole graph;
+    /// an existing-context route excludes unchanged context and records split segments removed
+    /// from that context.
+    /// </summary>
+    public SupportGraphEdit Edit { get; init; } = new(
+        Graph.Nodes.ToList(), Graph.Segments.ToList(), Array.Empty<SupportSegment>());
+}
 
 /// <summary>Deterministic grid-bottom-up routing into a new support graph.</summary>
 public sealed class GridSupportRouter

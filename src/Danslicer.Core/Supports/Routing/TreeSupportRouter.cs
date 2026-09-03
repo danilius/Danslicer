@@ -75,7 +75,8 @@ public sealed class TreeSupportRouter
         _rules = rules;
     }
 
-    public RoutingResult Route(IEnumerable<RoutingTip> tips, TreeRoutingOptions options)
+    public RoutingResult Route(IEnumerable<RoutingTip> tips, TreeRoutingOptions options,
+        SupportGraph? existingGraph = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.TrunkDiameter);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.TipMemberLength);
@@ -93,11 +94,14 @@ public sealed class TreeSupportRouter
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchDirections);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchLengthSteps);
 
-        var graph = new SupportGraph();
+        var originalNodeIds = existingGraph?.Nodes.Select(node => node.Id).ToHashSet() ?? [];
+        var originalSegmentIds = existingGraph?.Segments.Select(segment => segment.Id).ToHashSet() ?? [];
+        var graph = existingGraph is null ? new SupportGraph() : CloneGraph(existingGraph);
         var ids = new DeterministicIds(options.Seed);
         var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
         var angleOffset = new Random(options.Seed).NextSingle() * MathF.Tau;
         var state = new RouteState(graph, ids, clearance, angleOffset);
+        if (existingGraph is not null) state.SeedExistingContext();
         var unrouted = new List<RoutingTip>();
         var failures = new List<RoutingFailure>();
 
@@ -126,9 +130,25 @@ public sealed class TreeSupportRouter
                 pending.Tip.MiniSupportOnly ? miniReason : pending.Reason));
         }
 
-        var bases = graph.Nodes.Where(node => node.Type == SupportNodeType.Base)
+        var addedNodes = graph.Nodes.Where(node => !originalNodeIds.Contains(node.Id)).ToList();
+        var addedSegments = graph.Segments
+            .Where(segment => !originalSegmentIds.Contains(segment.Id)).ToList();
+        var removedSegments = existingGraph?.Segments
+            .Where(segment => !graph.TryGetSegment(segment.Id, out _)).ToList() ?? [];
+        var bases = addedNodes.Where(node => node.Type == SupportNodeType.Base)
             .Select(node => node.Position).OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
-        return new RoutingResult(graph, unrouted, bases, state.MaxLean, failures);
+        return new RoutingResult(graph, unrouted, bases, state.MaxLean, failures)
+        {
+            Edit = new SupportGraphEdit(addedNodes, addedSegments, removedSegments),
+        };
+    }
+
+    private static SupportGraph CloneGraph(SupportGraph source)
+    {
+        var clone = new SupportGraph();
+        foreach (var node in source.Nodes) clone.AddNode(node.Clone());
+        foreach (var segment in source.Segments) clone.AddSegment(segment.Clone());
+        return clone;
     }
 
     private bool TryRouteMiniSupport(RoutingTip tip, TreeRoutingOptions options, RouteState state,
@@ -160,9 +180,10 @@ public sealed class TreeSupportRouter
             var clearEnd = length > contactAllowance
                 ? tip.SurfacePoint - delta / length * contactAllowance
                 : branchEnd.Position;
-            if (clearEnd != branchEnd.Position &&
-                _obstacles.IntersectsCapsule(branchEnd.Position, clearEnd, queryRadius)) continue;
             var incident = state.Graph.SegmentsAt(branchEnd.Id).Select(segment => segment.Id).ToList();
+            if (clearEnd != branchEnd.Position &&
+                _obstacles.IntersectsCapsule(branchEnd.Position, clearEnd, queryRadius,
+                    Excluding(incident))) continue;
             if (state.HitsGenerated(branchEnd.Position, clearEnd, queryRadius, incident)) continue;
 
             var miniTip = state.NewNode(SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
@@ -474,7 +495,8 @@ public sealed class TreeSupportRouter
             // The spec's member angle governs branch geometry here; the lean rule's step-router
             // clamps (including its tighter near-tip angle) do not apply to tree anatomy.
             var branchRadius = options.BranchDiameter * 0.5f;
-            if (!state.Clearance.PillarIsClear(_obstacles, j1, attach, branchRadius)) continue;
+            if (!state.Clearance.PillarIsClear(_obstacles, j1, attach, branchRadius,
+                    Excluding(trunk.SegmentIds.Concat(trunk.BranchSegmentIds)))) continue;
             if (state.HitsGeneratedForTrunkAttachment(j1, attach,
                     branchRadius + state.Clearance.ModelDistance, trunk,
                     SiblingBranchFusionDistance,
@@ -570,6 +592,12 @@ public sealed class TreeSupportRouter
         var x = MathF.Round(point.X / options.BaseGridPitch) * options.BaseGridPitch;
         var y = MathF.Round(point.Y / options.BaseGridPitch) * options.BaseGridPitch;
         return Vector2.DistanceSquared(new(point.X, point.Y), new(x, y)) <= Epsilon * Epsilon;
+    }
+
+    private static Func<object?, bool> Excluding(IEnumerable<Guid> segmentIds)
+    {
+        var excluded = segmentIds.ToHashSet();
+        return tag => tag is not Guid id || !excluded.Contains(id);
     }
 
     private bool TrunkIsClear(Vector3 top, TreeRoutingOptions options, RouteState state)
@@ -709,13 +737,22 @@ public sealed class TreeSupportRouter
 
         public TrunkRecord(Vector2 xy, float topZ, Guid topNodeId, Guid baseNodeId,
             Guid segmentId, Guid? branchSegmentId, RouteState state)
+            : this(xy, topZ, topNodeId, baseNodeId, [segmentId],
+                branchSegmentId is { } id ? [id] : [], 0, state)
+        {
+        }
+
+        public TrunkRecord(Vector2 xy, float topZ, Guid topNodeId, Guid baseNodeId,
+            IEnumerable<Guid> segmentIds, IEnumerable<Guid> branchSegmentIds, int branchCount,
+            RouteState state)
         {
             Xy = xy;
             TopZ = topZ;
             TopNodeId = topNodeId;
             BaseNodeId = baseNodeId;
-            SegmentIds = new List<Guid> { segmentId };
-            BranchSegmentIds = branchSegmentId is { } id ? new List<Guid> { id } : new List<Guid>();
+            SegmentIds = segmentIds.ToList();
+            BranchSegmentIds = branchSegmentIds.ToList();
+            BranchCount = branchCount;
             _state = state;
         }
 
@@ -771,8 +808,75 @@ public sealed class TreeSupportRouter
             AngleOffset = angleOffset;
         }
 
+        /// <summary>
+        /// Reconstructs the same trunk and branch-end bookkeeping produced during a fresh route.
+        /// Disabled geometry is not load-bearing; hidden geometry remains printable and active.
+        /// </summary>
+        public void SeedExistingContext()
+        {
+            foreach (var segment in Graph.Segments.Where(segment => !segment.Disabled))
+            {
+                var a = Graph.GetNode(segment.NodeA);
+                var b = Graph.GetNode(segment.NodeB);
+                if (a.Disabled || b.Disabled) continue;
+                _capsules.Add(new GeneratedCapsule(a.Position, b.Position,
+                    segment.Diameter * 0.5f, segment.Id, segment.Type));
+            }
+
+            var trunkNodes = new HashSet<Guid>();
+            var visitedTrunkSegments = new HashSet<Guid>();
+            foreach (var baseNode in Graph.Nodes
+                         .Where(node => node.Type == SupportNodeType.Base && !node.Disabled)
+                         .OrderBy(node => node.Id))
+            {
+                var segmentIds = new HashSet<Guid>();
+                var nodeIds = new HashSet<Guid> { baseNode.Id };
+                var queue = new Queue<Guid>();
+                queue.Enqueue(baseNode.Id);
+                while (queue.Count > 0)
+                {
+                    var nodeId = queue.Dequeue();
+                    foreach (var segment in Graph.SegmentsAt(nodeId))
+                    {
+                        if (segment.Disabled || segment.Type != SupportSegmentType.Trunk ||
+                            !visitedTrunkSegments.Add(segment.Id)) continue;
+                        var otherId = segment.NodeA == nodeId ? segment.NodeB : segment.NodeA;
+                        if (Graph.GetNode(otherId).Disabled) continue;
+                        segmentIds.Add(segment.Id);
+                        if (nodeIds.Add(otherId)) queue.Enqueue(otherId);
+                    }
+                }
+                if (segmentIds.Count == 0) continue;
+
+                trunkNodes.UnionWith(nodeIds);
+                var top = nodeIds.Select(Graph.GetNode)
+                    .OrderByDescending(node => node.Position.Z).ThenBy(node => node.Id).First();
+                var branches = Graph.Segments
+                    .Where(segment => !segment.Disabled && segment.Type == SupportSegmentType.Branch &&
+                        (nodeIds.Contains(segment.NodeA) || nodeIds.Contains(segment.NodeB)))
+                    .Select(segment => segment.Id).Distinct().ToList();
+                Trunks.Add(new TrunkRecord(new Vector2(top.Position.X, top.Position.Y),
+                    top.Position.Z, top.Id, baseNode.Id, segmentIds, branches, branches.Count, this));
+            }
+
+            foreach (var branch in Graph.Segments
+                         .Where(segment => !segment.Disabled &&
+                             segment.Type == SupportSegmentType.Branch))
+            {
+                var aOnTrunk = trunkNodes.Contains(branch.NodeA);
+                var bOnTrunk = trunkNodes.Contains(branch.NodeB);
+                if (aOnTrunk == bOnTrunk) continue;
+                var branchEndId = aOnTrunk ? branch.NodeB : branch.NodeA;
+                var branchEnd = Graph.GetNode(branchEndId);
+                if (branchEnd.Disabled) continue;
+                RegisterBranchEnd(branchEnd);
+                _miniFanCounts[branchEndId] = Graph.SegmentsAt(branchEndId).Count(segment =>
+                    !segment.Disabled && segment.Type == SupportSegmentType.MiniSupport);
+            }
+        }
+
         public SupportNode NewNode(SupportNodeType type, Vector3 position, SupportOrigin origin)
-            => new() { Id = _ids.Next(), Type = type, Position = position, Origin = origin };
+            => new() { Id = NextUnusedId(), Type = type, Position = position, Origin = origin };
 
         public void RegisterBranchEnd(SupportNode node) => _branchEndIds.Add(node.Id);
         public int MiniFanCount(Guid nodeId) => _miniFanCounts.GetValueOrDefault(nodeId);
@@ -784,7 +888,7 @@ public sealed class TreeSupportRouter
         {
             var segment = new SupportSegment
             {
-                Id = _ids.Next(), Type = type, NodeA = a.Id, NodeB = b.Id,
+                Id = NextUnusedId(), Type = type, NodeA = a.Id, NodeB = b.Id,
                 Diameter = diameter, Origin = origin,
             };
             Graph.AddSegment(segment);
@@ -795,6 +899,14 @@ public sealed class TreeSupportRouter
                 * 180 / MathF.PI;
             if (delta.LengthSquared() > Epsilon * Epsilon) MaxLean = MathF.Max(MaxLean, lean);
             return segment;
+        }
+
+        private Guid NextUnusedId()
+        {
+            Guid id;
+            do id = _ids.Next();
+            while (Graph.TryGetNode(id, out _) || Graph.TryGetSegment(id, out _));
+            return id;
         }
 
         public bool HitsGenerated(Vector3 start, Vector3 end, float radius,

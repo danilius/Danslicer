@@ -646,6 +646,79 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void EmptyExistingContextIsBitIdenticalToNoContext()
+    {
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(2, 0, 8), Vector3.Normalize(new Vector3(-1, 0, 1)), 0.4f),
+            new RoutingTip(new(-4, 3, 6), Vector3.UnitZ, 0.4f),
+        };
+        var options = new TreeRoutingOptions { Seed = 7 };
+        var router = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
+
+        var ordinary = router.Route(tips, options);
+        var withEmptyContext = router.Route(tips, options, new SupportGraph());
+
+        Assert.Equal(
+            ordinary.Graph.Nodes.OrderBy(n => n.Id).Select(n => (n.Id, n.Type, n.Position)),
+            withEmptyContext.Graph.Nodes.OrderBy(n => n.Id).Select(n => (n.Id, n.Type, n.Position)));
+        Assert.Equal(
+            ordinary.Graph.Segments.OrderBy(s => s.Id)
+                .Select(s => (s.Id, s.Type, s.NodeA, s.NodeB, s.Diameter)),
+            withEmptyContext.Graph.Segments.OrderBy(s => s.Id)
+                .Select(s => (s.Id, s.Type, s.NodeA, s.NodeB, s.Diameter)));
+        Assert.Equal(ordinary.BasePositions, withEmptyContext.BasePositions);
+        Assert.Equal(ordinary.Failures, withEmptyContext.Failures);
+    }
+
+    [Fact]
+    public void ExistingTrunkBranchCountHonoursTheConfiguredLimit()
+    {
+        var existing = new SupportGraph();
+        var supportBase = new SupportNode
+            { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        var top = new SupportNode
+            { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 8) };
+        existing.AddNode(supportBase);
+        existing.AddNode(top);
+        existing.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk,
+            NodeA = supportBase.Id,
+            NodeB = top.Id,
+        });
+        for (var index = 0; index < 6; index++)
+        {
+            var end = new SupportNode
+            {
+                Type = SupportNodeType.Junction,
+                Position = new Vector3(-index - 1, 0, 7 - index * 0.5f),
+            };
+            existing.AddNode(end);
+            existing.AddSegment(new SupportSegment
+            {
+                Type = SupportSegmentType.Branch,
+                NodeA = top.Id,
+                NodeB = end.Id,
+            });
+        }
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddSupportGraph(existing);
+
+        var result = new TreeSupportRouter(obstacles, GrowthRuleSet.Default).Route(
+            new[] { new RoutingTip(new(4, 0, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { UseBaseGrid = false }, existing);
+
+        Assert.Empty(result.Failures);
+        Assert.Single(result.Edit.AddedNodes,
+            node => node.Type == SupportNodeType.Base);
+        Assert.DoesNotContain(result.Edit.AddedSegments,
+            segment => segment.Type == SupportSegmentType.Branch &&
+                (segment.NodeA == top.Id || segment.NodeB == top.Id));
+    }
+
+    [Fact]
     public void EveryTrunkIsVerticalAndEveryAngledMemberRespectsTheLimit()
     {
         var tips = new[]
