@@ -40,6 +40,9 @@ public sealed class ViewportConfig
     /// <summary>Edge length of the overhang checker squares, millimetres.</summary>
     public float OverhangCheckerSizeMm { get; set; } = 2f;
 
+    /// <summary>Last procedural shape selected in the support preset editor.</summary>
+    public string SupportPresetPreviewSample { get; set; } = "Overhang table / bridge";
+
     /// <summary>Viewport-only support presentation. This never changes slice geometry.</summary>
     public SupportDisplayConfig SupportDisplay { get; set; } = new();
 }

@@ -1,0 +1,11 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Danslicer.App.Controls"
+             x:Class="Danslicer.App.Controls.SupportPreviewSurface"
+             x:Name="Root" x:CompileBindings="False">
+    <controls:ViewportControl x:Name="Viewport"
+                              Document="{Binding Document, ElementName=Root}"
+                              SupportDisplay="{Binding SupportDisplay, ElementName=Root}"
+                              ShowMoveGizmo="False" ShowRotateGizmo="False"
+                              ShowScaleGizmo="False" />
+</UserControl>

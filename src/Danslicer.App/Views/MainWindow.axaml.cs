@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Danslicer.App.Controls;
+using Danslicer.App.Configuration;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.IO;
@@ -56,11 +57,45 @@ public partial class MainWindow : Window
         Viewport.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
         LayerView.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
         LayerView.LayerStepRequested += delta => ViewModel?.StepLayer(delta);
-        Opened += (_, _) => Viewport.FrameAll();
+        Opened += (_, _) =>
+        {
+            Viewport.FrameAll();
+            if (ViewModel is { } vm)
+                vm.SupportSettings.EditSupportPresetRequested += OpenSupportPresetEditor;
+        };
+        Closed += (_, _) =>
+        {
+            if (ViewModel is { } vm)
+                vm.SupportSettings.EditSupportPresetRequested -= OpenSupportPresetEditor;
+            _presetEditorWindow?.Close();
+        };
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
     private ConfigWindow? _configWindow;
+    private SupportPresetEditorWindow? _presetEditorWindow;
+
+    private void OpenSupportPresetEditor()
+    {
+        if (_presetEditorWindow is { } open)
+        {
+            open.Activate();
+            return;
+        }
+        var main = ViewModel;
+        if (main is null) return;
+        var presetName = AppConfig.Current.ActiveSupportPresetName;
+        if (AppConfig.Current.FindSupportPreset(presetName) is null) return;
+        var editor = new SupportPresetEditorViewModel(presetName, () => ViewModel?.SelectedObject);
+        editor.Saved += main.SupportSettings.ApplyExternalSupportPresetChange;
+        _presetEditorWindow = new SupportPresetEditorWindow(editor);
+        _presetEditorWindow.Closed += (_, _) =>
+        {
+            editor.Saved -= main.SupportSettings.ApplyExternalSupportPresetChange;
+            _presetEditorWindow = null;
+        };
+        _presetEditorWindow.Show(this);
+    }
 
     private async Task SaveProjectAsync()
     {
