@@ -93,48 +93,75 @@ public sealed class TreeSupportRouter
             return false;
         }
 
+        var (branchTipDiameter, tipMemberLength) = TipMemberDimensions(
+            tip, options.BranchDiameter, options.TipMemberLength);
+        var branchJunction = FindTipJunction(tip, options, state,
+            branchTipDiameter, tipMemberLength);
+
+        // Branch-first: an existing trunk gets first refusal, and a tip feeding that branch
+        // tapers from the configured branch diameter.
+        if (branchJunction is { } branchJ1 && branchJ1.Z > options.PlateZ + Epsilon &&
+            TryAttachToTrunk(tip, branchJ1, options, state, branchTipDiameter)) return true;
+
+        var (trunkTipDiameter, _) = TipMemberDimensions(
+            tip, options.TrunkDiameter, options.TipMemberLength);
+        var trunkJunction = MathF.Abs(trunkTipDiameter - branchTipDiameter) <= Epsilon
+            ? branchJunction
+            : FindTipJunction(tip, options, state, trunkTipDiameter, tipMemberLength);
+
+        // A tip connected directly to a trunk (or directly to its base near the plate) tapers
+        // from the trunk setting, independently of BranchDiameter.
+        if (trunkJunction is { } trunkJ1)
+        {
+            if (trunkJ1.Z <= options.PlateZ + Epsilon)
+            {
+                EmitSupport(tip, new Vector3(trunkJ1.X, trunkJ1.Y, options.PlateZ), null,
+                    tipOnly: true, options, state, trunkTipDiameter);
+                return true;
+            }
+            if (TrunkIsClear(trunkJ1, options, state))
+            {
+                EmitSupport(tip, trunkJ1, null, tipOnly: false,
+                    options, state, trunkTipDiameter);
+                return true;
+            }
+        }
+
+        if (branchJunction is null)
+        {
+            reason = RoutingFailureReason.ContactBlocked;
+            return false;
+        }
+
+        // The straight candidate was handled with trunk-derived tip geometry above. Every
+        // remaining candidate introduces a branch, so both it and its tip use branch settings.
+        foreach (var trunkTop in TrunkTopCandidates(branchJunction.Value, options, state.AngleOffset).Skip(1))
+        {
+            if (!MemberIsClear(branchJunction.Value, trunkTop,
+                    options.BranchDiameter * 0.5f, state))
+                continue;
+            if (!TrunkIsClear(trunkTop, options, state)) continue;
+            EmitSupport(tip, trunkTop, branchJunction.Value, tipOnly: false,
+                options, state, branchTipDiameter);
+            return true;
+        }
+        return false;
+    }
+
+    private (float Diameter, float Length) TipMemberDimensions(RoutingTip tip,
+        float parentDiameter, float configuredLength)
+    {
         var taper = new GrowthContext
         {
             Operation = GrowthOperation.Tip,
             Start = tip.SurfacePoint,
             DesiredEnd = tip.SurfacePoint,
             End = tip.SurfacePoint,
-            Diameter = options.BranchDiameter,
-            TipLength = options.TipMemberLength,
+            Diameter = parentDiameter,
+            TipLength = configuredLength,
         };
         _rules.Evaluate(taper);
-        var tipMemberDiameter = MathF.Max(0.05f, taper.Diameter);
-        var tipMemberLength = MathF.Max(0.1f, taper.TipLength);
-
-        var junction = FindTipJunction(tip, options, state, tipMemberDiameter, tipMemberLength);
-        if (junction is null)
-        {
-            reason = RoutingFailureReason.ContactBlocked;
-            return false;
-        }
-        var j1 = junction.Value;
-
-        // The contact sits so low that the tip member reaches the plate: tip straight onto a base.
-        if (j1.Z <= options.PlateZ + Epsilon)
-        {
-            EmitSupport(tip, new Vector3(j1.X, j1.Y, options.PlateZ), null, tipOnly: true,
-                options, state, tipMemberDiameter);
-            return true;
-        }
-
-        if (TryAttachToTrunk(tip, j1, options, state, tipMemberDiameter)) return true;
-
-        foreach (var trunkTop in TrunkTopCandidates(j1, options, state.AngleOffset))
-        {
-            var viaBranch = Vector3.DistanceSquared(trunkTop, j1) > Epsilon * Epsilon;
-            if (viaBranch && !MemberIsClear(j1, trunkTop, options.BranchDiameter * 0.5f, state))
-                continue;
-            if (!TrunkIsClear(trunkTop, options, state)) continue;
-            EmitSupport(tip, trunkTop, viaBranch ? j1 : null, tipOnly: false,
-                options, state, tipMemberDiameter);
-            return true;
-        }
-        return false;
+        return (MathF.Max(0.05f, taper.Diameter), MathF.Max(0.1f, taper.TipLength));
     }
 
     /// <summary>

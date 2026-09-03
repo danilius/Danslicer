@@ -81,6 +81,31 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void EachMemberUsesItsConfiguredParentDiameter()
+    {
+        var rules = GrowthRuleSet.Default;
+        rules.Find<TaperGrowthRule>()!.TipToPillarDiameterRatio = 0.5f;
+        var result = new TreeSupportRouter(new LinearCollisionScene(), rules).Route(new[]
+        {
+            new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(2, 0, 8), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions { TrunkDiameter = 0.8f, BranchDiameter = 1.6f });
+
+        Assert.Empty(result.Failures);
+        Assert.All(result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Trunk),
+            segment => Assert.Equal(0.8f, segment.Diameter));
+        Assert.All(result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Branch),
+            segment => Assert.Equal(1.6f, segment.Diameter));
+
+        var directTip = result.Graph.Nodes.Single(n =>
+            n.Type == SupportNodeType.Tip && n.Position.X == 0);
+        var branchedTip = result.Graph.Nodes.Single(n =>
+            n.Type == SupportNodeType.Tip && n.Position.X == 2);
+        Assert.Equal(0.4f, Assert.Single(result.Graph.SegmentsAt(directTip.Id)).Diameter);
+        Assert.Equal(0.8f, Assert.Single(result.Graph.SegmentsAt(branchedTip.Id)).Diameter);
+    }
+
+    [Fact]
     public void BothSupportsRemainConnectedComponentsOfOneTree()
     {
         var result = Route(new[]
