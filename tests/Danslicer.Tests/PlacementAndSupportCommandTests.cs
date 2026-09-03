@@ -302,6 +302,7 @@ public sealed class PlacementAndSupportCommandTests
                 TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.2f,
                 PenetrationDepth = 0.1f, TrunkDiameter = 1.6f, BranchDiameter = 1.3f,
                 MemberAngleDegrees = 37f, TipMemberLength = 2.8f, MaxBranchLength = 12f,
+                BaseGridPitch = 18f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 5f, BaseHeight = 1f,
                 BaseConeHeight = 2.3f, Spacing = 3.5f, OverhangAngleDegrees = 52f,
                 MinIslandAreaMm2 = 0.75f,
@@ -322,6 +323,7 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(37f, request.Settings.MemberAngleDegrees);
         Assert.Equal(2.8f, request.Settings.TipMemberLength);
         Assert.Equal(12f, request.Settings.MaxBranchLength);
+        Assert.Equal(18f, request.Settings.BaseGridPitch);
         Assert.Equal(SupportBaseShape.DiscCone, request.Settings.BaseShape);
         Assert.Equal(5f, request.Settings.BaseDiameter);
         Assert.Equal(1f, request.Settings.BaseHeight);

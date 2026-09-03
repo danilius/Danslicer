@@ -126,6 +126,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.MaxBranchLength = Clamp(value, 0.01f, 1000f, 8f));
     }
 
+    public float SupportBaseGridPitch
+    {
+        get => Supports.BaseGridPitch;
+        set => Update(() => Supports.BaseGridPitch = Clamp(value, 0.01f, 1000f, 20f));
+    }
+
     public SupportBaseShape SupportBaseShapeValue
     {
         get => Supports.BaseShape;

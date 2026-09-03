@@ -69,6 +69,7 @@ public sealed record SupportConfig
     public float MemberAngleDegrees { get; set; } = 45f;
     public float TipMemberLength { get; set; } = 2f;
     public float MaxBranchLength { get; set; } = 8f;
+    public float BaseGridPitch { get; set; } = 20f;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public SupportBaseShape BaseShape { get; set; } = SupportBaseShape.Disc;
@@ -93,6 +94,7 @@ public sealed record SupportConfig
             ? Math.Clamp(MemberAngleDegrees, 1f, 89f) : 45f;
         TipMemberLength = Positive(TipMemberLength, 2f);
         MaxBranchLength = Positive(MaxBranchLength, 8f);
+        BaseGridPitch = Positive(BaseGridPitch, 20f);
         if (!Enum.IsDefined(BaseShape)) BaseShape = SupportBaseShape.Disc;
         BaseDiameter = Positive(BaseDiameter, 4f);
         BaseHeight = NonNegative(BaseHeight);

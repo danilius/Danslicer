@@ -9,6 +9,29 @@ namespace Danslicer.Core.Supports.Routing;
 /// </summary>
 public static class BaseLattice
 {
+    /// <summary>
+    /// Plate-origin-aligned square points within a circular reach, nearest first. Keeping lattice
+    /// shape, alignment and ordering here isolates the three provisional grid decisions.
+    /// </summary>
+    public static IEnumerable<Vector2> NearestSquarePoints(Vector2 point, float spacing,
+        float maxDistance)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(spacing);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDistance);
+        var ix0 = (int)MathF.Floor((point.X - maxDistance) / spacing);
+        var ix1 = (int)MathF.Ceiling((point.X + maxDistance) / spacing);
+        var iy0 = (int)MathF.Floor((point.Y - maxDistance) / spacing);
+        var iy1 = (int)MathF.Ceiling((point.Y + maxDistance) / spacing);
+        var maxDistanceSquared = maxDistance * maxDistance + 1e-4f;
+        return Enumerable.Range(iy0, iy1 - iy0 + 1)
+            .SelectMany(iy => Enumerable.Range(ix0, ix1 - ix0 + 1)
+                .Select(ix => new Vector2(ix * spacing, iy * spacing)))
+            .Where(candidate => Vector2.DistanceSquared(point, candidate) <= maxDistanceSquared)
+            .OrderBy(candidate => Vector2.DistanceSquared(point, candidate))
+            .ThenBy(candidate => candidate.X)
+            .ThenBy(candidate => candidate.Y);
+    }
+
     public static Vector2 WorldToLocal(Vector2 world, GridRoutingOptions options)
     {
         var radians = -options.RotationDegrees * MathF.PI / 180;

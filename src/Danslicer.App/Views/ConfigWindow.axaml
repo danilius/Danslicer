@@ -149,6 +149,11 @@
                     </Grid>
 
                     <TextBlock Text="Base" Classes="section" />
+                    <Grid Tag="supports base square grid pitch spacing mm" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Grid pitch" Classes="label" />
+                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="1" FormatString="0.##"
+                                       Value="{Binding SupportBaseGridPitch, Mode=TwoWay}" />
+                    </Grid>
                     <Grid Tag="supports base shape disc cone none" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Shape" Classes="label" />
                         <ComboBox Grid.Column="1" ItemsSource="{Binding SupportBaseShapes}"
