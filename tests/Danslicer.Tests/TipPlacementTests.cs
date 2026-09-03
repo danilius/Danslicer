@@ -92,8 +92,12 @@ public class TipPlacementTests
             MiniIslandMaxAreaMm2 = 0.05f,
         };
 
-        Assert.DoesNotContain(Place(mesh, parameters),
+        var bandIsland = Place(mesh, parameters);
+
+        Assert.DoesNotContain(bandIsland,
             candidate => candidate.Strategy == TipStrategy.MiniIsland);
+        Assert.Contains(bandIsland,
+            candidate => candidate.Strategy == TipStrategy.Island);
         Assert.Contains(Place(mesh, parameters with { MiniIslandMaxAreaMm2 = 0.1f }),
             candidate => candidate.Strategy == TipStrategy.MiniIsland);
     }

@@ -72,6 +72,9 @@ public static class TipPlacer
         var islandFloor = parameters.EnableMiniSupports
             ? MathF.Min(parameters.MinIslandAreaMm2, miniIslandFloor)
             : parameters.MinIslandAreaMm2;
+        var regularIslandMin = parameters.EnableMiniSupports
+            ? miniIslandMax
+            : parameters.MinIslandAreaMm2;
         var islands = IslandFinder.Find(
                      mesh, parameters.LayerHeightMm, islandFloor, parameters.PlateZ,
                      parameters.OverhangAngleDegrees)
@@ -80,7 +83,7 @@ public static class TipPlacer
                      .ThenBy(i => i.Centroid.X)
                      .ThenBy(i => i.Centroid.Y)
                      .ToList();
-        foreach (var island in islands.Where(i => i.AreaMm2 >= parameters.MinIslandAreaMm2))
+        foreach (var island in islands.Where(i => i.AreaMm2 >= regularIslandMin))
         {
             if (!TryProjectToRegion(mesh, bvh, region, island.Centroid, parameters, out var point, out var outward, out var face))
                 continue;
