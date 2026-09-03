@@ -78,6 +78,7 @@ public sealed record SupportConfig
     public int MiniSupportMaxFanPerBranchEnd { get; set; } = 4;
     public bool RefusedTipsFallBackToMini { get; set; }
     public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
+    public bool UseBaseGrid { get; set; } = true;
     public float BaseGridPitch { get; set; } = 20f;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]

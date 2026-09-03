@@ -137,7 +137,7 @@ public sealed class UserConfigTests : IDisposable
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxFanPerBranchEnd = 5,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
-                BaseGridPitch = 18f,
+                UseBaseGrid = false, BaseGridPitch = 18f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 6f, BaseHeight = 1.1f,
                 BaseConeHeight = 2.8f, Spacing = 3.2f, IslandSpacingMm = 0.7f, OverhangAngleDegrees = 51f,
                 MinIslandAreaMm2 = 0.9f,
@@ -166,6 +166,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.True(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
+        Assert.False(supports.UseBaseGrid);
         Assert.Equal(18f, supports.BaseGridPitch);
         Assert.Equal(SupportBaseShape.DiscCone, supports.BaseShape);
         Assert.Equal(6f, supports.BaseDiameter);
@@ -200,6 +201,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(4, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.False(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
+        Assert.True(supports.UseBaseGrid);
         Assert.Equal(20f, supports.BaseGridPitch);
         Assert.Equal(SupportBaseShape.Disc, supports.BaseShape);
         Assert.Equal(4f, supports.BaseDiameter);

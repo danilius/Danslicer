@@ -23,6 +23,7 @@ internal static class RouteCommand
             var stepHeight = 2f;
             var json = false;
             var seat = false;
+            var useBaseGrid = true;
             for (var i = 1; i < args.Length; i++)
             {
                 options = args[i] switch
@@ -39,6 +40,7 @@ internal static class RouteCommand
                     "--tips" => SetTips(options, args[++i], out tipsPath),
                     "--json" => SetJson(options, out json),
                     "--seat" => SetSeat(options, out seat),
+                    "--base-grid" => SetUseBaseGrid(options, args[++i], out useBaseGrid),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
                 };
             }
@@ -76,6 +78,7 @@ internal static class RouteCommand
                     {
                         TrunkDiameter = options.PillarDiameter,
                         BranchDiameter = options.PillarDiameter,
+                        UseBaseGrid = useBaseGrid,
                         PlateZ = options.PlateZ,
                         Seed = options.Seed,
                         Origin = options.Origin,
@@ -113,6 +116,18 @@ internal static class RouteCommand
     private static GridRoutingOptions SetSeat(GridRoutingOptions options, out bool seat)
     {
         seat = true;
+        return options;
+    }
+
+    private static GridRoutingOptions SetUseBaseGrid(GridRoutingOptions options, string value,
+        out bool useBaseGrid)
+    {
+        useBaseGrid = value.ToLowerInvariant() switch
+        {
+            "on" or "true" => true,
+            "off" or "false" => false,
+            _ => throw new ArgumentException("base-grid must be 'on' or 'off'"),
+        };
         return options;
     }
 
@@ -264,7 +279,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 

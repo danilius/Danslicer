@@ -192,6 +192,9 @@
                               IsChecked="{Binding SupportRefusedTipsFallBackToMini, Mode=TwoWay}" Margin="0,4" />
 
                     <TextBlock Text="Base" Classes="section" />
+                    <CheckBox Tag="supports base grid enable disable free placement"
+                              Content="Use base grid"
+                              IsChecked="{Binding SupportUseBaseGrid, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="supports base square grid pitch spacing mm" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Grid pitch" Classes="label" />
                         <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="1" FormatString="0.##"

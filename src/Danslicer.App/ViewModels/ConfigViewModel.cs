@@ -187,6 +187,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.BaseGridPitch = Clamp(value, 0.01f, 1000f, 20f));
     }
 
+    public bool SupportUseBaseGrid
+    {
+        get => Supports.UseBaseGrid;
+        set => Update(() => Supports.UseBaseGrid = value);
+    }
+
     public SupportBaseShape SupportBaseShapeValue
     {
         get => Supports.BaseShape;
