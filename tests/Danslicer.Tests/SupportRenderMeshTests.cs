@@ -249,13 +249,17 @@ public class SupportRenderMeshTests
         graph.AddNode(bottom);
         graph.AddSegment(new SupportSegment
         {
-            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = bottom.Id, Diameter = 1.2f,
+            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = bottom.Id, Diameter = 0.7f,
         });
 
         var basePart = Assert.Single(SupportRenderMesh.Build(graph), p => p.Kind == SupportRenderKind.Base);
         Assert.Equal(2 * SupportRenderMesh.TrianglesPerFrustum, basePart.Mesh.TriangleCount);
         AssertClosed(basePart.Mesh);
         Assert.Equal(2.8f, basePart.Mesh.Bounds.Max.Z, 3);
+        var topRadius = basePart.Mesh.Positions
+            .Where(position => MathF.Abs(position.Z - 2.8f) < 1e-4f)
+            .Max(position => new Vector2(position.X, position.Y).Length());
+        Assert.Equal(0.35f, topRadius, 3);
     }
 
     [Fact]

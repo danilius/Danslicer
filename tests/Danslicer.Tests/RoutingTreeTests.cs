@@ -229,6 +229,34 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void NearPlateBaseTransitionUsesTheDiameterOfItsTipMember()
+    {
+        var rules = GrowthRuleSet.Default;
+        rules.Find<TaperGrowthRule>()!.TipToPillarDiameterRatio = 0.5f;
+        var result = new TreeSupportRouter(new LinearCollisionScene(), rules).Route(
+            new[] { new RoutingTip(new(0, 0, 1), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions
+            {
+                TrunkDiameter = 0.8f,
+                BranchDiameter = 2f,
+                BaseShape = SupportBaseShape.DiscCone,
+            });
+
+        Assert.Empty(result.Failures);
+        var member = Assert.Single(result.Graph.Segments);
+        Assert.Equal(SupportSegmentType.Tip, member.Type);
+        Assert.Equal(0.4f, member.Diameter);
+        var baseNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
+        var basePart = Assert.Single(SupportRenderMesh.Build(result.Graph),
+            part => part.Kind == SupportRenderKind.Base);
+        var coneTopZ = baseNode.BaseHeight + baseNode.BaseConeHeight;
+        var topRadius = basePart.Mesh.Positions
+            .Where(position => MathF.Abs(position.Z - coneTopZ) < 1e-4f)
+            .Max(position => new Vector2(position.X, position.Y).Length());
+        Assert.Equal(member.Diameter * 0.5f, topRadius, 3);
+    }
+
+    [Fact]
     public void ConeShapeParametersFlowOntoTheTipNode()
     {
         var result = Route(new[]

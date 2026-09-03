@@ -59,7 +59,8 @@ public class SupportSliceGeometryTests
         Assert.Equal(2, paths.Count);
     }
 
-    private static SupportGraph TrunkWithBase(SupportBaseShape shape, out SupportNode baseNode)
+    private static SupportGraph TrunkWithBase(SupportBaseShape shape, out SupportNode baseNode,
+        float memberDiameter = 1.2f)
     {
         var graph = new SupportGraph();
         var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 10) };
@@ -72,7 +73,8 @@ public class SupportSliceGeometryTests
         graph.AddNode(baseNode);
         graph.AddSegment(new SupportSegment
         {
-            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = baseNode.Id, Diameter = 1.2f,
+            Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = baseNode.Id,
+            Diameter = memberDiameter,
         });
         return graph;
     }
@@ -95,6 +97,14 @@ public class SupportSliceGeometryTests
         AssertAreaNear(Math.PI * 1.3 * 1.3, SupportSliceGeometry.SectionsAt(graph, 1.8));
         // At the very top of the cone the frustum matches the trunk: radius 0.6.
         AssertAreaNear(Math.PI * 0.36, SupportSliceGeometry.SectionsAt(graph, 2.8));
+    }
+
+    [Fact]
+    public void DiscConeTopExactlyMatchesItsIncidentMemberDiameter()
+    {
+        var graph = TrunkWithBase(SupportBaseShape.DiscCone, out _, memberDiameter: 0.7f);
+
+        AssertAreaNear(Math.PI * 0.35 * 0.35, SupportSliceGeometry.SectionsAt(graph, 2.8));
     }
 
     [Fact]
