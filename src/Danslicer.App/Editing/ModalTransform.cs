@@ -1,6 +1,5 @@
 using System.Numerics;
 using Danslicer.Core;
-using Danslicer.Core.Commands;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Utilities;
@@ -139,16 +138,8 @@ public sealed class ModalTransform
     {
         if (!IsActive) return;
         IsActive = false;
-        var commands = new List<IDocumentCommand>();
-        foreach (var (obj, start) in _items)
-        {
-            var final = obj.Transform;
-            if (final != start) commands.Add(new SetTransformCommand(obj, start, final, ModeName));
-        }
-        if (commands.Count > 0)
-            _document.Execute(new CompositeCommand(ModeName, commands));
-        else
-            _document.NotifyTransientChange();
+        _document.CommitTransforms(_items.Select(item =>
+            (item.Object, item.Start, Requested: item.Object.Transform)), ModeName);
     }
 
     public void Cancel()

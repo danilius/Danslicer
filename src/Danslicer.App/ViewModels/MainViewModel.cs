@@ -5,8 +5,9 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Danslicer.App.Configuration;
 using Danslicer.Core;
-using Danslicer.Core.Commands;
+using Danslicer.Core.Config;
 using Danslicer.Core.IO;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
@@ -78,6 +79,28 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool ShowOverhangs { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAutoDrop), nameof(IsRaiseAbovePlate), nameof(IsPlacementOff))]
+    public partial PlacementMode AutoPlacementMode { get; set; } = PlacementMode.AutoDrop;
+
+    public bool IsAutoDrop
+    {
+        get => AutoPlacementMode == PlacementMode.AutoDrop;
+        set { if (value) AutoPlacementMode = PlacementMode.AutoDrop; }
+    }
+
+    public bool IsRaiseAbovePlate
+    {
+        get => AutoPlacementMode == PlacementMode.RaiseAbovePlate;
+        set { if (value) AutoPlacementMode = PlacementMode.RaiseAbovePlate; }
+    }
+
+    public bool IsPlacementOff
+    {
+        get => AutoPlacementMode == PlacementMode.Off;
+        set { if (value) AutoPlacementMode = PlacementMode.Off; }
+    }
+
     // ----- Slicing -----
 
     [ObservableProperty]
@@ -110,6 +133,7 @@ public partial class MainViewModel : ViewModelBase
     public NumericField[] Position { get; }
     public NumericField[] Rotation { get; }
     public NumericField[] Scale { get; }
+    public NumericField PlacementHeight { get; }
 
     public MainViewModel()
     {
@@ -117,10 +141,27 @@ public partial class MainViewModel : ViewModelBase
         Position = MakeAxisFields(UnitKind.Length, "0.###", (t, axis, v) => t with { Translation = SetAxis(t.Translation, axis, (float)v) });
         Rotation = MakeAxisFields(UnitKind.Angle, "0.##", (t, axis, v) => t with { EulerDegrees = SetAxis(t.EulerDegrees, axis, (float)v) });
         Scale = MakeAxisFields(UnitKind.Scalar, "0.####", (t, axis, v) => t with { Scale = SetAxis(t.Scale, axis, (float)v) });
+        var placement = AppConfig.Current.Placement;
+        placement.HeightMm = MathF.Max(0, placement.HeightMm);
+        Document.PlacementMode = placement.Mode;
+        Document.PlacementHeightMm = placement.HeightMm;
+        AutoPlacementMode = placement.Mode;
+        NumericField? placementHeight = null;
+        placementHeight = new NumericField("Height", UnitKind.Length, "0.###", value =>
+        {
+            var height = MathF.Max(0, (float)value);
+            Document.PlacementHeightMm = height;
+            AppConfig.Current.Placement.HeightMm = height;
+            AppConfig.Save();
+            placementHeight!.SetValue(height);
+        });
+        PlacementHeight = placementHeight;
+        PlacementHeight.SetValue(Document.PlacementHeightMm);
 
         Document.Scene.ObjectAdded += o => Objects.Add(o);
         Document.Scene.ObjectRemoved += o => Objects.Remove(o);
         Document.SelectionChanged += OnDocumentSelectionChanged;
+        Document.SupportSelectionChanged += () => HideUnselectedSupportsCommand.NotifyCanExecuteChanged();
         Document.Changed += OnDocumentChanged;
         OnDocumentChanged();
     }
@@ -137,9 +178,9 @@ public partial class MainViewModel : ViewModelBase
                 var obj = SelectedObject;
                 if (obj is null) return;
                 var before = obj.Transform;
-                var after = edit(before, a, value);
-                if (after == before) return;
-                Document.Execute(new SetTransformCommand(obj, before, after, "Edit transform"));
+                var requested = edit(before, a, value);
+                if (requested == before) return;
+                Document.CommitTransform(obj, before, requested, "Edit transform");
             });
         }
         return fields;
@@ -168,6 +209,7 @@ public partial class MainViewModel : ViewModelBase
         DeleteCommand.NotifyCanExecuteChanged();
         DropToPlateCommand.NotifyCanExecuteChanged();
         HideCommand.NotifyCanExecuteChanged();
+        GenerateSupportsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedObjectChanged(SceneObject? value)
@@ -184,6 +226,13 @@ public partial class MainViewModel : ViewModelBase
             _syncingSelection = false;
         }
         RefreshFields();
+    }
+
+    partial void OnAutoPlacementModeChanged(PlacementMode value)
+    {
+        Document.PlacementMode = value;
+        AppConfig.Current.Placement.Mode = value;
+        AppConfig.Save();
     }
 
     private void OnDocumentChanged()
@@ -254,6 +303,23 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void UnhideAll() => Document.UnhideAll();
+
+    [RelayCommand(CanExecute = nameof(HasSupportSelection))]
+    private void HideUnselectedSupports() => Document.HideUnselectedSupportElements();
+
+    private bool HasSupportSelection() => Document.SupportSelection.Count > 0;
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void GenerateSupports()
+    {
+        var obj = SelectedObject;
+        if (obj is null) return;
+        ViewportStatus = "Generating supports…";
+        var result = Document.GenerateSupports(obj, seed: 0);
+        ViewportStatus = result.CandidateCount == 0
+            ? "Generate supports: no support tips were needed."
+            : $"Generate supports: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
+    }
 
     [RelayCommand]
     private void SelectAll() => Document.SelectAll();

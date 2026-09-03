@@ -37,6 +37,11 @@ public sealed class UserConfigTests : IDisposable
                 OverhangColorB = "#445566",
                 OverhangCheckerSizeMm = 5f,
             },
+            Placement = new PlacementConfig
+            {
+                Mode = PlacementMode.RaiseAbovePlate,
+                HeightMm = 8.5f,
+            },
         };
         var path = PathFor("config.json");
 
@@ -57,6 +62,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
         Assert.Equal("#445566", loaded.Viewport.OverhangColorB);
         Assert.Equal(5f, loaded.Viewport.OverhangCheckerSizeMm);
+        Assert.Equal(PlacementMode.RaiseAbovePlate, loaded.Placement.Mode);
+        Assert.Equal(8.5f, loaded.Placement.HeightMm);
     }
 
     [Fact]
@@ -84,6 +91,7 @@ public sealed class UserConfigTests : IDisposable
         var loaded = UserConfig.Load(PathFor("nowhere.json"));
         Assert.Equal(1f, loaded.SpaceMouse.OrbitSensitivity);
         Assert.False(loaded.SpaceMouse.InvertZoom);
+        Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
     }
 
     [Fact]
@@ -105,5 +113,18 @@ public sealed class UserConfigTests : IDisposable
         var loaded = UserConfig.Load(path);
         Assert.Equal(0.1f, loaded.SpaceMouse.ZoomSensitivity);
         Assert.Equal(1f, loaded.SpaceMouse.OrbitSensitivity); // untouched default
+    }
+
+    [Fact]
+    public void ExplicitNullPlacementSectionIsTreatedAsMissing()
+    {
+        var path = PathFor("null-section.json");
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(path, """{ "Placement": null }""");
+
+        var loaded = UserConfig.Load(path);
+
+        Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
+        Assert.Equal(5f, loaded.Placement.HeightMm);
     }
 }

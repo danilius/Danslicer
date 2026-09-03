@@ -765,6 +765,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 // Lay flat on the face under the cursor; with nothing under it, arm a click pick.
                 case Key.F when !ctrl: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
                 case Key.H when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.UnhideAll(); break;
+                case Key.H when shift && !ctrl: Document.HideUnselectedSupportElements(); break;
                 case Key.H when !ctrl: Document.HideSelection(); break;
                 // Manual support under the cursor: routed around the model; Shift+T forces the
                 // old straight vertical drop (the DESIGN §8.6 override).

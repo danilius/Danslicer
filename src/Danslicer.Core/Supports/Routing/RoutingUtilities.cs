@@ -10,7 +10,7 @@ internal static class RoutingUtilities
         ? Vector3.Normalize(normal) : Vector3.UnitZ;
 
     public static IReadOnlyList<RoutingTip> AddReinforcementTips(IEnumerable<RoutingTip> tips,
-        GrowthRuleSet rules, int seed)
+        GrowthRuleSet rules, ICollisionScene obstacles, int seed)
     {
         var result = tips.ToList();
         var rule = rules.Find<ReinforceGrowthRule>();
@@ -28,9 +28,16 @@ internal static class RoutingUtilities
             {
                 var angle = angleOffset + index * MathF.Tau / rule.Count;
                 var offset = new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0) * rule.RingRadius;
+                var unprojected = routingSeed.SurfacePoint + offset;
+                var inward = SafeInwardNormal(routingSeed.InwardSurfaceNormal);
+                var hit = ProjectToSurface(unprojected, inward, rule.RingRadius, obstacles);
+                if (hit is null) continue;
+                var projectedInward = -hit.Value.SurfaceNormal;
+                if (Vector3.Dot(projectedInward, inward) < 0) projectedInward = -projectedInward;
                 result.Add(routingSeed with
                 {
-                    SurfacePoint = routingSeed.SurfacePoint + offset,
+                    SurfacePoint = hit.Value.Point,
+                    InwardSurfaceNormal = projectedInward,
                     TipDiameter = routingSeed.TipDiameter * rule.RingDiameterMultiplier,
                     IsCritical = false,
                     IsObjectLowest = false,
@@ -39,6 +46,23 @@ internal static class RoutingUtilities
             }
         }
         return result;
+    }
+
+    /// <summary>
+    /// Projects a horizontal Reinforce-ring sample back onto triangle geometry. Raycast deliberately
+    /// ignores support capsules, so an existing support can never steal a model contact. Trying both
+    /// directions also handles samples which begin just inside a sloping surface.
+    /// </summary>
+    private static ObstacleRayHit? ProjectToSurface(Vector3 point, Vector3 inward,
+        float maxDistance, ICollisionScene obstacles)
+    {
+        const float epsilon = 1e-3f;
+        var into = obstacles.Raycast(point - inward * epsilon, inward, maxDistance + epsilon);
+        var outward = obstacles.Raycast(point + inward * epsilon, -inward, maxDistance + epsilon);
+        if (into is null) return outward;
+        if (outward is null) return into;
+        return Vector3.DistanceSquared(point, into.Value.Point) <=
+               Vector3.DistanceSquared(point, outward.Value.Point) ? into : outward;
     }
 
     private static IReadOnlyList<RoutingTip> SelectSeeds(IReadOnlyList<RoutingTip> tips,

@@ -35,7 +35,10 @@ public sealed class RoutingGridTests
         reinforce.Count = 3;
         reinforce.RingRadius = 3;
         reinforce.RingDiameterMultiplier = 1.5f;
-        var router = new GridSupportRouter(new LinearCollisionScene(), rules);
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-10, -10, 10), new(-10, 10, 10), new(10, 10, 10));
+        scene.AddTriangle(new(-10, -10, 10), new(10, 10, 10), new(10, -10, 10));
+        var router = new GridSupportRouter(scene, rules);
 
         var result = router.Route(
             new[] { new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f, IsRegionLowest: true) },
@@ -48,6 +51,66 @@ public sealed class RoutingGridTests
         Assert.Equal(3, tips.Count(tip => MathF.Abs(tip.TipDiameter - 0.6f) < 1e-5f));
         Assert.All(tips.Where(tip => tip.TipDiameter > 0.5f), tip =>
             Assert.Equal(3, new Vector2(tip.Position.X, tip.Position.Y).Length(), 3));
+    }
+
+    [Fact]
+    public void ReinforceReprojectsRingTipsOntoSphereCap()
+    {
+        const float radius = 10;
+        var centre = new Vector3(0, 0, 20);
+        var scene = new LinearCollisionScene();
+        const int sectors = 48;
+        const int stacks = 12;
+        Vector3 Point(int stack, int sector)
+        {
+            var phi = stack * (MathF.PI / 3) / stacks;
+            var theta = sector * MathF.Tau / sectors;
+            return centre + radius * new Vector3(MathF.Sin(phi) * MathF.Cos(theta),
+                MathF.Sin(phi) * MathF.Sin(theta), -MathF.Cos(phi));
+        }
+        for (var sector = 0; sector < sectors; sector++)
+            scene.AddTriangle(Point(0, 0), Point(1, sector + 1), Point(1, sector));
+        for (var stack = 1; stack < stacks; stack++)
+            for (var sector = 0; sector < sectors; sector++)
+            {
+                var a = Point(stack, sector);
+                var b = Point(stack, sector + 1);
+                var c = Point(stack + 1, sector);
+                var d = Point(stack + 1, sector + 1);
+                scene.AddTriangle(a, d, c);
+                scene.AddTriangle(a, b, d);
+            }
+
+        var rules = GrowthRuleSet.Default;
+        var reinforce = rules.Find<ReinforceGrowthRule>()!;
+        reinforce.Enabled = true;
+        reinforce.SeedSelector = ReinforceSeedSelector.LowestPointOfRegion;
+        reinforce.Count = 3;
+        reinforce.RingRadius = 3;
+        var result = new GridSupportRouter(scene, rules).Route(
+            new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f, IsRegionLowest: true) },
+            new GridRoutingOptions { Seed = 17 });
+
+        var reinforced = result.Graph.Nodes
+            .Where(node => node.Type == SupportNodeType.Tip && node.Position.Z > 10.1f).ToList();
+        Assert.Equal(3, reinforced.Count);
+        Assert.All(reinforced, tip =>
+            Assert.InRange(Vector3.Distance(tip.Position, centre), radius - 0.1f, radius + 0.1f));
+    }
+
+    [Fact]
+    public void ReinforceDropsRingTipsThatCannotBeProjected()
+    {
+        var rules = GrowthRuleSet.Default;
+        var reinforce = rules.Find<ReinforceGrowthRule>()!;
+        reinforce.Enabled = true;
+        reinforce.Count = 3;
+
+        var result = new GridSupportRouter(new LinearCollisionScene(), rules).Route(
+            new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f, IsRegionLowest: true) },
+            new GridRoutingOptions());
+
+        Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Tip);
     }
 
     [Fact]

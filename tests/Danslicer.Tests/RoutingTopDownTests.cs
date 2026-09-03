@@ -61,7 +61,10 @@ public sealed class RoutingTopDownTests
         reinforce.SeedSelector = ReinforceSeedSelector.CriticalTips;
         reinforce.Count = 2;
         reinforce.RingRadius = 3;
-        var router = new TopDownSupportRouter(new LinearCollisionScene(), rules);
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-10, -10, 10), new(-10, 10, 10), new(20, 10, 10));
+        scene.AddTriangle(new(-10, -10, 10), new(20, 10, 10), new(20, -10, 10));
+        var router = new TopDownSupportRouter(scene, rules);
         var tips = new[]
         {
             new RoutingTip(new(0, 0, 10), -Vector3.UnitZ, 0.4f, IsCritical: true),

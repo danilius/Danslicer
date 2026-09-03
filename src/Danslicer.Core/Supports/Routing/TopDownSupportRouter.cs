@@ -55,7 +55,7 @@ public sealed class TopDownSupportRouter
         var angleOffset = new Random(options.Seed).NextSingle() * MathF.Tau;
         var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
 
-        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, options.Seed);
+        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, _obstacles, options.Seed);
         foreach (var item in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
                      .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
         {

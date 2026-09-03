@@ -40,6 +40,21 @@ public sealed class ViewportConfig
     public float OverhangCheckerSizeMm { get; set; } = 2f;
 }
 
+public enum PlacementMode
+{
+    AutoDrop,
+    RaiseAbovePlate,
+    Off,
+}
+
+/// <summary>Automatic vertical placement applied after object transform commits.</summary>
+public sealed class PlacementConfig
+{
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public PlacementMode Mode { get; set; } = PlacementMode.AutoDrop;
+    public float HeightMm { get; set; } = 5f;
+}
+
 /// <summary>Saved placement of one window, in screen pixels.</summary>
 public sealed class WindowStateConfig
 {
@@ -60,6 +75,7 @@ public sealed class UserConfig
 {
     public SpaceMouseConfig SpaceMouse { get; set; } = new();
     public ViewportConfig Viewport { get; set; } = new();
+    public PlacementConfig Placement { get; set; } = new();
 
     /// <summary>Window placements keyed by a stable window name ("main", "preferences").</summary>
     public Dictionary<string, WindowStateConfig> Windows { get; set; } = new();
@@ -81,8 +97,14 @@ public sealed class UserConfig
         try
         {
             if (!File.Exists(path)) return new UserConfig();
-            return JsonSerializer.Deserialize<UserConfig>(File.ReadAllText(path), JsonOptions)
-                   ?? new UserConfig();
+            var config = JsonSerializer.Deserialize<UserConfig>(File.ReadAllText(path), JsonOptions)
+                         ?? new UserConfig();
+            // Explicit nulls from hand-edited or older files are treated like missing sections.
+            config.SpaceMouse ??= new SpaceMouseConfig();
+            config.Viewport ??= new ViewportConfig();
+            config.Placement ??= new PlacementConfig();
+            config.Windows ??= new Dictionary<string, WindowStateConfig>();
+            return config;
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
         {

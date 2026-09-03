@@ -51,7 +51,7 @@ public sealed class GridSupportRouter
         ArgumentOutOfRangeException.ThrowIfNegative(options.SnapTolerance);
         ArgumentOutOfRangeException.ThrowIfNegative(options.CandidateRingCount);
 
-        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, options.Seed);
+        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, _obstacles, options.Seed);
         var orderedTips = expandedTips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
         var candidates = orderedTips.Select(item =>
             (item.Tip, item.Index, Bases: CandidateBases(item.Tip.SurfacePoint, options).ToList())).ToList();

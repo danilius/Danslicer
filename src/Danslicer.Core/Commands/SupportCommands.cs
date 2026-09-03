@@ -73,6 +73,34 @@ public sealed class SetSupportPositionsCommand : IDocumentCommand
     }
 }
 
+/// <summary>Changes support visibility without changing whether the elements slice.</summary>
+public sealed class SetSupportHiddenCommand : IDocumentCommand
+{
+    public readonly record struct Entry(Action<bool> SetHidden, bool Before, bool After);
+
+    private readonly SupportGraph _graph;
+    private readonly IReadOnlyList<Entry> _entries;
+
+    public SetSupportHiddenCommand(SupportGraph graph, IReadOnlyList<Entry> entries,
+        string name = "Hide supports")
+    {
+        _graph = graph;
+        _entries = entries;
+        Name = name;
+    }
+
+    public string Name { get; }
+
+    public void Execute() => Apply(after: true);
+    public void Undo() => Apply(after: false);
+
+    private void Apply(bool after)
+    {
+        foreach (var entry in _entries) entry.SetHidden(after ? entry.After : entry.Before);
+        _graph.NotifyChanged();
+    }
+}
+
 /// <summary>
 /// Removes support nodes and segments as one undoable step. Segments attached to a removed node are
 /// captured and removed too, so undo restores the exact structure.
