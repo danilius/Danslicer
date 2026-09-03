@@ -119,6 +119,9 @@ public partial class MainViewModel : ViewModelBase
     public partial bool ShowOverhangs { get; set; }
 
     [ObservableProperty]
+    public partial bool SelectThroughSupports { get; set; }
+
+    [ObservableProperty]
     public partial bool AutoDropEnabled { get; set; } = true;
 
     // ----- Slicing -----

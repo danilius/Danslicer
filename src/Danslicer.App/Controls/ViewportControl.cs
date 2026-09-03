@@ -47,6 +47,9 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> SupportSelectionModeProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(SupportSelectionMode));
 
+    public static readonly StyledProperty<bool> SelectThroughSupportsProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(SelectThroughSupports));
+
     private static readonly bool Trace = Environment.GetEnvironmentVariable("DANSLICER_TRACE") == "1";
     private static void Log(string message) { if (Trace) Console.Error.WriteLine($"[viewport] {message}"); }
 
@@ -97,6 +100,7 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool SnapEnabled { get => GetValue(SnapEnabledProperty); set => SetValue(SnapEnabledProperty, value); }
     public bool ShowOverhangs { get => GetValue(ShowOverhangsProperty); set => SetValue(ShowOverhangsProperty, value); }
     public bool SupportSelectionMode { get => GetValue(SupportSelectionModeProperty); set => SetValue(SupportSelectionModeProperty, value); }
+    public bool SelectThroughSupports { get => GetValue(SelectThroughSupportsProperty); set => SetValue(SelectThroughSupportsProperty, value); }
 
     public ViewportControl()
     {
@@ -500,7 +504,7 @@ public sealed class ViewportControl : OpenGlControlBase
                     point => Camera.WorldToScreen(point, w, h),
                     new Vector2((float)start.X, (float)start.Y),
                     new Vector2((float)end.X, (float)end.Y),
-                    IsSupportPointVisible);
+                    SelectThroughSupports ? null : IsSupportPointVisible);
                 Document.SelectSupportElements(ids, _marqueeAdditive);
             }
             else if (!_marqueeAdditive)

@@ -192,6 +192,9 @@
 
                 <StackPanel IsVisible="{Binding IsSupportView}">
                     <TextBlock Text="Support" Classes="section" />
+                    <ToggleButton Content="Select Through" IsChecked="{Binding SelectThroughSupports}"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
                 </StackPanel>
 
                 <ScrollViewer IsVisible="{Binding IsLayersView}">
@@ -243,6 +246,7 @@
                 <controls:ViewportControl x:Name="Viewport" Document="{Binding Document}"
                                           IsVisible="{Binding IsModelView}"
                                           SupportSelectionMode="{Binding IsSupportView}"
+                                          SelectThroughSupports="{Binding SelectThroughSupports}"
                                           ShowMoveGizmo="{Binding ShowMoveGizmo}"
                                           ShowRotateGizmo="{Binding ShowRotateGizmo}"
                                           ShowScaleGizmo="{Binding ShowScaleGizmo}"

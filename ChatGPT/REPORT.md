@@ -64,6 +64,16 @@ all application shortcuts is the consistent rule while a text editor owns focus.
   `WindowStatePersistence.Track` restores valid saved widths and captures actual widths on close.
   Config round-trip coverage includes the two new values.
 
+### 5. Select-through support marquee
+
+The first Support-panel control is a Select Through toggle. It bypasses only the marquee's
+model-depth predicate; click picking retains its existing surface-depth arbitration. Hidden nodes
+and segments remain excluded inside the pure marquee selector regardless of the toggle.
+
+Document selection APIs were also hardened: single-element, multi-element, whole-tree and Ctrl+A
+paths all reject hidden nodes, hidden segments, and segments whose endpoint is hidden. Tests cover
+depth-filter bypass and every document-level hidden-element selection route.
+
 ## Brief 10 — screen-test fixes
 
 The reported diagnosis matched the code, so no divergent finding was required before work.

@@ -108,14 +108,15 @@ public sealed class Document
 
     public void SelectSupportElement(Guid id, bool additive = false)
     {
+        var selectable = IsSupportElementVisible(id);
         if (additive)
         {
-            if (!_supportSelection.Remove(id)) _supportSelection.Add(id);
+            if (!_supportSelection.Remove(id) && selectable) _supportSelection.Add(id);
         }
         else
         {
             _supportSelection.Clear();
-            _supportSelection.Add(id);
+            if (selectable) _supportSelection.Add(id);
         }
         SupportSelectionChanged?.Invoke();
     }
@@ -133,8 +134,10 @@ public sealed class Document
 
         var (nodes, segments) = Supports.Component(seed);
         if (!additive) _supportSelection.Clear();
-        foreach (var id in nodes) _supportSelection.Add(id);
-        foreach (var id in segments) _supportSelection.Add(id);
+        foreach (var id in nodes)
+            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
+        foreach (var id in segments)
+            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
         SupportSelectionChanged?.Invoke();
     }
 
@@ -439,10 +442,15 @@ public sealed class Document
     {
         if (!additive) _supportSelection.Clear();
         foreach (var id in ids)
-            if (Supports.TryGetNode(id, out var node) && !node.Hidden ||
-                Supports.TryGetSegment(id, out var segment) && !segment.Hidden)
-                _supportSelection.Add(id);
+            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
         SupportSelectionChanged?.Invoke();
+    }
+
+    private bool IsSupportElementVisible(Guid id)
+    {
+        if (Supports.TryGetNode(id, out var node)) return !node.Hidden;
+        if (!Supports.TryGetSegment(id, out var segment) || segment.Hidden) return false;
+        return !Supports.GetNode(segment.NodeA).Hidden && !Supports.GetNode(segment.NodeB).Hidden;
     }
 
     /// <summary>Captures the mutable document state needed by background generation.</summary>
