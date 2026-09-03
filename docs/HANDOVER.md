@@ -1,10 +1,10 @@
 # Danslicer handover
 
-Written 2026-09-03 for a fresh conversation, updated overnight 2026-09-03 and again during the
-multi-agent session of 2026-09-03 (see the next section, which supersedes older state notes
-below). Read this, then `docs/DESIGN.md` for the full design.
+Written 2026-09-03 for a fresh conversation, updated overnight 2026-09-03, during the
+multi-agent afternoon, and again 2026-09-03 evening (see the next section, which supersedes
+older state notes below). Read this, then `docs/DESIGN.md` for the full design.
 
-## Multi-agent phase, state as of 2026-09-03 afternoon
+## Multi-agent phase, state as of 2026-09-03 evening
 
 Three AI agents work this repo in parallel; **Claude is manager/integrator ONLY** (user
 directive after hitting a usage limit: no implementation, only briefs, reviews, merges, and
@@ -18,8 +18,10 @@ each worktree, git-excluded via `.git/info/exclude`) hold numbered briefs
 (newest review at top; answers to their questions live there too). Agents commit to their
 branch only, never launch the app or touch the screen (the user tests), never push. Claude
 reviews every commit in a detached scratch worktree (build + full tests in isolation), then
-merges branches to `main` and pushes. `main` is at 190 green tests with everything below
-merged. A monitor in Claude's session polls both mailboxes and branch heads.
+— with the user's approval per merge, which they have granted promptly each time — merges to
+`main` and pushes. `main` is at 212 green tests with both agents' brief 4 merged. Start a
+persistent Monitor polling both mailboxes and branch heads (stat REPORT/QUESTIONS mtimes +
+`rev-parse HEAD` each minute); a fresh session must restart it.
 
 **Merged and working (headless-verified unless noted):** support capsule rendering
 (user-verified on screen), config window with colour pickers/numeric boxes/window persistence
@@ -27,16 +29,43 @@ merged. A monitor in Claude's session polls both mailboxes and branch heads.
 config), plate fade from below, configurable overhang checker (two solid colours + cell size),
 support delete residue pruning, full generation stack (tip placement with derived-mesh-data
 cache and BVH, grid + top-down routing, growth rules incl. attach-to-existing / keep-clean /
-Reinforce / Land, bracing stage, BVH + linear + composite collision scenes), print checks
-(suction cups, proximity, islands, bounds), `SupportGenerator` pipeline, T routes manual
-supports around the model (Shift+T = blind override), CLI: `tips` / `route` / `checks`.
+Reinforce with ring re-projection / Land, bracing stage, BVH + linear + composite collision
+scenes), print checks (suction cups, proximity, islands, bounds), `SupportGenerator` pipeline
+with grid wiring, T routes manual supports around the model (Shift+T = blind override),
+auto-placement after transform commits (user-verified: Drop/Raise/Off header controls, one
+undo step), Generate Supports (Ctrl+G, user-verified working), Shift+H hide-unselected
+supports (buggy, see below), `MeshSlicer.LayerPolygons`/`NewbornIslands`, support-area
+auto-detection (`SupportAreaDetector`), CLI: `tips` / `route` / `checks` / `areas`, and
+`docs/BENCHMARKS.md` — the brief-4 baseline on the two canonical models.
 
-**Outstanding:** ChatGPT owes the Reinforce ring re-projection (required, brief 4 item 1) and
-then owns the App lane: auto-drop-to-plate (spec below), Generate Supports command, Shift+H.
-Grok owns benchmarks on the two canonical models (below), generator grid wiring, the
-MeshSlicer island helper (narrow unlock), and support-area auto-detection (recipes groundwork).
-**User has NOT yet screen-tested:** T-routing behaviour (routed supports, refusal message,
-Shift+T override, junction-collapse shapes) — ask for that test. The physical test print
+**In flight (briefs written, agents working):**
+
+- **ChatGPT** — order: brief 6 item 1 first (bug: Shift+H hides selected supports too; root
+  cause diagnosed in the brief — `SupportRenderMesh.Build` skips segments whose endpoint
+  nodes are hidden, and hide-unselected hides a selected segment's own endpoints), then
+  brief 5 (user-reported T-routing bug: refusal message is clobbered by `UpdateStatus()` at
+  the end of `OnKeyDown`, so refusals are silent; router needs per-tip refusal reasons
+  plumbed to App + CLI, a concave-pocket repro fixture, then a deterministic fix — wider
+  blocked-step search / padded steep landings / neck-clearance rethink), then brief 6 item 2
+  (replace the three placement buttons with one "Auto Drop" toggle + offset edit box).
+- **Grok** — brief 5: `--seat` CLI flag (drop lowest point to Z=0, centre XY) and a seated
+  benchmark section in BENCHMARKS.md; then support tip contact geometry per the user's
+  2026-09-03 spec: cone tips (base = support diameter, configurable contact diameter),
+  optional snap-off ball at the contact, additive schema on `SupportNode` +
+  `SupportSliceGeometry` (those two files are unlocked additively for this), defaults
+  bit-identical to today. Rendering the new shapes is a future App-lane brief.
+
+**Benchmark findings that drive current briefs:** 41% (grid) / 53% (top-down) of auto tips
+fail to route on Drogon — the user's T-refusal bug at scale; top-down on the unseated
+gripper (raw CAD coords ~3 km up) was killed at 39 min — hence `--seat`.
+
+**User decisions 2026-09-03 evening:** generation-quality tuning (densities, what looks
+right) is deferred until supports have real printable geometry and profiles; tip cone/ball
+geometry is the prerequisite and is briefed now. Placement UI becomes a single Auto Drop
+toggle + offset box.
+
+**User has NOT yet screen-tested:** the T-routing refusal message and Shift+T override
+(blocked on ChatGPT brief 5), Reinforce visuals (no profile UI yet). The physical test print
 (mirror-X) remains user-only.
 
 ## Overnight session 2026-09-03 (while the user slept)
