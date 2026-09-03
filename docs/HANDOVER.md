@@ -1,7 +1,43 @@
 # Danslicer handover
 
-Written 2026-09-03 for a fresh conversation, updated overnight 2026-09-03. Read this, then
-`docs/DESIGN.md` for the full design.
+Written 2026-09-03 for a fresh conversation, updated overnight 2026-09-03 and again during the
+multi-agent session of 2026-09-03 (see the next section, which supersedes older state notes
+below). Read this, then `docs/DESIGN.md` for the full design.
+
+## Multi-agent phase, state as of 2026-09-03 afternoon
+
+Three AI agents work this repo in parallel; **Claude is manager/integrator ONLY** (user
+directive after hitting a usage limit: no implementation, only briefs, reviews, merges, and
+asking the user to test). ChatGPT and Grok run as local CLIs with file access.
+
+**Mechanics.** Each agent has its own git worktree and branch: ChatGPT in
+`F:\Git Repos\Danslicer-chatgpt` on `grid-routing-prototype`, Grok in
+`F:\Git Repos\Danslicer-grok` on `region-generation`. Mailbox folders (`ChatGPT/`, `Grok/` in
+each worktree, git-excluded via `.git/info/exclude`) hold numbered briefs
+(`INSTRUCTIONS[-N].md`), the agent's `REPORT.md`/`QUESTIONS.md`, and Claude's `REVIEW.md`
+(newest review at top; answers to their questions live there too). Agents commit to their
+branch only, never launch the app or touch the screen (the user tests), never push. Claude
+reviews every commit in a detached scratch worktree (build + full tests in isolation), then
+merges branches to `main` and pushes. `main` is at 190 green tests with everything below
+merged. A monitor in Claude's session polls both mailboxes and branch heads.
+
+**Merged and working (headless-verified unless noted):** support capsule rendering
+(user-verified on screen), config window with colour pickers/numeric boxes/window persistence
+(user-verified), calibrated SpaceMouse (user's feel = multiplier 1.0, all axes inverted in
+config), plate fade from below, configurable overhang checker (two solid colours + cell size),
+support delete residue pruning, full generation stack (tip placement with derived-mesh-data
+cache and BVH, grid + top-down routing, growth rules incl. attach-to-existing / keep-clean /
+Reinforce / Land, bracing stage, BVH + linear + composite collision scenes), print checks
+(suction cups, proximity, islands, bounds), `SupportGenerator` pipeline, T routes manual
+supports around the model (Shift+T = blind override), CLI: `tips` / `route` / `checks`.
+
+**Outstanding:** ChatGPT owes the Reinforce ring re-projection (required, brief 4 item 1) and
+then owns the App lane: auto-drop-to-plate (spec below), Generate Supports command, Shift+H.
+Grok owns benchmarks on the two canonical models (below), generator grid wiring, the
+MeshSlicer island helper (narrow unlock), and support-area auto-detection (recipes groundwork).
+**User has NOT yet screen-tested:** T-routing behaviour (routed supports, refusal message,
+Shift+T override, junction-collapse shapes) — ask for that test. The physical test print
+(mirror-X) remains user-only.
 
 ## Overnight session 2026-09-03 (while the user slept)
 
