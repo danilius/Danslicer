@@ -45,9 +45,17 @@ Verification notes for this machine: after the Alt-key foreground trick, press E
 typing — the menu bar is armed and F opens File. PowerShell tool calls don't share state; redefine
 Add-Type classes with fresh names per call.
 
-Next candidates: wire support sections into `Slicer.Slice`; manual tip add/edit UI on the graph;
-SpaceMouse buttons via COM connection points; sign/sensitivity tuning with the user; the test print
-(mirror-X question) is still the one thing only the user can do.
+9. **Support slicing** — `Slicer.Slice` takes an optional graph; capsule sections union into every
+   layer, print height extends to the tallest cap, `Document.Supports` exists and the app passes it.
+10. **Manual supports** — press T over the model: a vertical tip-neck-pillar-base tree drops from
+   the picked surface point to the plate, one undo step, drawn as depth-tested coloured lines
+   (necks yellow, pillars blue, bracing green, tips orange crosses). Hidden elements skip drawing
+   but still slice; disabled ones fade and don't slice. Verified on screen.
+
+Next candidates: support element selection and deletion (click a line, Delete); move tip along the
+surface; SpaceMouse buttons via COM connection points; SpaceMouse sign/sensitivity tuning with the
+user; region painting and generation (milestone 6); the test print (mirror-X question) is still the
+one thing only the user can do. The 74-test suite is green on `main`.
 
 ## What this is
 
