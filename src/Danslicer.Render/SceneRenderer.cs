@@ -1,5 +1,6 @@
 using System.Numerics;
 using Danslicer.Core;
+using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
@@ -39,6 +40,10 @@ public sealed class RenderFrame
     public Vector3 OverhangColorA { get; init; } = new(0.98f, 0.80f, 0.15f);
     public Vector3 OverhangColorB { get; init; } = new(0.90f, 0.12f, 0.10f);
     public float OverhangCheckerSizeMm { get; init; } = 2f;
+    /// <summary>Which pipeline draws this frame. Deferred falls back to Classic on GL failure.</summary>
+    public RenderPathMode RenderPath { get; init; } = RenderPathMode.Classic;
+    /// <summary>Shading and effect settings for the deferred path; ignored by Classic.</summary>
+    public DeferredEffects Deferred { get; init; } = DeferredEffects.Default;
     /// <summary>Support-mode world-Z isolation. Full/inactive ranges leave output bit-identical.</summary>
     public ViewportClipRange ClipRange { get; init; }
     /// <summary>Hovered model-surface world Z, or null when the Support waterline is inactive.</summary>
@@ -49,7 +54,7 @@ public sealed class RenderFrame
 /// Forward renderer for milestone one: studio-lit flat-shaded meshes, build plate, grid and overlay
 /// lines. Owns all GPU resources; the host supplies a GL proc-address resolver and a framebuffer.
 /// </summary>
-public sealed class SceneRenderer : IDisposable
+public sealed partial class SceneRenderer : IDisposable
 {
     private static readonly Vector3 ObjectColor = new(0.70f, 0.71f, 0.74f);
     private static readonly Vector3 SelectedColor = new(0.96f, 0.60f, 0.18f);
@@ -84,6 +89,14 @@ public sealed class SceneRenderer : IDisposable
     }
 
     public void Render(RenderFrame frame)
+    {
+        // The deferred path lives in SceneRenderer.Deferred.cs and is opt-in per frame; any GL
+        // failure there logs, latches off and falls back so a frame is always produced.
+        if (frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame)) return;
+        RenderClassic(frame);
+    }
+
+    private void RenderClassic(RenderFrame frame)
     {
         var gl = _gl;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)frame.Framebuffer);
@@ -346,6 +359,7 @@ public sealed class SceneRenderer : IDisposable
 
     public void Dispose()
     {
+        _deferred?.Dispose();
         foreach (var gpu in _meshes.Values) gpu.Dispose();
         _meshes.Clear();
         _plate?.Dispose();
