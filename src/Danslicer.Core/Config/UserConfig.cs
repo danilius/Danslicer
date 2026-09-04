@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Danslicer.Core.Printers;
 using Danslicer.Core.Supports;
 
 namespace Danslicer.Core.Config;
@@ -213,6 +214,7 @@ public sealed class UserConfig
     public ViewportConfig Viewport { get; set; } = new();
     public PlacementConfig Placement { get; set; } = new();
     public SupportConfig Supports { get; set; } = new();
+    public List<PrinterDefinition> Printers { get; set; } = CreateBuiltInPrinters();
     public List<SupportPreset> SupportPresets { get; set; } = CreateBuiltInSupportPresets();
     public string ActiveSupportPresetName { get; set; } = CadCleanSupportPresetName;
 
@@ -252,6 +254,7 @@ public sealed class UserConfig
             config.Placement ??= new PlacementConfig();
             config.Supports ??= new SupportConfig();
             config.Supports.Normalize();
+            config.NormalizePrinters();
             config.NormalizeSupportPresets();
             config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
                 ? MathF.Max(0, config.Placement.HeightMm)
@@ -275,6 +278,36 @@ public sealed class UserConfig
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
         File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOptions));
+    }
+
+    public PrinterDefinition? FindPrinter(string id) => Printers.FirstOrDefault(
+        printer => string.Equals(printer.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    public PrinterDefinition AddPrinter(PrinterDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        var normalized = definition.Normalize();
+        if (FindPrinter(normalized.Id) is not null)
+            normalized = normalized.CreateUserCopy(normalized.Name);
+        Printers.Add(normalized);
+        return normalized;
+    }
+
+    public bool ReplacePrinter(PrinterDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        var index = Printers.FindIndex(printer =>
+            string.Equals(printer.Id, definition.Id, StringComparison.OrdinalIgnoreCase));
+        if (index < 0 || Printers[index].IsBuiltIn) return false;
+        Printers[index] = definition.Normalize() with { IsBuiltIn = false };
+        return true;
+    }
+
+    public bool DeletePrinter(string id)
+    {
+        var printer = FindPrinter(id);
+        if (printer is null || printer.IsBuiltIn) return false;
+        return Printers.Remove(printer);
     }
 
     public SupportPreset? FindSupportPreset(string name) => SupportPresets.FirstOrDefault(
@@ -343,6 +376,24 @@ public sealed class UserConfig
         new() { Name = CadCleanSupportPresetName, Settings = new SupportConfig() },
         new() { Name = OrganicDenseSupportPresetName, Settings = new SupportConfig() },
     ];
+
+    private static List<PrinterDefinition> CreateBuiltInPrinters() => [PrinterDefinition.PhotonMonoX];
+
+    private void NormalizePrinters()
+    {
+        Printers ??= [];
+        var normalized = new List<PrinterDefinition>();
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var printer in Printers)
+        {
+            if (printer is null) continue;
+            var item = printer.Normalize();
+            if (item.Id == PrinterDefinition.PhotonMonoXId || !ids.Add(item.Id)) continue;
+            normalized.Add(item with { IsBuiltIn = false });
+        }
+        normalized.Insert(0, PrinterDefinition.PhotonMonoX);
+        Printers = normalized;
+    }
 
     private void NormalizeSupportPresets()
     {

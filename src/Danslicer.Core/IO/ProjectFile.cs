@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.Geometry;
+using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
@@ -70,6 +71,8 @@ public static class ProjectFile
             Objects = document.Scene.Objects.Select(obj => ObjectDto.From(obj, meshes[obj.Mesh])).ToList(),
             SupportGraph = SupportGraphDto.From(document.Supports),
             PrintSettings = document.PrintSettings,
+            PrinterId = document.Printer.Id,
+            Printer = document.Printer,
             ViewState = ViewStateDto.From(viewState),
         };
 
@@ -142,6 +145,7 @@ public static class ProjectFile
         var document = new Document
         {
             PrintSettings = manifest.PrintSettings ?? PrintSettings.Default,
+            Printer = ResolvePrinter(manifest),
         };
         foreach (var dto in manifest.Objects)
             document.Scene.Add(dto.ToObject(meshes[dto.Mesh]));
@@ -203,7 +207,19 @@ public static class ProjectFile
         public List<ObjectDto> Objects { get; set; } = [];
         public SupportGraphDto SupportGraph { get; set; } = new();
         public PrintSettings? PrintSettings { get; set; }
+        public string? PrinterId { get; set; }
+        public PrinterDefinition? Printer { get; set; }
         public ViewStateDto? ViewState { get; set; }
+    }
+
+    private static PrinterDefinition ResolvePrinter(ManifestDto manifest)
+    {
+        if (manifest.Printer is null || string.IsNullOrWhiteSpace(manifest.PrinterId))
+            return PrinterDefinition.PhotonMonoX;
+        var embedded = manifest.Printer.Normalize();
+        return string.Equals(embedded.Id, manifest.PrinterId, StringComparison.OrdinalIgnoreCase)
+            ? embedded
+            : PrinterDefinition.PhotonMonoX;
     }
 
     private sealed class VersionDto

@@ -2,12 +2,23 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
+        xmlns:printers="using:Danslicer.Core.Printers"
         x:Class="Danslicer.App.Views.ConfigWindow"
         x:DataType="vm:ConfigViewModel"
         Width="760" Height="540" MinWidth="560" MinHeight="360"
         WindowStartupLocation="CenterOwner"
         Background="#23262A"
         Title="Preferences">
+
+    <Window.Resources>
+        <DataTemplate x:Key="PrinterFieldTemplate" x:DataType="vm:NumericField">
+            <Grid ColumnDefinitions="130,*,52" Margin="0,2">
+                <TextBlock Text="{Binding Label}" Classes="label" />
+                <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay}" />
+                <TextBlock Grid.Column="2" Text="{Binding Suffix}" Classes="label" Margin="6,0,0,0" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
 
     <Window.Styles>
         <Style Selector="TextBlock.label">
@@ -40,6 +51,12 @@
             <Setter Property="MinHeight" Value="24" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="controls|ExpressionBox">
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalContentAlignment" Value="Right" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
@@ -51,6 +68,7 @@
                          SelectionChanged="OnSectionSelected">
                     <ListBoxItem Content="Viewport" />
                     <ListBoxItem Content="Keymap" />
+                    <ListBoxItem Content="Printers" />
                     <ListBoxItem Content="Supports" />
                     <ListBoxItem Content="SpaceMouse" />
                 </ListBox>
@@ -126,6 +144,61 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+
+                <StackPanel x:Name="PrintersSection">
+                    <TextBlock Text="Printers" Classes="section" />
+                    <Grid Tag="printers machines definitions add duplicate rename delete resolution display size mirror format"
+                          ColumnDefinitions="190,*" ColumnSpacing="14">
+                        <StackPanel>
+                            <ListBox ItemsSource="{Binding Printers.Items}"
+                                     SelectedIndex="{Binding Printers.SelectedIndex, Mode=TwoWay}"
+                                     MinHeight="180" MaxHeight="300">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="printers:PrinterDefinition">
+                                        <StackPanel Margin="2">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" />
+                                            <TextBlock Text="Built-in" Classes="label" FontSize="10"
+                                                       IsVisible="{Binding IsBuiltIn}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Content="Add" Command="{Binding Printers.AddCommand}" Margin="0,0,4,4" />
+                                <Button Content="Duplicate" Command="{Binding Printers.DuplicateCommand}" Margin="0,0,4,4" />
+                                <Button Content="Delete" Command="{Binding Printers.DeleteCommand}" Margin="0,0,4,4" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" IsEnabled="{Binding Printers.HasSelectedPrinter}">
+                            <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       IsVisible="{Binding Printers.IsBuiltInSelected}"
+                                       Text="Built-in definitions are read-only. The first edit creates a user copy." />
+                            <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="6" Margin="0,2">
+                                <TextBlock Text="Name" Classes="label" />
+                                <TextBox Grid.Column="1" Text="{Binding Printers.NameDraft}" />
+                                <Button Grid.Column="2" Content="Rename" Command="{Binding Printers.RenameCommand}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="130,*" Margin="0,2">
+                                <TextBlock Text="Machine name" Classes="label" />
+                                <TextBox Grid.Column="1" Text="{Binding Printers.MachineName, Mode=TwoWay}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="130,*" Margin="0,2">
+                                <TextBlock Text="File extension" Classes="label" />
+                                <TextBox Grid.Column="1" Text="{Binding Printers.FileExtension, Mode=TwoWay}" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Printers.Fields}"
+                                          ItemTemplate="{StaticResource PrinterFieldTemplate}" />
+                            <WrapPanel Margin="0,4,0,0">
+                                <TextBlock Text="Mirror layer image" Classes="label" Width="130" />
+                                <CheckBox Content="X" IsChecked="{Binding Printers.MirrorX}" Margin="0,0,12,0" />
+                                <CheckBox Content="Y" IsChecked="{Binding Printers.MirrorY}" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding Printers.ValidationMessage}"
+                                       IsVisible="{Binding Printers.HasValidationMessage}"
+                                       Foreground="#FFB35C" FontSize="12" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
 
                 <StackPanel x:Name="SupportsSection">
