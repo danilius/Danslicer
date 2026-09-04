@@ -13,8 +13,8 @@ well-supported** — support-quality jobs now lead the queue. All D1–D7 decisi
 | U4 | Restart Unsloth for the Qwen lane | open |
 | U5 | Re-run `/auto-mode-setup` | open |
 | U6 | Branch X-crossing gone? (Lychee target) | open — gates deep quality tuning (W6) |
-| U7 | Regenerate drogon-head supports: no downward tips | open (fix merged, unverified on screen) |
-| U8 | Job 019 on screen: 6 mm grid pitch on regeneration | open |
+| U7 | Regenerate drogon-head supports: no downward tips | **CONFIRMED** (user, 2026-09-04 PM) |
+| U8 | Job 019 on screen: 6 mm grid pitch on regeneration | **CONFIRMED — 6 mm is a good default**; follow-ups queued: grid changes auto-save into active preset (023c), pop-outs stay open with title+X header (023b) |
 
 ## Merged today (all pushed, 481 green at `ef5b582`)
 
