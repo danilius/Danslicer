@@ -3,6 +3,7 @@ using Danslicer.Core.Config;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Tests;
@@ -286,6 +287,7 @@ public sealed class UserConfigTests : IDisposable
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 6f, BaseHeight = 1.1f,
                 BaseConeHeight = 2.8f, Spacing = 3.2f, IslandSpacingMm = 0.7f, OverhangAngleDegrees = 51f,
                 MinIslandAreaMm2 = 0.9f,
+                MaxContactFaceAngleDegrees = 33f, RequireContactSeesPlate = true,
             },
         };
         var path = PathFor("supports.json");
@@ -328,6 +330,31 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.7f, supports.IslandSpacingMm);
         Assert.Equal(51f, supports.OverhangAngleDegrees);
         Assert.Equal(0.9f, supports.MinIslandAreaMm2);
+        Assert.Equal(33f, supports.MaxContactFaceAngleDegrees);
+        Assert.True(supports.RequireContactSeesPlate);
+    }
+
+    [Fact]
+    public void ContactFaceSettingsRoundTripThroughSupportPresets()
+    {
+        var config = new UserConfig();
+        config.Supports.MaxContactFaceAngleDegrees = 30f;
+        config.Supports.RequireContactSeesPlate = true;
+        Assert.True(config.SaveSupportPresetAs("Downward only"));
+
+        var path = PathFor("contact-face-preset.json");
+        config.Save(path);
+        var loaded = UserConfig.Load(path);
+
+        var preset = loaded.FindSupportPreset("Downward only");
+        Assert.NotNull(preset);
+        Assert.Equal(30f, preset!.Settings.MaxContactFaceAngleDegrees);
+        Assert.True(preset.Settings.RequireContactSeesPlate);
+
+        // Default (unset) config keeps 90°/off so existing users see no change.
+        var defaults = new SupportConfig();
+        Assert.Equal(90f, defaults.MaxContactFaceAngleDegrees);
+        Assert.False(defaults.RequireContactSeesPlate);
     }
 
     [Fact]
