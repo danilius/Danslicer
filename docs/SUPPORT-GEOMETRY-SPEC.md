@@ -109,10 +109,30 @@ rods spreading to nearby contact points.
 
 #### Implemented semantics (job 023 — proposals pending screen test)
 
-- Density clustering is additional to mini-island classification. Regular contacts in a
-  connected group of at least three, each linked within the configurable crowding distance,
-  become mini-tip members instead of adjacent full-size cones. Mini-island contacts keep their
-  existing classification and route pass.
+- Density clustering is additional to mini-island classification. Regular-size contacts,
+  explicitly including required `Island` contacts, in a connected group of at least three each
+  linked within the configurable crowding distance become mini-tip members instead of adjacent
+  full-size cones. Each member retains its source strategy as metadata so island coverage remains
+  auditable after reclassification. Mini-island contacts keep their existing classification and
+  route pass.
+- After density clustering, an isolated `Island` or `LocalMinimum` contact whose measured local
+  cross-section is no greater than `FineFeatureMaxAreaMm2` becomes a one-member mini cluster.
+  Islands use their already-computed first-appearance area. Local minima use the connected solid
+  section in a horizontal slice 0.5 mm above the contact; if that fixed-height probe does not
+  contain the contact XY, the contact stays regular rather than guessing. Mini-island
+  classification still wins, and crowded density groups are never split by this pass.
+- The proposed `FineFeatureMaxAreaMm2` default is **1.0 mm²**. On `drogon-lo`, the four isolated
+  bottom-spike minima measure 0.36, 0.62, 0.68 and 0.78 mm² at the 0.5 mm probe; the next measured
+  local minimum is 4.01 mm², leaving a clean gap around the round-number default.
+- After density clustering, an isolated `Island` or `LocalMinimum` contact whose measured local
+  cross-section is no greater than `FineFeatureMaxAreaMm2` becomes a one-member mini cluster.
+  Islands use their already-computed first-appearance area. Local minima use the connected solid
+  section in a horizontal slice 0.5 mm above the contact; if that fixed-height probe does not
+  contain the contact XY, the contact stays regular rather than guessing. Mini-island
+  classification still wins, and crowded density groups are never split by this pass.
+- The proposed `FineFeatureMaxAreaMm2` default is **1.0 mm²**. On `drogon-lo`, the four isolated
+  bottom-spike minima measure 0.36, 0.62, 0.68 and 0.78 mm² at the 0.5 mm probe; the next measured
+  local minimum is 4.01 mm², leaving a clean gap around the round-number default.
 - The proposed crowding-distance default is **1.25 mm**, derived as half the default 2.5 mm tip
   spacing. Each cluster location is the score-weighted centre of its member contacts.
 - One purpose-built branch end below the cluster feeds one ascending mini rod per member. The
@@ -129,9 +149,9 @@ rods spreading to nearby contact points.
   print-killers; they get tips and routing priority before other strategies place
   anything.
 - **Island Support** (Support-mode toolbar button): generates island supports ONLY.
-- **Island Detection** (Support-mode toolbar button): run AFTER supports are
-  generated or manually added — lists all still-unsupported islands and marks each
-  with a **red sphere** in the viewport.
+- **Island Detection** (Support-mode toolbar button): may run before supports exist, listing every
+  bare-model island, or after generation/manual edits, listing only islands not reached by an
+  active support contact. It marks each finding with a **red sphere** in the viewport.
 - A pop-out tunes Island Detection and Island Support parameters.
 - Working goal: the low-res drogon is the canonical push-until-well-supported test
   subject for auto + manual support quality.

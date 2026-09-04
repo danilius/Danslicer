@@ -41,6 +41,8 @@ public sealed class UserConfigTests : IDisposable
                 OverhangColorA = "#112233",
                 OverhangColorB = "#445566",
                 OverhangCheckerSizeMm = 5f,
+                CapInterior = false,
+                CapStyle = ClipCapStyle.Painted,
                 SupportDisplay = new SupportDisplayConfig
                 {
                     Mode = SupportDisplayMode.Transparent,
@@ -78,6 +80,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
         Assert.Equal("#445566", loaded.Viewport.OverhangColorB);
         Assert.Equal(5f, loaded.Viewport.OverhangCheckerSizeMm);
+        Assert.False(loaded.Viewport.CapInterior);
+        Assert.Equal(ClipCapStyle.Painted, loaded.Viewport.CapStyle);
         Assert.Equal(SupportDisplayMode.Transparent, loaded.Viewport.SupportDisplay.Mode);
         Assert.False(loaded.Viewport.SupportDisplay.ShowContactPointsInTransparent);
         Assert.False(loaded.Viewport.SupportDisplay.ShowTips);
@@ -123,6 +127,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
         Assert.Equal(0f, loaded.Placement.HeightMm);
         Assert.Equal(SupportDisplayMode.Full, loaded.Viewport.SupportDisplay.Mode);
+        Assert.True(loaded.Viewport.CapInterior);
+        Assert.Equal(ClipCapStyle.Sliced, loaded.Viewport.CapStyle);
         Assert.True(loaded.Viewport.SupportDisplay.ShowTips);
         Assert.True(loaded.Viewport.SupportDisplay.ShowMiniSupports);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBranches);
@@ -276,7 +282,8 @@ public sealed class UserConfigTests : IDisposable
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
-                MiniSupportClusterDistance = 1.4f,
+                MiniSupportClusterDistance = 1.4f, FineFeatureMaxAreaMm2 = 1.8f,
+                FineFeatureMinisFallBackToRegular = false,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 ReinforceEnabled = true,
@@ -311,6 +318,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(72f, supports.MiniSupportMaxAngleDegrees);
         Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.4f, supports.MiniSupportClusterDistance);
+        Assert.Equal(1.8f, supports.FineFeatureMaxAreaMm2);
+        Assert.False(supports.FineFeatureMinisFallBackToRegular);
         Assert.True(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
         Assert.False(supports.UseBaseGrid);
@@ -337,6 +346,8 @@ public sealed class UserConfigTests : IDisposable
         config.Supports.TipDiameter = 0.23f;
         config.Supports.UseBaseGrid = false;
         config.Supports.MiniSupportMaxFanPerBranchEnd = 7;
+        config.Supports.FineFeatureMaxAreaMm2 = 1.7f;
+        config.Supports.FineFeatureMinisFallBackToRegular = false;
         Assert.True(config.SaveSupportPresetAs("Delicate teeth"));
         var path = PathFor("support-presets.json");
 
@@ -349,6 +360,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.23f, preset.Settings.TipDiameter);
         Assert.False(preset.Settings.UseBaseGrid);
         Assert.Equal(7, preset.Settings.MiniSupportMaxFanPerBranchEnd);
+        Assert.Equal(1.7f, preset.Settings.FineFeatureMaxAreaMm2);
+        Assert.False(preset.Settings.FineFeatureMinisFallBackToRegular);
         Assert.Equal("Delicate teeth", loaded.ActiveSupportPresetName);
         Assert.NotSame(loaded.Supports, preset.Settings);
     }
@@ -442,6 +455,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(5f, supports.MiniSupportMaxLength);
         Assert.Equal(75f, supports.MiniSupportMaxAngleDegrees);
         Assert.Equal(4, supports.MiniSupportMaxFanPerBranchEnd);
+        Assert.Equal(1f, supports.FineFeatureMaxAreaMm2);
+        Assert.True(supports.FineFeatureMinisFallBackToRegular);
         Assert.False(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
         Assert.True(supports.UseBaseGrid);

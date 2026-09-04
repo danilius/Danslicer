@@ -185,6 +185,66 @@ public sealed class SupportGeneratorTests
     }
 
     [Fact]
+    public void IslandOnlyScopeKeepsExactlyIslandSourcedCandidates()
+    {
+        var mesh = Box(new Vector3(-5, -5, 5), new Vector3(5, 5, 15));
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddMesh(mesh, Matrix4x4.Identity);
+        var placement = TipPlacementParameters.Default with
+        {
+            SpacingMm = 4,
+            MinSpacingMm = 4,
+            MinIslandAreaMm2 = 0.1f,
+        };
+        var options = new TreeRoutingOptions { UseBaseGrid = false };
+
+        var full = SupportGenerator.GenerateTree(mesh, AllFaces(mesh), placement, options,
+            GrowthRuleSet.Default, obstacles, seed: 7);
+        var islands = SupportGenerator.GenerateTree(mesh, AllFaces(mesh), placement, options,
+            GrowthRuleSet.Default, obstacles, seed: 7,
+            scope: SupportGenerationScope.IslandsOnly);
+
+        var expected = full.Candidates.Where(SupportGenerator.IsIslandCandidate).ToList();
+        Assert.NotEmpty(expected);
+        Assert.Equal(expected, islands.Candidates);
+        Assert.All(islands.Candidates, candidate =>
+            Assert.True(SupportGenerator.IsIslandCandidate(candidate)));
+    }
+
+    [Fact]
+    public void DetectionReportsBareIslandAndClearsItWhenATipReachesTheLayer()
+    {
+        var mesh = Box(new Vector3(-5, -5, 5), new Vector3(5, 5, 15));
+        var bare = IslandDetection.FindUnsupported(mesh, null, 0.5f, 0.1f, 0, 45);
+        var island = Assert.Single(bare);
+        var graph = new SupportGraph();
+        graph.AddNode(new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = island.Position,
+        });
+        var tip = graph.Nodes.Single();
+        var supportBase = new SupportNode
+        {
+            Type = SupportNodeType.Base,
+            Position = new Vector3(island.X, island.Y, 0),
+        };
+        graph.AddNode(supportBase);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Tip,
+            NodeA = tip.Id,
+            NodeB = supportBase.Id,
+            Diameter = 0.8f,
+        });
+
+        var supported = IslandDetection.FindUnsupported(mesh, graph, 0.5f, 0.1f, 0, 45);
+
+        Assert.Empty(supported);
+        Assert.InRange(island.MarkerRadiusMm, 0.35f, 2f);
+    }
+
+    [Fact]
     public void ConeShapeParametersReachCandidatesAndRoutedTips()
     {
         var mesh = Box(new Vector3(-5, -5, 5), new Vector3(5, 5, 15));

@@ -42,6 +42,7 @@ internal static class TipsCommand
                 case "--spacing": parameters = parameters with { SpacingMm = F(args[++i]) }; break;
                 case "--min-spacing": parameters = parameters with { MinSpacingMm = F(args[++i]) }; break;
                 case "--min-island": parameters = parameters with { MinIslandAreaMm2 = F(args[++i]) }; break;
+                case "--fine-feature-max": parameters = parameters with { FineFeatureMaxAreaMm2 = F(args[++i]) }; break;
                 case "--layer": parameters = parameters with { LayerHeightMm = F(args[++i]) }; break;
                 case "--tip": parameters = parameters with { TipDiameterMm = F(args[++i]) }; break;
                 case "--tip-shape":
@@ -95,7 +96,7 @@ internal static class TipsCommand
         {
             Console.Error.WriteLine("Usage:");
             Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--seat] [--spacing 2.5] [--min-spacing 2.5]");
-            Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--layer 0.05] [--tip 0.4]");
+            Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--fine-feature-max 1] [--layer 0.05] [--tip 0.4]");
             Console.Error.WriteLine("                 [--tip-shape capsule|cone] [--cone-length 2] [--ball-diameter 0] [--penetration-depth 0]");
             Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
             Console.Error.WriteLine("                 [--grid square|hex] [--grid-spacing 5] [--grid-offset-x 0] [--grid-offset-y 0]");
@@ -131,6 +132,14 @@ internal static class TipsCommand
 
         var byStrategy = tips.GroupBy(t => t.Strategy)
             .ToDictionary(g => g.Key.ToString(), g => g.Count());
+        var miniClusterMembers = tips.Where(tip => tip.MiniClusterId is not null).ToList();
+        var miniClusterCount = miniClusterMembers.Select(tip => tip.MiniClusterId!.Value)
+            .Distinct().Count();
+        var fineFeatureMiniCount = tips.Count(tip => tip.IsFineFeatureMini);
+        var miniClusterMembersBySourceStrategy = miniClusterMembers
+            .Where(tip => tip.MiniClusterSourceStrategy is not null)
+            .GroupBy(tip => tip.MiniClusterSourceStrategy!.Value.ToString())
+            .ToDictionary(group => group.Key, group => group.Count());
         var spacing = SpacingStats(tips);
 
         if (json)
@@ -140,8 +149,9 @@ internal static class TipsCommand
                 File = path,
                 Count = tips.Count,
                 ByStrategy = byStrategy,
-                MiniClusters = tips.Where(tip => tip.MiniClusterId is not null)
-                    .Select(tip => tip.MiniClusterId!.Value).Distinct().Count(),
+                MiniClusters = miniClusterCount,
+                FineFeatureMinis = fineFeatureMiniCount,
+                MiniClusterMembersBySourceStrategy = miniClusterMembersBySourceStrategy,
                 Spacing = spacing,
                 SeatOffset = seatOffset is { } o ? MeshSeat.Json(o) : null,
                 TipShape = parameters.TipShape.ToString(),
@@ -164,6 +174,13 @@ internal static class TipsCommand
                     MiniClusterCenter = t.MiniClusterCenter is { } center
                         ? [center.X, center.Y, center.Z]
                         : null,
+                    MiniClusterSourceStrategy = t.MiniClusterSourceStrategy?.ToString(),
+                    FineFeatureAreaMm2 = t.FineFeatureAreaMm2,
+                    IsFineFeatureMini = t.IsFineFeatureMini,
+                    FallbackTipDiameter = t.FallbackTipDiameter,
+                    FallbackTipShape = t.FallbackTipShape?.ToString(),
+                    FallbackConeLength = t.FallbackConeLength,
+                    FallbackBallDiameter = t.FallbackBallDiameter,
                 }).ToList(),
             };
             var opts = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -176,9 +193,11 @@ internal static class TipsCommand
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
         Console.WriteLine($"Tip shape:   {parameters.TipShape}  cone {Fmt(parameters.ConeLengthMm)}  ball {Fmt(parameters.BallDiameterMm)}  penetration {Fmt(parameters.PenetrationDepthMm)}");
         Console.WriteLine($"Candidates:  {tips.Count}");
-        var miniClusterCount = tips.Where(tip => tip.MiniClusterId is not null)
-            .Select(tip => tip.MiniClusterId!.Value).Distinct().Count();
         Console.WriteLine($"Mini clusters: {miniClusterCount}");
+        Console.WriteLine($"Fine-feature minis: {fineFeatureMiniCount}");
+        Console.WriteLine($"Cluster members: island " +
+                          $"{miniClusterMembersBySourceStrategy.GetValueOrDefault(nameof(TipStrategy.Island))}, " +
+                          $"regular {miniClusterMembers.Count - miniClusterMembersBySourceStrategy.GetValueOrDefault(nameof(TipStrategy.Island))}");
         foreach (var strategy in Enum.GetValues<TipStrategy>())
         {
             byStrategy.TryGetValue(strategy.ToString(), out var n);
@@ -235,6 +254,8 @@ internal static class TipsCommand
         public required int Count { get; init; }
         public required Dictionary<string, int> ByStrategy { get; init; }
         public required int MiniClusters { get; init; }
+        public required int FineFeatureMinis { get; init; }
+        public required Dictionary<string, int> MiniClusterMembersBySourceStrategy { get; init; }
         public SpacingDto? Spacing { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public float[]? SeatOffset { get; init; }
@@ -261,6 +282,19 @@ internal static class TipsCommand
         public int? MiniClusterId { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public float[]? MiniClusterCenter { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? MiniClusterSourceStrategy { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float? FineFeatureAreaMm2 { get; init; }
+        public bool IsFineFeatureMini { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float? FallbackTipDiameter { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? FallbackTipShape { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float? FallbackConeLength { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float? FallbackBallDiameter { get; init; }
     }
 
     private sealed class SpacingDto

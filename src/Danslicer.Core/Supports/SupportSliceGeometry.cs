@@ -22,12 +22,20 @@ public static class SupportSliceGeometry
     /// with the model's layer polygons. Disabled elements are skipped; hidden ones still slice.
     /// Capsule-shaped tips take the historical path unchanged.
     /// </summary>
-    public static Paths64 SectionsAt(SupportGraph graph, double z)
+    public static Paths64 SectionsAt(SupportGraph graph, double z) =>
+        SectionsAt(graph, z, includeSegment: null, includeNode: null);
+
+    /// <summary>
+    /// Filtered viewport variant. The predicates select visible element categories before their
+    /// analytic sections are generated; null preserves the print-slicing behaviour above.
+    /// </summary>
+    public static Paths64 SectionsAt(SupportGraph graph, double z,
+        Func<SupportSegment, bool>? includeSegment, Func<SupportNode, bool>? includeNode)
     {
         var paths = new Paths64();
         foreach (var segment in graph.Segments)
         {
-            if (segment.Disabled) continue;
+            if (segment.Disabled || includeSegment is not null && !includeSegment(segment)) continue;
             var a = graph.GetNode(segment.NodeA);
             var b = graph.GetNode(segment.NodeB);
             if (a.Disabled || b.Disabled) continue;
@@ -39,13 +47,15 @@ public static class SupportSliceGeometry
         }
         foreach (var node in graph.Nodes)
         {
-            if (node.Disabled || node.Type != SupportNodeType.Tip) continue;
+            if (node.Disabled || includeNode is not null && !includeNode(node) ||
+                node.Type != SupportNodeType.Tip) continue;
             if (node.TipShape != SupportTipShape.Cone || node.BallDiameter <= 0) continue;
             SphereSection(node.ContactBallCenter, node.BallDiameter * 0.5, z, paths);
         }
         foreach (var node in graph.Nodes)
         {
-            if (node.Disabled || node.Type != SupportNodeType.Base) continue;
+            if (node.Disabled || includeNode is not null && !includeNode(node) ||
+                node.Type != SupportNodeType.Base) continue;
             if (node.BaseShape == SupportBaseShape.None) continue;
             BaseSection(node, MaxIncidentDiameter(graph, node), z, paths);
         }

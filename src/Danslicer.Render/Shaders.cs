@@ -47,7 +47,8 @@ internal static class Shaders
         uniform vec3 uColor;
         uniform float uBackfaceTint;   // 1 = tint back faces to reveal inverted normals
         uniform float uOpacity;
-        uniform float uWarnBelowPlate; // 1 = tint geometry below Z = 0
+        uniform float uWarnOutsideBuildVolume; // 1 = tint geometry outside printable XYZ
+        uniform vec3 uBuildVolume;             // centred X/Y extents, Z travel from zero
         uniform float uOverhangCos;    // cos of the overhang angle from straight down; 2 disables
         uniform vec3 uOverhangColorA;  // checker colour on even cells
         uniform vec3 uOverhangColorB;  // checker colour on odd cells
@@ -108,7 +109,12 @@ internal static class Shaders
                 }
             }
 
-            if (uWarnBelowPlate > 0.5 && vWorldPosition.z < -0.001) color = mix(color, vec3(0.95, 0.15, 0.10), 0.6);
+            bool outsideBuildVolume =
+                abs(vWorldPosition.x) > uBuildVolume.x * 0.5 + 0.001 ||
+                abs(vWorldPosition.y) > uBuildVolume.y * 0.5 + 0.001 ||
+                vWorldPosition.z < -0.001 || vWorldPosition.z > uBuildVolume.z + 0.001;
+            if (uWarnOutsideBuildVolume > 0.5 && outsideBuildVolume)
+                color = mix(color, vec3(0.95, 0.15, 0.10), 0.6);
 
             if (uClipEnabled > 0.5)
             {

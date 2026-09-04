@@ -534,6 +534,19 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.MiniSupportClusterDistance = Clamp(value, 0.01f, 1000f, 1.25f));
     }
 
+    public float SupportFineFeatureMaxAreaMm2
+    {
+        get => Supports.FineFeatureMaxAreaMm2;
+        set => Update(() => Supports.FineFeatureMaxAreaMm2 =
+            Clamp(value, 0f, 1_000_000f, 1f));
+    }
+
+    public bool SupportFineFeatureMinisFallBackToRegular
+    {
+        get => Supports.FineFeatureMinisFallBackToRegular;
+        set => Update(() => Supports.FineFeatureMinisFallBackToRegular = value);
+    }
+
     public bool SupportRefusedTipsFallBackToMini
     {
         get => Supports.RefusedTipsFallBackToMini;

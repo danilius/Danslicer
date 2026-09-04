@@ -51,6 +51,11 @@ public sealed record TipPlacementParameters
     public float MiniSupportClusterDistanceMm { get; init; } = 1.25f;
     /// <summary>Maximum members in one detected cluster; larger groups split deterministically.</summary>
     public int MiniSupportMaxTipsPerCluster { get; init; } = 4;
+    /// <summary>
+    /// Maximum local feature cross-section which turns an isolated island or local-minimum
+    /// contact into a one-member mini cluster. Zero disables the fineness pass.
+    /// </summary>
+    public float FineFeatureMaxAreaMm2 { get; init; } = 1f;
 
     /// <summary>
     /// Dedup radius between island tips. Every island physically needs its own support — two

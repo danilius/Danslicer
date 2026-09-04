@@ -16,6 +16,7 @@ public sealed class LayerRangeClipViewModel : ObservableObject
     private double _lowerZ;
     private double _upperZ = 1;
     private bool _active;
+    private bool _isDragging;
 
     public LayerRangeClipViewModel()
     {
@@ -50,6 +51,13 @@ public sealed class LayerRangeClipViewModel : ObservableObject
             if (!SetProperty(ref _active, value)) return;
             Changed?.Invoke();
         }
+    }
+
+    /// <summary>True only while either range thumb is captured.</summary>
+    public bool IsDragging
+    {
+        get => _isDragging;
+        set => SetProperty(ref _isDragging, value);
     }
 
     public NumericField LowerField { get; }

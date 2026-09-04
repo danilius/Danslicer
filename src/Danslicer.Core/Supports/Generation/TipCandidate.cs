@@ -42,4 +42,22 @@ public readonly record struct TipCandidate(
     float BallDiameter = 0f,
     float PenetrationDepth = 0f,
     int? MiniClusterId = null,
-    Vector3? MiniClusterCenter = null);
+    Vector3? MiniClusterCenter = null,
+    /// <summary>
+    /// Placement strategy before this contact became a density-cluster member. Preserving the
+    /// source makes required-island coverage auditable after <see cref="Strategy"/> changes to
+    /// <see cref="TipStrategy.MiniCluster"/>.
+    /// </summary>
+    TipStrategy? MiniClusterSourceStrategy = null,
+    /// <summary>
+    /// Local horizontal cross-section used by fine-feature classification. Island contacts use
+    /// their first-appearance island area; local minima use the component area 0.5 mm above the
+    /// contact. Null means no reliable local measure was available.
+    /// </summary>
+    float? FineFeatureAreaMm2 = null,
+    /// <summary>True when an isolated contact became a one-member mini cluster by area.</summary>
+    bool IsFineFeatureMini = false,
+    float? FallbackTipDiameter = null,
+    SupportTipShape? FallbackTipShape = null,
+    float? FallbackConeLength = null,
+    float? FallbackBallDiameter = null);

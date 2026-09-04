@@ -8,6 +8,7 @@ using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
+using System.Runtime.CompilerServices;
 
 namespace Danslicer.Core;
 
@@ -23,7 +24,17 @@ public readonly record struct SupportPositionSnapshot(Vector3 Position, Vector3 
 public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
 public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot Target,
     IReadOnlyList<SceneMeshSnapshot> SceneMeshes, SupportGraph ExistingSupports, int Seed,
-    SupportConfig Settings);
+    SupportConfig Settings, SupportGenerationScope Scope = SupportGenerationScope.Full);
+
+public sealed record IslandDetectionRequest(SceneMeshSnapshot Target,
+    SupportGraph ExistingSupports, float LayerHeightMm, SupportConfig Settings);
+
+public enum ObjectMirrorAxis
+{
+    X,
+    Y,
+    Z,
+}
 
 /// <summary>
 /// The single model behind the application: scene, selection, printer and undo history.
@@ -289,6 +300,112 @@ public sealed class Document
         Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Delete {commands.Count} objects", commands));
     }
 
+    /// <summary>
+    /// Copies the selected objects as mesh-sharing instances, offset together in XY and selected
+    /// as the new selection. Object selection is transient; the scene additions are one undo step.
+    /// </summary>
+    public IReadOnlyList<SceneObject> DuplicateSelection()
+    {
+        var originals = Scene.Objects.Where(_selection.Contains).ToList();
+        if (originals.Count == 0) return [];
+
+        var copies = new List<SceneObject>(originals.Count);
+        var commands = new List<IDocumentCommand>(originals.Count);
+        var usedNames = Scene.Objects.Select(obj => obj.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var offset = new Vector3(5f, 5f, 0f);
+        foreach (var original in originals)
+        {
+            var copy = new SceneObject(NextCopyName(original.Name, usedNames), original.Mesh)
+            {
+                RenderState = original.RenderState,
+            };
+            var requested = original.Transform with
+            {
+                Translation = original.Transform.Translation + offset,
+            };
+            copy.Transform = ApplyPlacement(copy.Mesh, requested);
+            copies.Add(copy);
+            commands.Add(new AddObjectCommand(Scene, copy));
+        }
+
+        var name = copies.Count == 1 ? $"Duplicate {originals[0].Name}" : $"Duplicate {copies.Count} objects";
+        Execute(new CompositeCommand(name, commands));
+        _selection.Clear();
+        foreach (var copy in copies) _selection.Add(copy);
+        SelectionChanged?.Invoke();
+        return copies;
+    }
+
+    /// <summary>
+    /// Mirrors the selected objects around the selection's world-space bounding-box centre.
+    /// Reflection is baked into a new mesh with reversed winding, leaving each object's editable
+    /// transform intact except for the normal automatic placement adjustment.
+    /// </summary>
+    public void MirrorSelection(ObjectMirrorAxis axis)
+    {
+        var objects = Scene.Objects.Where(_selection.Contains).ToList();
+        if (objects.Count == 0) return;
+
+        var bounds = objects.Aggregate(Aabb.Empty, (current, obj) => current.Union(obj.WorldBounds));
+        if (bounds.IsEmpty) return;
+
+        var centre = bounds.Center;
+        var scale = axis switch
+        {
+            ObjectMirrorAxis.X => new Vector3(-1f, 1f, 1f),
+            ObjectMirrorAxis.Y => new Vector3(1f, -1f, 1f),
+            _ => new Vector3(1f, 1f, -1f),
+        };
+        var worldReflection = Matrix4x4.CreateTranslation(-centre) *
+                              Matrix4x4.CreateScale(scale) *
+                              Matrix4x4.CreateTranslation(centre);
+        var supportBefore = CaptureAssociatedSupportPositions(objects);
+        var commands = new List<IDocumentCommand>(objects.Count + 1);
+        var supportEntries = new List<SetSupportPositionsCommand.Entry>();
+        var name = objects.Count == 1 ? $"Mirror {axis}" : $"Mirror {objects.Count} objects {axis}";
+
+        foreach (var obj in objects)
+        {
+            var beforeTransform = obj.Transform;
+            var beforeMatrix = beforeTransform.ToMatrix();
+            Mesh mirroredMesh;
+            Transform requested;
+            if (Matrix4x4.Invert(beforeMatrix, out var inverseBefore))
+            {
+                // Bake world reflection into local geometry: p * (M H M^-1) * M = p * M H.
+                mirroredMesh = obj.Mesh.Reflected(beforeMatrix * worldReflection * inverseBefore);
+                requested = beforeTransform;
+            }
+            else
+            {
+                // A zero scale is not invertible. Bake directly to world space and retain the same
+                // visible result under an identity transform.
+                mirroredMesh = obj.Mesh.Reflected(beforeMatrix * worldReflection);
+                requested = Transform.Identity;
+            }
+
+            var afterTransform = ApplyPlacement(mirroredMesh, requested);
+            var placementDelta = Matrix4x4.CreateTranslation(
+                afterTransform.Translation - requested.Translation);
+            AppendAssociatedSupportMatrix(obj, worldReflection * placementDelta,
+                supportBefore, supportEntries);
+            commands.Add(new SetMeshTransformCommand(obj, obj.Mesh, beforeTransform,
+                mirroredMesh, afterTransform, name));
+        }
+
+        if (supportEntries.Count > 0)
+            commands.Add(new SetSupportPositionsCommand(Supports, supportEntries, name));
+        Execute(new CompositeCommand(name, commands));
+    }
+
+    private static string NextCopyName(string source, HashSet<string> used)
+    {
+        var root = $"{source} copy";
+        var candidate = root;
+        for (var suffix = 2; !used.Add(candidate); suffix++) candidate = $"{root} {suffix}";
+        return candidate;
+    }
+
     /// <summary>Moves each selected object so its lowest point sits on the plate.</summary>
     public void DropSelectionToPlate()
     {
@@ -305,15 +422,18 @@ public sealed class Document
     }
 
     /// <summary>Re-seats an input transform according to the configured placement mode.</summary>
-    public Transform ApplyPlacement(SceneObject obj, Transform requested)
+    public Transform ApplyPlacement(SceneObject obj, Transform requested) =>
+        ApplyPlacement(obj.Mesh, requested);
+
+    private Transform ApplyPlacement(Mesh mesh, Transform requested)
     {
-        if (PlacementMode == PlacementMode.Off || obj.Mesh.Positions.Length == 0) return requested;
+        if (PlacementMode == PlacementMode.Off || mesh.Positions.Length == 0) return requested;
         var targetZ = PlacementMode == PlacementMode.RaiseAbovePlate
             ? MathF.Max(0, float.IsFinite(PlacementHeightMm) ? PlacementHeightMm : 0)
             : 0;
         var matrix = requested.ToMatrix();
         var minZ = float.PositiveInfinity;
-        foreach (var point in obj.Mesh.Positions)
+        foreach (var point in mesh.Positions)
             minZ = MathF.Min(minZ, Vector3.Transform(point, matrix).Z);
         return requested with
         {
@@ -388,6 +508,13 @@ public sealed class Document
     {
         if (!Matrix4x4.Invert(before.ToMatrix(), out var oldWorldToLocal)) return;
         var worldDelta = oldWorldToLocal * after.ToMatrix();
+        AppendAssociatedSupportMatrix(obj, worldDelta, supportBefore, entries);
+    }
+
+    private void AppendAssociatedSupportMatrix(SceneObject obj, Matrix4x4 worldDelta,
+        IReadOnlyDictionary<Guid, SupportPositionSnapshot> supportBefore,
+        List<SetSupportPositionsCommand.Entry> entries)
+    {
         var hasNormalTransform = Matrix4x4.Invert(worldDelta, out var inverseDelta);
         var normalTransform = hasNormalTransform ? Matrix4x4.Transpose(inverseDelta) : Matrix4x4.Identity;
         foreach (var node in Supports.Nodes)
@@ -423,7 +550,8 @@ public sealed class Document
     /// </summary>
     private BvhCollisionScene MeshObstacles()
     {
-        var signature = string.Join(";", Scene.Objects.Select(o => $"{o.Id}:{o.Transform.ToMatrix().GetHashCode()}"));
+        var signature = string.Join(";", Scene.Objects.Select(o =>
+            $"{o.Id}:{RuntimeHelpers.GetHashCode(o.Mesh)}:{o.Transform.ToMatrix().GetHashCode()}"));
         if (_meshObstacleCache is null || signature != _meshObstacleSignature)
         {
             var scene = new BvhCollisionScene();
@@ -478,6 +606,7 @@ public sealed class Document
             MiniSupportMaxLength = settings.MiniSupportMaxLength,
             MiniSupportMaxAngleDegrees = settings.MiniSupportMaxAngleDegrees,
             MiniSupportMaxFanPerBranchEnd = settings.MiniSupportMaxFanPerBranchEnd,
+            FineFeatureMinisFallBackToRegular = settings.FineFeatureMinisFallBackToRegular,
             RefusedTipsFallBackToMini = settings.RefusedTipsFallBackToMini,
             UseBaseGrid = settings.UseBaseGrid,
             BaseGridPitch = settings.BaseGridPitch,
@@ -547,12 +676,29 @@ public sealed class Document
     }
 
     /// <summary>Captures the mutable document state needed by background generation.</summary>
-    public SupportGenerationRequest CaptureSupportGeneration(SceneObject obj, int seed = 0)
+    public SupportGenerationRequest CaptureSupportGeneration(SceneObject obj, int seed = 0,
+        SupportGenerationScope scope = SupportGenerationScope.Full)
     {
         var scene = Scene.Objects.Select(o => new SceneMeshSnapshot(o.Mesh, o.Transform.ToMatrix())).ToList();
         return new SupportGenerationRequest(obj.Id,
             new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), scene, CloneGraph(Supports), seed,
-            SupportSettings with { });
+            SupportSettings with { }, scope);
+    }
+
+    public IslandDetectionRequest CaptureIslandDetection(SceneObject obj) => new(
+        new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), CloneGraph(Supports),
+        PrintSettings.LayerHeight, SupportSettings with { });
+
+    public static IReadOnlyList<DetectedIsland> ComputeIslandDetection(
+        IslandDetectionRequest request, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = IslandDetection.FindUnsupported(TransformMesh(request.Target),
+            request.ExistingSupports, request.LayerHeightMm,
+            request.Settings.MinIslandAreaMm2, plateZ: 0,
+            request.Settings.OverhangAngleDegrees);
+        cancellationToken.ThrowIfCancellationRequested();
+        return result;
     }
 
     /// <summary>Runs generation using only a captured snapshot; safe to call off the UI thread.</summary>
@@ -594,6 +740,7 @@ public sealed class Document
                 MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
                 MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
                 MiniSupportClusterDistanceMm = request.Settings.MiniSupportClusterDistance,
+                FineFeatureMaxAreaMm2 = request.Settings.FineFeatureMaxAreaMm2,
             },
             new TreeRoutingOptions
             {
@@ -610,6 +757,8 @@ public sealed class Document
                 MiniSupportMaxLength = request.Settings.MiniSupportMaxLength,
                 MiniSupportMaxAngleDegrees = request.Settings.MiniSupportMaxAngleDegrees,
                 MiniSupportMaxFanPerBranchEnd = request.Settings.MiniSupportMaxFanPerBranchEnd,
+                FineFeatureMinisFallBackToRegular =
+                    request.Settings.FineFeatureMinisFallBackToRegular,
                 RefusedTipsFallBackToMini = request.Settings.RefusedTipsFallBackToMini,
                 UseBaseGrid = request.Settings.UseBaseGrid,
                 BaseGridPitch = request.Settings.BaseGridPitch,
@@ -620,7 +769,8 @@ public sealed class Document
                 Seed = request.Seed,
                 Origin = origin,
             }, rules,
-            obstacles, request.ExistingSupports, seed: request.Seed, progress: progress);
+            obstacles, request.ExistingSupports, seed: request.Seed, progress: progress,
+            scope: request.Scope);
         cancellationToken.ThrowIfCancellationRequested();
 
         // Routing ids are deterministic from the seed. Fresh graph ids allow repeated generation
@@ -638,7 +788,9 @@ public sealed class Document
                 .GroupBy(failure => failure.Reason)
                 .ToDictionary(group => group.Key, group => group.Count()),
         };
-        return new PreparedSupportGeneration(nodes, segments, summary);
+        return new PreparedSupportGeneration(nodes, segments, summary,
+            request.Scope == SupportGenerationScope.IslandsOnly
+                ? "Generate island supports" : "Generate supports");
     }
 
     private static Mesh TransformMesh(SceneMeshSnapshot snapshot) => new(

@@ -295,6 +295,24 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void IslandSupportGenerationUsesOneNamedUndoStep()
+    {
+        var doc = new Document();
+        var obj = new SceneObject("floating", Box(new(-5, -5, 5), new(5, 5, 15)));
+        doc.AddObject(obj);
+        var request = doc.CaptureSupportGeneration(obj, scope: SupportGenerationScope.IslandsOnly);
+        var prepared = Document.ComputeSupportGeneration(request);
+        var batch = new SupportGenerationBatch(doc.Supports, doc.History, prepared, int.MaxValue);
+
+        batch.CommitNextBatch();
+        batch.Complete();
+
+        Assert.Equal("Generate island supports", doc.History.UndoName);
+        doc.Undo();
+        Assert.Equal(0, doc.Supports.NodeCount);
+    }
+
+    [Fact]
     public void GenerationRequestSnapshotsSupportSettings()
     {
         var doc = new Document
@@ -308,7 +326,8 @@ public sealed class PlacementAndSupportCommandTests
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
-                MiniSupportClusterDistance = 1.4f,
+                MiniSupportClusterDistance = 1.4f, FineFeatureMaxAreaMm2 = 1.8f,
+                FineFeatureMinisFallBackToRegular = false,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 ReinforceEnabled = true,
@@ -344,6 +363,8 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(72f, request.Settings.MiniSupportMaxAngleDegrees);
         Assert.Equal(5, request.Settings.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.4f, request.Settings.MiniSupportClusterDistance);
+        Assert.Equal(1.8f, request.Settings.FineFeatureMaxAreaMm2);
+        Assert.False(request.Settings.FineFeatureMinisFallBackToRegular);
         Assert.True(request.Settings.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, request.Settings.MiniIslandMaxAreaMm2);
         Assert.False(request.Settings.UseBaseGrid);

@@ -220,6 +220,15 @@
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportMiniSupportClusterDistance, Mode=TwoWay}" />
                 </Grid>
+                <Grid Tag="supports fine feature maximum local cross section square mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max fine feature area mm²" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.1" FormatString="0.###"
+                                   Value="{Binding SupportFineFeatureMaxAreaMm2, Mode=TwoWay}" />
+                </Grid>
+                <CheckBox Tag="supports fine feature mini fallback regular cone"
+                          Content="Retry failed fine minis as regular"
+                          IsChecked="{Binding SupportFineFeatureMinisFallBackToRegular, Mode=TwoWay}"
+                          Margin="0,4" />
                 <Grid Tag="supports mini island maximum classification area square mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max mini island area mm²" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.01" FormatString="0.###"

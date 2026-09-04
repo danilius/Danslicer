@@ -30,10 +30,17 @@ internal static class BenchCommand
             var report = new BenchmarkReport
             {
                 GeneratedAtUtc = DateTimeOffset.UtcNow,
+                FineFeatureMaxAreaMm2 = options.FineFeatureMaxAreaMm2,
+                FineFeatureFallback = options.FineFeatureFallback,
+                IslandFirst = options.IslandFirst,
                 Models =
                 [
-                    RunModel("drogon", options.DrogonPath, options.Reinforce),
-                    RunModel("gripper", options.GripperPath, options.Reinforce),
+                    RunModel("drogon", options.DrogonPath, options.Reinforce,
+                        options.FineFeatureMaxAreaMm2, options.IslandFirst,
+                        options.FineFeatureFallback),
+                    RunModel("gripper", options.GripperPath, options.Reinforce,
+                        options.FineFeatureMaxAreaMm2, options.IslandFirst,
+                        options.FineFeatureFallback),
                 ],
             };
             report.Markdown = BuildMarkdown(report);
@@ -78,10 +85,20 @@ internal static class BenchCommand
                 ? "Spacing n/a."
                 : $"Spacing min {F(tips.Spacing.Min)} / median {F(tips.Spacing.Median)} / " +
                   $"mean {F(tips.Spacing.Mean)}.";
+            var islandClusterMembers =
+                tips.MiniClusterMembersBySourceStrategy.GetValueOrDefault("Island");
+            var regularClusterMembers =
+                tips.MiniClusterMembersBySourceStrategy.Values.Sum() - islandClusterMembers;
             var clusters = tips.MiniClusters > 0
-                ? $" across **{tips.MiniClusters}** mini clusters"
+                ? $" across **{tips.MiniClusters}** mini clusters " +
+                  $"(**{islandClusterMembers} island / {regularClusterMembers} regular members**)"
                 : string.Empty;
-            text.AppendLine($"| {Escape(model.Key)} | `tips` | `--seat --json` | " +
+            if (tips.FineFeatureMinis > 0)
+                clusters += $", **{tips.FineFeatureMinis} fine-feature singles**";
+            var fineFeatureFlag = report.FineFeatureMaxAreaMm2 is { } fineFeatureMax
+                ? $" --fine-feature-max {F(fineFeatureMax)}"
+                : string.Empty;
+            text.AppendLine($"| {Escape(model.Key)} | `tips` | `--seat --json{fineFeatureFlag}` | " +
                 $"{tips.WallSeconds:0.000} | {tips.ExitCode} | **{tips.Candidates}** candidates" +
                 $"{Parenthesize(strategies)}{clusters} | {spacing} |");
 
@@ -94,23 +111,32 @@ internal static class BenchCommand
                     "NoBranchEndInRange", "NoLanding", "BelowPlate");
                 text.AppendLine($"| {Escape(model.Key)} | `route` | " +
                     $"`--seat --strategy tree --base-grid {route.BaseGrid} " +
+                    $"--fine-feature-fallback {(report.FineFeatureFallback ? "on" : "off")} " +
                     $"--reinforce {(route.Reinforce ? "on" : "off")} --json` | " +
                     $"{route.WallSeconds:0.000} | {route.ExitCode} | nodes {route.Nodes}, " +
                     $"segs {route.Segments}{Parenthesize(segments)}, **unrouted " +
                     $"{route.UnroutedTips} / {tips.Candidates}**, bases **{route.Bases}**, " +
                     $"max lean {F1(route.MaxLeanAngleDegrees)}°, collisionFree " +
                     $"**{route.CollisionFree.ToString().ToLowerInvariant()}** | " +
-                    $"Refusals: {(refusals.Length == 0 ? "none" : refusals)}. |");
+                    $"Refusals: {(refusals.Length == 0 ? "none" : refusals)}; " +
+                    $"island-origin **{route.IslandRefusals}**. |");
             }
         }
         return text.ToString().TrimEnd();
     }
 
-    private static ModelBenchmark RunModel(string key, string path, bool reinforce)
+    private static ModelBenchmark RunModel(string key, string path, bool reinforce,
+        float? fineFeatureMaxAreaMm2, bool islandFirst, bool fineFeatureFallback)
     {
         if (!File.Exists(path)) throw new IOException($"model not found: {path}");
 
-        var tipsRun = Capture(() => TipsCommand.Run([path, "--seat", "--json"]));
+        var tipsArgs = new List<string> { path, "--seat", "--json" };
+        if (fineFeatureMaxAreaMm2 is { } fineFeatureMax)
+        {
+            tipsArgs.Add("--fine-feature-max");
+            tipsArgs.Add(F(fineFeatureMax));
+        }
+        var tipsRun = Capture(() => TipsCommand.Run([.. tipsArgs]));
         if (tipsRun.ExitCode != 0)
             throw new InvalidOperationException($"{key} tips exited {tipsRun.ExitCode}: {tipsRun.Stderr.Trim()}");
         var tips = ParseTips(tipsRun);
@@ -122,9 +148,15 @@ internal static class BenchCommand
             var routes = new List<RouteBenchmark>();
             foreach (var mode in new[] { "on", "off" })
             {
-                var routeRun = Capture(() => RouteCommand.Run(
-                    [path, "--tips", tipsPath, "--seat", "--strategy", "tree",
-                        "--base-grid", mode, "--reinforce", reinforce ? "on" : "off", "--json"]));
+                var routeArgs = new List<string>
+                {
+                    path, "--tips", tipsPath, "--seat", "--strategy", "tree",
+                    "--base-grid", mode, "--fine-feature-fallback",
+                    fineFeatureFallback ? "on" : "off",
+                    "--reinforce", reinforce ? "on" : "off", "--json",
+                };
+                if (!islandFirst) routeArgs.AddRange(["--island-first", "off"]);
+                var routeRun = Capture(() => RouteCommand.Run([.. routeArgs]));
                 routes.Add(ParseRoute(mode, reinforce, routeRun));
             }
             return new ModelBenchmark { Key = key, Path = path, Tips = tips, Routes = routes };
@@ -148,6 +180,13 @@ internal static class BenchCommand
             MiniClusters = root.TryGetProperty("miniClusters", out var clusters)
                 ? clusters.GetInt32()
                 : 0,
+            FineFeatureMinis = root.TryGetProperty("fineFeatureMinis", out var fineFeatures)
+                ? fineFeatures.GetInt32()
+                : 0,
+            MiniClusterMembersBySourceStrategy =
+                root.TryGetProperty("miniClusterMembersBySourceStrategy", out var members)
+                    ? ReadIntDictionary(members)
+                    : [],
             Spacing = root.TryGetProperty("spacing", out var spacing) &&
                       spacing.ValueKind != JsonValueKind.Null
                 ? new SpacingBenchmark
@@ -175,6 +214,8 @@ internal static class BenchCommand
             SegmentCounts = ReadIntDictionary(root.GetProperty("segmentCounts")),
             UnroutedTips = root.GetProperty("unroutedTips").GetInt32(),
             RefusalCounts = ReadIntDictionary(root.GetProperty("refusalCounts")),
+            IslandRefusals = root.GetProperty("refusals").EnumerateArray().Count(item =>
+                item.TryGetProperty("isIslandOrigin", out var island) && island.GetBoolean()),
             Bases = root.GetProperty("bases").GetArrayLength(),
             MaxLeanAngleDegrees = root.GetProperty("maxLeanAngleDegrees").GetSingle(),
             CollisionFree = root.GetProperty("collisionFree").GetBoolean(),
@@ -215,6 +256,9 @@ internal static class BenchCommand
         var gripper = DefaultGripperPath;
         string? output = null;
         var reinforce = false;
+        float? fineFeatureMaxAreaMm2 = null;
+        var islandFirst = true;
+        var fineFeatureFallback = true;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -223,10 +267,18 @@ internal static class BenchCommand
                 case "--gripper": gripper = args[++i]; break;
                 case "--output": output = args[++i]; break;
                 case "--reinforce": reinforce = ParseToggle(args[++i], "reinforce"); break;
+                case "--fine-feature-max":
+                    fineFeatureMaxAreaMm2 = float.Parse(args[++i], CultureInfo.InvariantCulture);
+                    break;
+                case "--island-first": islandFirst = ParseToggle(args[++i], "island-first"); break;
+                case "--fine-feature-fallback":
+                    fineFeatureFallback = ParseToggle(args[++i], "fine-feature-fallback");
+                    break;
                 default: throw new ArgumentException($"unknown option '{args[i]}'");
             }
         }
-        return new BenchOptions(drogon, gripper, output, reinforce);
+        return new BenchOptions(drogon, gripper, output, reinforce, fineFeatureMaxAreaMm2,
+            islandFirst, fineFeatureFallback);
     }
 
     private static bool ParseToggle(string value, string name) => value.ToLowerInvariant() switch
@@ -259,16 +311,20 @@ internal static class BenchCommand
     private static string F1(float value) => value.ToString("0.0", CultureInfo.InvariantCulture);
 
     private static void Usage() => Console.Error.WriteLine(
-        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--output <summary.json>]");
+        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--island-first on|off] [--fine-feature-fallback on|off] [--output <summary.json>]");
 
     private sealed record BenchOptions(string DrogonPath, string GripperPath, string? OutputPath,
-        bool Reinforce);
+        bool Reinforce, float? FineFeatureMaxAreaMm2, bool IslandFirst,
+        bool FineFeatureFallback);
     private sealed record CapturedRun(int ExitCode, double WallSeconds, string Stdout, string Stderr);
 }
 
 internal sealed class BenchmarkReport
 {
     public DateTimeOffset GeneratedAtUtc { get; init; }
+    public float? FineFeatureMaxAreaMm2 { get; init; }
+    public bool FineFeatureFallback { get; init; } = true;
+    public bool IslandFirst { get; init; } = true;
     public required List<ModelBenchmark> Models { get; init; }
     public string Markdown { get; set; } = string.Empty;
 }
@@ -288,6 +344,8 @@ internal sealed class TipsBenchmark
     public int Candidates { get; init; }
     public required Dictionary<string, int> ByStrategy { get; init; }
     public int MiniClusters { get; init; }
+    public int FineFeatureMinis { get; init; }
+    public Dictionary<string, int> MiniClusterMembersBySourceStrategy { get; init; } = [];
     public SpacingBenchmark? Spacing { get; init; }
 }
 
@@ -309,6 +367,7 @@ internal sealed class RouteBenchmark
     public required Dictionary<string, int> SegmentCounts { get; init; }
     public int UnroutedTips { get; init; }
     public required Dictionary<string, int> RefusalCounts { get; init; }
+    public int IslandRefusals { get; init; }
     public int Bases { get; init; }
     public float MaxLeanAngleDegrees { get; init; }
     public bool CollisionFree { get; init; }

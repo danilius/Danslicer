@@ -89,6 +89,27 @@ public sealed class Mesh
     }
 
     /// <summary>
+    /// Applies a local-space matrix and reverses every triangle. A reflection changes handedness,
+    /// so reversing the winding keeps outward faces and counter-clockwise slice contours.
+    /// </summary>
+    public Mesh Reflected(Matrix4x4 localReflection)
+    {
+        var positions = new Vector3[Positions.Length];
+        for (var i = 0; i < Positions.Length; i++)
+            positions[i] = Vector3.Transform(Positions[i], localReflection);
+
+        var indices = new int[Indices.Length];
+        for (var triangle = 0; triangle < TriangleCount; triangle++)
+        {
+            var offset = triangle * 3;
+            indices[offset] = Indices[offset];
+            indices[offset + 1] = Indices[offset + 2];
+            indices[offset + 2] = Indices[offset + 1];
+        }
+        return new Mesh(positions, indices);
+    }
+
+    /// <summary>
     /// Builds a mesh from a triangle soup, welding vertices that are exactly equal.
     /// </summary>
     public static Mesh FromTriangleSoup(ReadOnlySpan<Vector3> vertices)

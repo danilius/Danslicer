@@ -61,12 +61,43 @@ public partial class MainViewModel : ViewModelBase
     public LayerRangeClipViewModel SupportClip { get; } = new();
     public HoverWaterlineViewModel SupportWaterline { get; } = new();
     public ViewportClipRange ViewportClipRange => SupportClip.Range;
+    public IReadOnlyList<ClipCapStyle> ClipCapStyles { get; } = Enum.GetValues<ClipCapStyle>();
+
+    public bool CapInterior
+    {
+        get => AppConfig.Current.Viewport.CapInterior;
+        set
+        {
+            if (value == AppConfig.Current.Viewport.CapInterior) return;
+            AppConfig.Current.Viewport.CapInterior = value;
+            AppConfig.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public ClipCapStyle CapStyle
+    {
+        get => AppConfig.Current.Viewport.CapStyle;
+        set
+        {
+            if (value == AppConfig.Current.Viewport.CapStyle) return;
+            AppConfig.Current.Viewport.CapStyle = value;
+            AppConfig.Save();
+            OnPropertyChanged();
+        }
+    }
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
+    public ModeScopedCommand DuplicateScopedCommand { get; }
+    public ModeScopedCommand MirrorXScopedCommand { get; }
+    public ModeScopedCommand MirrorYScopedCommand { get; }
+    public ModeScopedCommand MirrorZScopedCommand { get; }
     public ModeScopedCommand HideScopedCommand { get; }
     public ModeScopedCommand UnhideAllScopedCommand { get; }
     public ModeScopedCommand HideUnselectedSupportsScopedCommand { get; }
     public ModeScopedCommand GenerateSupportsScopedCommand { get; }
+    public ModeScopedCommand GenerateIslandSupportsScopedCommand { get; }
+    public ModeScopedCommand DetectIslandsScopedCommand { get; }
     public ModeScopedCommand SliceScopedCommand { get; }
 
     private readonly List<ModeScopedCommand> _modeScopedCommands;
@@ -80,7 +111,18 @@ public partial class MainViewModel : ViewModelBase
     public string? ProjectPath { get; private set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewportStatusDisplay))]
     public partial string ViewportStatus { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewportStatusDisplay), nameof(HasSliceWarning))]
+    public partial string? SliceWarning { get; set; }
+
+    public string ViewportStatusDisplay => SliceWarning is null
+        ? ViewportStatus
+        : $"{SliceWarning}  {ViewportStatus}";
+
+    public bool HasSliceWarning => SliceWarning is not null;
 
     [ObservableProperty]
     public partial string HistoryStatus { get; set; } = "";
@@ -95,10 +137,19 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayoutView), nameof(IsSupportView), nameof(IsLayersView),
-        nameof(ViewportTools), nameof(IsObjectListSelectionEnabled))]
+        nameof(ViewportTools), nameof(IsObjectListSelectionEnabled), nameof(IsObjectsToolVisible),
+        nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
+        nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
+
+    public bool IsObjectsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Objects, ViewMode);
+    public bool IsSupportsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Supports, ViewMode);
+    public bool IsIslandSupportToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.IslandSupport, ViewMode);
+    public bool IsIslandDetectionToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.IslandDetection, ViewMode);
+    public bool IsVisibilityToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Visibility, ViewMode);
+    public bool IsRaftsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Rafts, ViewMode);
 
     /// <summary>
     /// Object rows remain useful context in Support and Slicing, but only Layout owns object
@@ -193,6 +244,15 @@ public partial class MainViewModel : ViewModelBase
     public partial double GenerationProgress { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDetectedIslands))]
+    public partial IReadOnlyList<DetectedIsland> DetectedIslands { get; set; } = [];
+
+    [ObservableProperty]
+    public partial bool IsDetectingIslands { get; set; }
+
+    public bool HasDetectedIslands => DetectedIslands.Count > 0;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSlice))]
     public partial SliceResult? LastSlice { get; set; }
 
@@ -234,6 +294,14 @@ public partial class MainViewModel : ViewModelBase
             RefreshPrinterOptions();
             SupportSettings.Resins.Refresh();
         };
+        DuplicateScopedCommand = new ModeScopedCommand(
+            DuplicateCommand, () => ViewMode, WorkspaceMode.Layout);
+        MirrorXScopedCommand = new ModeScopedCommand(
+            MirrorXCommand, () => ViewMode, WorkspaceMode.Layout);
+        MirrorYScopedCommand = new ModeScopedCommand(
+            MirrorYCommand, () => ViewMode, WorkspaceMode.Layout);
+        MirrorZScopedCommand = new ModeScopedCommand(
+            MirrorZCommand, () => ViewMode, WorkspaceMode.Layout);
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
         HideScopedCommand = new ModeScopedCommand(
@@ -244,15 +312,25 @@ public partial class MainViewModel : ViewModelBase
             HideUnselectedSupportsCommand, () => ViewMode, WorkspaceMode.Support);
         GenerateSupportsScopedCommand = new ModeScopedCommand(
             GenerateSupportsCommand, () => ViewMode, WorkspaceMode.Support);
+        GenerateIslandSupportsScopedCommand = new ModeScopedCommand(
+            GenerateIslandSupportsCommand, () => ViewMode, WorkspaceMode.Support);
+        DetectIslandsScopedCommand = new ModeScopedCommand(
+            DetectIslandsCommand, () => ViewMode, WorkspaceMode.Support);
         SliceScopedCommand = new ModeScopedCommand(
             SliceCommand, () => ViewMode, WorkspaceMode.Slicing);
         _modeScopedCommands =
         [
+            DuplicateScopedCommand,
+            MirrorXScopedCommand,
+            MirrorYScopedCommand,
+            MirrorZScopedCommand,
             DropToPlateScopedCommand,
             HideScopedCommand,
             UnhideAllScopedCommand,
             HideUnselectedSupportsScopedCommand,
             GenerateSupportsScopedCommand,
+            GenerateIslandSupportsScopedCommand,
+            DetectIslandsScopedCommand,
             SliceScopedCommand,
         ];
         Position = MakeAxisFields(UnitKind.Length, "0.###", (t, axis, v) => t with { Translation = SetAxis(t.Translation, axis, (float)v) });
@@ -334,9 +412,15 @@ public partial class MainViewModel : ViewModelBase
         }
         RefreshFields();
         DeleteCommand.NotifyCanExecuteChanged();
+        DuplicateCommand.NotifyCanExecuteChanged();
+        MirrorXCommand.NotifyCanExecuteChanged();
+        MirrorYCommand.NotifyCanExecuteChanged();
+        MirrorZCommand.NotifyCanExecuteChanged();
         DropToPlateCommand.NotifyCanExecuteChanged();
         HideCommand.NotifyCanExecuteChanged();
         GenerateSupportsCommand.NotifyCanExecuteChanged();
+        GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
+        DetectIslandsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedObjectChanged(SceneObject? value)
@@ -357,6 +441,8 @@ public partial class MainViewModel : ViewModelBase
         }
         RefreshFields();
         GenerateSupportsCommand.NotifyCanExecuteChanged();
+        GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
+        DetectIslandsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnAutoDropEnabledChanged(bool value)
@@ -380,6 +466,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (IsGeneratingSupports && !_applyingGenerationBatch)
             _generationCancellation?.Cancel();
+        if (DetectedIslands.Count > 0) DetectedIslands = [];
         RefreshFields();
         var undo = Document.History.UndoName;
         var redo = Document.History.RedoName;
@@ -447,6 +534,7 @@ public partial class MainViewModel : ViewModelBase
         SupportSettings.Resins.Refresh();
         SelectedObject = null;
         LastSlice = null;
+        SliceWarning = null;
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Not sliced yet.";
@@ -512,6 +600,28 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void DropToPlate() => Document.DropSelectionToPlate();
 
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void Duplicate()
+    {
+        var count = Document.DuplicateSelection().Count;
+        if (count > 0) ViewportStatus = count == 1 ? "Duplicated object." : $"Duplicated {count} objects.";
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void MirrorX() => MirrorSelection(ObjectMirrorAxis.X);
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void MirrorY() => MirrorSelection(ObjectMirrorAxis.Y);
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void MirrorZ() => MirrorSelection(ObjectMirrorAxis.Z);
+
+    private void MirrorSelection(ObjectMirrorAxis axis)
+    {
+        Document.MirrorSelection(axis);
+        ViewportStatus = $"Mirrored selection on {axis}.";
+    }
+
     [RelayCommand(CanExecute = nameof(CanHide))]
     private void Hide()
     {
@@ -535,19 +645,26 @@ public partial class MainViewModel : ViewModelBase
     private bool HasSupportSelection() => Document.SupportSelection.Count > 0;
 
     [RelayCommand(CanExecute = nameof(CanGenerateSupports))]
-    private async Task GenerateSupports()
+    private Task GenerateSupports() => GenerateSupportsCore(SupportGenerationScope.Full);
+
+    [RelayCommand(CanExecute = nameof(CanGenerateSupports))]
+    private Task GenerateIslandSupports() => GenerateSupportsCore(SupportGenerationScope.IslandsOnly);
+
+    private async Task GenerateSupportsCore(SupportGenerationScope scope)
     {
         if (IsGeneratingSupports) return;
         var obj = SelectedObject;
         if (obj is null) return;
-        var request = Document.CaptureSupportGeneration(obj, seed: 0);
+        var request = Document.CaptureSupportGeneration(obj, seed: 0, scope);
         _generationCancellation = new CancellationTokenSource();
         var token = _generationCancellation.Token;
         SupportGenerationBatch? batch = null;
         IsGeneratingSupports = true;
         GenerationProgress = 0;
         GenerateSupportsCommand.NotifyCanExecuteChanged();
-        ViewportStatus = "Generating supports…";
+        GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
+        var label = scope == SupportGenerationScope.IslandsOnly ? "island supports" : "supports";
+        ViewportStatus = $"Generating {label}…";
         try
         {
             var generationProgress = new Progress<SupportGenerationProgress>(p =>
@@ -574,8 +691,8 @@ public partial class MainViewModel : ViewModelBase
             finally { _applyingGenerationBatch = false; }
             var result = prepared.Summary;
             ViewportStatus = result.CandidateCount == 0
-                ? "Generate supports: no support tips were needed."
-                : $"Generate supports: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
+                ? $"Generate {label}: no support tips were needed."
+                : $"Generate {label}: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
         }
         catch (OperationCanceledException)
         {
@@ -603,10 +720,47 @@ public partial class MainViewModel : ViewModelBase
             _generationCancellation?.Dispose();
             _generationCancellation = null;
             GenerateSupportsCommand.NotifyCanExecuteChanged();
+            GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
         }
     }
 
     private bool CanGenerateSupports() => SelectedObject is not null && !IsGeneratingSupports;
+
+    [RelayCommand(CanExecute = nameof(CanDetectIslands))]
+    private async Task DetectIslands()
+    {
+        if (IsDetectingIslands || SelectedObject is not { } obj) return;
+        IsDetectingIslands = true;
+        DetectIslandsCommand.NotifyCanExecuteChanged();
+        ViewportStatus = "Detecting islands…";
+        try
+        {
+            var request = Document.CaptureIslandDetection(obj);
+            DetectedIslands = await Task.Run(() => Document.ComputeIslandDetection(request));
+            ViewportStatus = DetectedIslands.Count == 0
+                ? "Island detection: no unsupported islands."
+                : $"Island detection: {DetectedIslands.Count} unsupported islands.";
+        }
+        catch (Exception ex)
+        {
+            DetectedIslands = [];
+            ViewportStatus = $"Island detection failed: {ex.Message}";
+        }
+        finally
+        {
+            IsDetectingIslands = false;
+            DetectIslandsCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private bool CanDetectIslands() => SelectedObject is not null && !IsDetectingIslands;
+
+    [RelayCommand]
+    private void ClearIslandDetection()
+    {
+        DetectedIslands = [];
+        ViewportStatus = "Island markers cleared.";
+    }
 
     [RelayCommand]
     private void CancelSupportGeneration()
@@ -670,8 +824,9 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token,
-                Document.Supports, resin), token);
+                Document.Supports, resin, allowOutOfBounds: true), token);
             LastSlice = result;
+            SliceWarning = result.BuildVolumeWarning;
             SliceSummary =
                 $"{result.LayerCount} layers × {settings.LayerHeight:0.###} mm = {result.PrintHeight:0.##} mm\n" +
                 $"{result.VolumeMl:0.##} ml resin\n" +
@@ -731,6 +886,7 @@ public partial class MainViewModel : ViewModelBase
     public void InvalidateSlice()
     {
         LastSlice = null;
+        SliceWarning = null;
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Scene changed since the last slice.";

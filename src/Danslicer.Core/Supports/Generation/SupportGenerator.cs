@@ -8,6 +8,12 @@ public sealed record GenerationResult(
     IReadOnlyList<TipCandidate> Candidates,
     RoutingResult Routing);
 
+public enum SupportGenerationScope
+{
+    Full,
+    IslandsOnly,
+}
+
 /// <summary>
 /// Joins the two generation stages (DESIGN.md §8.4): tip placement produces candidates on the
 /// region's faces, grid routing connects them to the plate. A pure function of its inputs and
@@ -26,7 +32,8 @@ public static class SupportGenerator
         SupportGraph? existingGraph = null,
         IReadOnlySet<int>? keepCleanFaces = null,
         int seed = 0,
-        IProgress<SupportGenerationProgress>? progress = null)
+        IProgress<SupportGenerationProgress>? progress = null,
+        SupportGenerationScope scope = SupportGenerationScope.Full)
     {
         // Grid routing expects tips on lattice verticals. When the caller has not already
         // opted into (or out of) grid projection, pass the lattice into placement so Poisson
@@ -34,7 +41,8 @@ public static class SupportGenerator
         var effectivePlacement = placement.Grid is null
             ? placement with { Grid = routing }
             : placement;
-        var candidates = TipPlacer.Place(mesh, regionFaces, effectivePlacement, existingGraph, keepCleanFaces, seed);
+        var candidates = ScopeCandidates(TipPlacer.Place(mesh, regionFaces, effectivePlacement,
+            existingGraph, keepCleanFaces, seed), scope);
         progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         // Both sides of this mapping speak the inward (penetration) normal, so it passes through;
@@ -71,15 +79,16 @@ public static class SupportGenerator
         SupportGraph? existingGraph = null,
         IReadOnlySet<int>? keepCleanFaces = null,
         int seed = 0,
-        IProgress<SupportGenerationProgress>? progress = null)
+        IProgress<SupportGenerationProgress>? progress = null,
+        SupportGenerationScope scope = SupportGenerationScope.Full)
     {
         var effectivePlacement = placement with
         {
             EnableMiniTipClusters = true,
             MiniSupportMaxTipsPerCluster = routing.MiniSupportMaxFanPerBranchEnd,
         };
-        var candidates = TipPlacer.Place(mesh, regionFaces, effectivePlacement, existingGraph,
-            keepCleanFaces, seed);
+        var candidates = ScopeCandidates(TipPlacer.Place(mesh, regionFaces, effectivePlacement,
+            existingGraph, keepCleanFaces, seed), scope);
         progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         var lowestRegion = candidates.OrderBy(candidate => candidate.Point.Z)
@@ -92,7 +101,14 @@ public static class SupportGenerator
             TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter,
             PenetrationDepth: c.PenetrationDepth,
             MiniSupportOnly: c.Strategy is TipStrategy.MiniIsland or TipStrategy.MiniCluster,
-            MiniClusterId: c.MiniClusterId, MiniClusterCenter: c.MiniClusterCenter));
+            MiniClusterId: c.MiniClusterId, MiniClusterCenter: c.MiniClusterCenter,
+            IsIslandOrigin: IsIslandCandidate(c),
+            IsIslandPriority: IsIslandCandidate(c),
+            IsFineFeatureMini: c.IsFineFeatureMini,
+            FallbackTipDiameter: c.FallbackTipDiameter,
+            FallbackTipShape: c.FallbackTipShape,
+            FallbackConeLength: c.FallbackConeLength,
+            FallbackBallDiameter: c.FallbackBallDiameter));
 
         var router = new TreeSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed });
@@ -100,6 +116,16 @@ public static class SupportGenerator
             candidates.Count - result.UnroutedTips.Count, candidates.Count));
         return new GenerationResult(candidates, result);
     }
+
+    public static bool IsIslandCandidate(TipCandidate candidate) =>
+        candidate.Strategy is TipStrategy.Island or TipStrategy.MiniIsland ||
+        candidate.MiniClusterSourceStrategy is TipStrategy.Island or TipStrategy.MiniIsland;
+
+    private static IReadOnlyList<TipCandidate> ScopeCandidates(
+        IReadOnlyList<TipCandidate> candidates, SupportGenerationScope scope) =>
+        scope == SupportGenerationScope.IslandsOnly
+            ? candidates.Where(IsIslandCandidate).ToList()
+            : candidates;
 }
 
 public readonly record struct SupportGenerationProgress(double Fraction, string Stage,

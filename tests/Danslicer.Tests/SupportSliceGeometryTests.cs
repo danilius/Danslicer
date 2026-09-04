@@ -26,6 +26,30 @@ public class SupportSliceGeometryTests
         AssertAreaNear(Math.PI * 0.3 * 0.3, SupportSliceGeometry.SectionsAt(graph, 1));
     }
 
+    [Fact]
+    public void FilteredSectionsIncludeOnlyTheRequestedViewportCategory()
+    {
+        var graph = new SupportGraph();
+        var branchA = new SupportNode { Type = SupportNodeType.Junction, Position = Vector3.Zero };
+        var branchB = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 4) };
+        var trunkA = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(10, 0, 0) };
+        var trunkB = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(10, 0, 4) };
+        foreach (var node in new[] { branchA, branchB, trunkA, trunkB }) graph.AddNode(node);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Branch, NodeA = branchA.Id, NodeB = branchB.Id, Diameter = 2,
+        });
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = trunkA.Id, NodeB = trunkB.Id, Diameter = 2,
+        });
+
+        var branchOnly = SupportSliceGeometry.SectionsAt(graph, 2,
+            segment => segment.Type == SupportSegmentType.Branch, _ => false);
+
+        AssertAreaNear(Math.PI, branchOnly);
+    }
+
     private static double AreaMm2(Paths64 paths) =>
         MeshSlicer.AreaMm2(Clipper.Union(paths, FillRule.NonZero));
 

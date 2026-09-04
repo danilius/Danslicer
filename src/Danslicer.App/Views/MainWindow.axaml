@@ -37,6 +37,10 @@
             <Setter Property="Foreground" Value="#9AA0A6" />
             <Setter Property="FontSize" Value="12" />
         </Style>
+        <Style Selector="TextBlock.status.warning">
+            <Setter Property="Foreground" Value="#EF5350" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
         <Style Selector="TextBlock.section">
             <Setter Property="Foreground" Value="#C8CCD0" />
             <Setter Property="FontSize" Value="12" />
@@ -111,6 +115,14 @@
                 <MenuItem x:Name="PreferencesMenuItem" Header="_Preferences..." Click="OnPreferencesClick" />
             </MenuItem>
             <MenuItem Header="_Object" IsVisible="{Binding IsModelView}">
+                <MenuItem x:Name="DuplicateObjectsMenuItem" Header="_Duplicate" Command="{Binding DuplicateScopedCommand}"
+                          IsVisible="{Binding DuplicateScopedCommand.IsAvailable}" />
+                <MenuItem Header="_Mirror" IsVisible="{Binding MirrorXScopedCommand.IsAvailable}">
+                    <MenuItem x:Name="MirrorXMenuItem" Header="Mirror _X" Command="{Binding MirrorXScopedCommand}" />
+                    <MenuItem x:Name="MirrorYMenuItem" Header="Mirror _Y" Command="{Binding MirrorYScopedCommand}" />
+                    <MenuItem x:Name="MirrorZMenuItem" Header="Mirror _Z" Command="{Binding MirrorZScopedCommand}" />
+                </MenuItem>
+                <Separator IsVisible="{Binding IsLayoutView}" />
                 <MenuItem x:Name="DropToPlateMenuItem" Header="_Drop to Plate" Command="{Binding DropToPlateScopedCommand}"
                           IsVisible="{Binding DropToPlateScopedCommand.IsAvailable}" />
                 <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F"
@@ -180,7 +192,8 @@
 
         <Border DockPanel.Dock="Bottom" Background="#1B1D20" Padding="8,3">
             <Grid ColumnDefinitions="*,Auto,Auto">
-                <TextBlock Text="{Binding ViewportStatus}" Classes="label" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding ViewportStatusDisplay}" Classes="label status"
+                           Classes.warning="{Binding HasSliceWarning}" TextTrimming="CharacterEllipsis" />
                 <ProgressBar Grid.Column="1" Width="160" Height="8" Margin="12,0" Minimum="0" Maximum="1"
                              Value="{Binding SliceProgress}" IsVisible="{Binding IsSlicing}" />
                 <TextBlock Grid.Column="2" Text="{Binding HistoryStatus}" Classes="label" Margin="16,0,0,0" />
@@ -205,7 +218,8 @@
                 <ColumnDefinition Width="320" MinWidth="220" />
             </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="2" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0" Padding="10,4">
+        <Border x:Name="RightPanel" Grid.Column="2" Background="#23262A" BorderBrush="#111"
+                BorderThickness="1,0,0,0" Padding="10,4">
             <Grid>
                 <ScrollViewer IsVisible="{Binding IsLayoutView}">
                     <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -223,36 +237,6 @@
                         <TextBlock Text="Scale" Classes="section" />
                         <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                    </StackPanel>
-                </ScrollViewer>
-
-                <ScrollViewer IsVisible="{Binding IsSupportView}">
-                    <!-- Right padding keeps the overlay scrollbar off the slider's upper handle. -->
-                    <StackPanel Margin="0,0,14,0">
-                        <TextBlock Text="Support inspection" Classes="section" />
-                        <CheckBox Content="Hover waterline" IsChecked="{Binding SupportWaterline.Enabled}"
-                                  Margin="0,0,0,6"
-                                  ToolTip.Tip="Show a live model contour at the hovered surface height" />
-                        <TextBlock Text="Layer range" Classes="label"
-                                   ToolTip.Tip="Viewport isolation only — slicing and support generation are unaffected" />
-                        <controls:LayerRangeSlider Minimum="{Binding SupportClip.MinimumZ}"
-                                                   Maximum="{Binding SupportClip.MaximumZ}"
-                                                   LowerValue="{Binding SupportClip.LowerZ, Mode=TwoWay}"
-                                                   UpperValue="{Binding SupportClip.UpperZ, Mode=TwoWay}"
-                                                   ToolTip.Tip="Drag either end to clip the Support viewport from below or above" />
-                        <Grid ColumnDefinitions="Auto,58,Auto,Auto,58,Auto,*" Margin="0,0,0,6">
-                            <TextBlock Text="Low" Classes="label" Margin="0,0,4,0" />
-                            <controls:ExpressionBox Grid.Column="1" Text="{Binding SupportClip.LowerField.Text, Mode=TwoWay}" />
-                            <TextBlock Grid.Column="2" Text="mm" Classes="label" Margin="4,0,10,0" />
-                            <TextBlock Grid.Column="3" Text="High" Classes="label" Margin="0,0,4,0" />
-                            <controls:ExpressionBox Grid.Column="4" Text="{Binding SupportClip.UpperField.Text, Mode=TwoWay}" />
-                            <TextBlock Grid.Column="5" Text="mm" Classes="label" Margin="4,0,0,0" />
-                            <Button Grid.Column="6" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
-                                    HorizontalAlignment="Right" Padding="8,2" />
-                        </Grid>
-                        <ToggleButton Content="Select Through" IsChecked="{Binding SelectThroughSupports}"
-                                      HorizontalAlignment="Stretch"
-                                      ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
                     </StackPanel>
                 </ScrollViewer>
 
@@ -303,7 +287,8 @@
             </Grid>
         </Border>
 
-        <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="#151719" />
+        <GridSplitter x:Name="RightPanelSplitter" Grid.Column="1"
+                      ResizeDirection="Columns" Background="#151719" />
 
         <!-- Main area: header strip, then either the 3D model view or the layer view. -->
         <DockPanel Grid.Column="0">
@@ -338,7 +323,11 @@
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
                                           SupportDisplay="{Binding SupportSettings.SupportDisplay}"
                                           ClipRange="{Binding ViewportClipRange}"
+                                          CapInterior="{Binding CapInterior}"
+                                          CapStyle="{Binding CapStyle}"
+                                          ClipDragging="{Binding SupportClip.IsDragging}"
                                           SupportWaterline="{Binding SupportWaterline}"
+                                          IslandMarkers="{Binding DetectedIslands}"
                                           ShowMoveGizmo="{Binding ShowMoveGizmo}"
                                           ShowRotateGizmo="{Binding ShowRotateGizmo}"
                                           ShowScaleGizmo="{Binding ShowScaleGizmo}"
@@ -349,6 +338,47 @@
                      viewport's own 2D layer, so a rectangle drawn there is invisible. -->
                 <controls:SelectionRectOverlay IsVisible="{Binding IsModelView}"
                                                Rect="{Binding #Viewport.MarqueeRect}" />
+
+                <!-- Support inspection lives on the viewport edge so Support mode can use the
+                     full workspace width. Higher Z is at the top, matching the model axis. -->
+                <Border HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="116"
+                        Margin="0,164,12,12" Padding="7,8" Background="#D923262A"
+                        BorderBrush="#7A858F" BorderThickness="1" CornerRadius="3"
+                        IsVisible="{Binding IsSupportView}"
+                        ToolTip.Tip="Viewport layer isolation only — slicing and support generation are unaffected">
+                    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+                        <StackPanel>
+                            <TextBlock Text="High" Classes="label" HorizontalAlignment="Center" />
+                            <controls:ExpressionBox Width="60"
+                                Text="{Binding SupportClip.UpperField.Text, Mode=TwoWay}"
+                                ToolTip.Tip="Upper visible height (expressions accepted)" />
+                        </StackPanel>
+                        <controls:LayerRangeSlider Grid.Row="1" Orientation="Vertical"
+                                                   HorizontalAlignment="Stretch"
+                                                   Margin="0,6"
+                                                   Minimum="{Binding SupportClip.MinimumZ}"
+                                                   Maximum="{Binding SupportClip.MaximumZ}"
+                                                   LowerValue="{Binding SupportClip.LowerZ, Mode=TwoWay}"
+                                                   UpperValue="{Binding SupportClip.UpperZ, Mode=TwoWay}"
+                                                   IsDragging="{Binding SupportClip.IsDragging, Mode=TwoWay}"
+                                                   ToolTip.Tip="Drag either end to clip the Support viewport from below or above" />
+                        <StackPanel Grid.Row="2">
+                            <TextBlock Text="Low" Classes="label" HorizontalAlignment="Center" />
+                            <controls:ExpressionBox Width="60"
+                                Text="{Binding SupportClip.LowerField.Text, Mode=TwoWay}"
+                                ToolTip.Tip="Lower visible height (expressions accepted)" />
+                        </StackPanel>
+                        <Button Grid.Row="3" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
+                                Margin="0,7,0,0" Padding="6,2"
+                                ToolTip.Tip="Show the full model height" />
+                        <CheckBox Grid.Row="4" Content="Cap interior" IsChecked="{Binding CapInterior}"
+                                  Margin="0,7,0,0"
+                                  ToolTip.Tip="Close clipped model and support interiors with viewport-only faces" />
+                        <ComboBox Grid.Row="5" ItemsSource="{Binding ClipCapStyles}"
+                                  SelectedItem="{Binding CapStyle}" Margin="0,5,0,0"
+                                  ToolTip.Tip="Sliced is exact; Painted is reserved for the deferred-renderer follow-up" />
+                    </Grid>
+                </Border>
 
                 <DockPanel IsVisible="{Binding IsLayersView}">
                     <Border DockPanel.Dock="Bottom" Background="#1F2124" BorderBrush="#111" BorderThickness="0,1,0,0" Padding="10,4">
@@ -365,6 +395,7 @@
                      toolbar here as a sibling, after both viewport surfaces, so it stays visible. -->
                 <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
                     <Button x:Name="ObjectsToolButton" Classes="viewportTool" Content="▦"
+                            IsVisible="{Binding IsObjectsToolVisible}"
                             ToolTip.Tip="Objects" Click="OnObjectsToolClick" />
                     <Popup x:Name="ObjectsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #ObjectsToolButton}"
@@ -398,7 +429,7 @@
                     </Popup>
 
                     <Button x:Name="SupportsToolButton" Classes="viewportTool" Content="Y" ToolTip.Tip="Supports"
-                            IsVisible="{Binding IsSupportView}" Click="OnSupportsToolClick" />
+                            IsVisible="{Binding IsSupportsToolVisible}" Click="OnSupportsToolClick" />
                     <Popup x:Name="SupportsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #SupportsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
@@ -421,8 +452,78 @@
                         </Border>
                     </Popup>
 
+                    <Button x:Name="IslandSupportToolButton" Classes="viewportTool" Content="I+"
+                            IsVisible="{Binding IsIslandSupportToolVisible}"
+                            ToolTip.Tip="Generate island supports only"
+                            Command="{Binding GenerateIslandSupportsScopedCommand}" />
+
+                    <Button x:Name="IslandDetectionToolButton" Classes="viewportTool" Content="I?"
+                            IsVisible="{Binding IsIslandDetectionToolVisible}"
+                            ToolTip.Tip="Detect unsupported islands" Click="OnIslandDetectionToolClick" />
+                    <Popup x:Name="IslandDetectionToolPopup" Placement="RightEdgeAlignedTop"
+                           PlacementTarget="{Binding #IslandDetectionToolButton}"
+                           IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
+                           Closed="OnViewportPopupClosed">
+                        <Border x:Name="IslandDetectionPopupContent" Width="360" MaxHeight="700" Padding="10"
+                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                    <TextBlock Text="Island Detection" Classes="section" Margin="0" />
+                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
+                                            ToolTip.Tip="Close Island Detection" Click="OnIslandDetectionPopupCloseClick" />
+                                </Grid>
+                                <StackPanel DockPanel.Dock="Top">
+                                    <Grid ColumnDefinitions="*,*" Margin="0,0,0,6">
+                                        <Button Content="Run detection" Command="{Binding DetectIslandsScopedCommand}"
+                                                Margin="0,0,3,0" />
+                                        <Button Grid.Column="1" Content="Clear markers"
+                                                Command="{Binding ClearIslandDetectionCommand}" Margin="3,0,0,0" />
+                                    </Grid>
+                                    <TextBlock Text="Island tool tuning" Classes="label" FontWeight="SemiBold" />
+                                    <Grid ColumnDefinitions="170,*" Margin="0,2">
+                                        <TextBlock Text="Min island area mm²" Classes="label" />
+                                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.1"
+                                                       FormatString="0.##" Value="{Binding SupportSettings.SupportMinIslandAreaMm2, Mode=TwoWay}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="170,*" Margin="0,2">
+                                        <TextBlock Text="Overhang angle °" Classes="label" />
+                                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="90" Increment="1"
+                                                       FormatString="0" Value="{Binding SupportSettings.SupportOverhangAngleDegrees, Mode=TwoWay}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="170,*" Margin="0,2">
+                                        <TextBlock Text="Island spacing mm" Classes="label" />
+                                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1"
+                                                       FormatString="0.##" Value="{Binding SupportSettings.SupportIslandSpacingMm, Mode=TwoWay}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="170,*" Margin="0,2,0,6">
+                                        <TextBlock Text="Analysis layer height" Classes="label" />
+                                        <TextBlock Grid.Column="1" Text="{Binding PrintSettings.LayerHeight.Text}" />
+                                    </Grid>
+                                </StackPanel>
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding DetectedIslands}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button HorizontalContentAlignment="Left" Padding="5,3" Margin="0,1"
+                                                        Click="OnIslandFindingClick">
+                                                    <TextBlock>
+                                                        <Run Text="Layer " /><Run Text="{Binding LayerIndex}" />
+                                                        <Run Text="  Z " /><Run Text="{Binding Z, StringFormat={}{0:0.###}}" />
+                                                        <Run Text="  X " /><Run Text="{Binding X, StringFormat={}{0:0.###}}" />
+                                                        <Run Text="  Y " /><Run Text="{Binding Y, StringFormat={}{0:0.###}}" />
+                                                        <Run Text="  Area " /><Run Text="{Binding AreaMm2, StringFormat={}{0:0.###}}" />
+                                                    </TextBlock>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+                    </Popup>
+
                     <Button x:Name="VisibilityToolButton" Classes="viewportTool" Content="◉"
-                            ToolTip.Tip="Support visibility" IsVisible="{Binding IsSupportView}"
+                            ToolTip.Tip="Support visibility" IsVisible="{Binding IsVisibilityToolVisible}"
                             Click="OnVisibilityToolClick" />
                     <Popup x:Name="VisibilityToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #VisibilityToolButton}"
@@ -459,7 +560,7 @@
                     </Popup>
 
                     <Button x:Name="RaftsToolButton" Classes="viewportTool" Content="≋"
-                            IsVisible="{Binding IsSupportView}" ToolTip.Tip="Rafts"
+                            IsVisible="{Binding IsRaftsToolVisible}" ToolTip.Tip="Rafts"
                             Click="OnRaftsToolClick" />
                     <Popup x:Name="RaftsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #RaftsToolButton}"

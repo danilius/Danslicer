@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using CommunityToolkit.Mvvm.Input;
@@ -11,6 +12,7 @@ using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.IO;
+using Danslicer.Core.Supports.Generation;
 
 namespace Danslicer.App.Views;
 
@@ -34,7 +36,11 @@ public partial class MainWindow : Window
             WorkspaceMode.Slicing);
         InitializeComponent();
         Configuration.WindowStatePersistence.Track(this, "main",
-            rightPanel: WorkspaceGrid.ColumnDefinitions[2]);
+            rightPanel: WorkspaceGrid.ColumnDefinitions[2],
+            rightPanelWidthProvider: PersistedRightPanelWidth);
+        _expandedRightPanelWidth = WorkspaceGrid.ColumnDefinitions[2].Width;
+        DataContextChanged += OnMainDataContextChanged;
+        AttachPanelLayoutViewModel();
         RefreshWindowKeymap();
         SyncRenderPathMenu();
         Viewport.PropertyChanged += (_, e) =>
@@ -63,18 +69,87 @@ public partial class MainWindow : Window
     private ConfigWindow? _configWindow;
     private SupportPresetEditorWindow? _presetEditorWindow;
     private readonly List<KeyBinding> _windowKeyBindings = [];
+    private MainViewModel? _panelLayoutViewModel;
+    private GridLength _expandedRightPanelWidth = new(320);
+    private readonly ViewportPopupState _objectsPopupState = new(ViewportTool.Objects);
+    private readonly ViewportPopupState _supportsPopupState = new(ViewportTool.Supports);
+    private readonly ViewportPopupState _islandDetectionPopupState = new(ViewportTool.IslandDetection);
+    private readonly ViewportPopupState _visibilityPopupState = new(ViewportTool.Visibility);
+    private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
+
+    private void OnMainDataContextChanged(object? sender, EventArgs e) =>
+        AttachPanelLayoutViewModel();
+
+    private void AttachPanelLayoutViewModel()
+    {
+        if (_panelLayoutViewModel is not null)
+            _panelLayoutViewModel.PropertyChanged -= OnPanelLayoutPropertyChanged;
+        _panelLayoutViewModel = ViewModel;
+        if (_panelLayoutViewModel is not null)
+            _panelLayoutViewModel.PropertyChanged += OnPanelLayoutPropertyChanged;
+        ApplyRightPanelMode();
+        ApplyViewportPopupMode();
+    }
+
+    private void OnPanelLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.ViewMode)) return;
+        ApplyRightPanelMode();
+        ApplyViewportPopupMode();
+    }
+
+    private void ApplyRightPanelMode()
+    {
+        var splitterColumn = WorkspaceGrid.ColumnDefinitions[1];
+        var rightPanelColumn = WorkspaceGrid.ColumnDefinitions[2];
+        var showRightPanel = ViewModel?.ViewMode != WorkspaceMode.Support;
+        if (!showRightPanel)
+        {
+            var currentWidth = rightPanelColumn.ActualWidth >= 220
+                ? rightPanelColumn.ActualWidth
+                : rightPanelColumn.Width.Value;
+            if (currentWidth >= 220) _expandedRightPanelWidth = new GridLength(currentWidth);
+            RightPanel.IsVisible = false;
+            RightPanelSplitter.IsVisible = false;
+            splitterColumn.Width = new GridLength(0);
+            rightPanelColumn.MinWidth = 0;
+            rightPanelColumn.Width = new GridLength(0);
+            return;
+        }
+
+        RightPanel.IsVisible = true;
+        RightPanelSplitter.IsVisible = true;
+        splitterColumn.Width = new GridLength(5);
+        rightPanelColumn.MinWidth = 220;
+        if (rightPanelColumn.Width.Value <= 0)
+            rightPanelColumn.Width = _expandedRightPanelWidth;
+    }
+
+    private double PersistedRightPanelWidth()
+    {
+        if (!RightPanel.IsVisible) return _expandedRightPanelWidth.Value;
+        var currentWidth = WorkspaceGrid.ColumnDefinitions[2].ActualWidth;
+        return currentWidth >= 220 ? currentWidth : _expandedRightPanelWidth.Value;
+    }
 
     private void OnObjectsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(ObjectsToolPopup);
+        ToggleViewportPopup(_objectsPopupState, ObjectsToolPopup);
 
     private void OnSupportsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(SupportsToolPopup);
+        ToggleViewportPopup(_supportsPopupState, SupportsToolPopup);
+
+    private void OnIslandDetectionToolClick(object? sender, RoutedEventArgs e)
+    {
+        ToggleViewportPopup(_islandDetectionPopupState, IslandDetectionToolPopup);
+        if (_islandDetectionPopupState.IsOpen && ViewModel?.DetectIslandsCommand.CanExecute(null) == true)
+            ViewModel.DetectIslandsCommand.Execute(null);
+    }
 
     private void OnVisibilityToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(VisibilityToolPopup);
+        ToggleViewportPopup(_visibilityPopupState, VisibilityToolPopup);
 
     private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(RaftsToolPopup);
+        ToggleViewportPopup(_raftsPopupState, RaftsToolPopup);
 
     private void OnViewSettingsClick(object? sender, RoutedEventArgs e)
     {
@@ -87,12 +162,31 @@ public partial class MainWindow : Window
 
     private static void ToggleViewportPopup(Popup popup) => popup.IsOpen = !popup.IsOpen;
 
+    private void ToggleViewportPopup(ViewportPopupState state, Popup popup)
+    {
+        state.Toggle();
+        ApplyViewportPopupState(state, popup);
+    }
+
+    private void ApplyViewportPopupMode()
+    {
+        ApplyViewportPopupState(_objectsPopupState, ObjectsToolPopup);
+        ApplyViewportPopupState(_supportsPopupState, SupportsToolPopup);
+        ApplyViewportPopupState(_islandDetectionPopupState, IslandDetectionToolPopup);
+        ApplyViewportPopupState(_visibilityPopupState, VisibilityToolPopup);
+        ApplyViewportPopupState(_raftsPopupState, RaftsToolPopup);
+    }
+
+    private void ApplyViewportPopupState(ViewportPopupState state, Popup popup) =>
+        popup.IsOpen = state.IsVisible(ViewModel?.ViewMode ?? WorkspaceMode.Layout);
+
     private void OnViewportPopupOpened(object? sender, EventArgs e)
     {
         var focusTarget = sender switch
         {
             _ when ReferenceEquals(sender, ObjectsToolPopup) => ObjectsPopupContent,
             _ when ReferenceEquals(sender, SupportsToolPopup) => SupportsPopupContent,
+            _ when ReferenceEquals(sender, IslandDetectionToolPopup) => IslandDetectionPopupContent,
             _ when ReferenceEquals(sender, VisibilityToolPopup) => VisibilityPopupContent,
             _ when ReferenceEquals(sender, RaftsToolPopup) => RaftsPopupContent,
             _ when ReferenceEquals(sender, ViewSettingsPopup) => ViewSettingsPopupContent,
@@ -110,6 +204,7 @@ public partial class MainWindow : Window
         {
             _ when ReferenceEquals(sender, ObjectsPopupContent) => ObjectsToolPopup,
             _ when ReferenceEquals(sender, SupportsPopupContent) => SupportsToolPopup,
+            _ when ReferenceEquals(sender, IslandDetectionPopupContent) => IslandDetectionToolPopup,
             _ when ReferenceEquals(sender, VisibilityPopupContent) => VisibilityToolPopup,
             _ when ReferenceEquals(sender, RaftsPopupContent) => RaftsToolPopup,
             _ when ReferenceEquals(sender, ViewSettingsPopupContent) => ViewSettingsPopup,
@@ -121,19 +216,50 @@ public partial class MainWindow : Window
     }
 
     private void OnObjectsPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(ObjectsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+        CloseViewportPopup(_objectsPopupState, ObjectsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
     private void OnSupportsPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(SupportsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+        CloseViewportPopup(_supportsPopupState, SupportsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnIslandDetectionPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_islandDetectionPopupState, IslandDetectionToolPopup,
+            ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnIslandFindingClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: DetectedIsland island })
+            Viewport.FocusPoint(island.Position);
+    }
 
     private void OnVisibilityPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(VisibilityToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+        CloseViewportPopup(_visibilityPopupState, VisibilityToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
     private void OnRaftsPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(RaftsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+        CloseViewportPopup(_raftsPopupState, RaftsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
-    private static void CloseViewportPopup(Popup popup, ViewportPopupCloseTrigger trigger)
+    private void CloseViewportPopup(
+        ViewportPopupState state, Popup popup, ViewportPopupCloseTrigger trigger)
     {
+        state.Close(trigger);
+        ApplyViewportPopupState(state, popup);
+    }
+
+    private void CloseViewportPopup(Popup popup, ViewportPopupCloseTrigger trigger)
+    {
+        var state = popup switch
+        {
+            _ when ReferenceEquals(popup, ObjectsToolPopup) => _objectsPopupState,
+            _ when ReferenceEquals(popup, SupportsToolPopup) => _supportsPopupState,
+            _ when ReferenceEquals(popup, IslandDetectionToolPopup) => _islandDetectionPopupState,
+            _ when ReferenceEquals(popup, VisibilityToolPopup) => _visibilityPopupState,
+            _ when ReferenceEquals(popup, RaftsToolPopup) => _raftsPopupState,
+            _ => null,
+        };
+        if (state is not null)
+        {
+            CloseViewportPopup(state, popup, trigger);
+            return;
+        }
         if (ViewportToolbarPolicy.ShouldClosePopup(trigger)) popup.IsOpen = false;
     }
 
@@ -304,6 +430,10 @@ public partial class MainWindow : Window
         AddWindowKeyBinding(WindowKeymap.Redo, () => ViewModel?.RedoCommand);
         AddWindowKeyBinding(WindowKeymap.RedoAlternate, () => ViewModel?.RedoCommand);
         AddWindowKeyBinding(WindowKeymap.Delete, () => ViewModel?.DeleteCommand);
+        AddWindowKeyBinding(WindowKeymap.DuplicateObjects, () => ViewModel?.DuplicateScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.MirrorX, () => ViewModel?.MirrorXScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.MirrorY, () => ViewModel?.MirrorYScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.MirrorZ, () => ViewModel?.MirrorZScopedCommand);
         AddWindowKeyBinding(WindowKeymap.DropToPlate, () => ViewModel?.DropToPlateScopedCommand);
         AddWindowKeyBinding(WindowKeymap.GenerateSupports, () => ViewModel?.GenerateSupportsScopedCommand);
         AddWindowKeyBinding(WindowKeymap.SelectAll, () => ViewModel?.SelectAllCommand);
@@ -327,6 +457,10 @@ public partial class MainWindow : Window
         RedoMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Redo);
         SelectAllMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.SelectAll);
         DeleteMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Delete);
+        DuplicateObjectsMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.DuplicateObjects);
+        MirrorXMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.MirrorX);
+        MirrorYMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.MirrorY);
+        MirrorZMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.MirrorZ);
         PreferencesMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Preferences);
         DropToPlateMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.DropToPlate);
         HideUnselectedMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.HideUnselectedSupports);

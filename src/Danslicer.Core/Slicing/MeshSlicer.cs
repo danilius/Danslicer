@@ -247,6 +247,37 @@ public static class MeshSlicer
         return merged;
     }
 
+    /// <summary>Finished cross-section polygons at an arbitrary world-space Z plane.</summary>
+    public static Paths64 PolygonsAt(PreparedMesh mesh, double z)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        if (z <= mesh.MinZ || z >= mesh.MaxZ) return new Paths64();
+
+        var segments = new List<Segment>();
+        Span<(double x, double y)> points = stackalloc (double, double)[3];
+        for (int triangle = 0; triangle < mesh.TriangleCount; triangle++)
+        {
+            if (z <= mesh.TriMinZ[triangle] || z >= mesh.TriMaxZ[triangle]) continue;
+            int ia = mesh.Indices[triangle * 3], ib = mesh.Indices[triangle * 3 + 1],
+                ic = mesh.Indices[triangle * 3 + 2];
+            var count = 0;
+            Cross(mesh, ia, ib, z, points, ref count);
+            Cross(mesh, ib, ic, z, points, ref count);
+            Cross(mesh, ic, ia, z, points, ref count);
+            if (count != 2) continue;
+
+            var (x0, y0) = points[0];
+            var (x1, y1) = points[1];
+            var normal = mesh.NormalXy[triangle];
+            var direction = (x1 - x0) * -normal.Y + (y1 - y0) * normal.X;
+            var a = new Point64((long)Math.Round(x0 * UnitsPerMm), (long)Math.Round(y0 * UnitsPerMm));
+            var b = new Point64((long)Math.Round(x1 * UnitsPerMm), (long)Math.Round(y1 * UnitsPerMm));
+            if (a == b) continue;
+            segments.Add(direction >= 0 ? new Segment(a, b) : new Segment(b, a));
+        }
+        return Finish(ChainSegments(segments), 0);
+    }
+
     /// <summary>Total area in square millimetres, holes subtracted.</summary>
     public static double AreaMm2(Paths64 paths)
     {

@@ -257,4 +257,29 @@ public class SlicingTests
         ok.Transform = Transform.Identity with { Translation = new Vector3(-5, -5, 0) };
         Assert.NotNull(Slicer.Slice(new[] { ok }, Printer, PrintSettings.Default));
     }
+
+    [Fact]
+    public void PermissiveSliceCropsEveryViolatedAxisAndReportsWarning()
+    {
+        var printer = Printer with
+        {
+            DisplayWidthMm = 20,
+            DisplayHeightMm = 10,
+            ZTravelMm = 0.1f,
+            ResolutionX = 20,
+            ResolutionY = 10,
+        };
+        var obj = new SceneObject("outside", Box(30, 20, 0.2f));
+        obj.Transform = Transform.Identity with { Translation = new Vector3(-15, -10, -0.05f) };
+
+        var result = Slicer.Slice([obj], printer, PrintSettings.Default,
+            allowOutOfBounds: true);
+
+        Assert.Equal(2, result.LayerCount);
+        Assert.All(result.Layers, layer => Assert.True(layer.LitPixels > 0));
+        Assert.Equal(BuildVolumeViolationAxes.X | BuildVolumeViolationAxes.Y | BuildVolumeViolationAxes.Z,
+            result.CroppedAxes);
+        Assert.Equal("Warning: content outside the build area on X, Y and Z was cropped.",
+            result.BuildVolumeWarning);
+    }
 }

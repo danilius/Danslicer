@@ -1,11 +1,12 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Media;
 
 namespace Danslicer.App.Controls;
 
-/// <summary>A compact two-thumb horizontal slider for the Support-mode layer range.</summary>
+/// <summary>A compact two-thumb slider for the Support-mode layer range.</summary>
 public sealed class LayerRangeSlider : Control
 {
     public static readonly StyledProperty<double> MinimumProperty =
@@ -18,6 +19,11 @@ public sealed class LayerRangeSlider : Control
     public static readonly StyledProperty<double> UpperValueProperty =
         AvaloniaProperty.Register<LayerRangeSlider, double>(nameof(UpperValue), 1,
             defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
+    public static readonly StyledProperty<Orientation> OrientationProperty =
+        AvaloniaProperty.Register<LayerRangeSlider, Orientation>(nameof(Orientation));
+    public static readonly StyledProperty<bool> IsDraggingProperty =
+        AvaloniaProperty.Register<LayerRangeSlider, bool>(nameof(IsDragging),
+            defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
     private static readonly Pen TrackPen = new(new SolidColorBrush(Color.Parse("#565A60")), 4);
     private static readonly Pen SelectedPen = new(new SolidColorBrush(Color.Parse("#E39032")), 4);
@@ -29,11 +35,13 @@ public sealed class LayerRangeSlider : Control
     private enum Thumb { None, Lower, Upper }
 
     static LayerRangeSlider() => AffectsRender<LayerRangeSlider>(
-        MinimumProperty, MaximumProperty, LowerValueProperty, UpperValueProperty);
+        MinimumProperty, MaximumProperty, LowerValueProperty, UpperValueProperty,
+        OrientationProperty);
 
     public LayerRangeSlider()
     {
         MinHeight = 24;
+        MinWidth = 24;
         Focusable = true;
     }
 
@@ -41,15 +49,35 @@ public sealed class LayerRangeSlider : Control
     public double Maximum { get => GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
     public double LowerValue { get => GetValue(LowerValueProperty); set => SetValue(LowerValueProperty, value); }
     public double UpperValue { get => GetValue(UpperValueProperty); set => SetValue(UpperValueProperty, value); }
+    public Orientation Orientation { get => GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
+    public bool IsDragging { get => GetValue(IsDraggingProperty); set => SetValue(IsDraggingProperty, value); }
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
+        if (Orientation == Orientation.Vertical)
+        {
+            var x = Bounds.Width * 0.5;
+            var top = ThumbRadius;
+            var bottom = Math.Max(top, Bounds.Height - ThumbRadius);
+            var lowerY = LayerRangeSliderGeometry.ValueToAxis(
+                LowerValue, Minimum, Maximum, top, bottom, descending: true);
+            var upperY = LayerRangeSliderGeometry.ValueToAxis(
+                UpperValue, Minimum, Maximum, top, bottom, descending: true);
+            context.DrawLine(TrackPen, new Point(x, top), new Point(x, bottom));
+            context.DrawLine(SelectedPen, new Point(x, upperY), new Point(x, lowerY));
+            context.DrawEllipse(ThumbFill, ThumbPen, new Point(x, lowerY), ThumbRadius, ThumbRadius);
+            context.DrawEllipse(ThumbFill, ThumbPen, new Point(x, upperY), ThumbRadius, ThumbRadius);
+            return;
+        }
+
         var y = Bounds.Height * 0.5;
         var left = ThumbRadius;
         var right = Math.Max(left, Bounds.Width - ThumbRadius);
-        var lowerX = ValueToX(LowerValue, left, right);
-        var upperX = ValueToX(UpperValue, left, right);
+        var lowerX = LayerRangeSliderGeometry.ValueToAxis(
+            LowerValue, Minimum, Maximum, left, right, descending: false);
+        var upperX = LayerRangeSliderGeometry.ValueToAxis(
+            UpperValue, Minimum, Maximum, left, right, descending: false);
         context.DrawLine(TrackPen, new Point(left, y), new Point(right, y));
         context.DrawLine(SelectedPen, new Point(lowerX, y), new Point(upperX, y));
         context.DrawEllipse(ThumbFill, ThumbPen, new Point(lowerX, y), ThumbRadius, ThumbRadius);
@@ -62,13 +90,19 @@ public sealed class LayerRangeSlider : Control
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         Focus();
         var point = e.GetPosition(this);
-        var left = ThumbRadius;
-        var right = Math.Max(left, Bounds.Width - ThumbRadius);
-        var lowerX = ValueToX(LowerValue, left, right);
-        var upperX = ValueToX(UpperValue, left, right);
-        _dragging = Math.Abs(point.X - lowerX) <= Math.Abs(point.X - upperX)
+        var vertical = Orientation == Orientation.Vertical;
+        var axisPosition = vertical ? point.Y : point.X;
+        var axisLength = vertical ? Bounds.Height : Bounds.Width;
+        var start = ThumbRadius;
+        var end = Math.Max(start, axisLength - ThumbRadius);
+        var lowerPosition = LayerRangeSliderGeometry.ValueToAxis(
+            LowerValue, Minimum, Maximum, start, end, descending: vertical);
+        var upperPosition = LayerRangeSliderGeometry.ValueToAxis(
+            UpperValue, Minimum, Maximum, start, end, descending: vertical);
+        _dragging = Math.Abs(axisPosition - lowerPosition) <= Math.Abs(axisPosition - upperPosition)
             ? Thumb.Lower : Thumb.Upper;
-        SetFromX(point.X);
+        SetCurrentValue(IsDraggingProperty, true);
+        SetFromPoint(point);
         e.Pointer.Capture(this);
         e.Handled = true;
     }
@@ -77,7 +111,7 @@ public sealed class LayerRangeSlider : Control
     {
         base.OnPointerMoved(e);
         if (_dragging == Thumb.None) return;
-        SetFromX(e.GetPosition(this).X);
+        SetFromPoint(e.GetPosition(this));
         e.Handled = true;
     }
 
@@ -86,26 +120,43 @@ public sealed class LayerRangeSlider : Control
         base.OnPointerReleased(e);
         if (_dragging == Thumb.None) return;
         _dragging = Thumb.None;
+        SetCurrentValue(IsDraggingProperty, false);
         e.Pointer.Capture(null);
         e.Handled = true;
     }
 
-    private void SetFromX(double x)
+    private void SetFromPoint(Point point)
     {
-        var left = ThumbRadius;
-        var right = Math.Max(left + 1, Bounds.Width - ThumbRadius);
-        var fraction = Math.Clamp((x - left) / (right - left), 0, 1);
-        var value = Minimum + fraction * Math.Max(0, Maximum - Minimum);
+        var vertical = Orientation == Orientation.Vertical;
+        var axisPosition = vertical ? point.Y : point.X;
+        var axisLength = vertical ? Bounds.Height : Bounds.Width;
+        var start = ThumbRadius;
+        var end = Math.Max(start + 1, axisLength - ThumbRadius);
+        var value = LayerRangeSliderGeometry.AxisToValue(
+            axisPosition, Minimum, Maximum, start, end, descending: vertical);
         if (_dragging == Thumb.Lower)
             SetCurrentValue(LowerValueProperty, Math.Min(value, UpperValue));
         else
             SetCurrentValue(UpperValueProperty, Math.Max(value, LowerValue));
     }
+}
 
-    private double ValueToX(double value, double left, double right)
+internal static class LayerRangeSliderGeometry
+{
+    internal static double ValueToAxis(double value, double minimum, double maximum,
+        double start, double end, bool descending)
     {
-        var span = Maximum - Minimum;
-        var fraction = span <= 0 ? 0 : Math.Clamp((value - Minimum) / span, 0, 1);
-        return left + fraction * (right - left);
+        var span = maximum - minimum;
+        var fraction = span <= 0 ? 0 : Math.Clamp((value - minimum) / span, 0, 1);
+        if (descending) fraction = 1 - fraction;
+        return start + fraction * (end - start);
+    }
+
+    internal static double AxisToValue(double position, double minimum, double maximum,
+        double start, double end, bool descending)
+    {
+        var fraction = end <= start ? 0 : Math.Clamp((position - start) / (end - start), 0, 1);
+        if (descending) fraction = 1 - fraction;
+        return minimum + fraction * Math.Max(0, maximum - minimum);
     }
 }

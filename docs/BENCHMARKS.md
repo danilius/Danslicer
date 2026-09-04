@@ -495,3 +495,131 @@ continues to a plate base (747 bases).
 4. The required drogon-lo iteration run found 398 clustered members in 123 clusters from 1492
    candidates. Grid-on routed in 1.222 s with 757 refusals; grid-off in 3.637 s with 601 refusals;
    both outputs were collision-free.
+
+---
+
+## 2026-09-04 — island identity in density clusters
+
+- Baseline: current merged `main` at `dac3d7a`; implementation: `f953532` and `08ef893`.
+- Config: Debug, net10.0; same machine and serial execution as the preceding run.
+- Finding: job 023 already clustered `Island` contacts—the original eligibility filter excluded
+  only `MiniIsland` and existing `MiniCluster` members, and its regression used island inputs.
+  This pass makes island eligibility explicit, preserves every member's source strategy, and adds
+  a six-tooth placement regression proving the post-dedup contact count and positions survive
+  clustering. No topology change is expected or observed.
+
+### Results
+
+| Model | Pass | Tips / cluster provenance | Grid on | Grid off |
+| --- | --- | --- | --- | --- |
+| drogon | before | 1961 candidates; Island 190, MiniIsland 492, MiniCluster 449; 132 clusters; source provenance not emitted | 1063 refusals, 144 bases, collision-free | 901 refusals, 228 bases, collision-free |
+| drogon | after | 1961 candidates; Island 190, MiniIsland 492, MiniCluster 449; 132 clusters; **449 island / 0 regular members** | 1063 refusals, 144 bases, collision-free | 901 refusals, 228 bases, collision-free |
+| gripper | before | 482 candidates; Island 82, MiniIsland 22, MiniCluster 9; 3 clusters; source provenance not emitted | 91 refusals, 133 bases, collision-free | 90 refusals, 139 bases, collision-free |
+| gripper | after | 482 candidates; Island 82, MiniIsland 22, MiniCluster 9; 3 clusters; **9 island / 0 regular members** | 91 refusals, 133 bases, collision-free | 90 refusals, 139 bases, collision-free |
+| drogon-lo | before | 1492 candidates; Island 181, MiniIsland 356, MiniCluster 398; 123 clusters; source provenance not emitted | 757 refusals, 130 bases, collision-free | 601 refusals, 210 bases, collision-free |
+| drogon-lo | after | 1492 candidates; Island 181, MiniIsland 356, MiniCluster 398; 123 clusters; **398 island / 0 regular members** | 757 refusals, 130 bases, collision-free | 601 refusals, 210 bases, collision-free |
+
+The before/after candidate, cluster, topology, refusal and base counts are bit-identical. The new
+provenance answers the brief's requested split directly: every density-cluster member in all three
+fixtures originated as an island contact, while `MiniIsland` counts remain unchanged. On drogon-lo,
+the 398 island members provide the headless proof available under the no-app-launch protocol; the
+user should locate them in the head/teeth view after regenerating supports, because an existing
+graph is not retroactively reclassified.
+
+---
+
+## 2026-09-04 — isolated fine-feature mini tips
+
+- Baseline and implementation were run at `cd60d2d`, toggling only
+  `--fine-feature-max 0` versus the proposed **1.0 mm²** default. Candidate positions and totals
+  are unchanged; only isolated island/local-minimum contacts left over after density clustering
+  are reclassified as one-member mini clusters.
+- Islands reuse their first-appearance area. Local minima use their connected horizontal section
+  0.5 mm above the contact. On `drogon-lo`, the four converted local minima measured 0.36, 0.62,
+  0.68 and 0.78 mm²; the next measured minimum was 4.01 mm². This is the basis for the flagged
+  1.0 mm² default.
+
+### Results
+
+| Model | Pass | Tips / conversions | Grid on | Grid off |
+| --- | --- | --- | --- | --- |
+| drogon | before | 1961 candidates; Island 190, MiniIsland 492, MiniCluster 449; 132 density clusters | 1063 refusals, 144 bases, collision-free | 901 refusals, 228 bases, collision-free |
+| drogon | after | 1961 candidates; Island 20, MiniIsland 492, MiniCluster 620; **171 fine singles** (170 island, 1 local minimum) | 1087 refusals, 137 bases, collision-free | 906 refusals, 221 bases, collision-free |
+| gripper | before | 482 candidates; Island 82, MiniIsland 22, MiniCluster 9; 3 density clusters | 91 refusals, 133 bases, collision-free | 90 refusals, 139 bases, collision-free |
+| gripper | after | 482 candidates; Island 33, MiniIsland 22, MiniCluster 58; **49 fine singles** (all island) | 83 refusals, 137 bases, collision-free | 82 refusals, 141 bases, collision-free |
+| drogon-lo | before | 1492 candidates; Island 181, MiniIsland 356, MiniCluster 398; 123 density clusters | 757 refusals, 130 bases, collision-free | 601 refusals, 210 bases, collision-free |
+| drogon-lo | after | 1492 candidates; Island 34, MiniIsland 356, MiniCluster 549; **151 fine singles** (147 island, 4 local minima) | 777 refusals, 126 bases, collision-free | 627 refusals, 207 bases, collision-free |
+
+The default converts the targeted four isolated `drogon-lo` spike minima while leaving the next
+much broader minimum regular. Density clusters remain unchanged and take precedence, mini-island
+counts are unchanged, and every candidate still has exactly one auditable source strategy. The
+trade-off is model-dependent: gripper refusals improve by 8 in both modes; Drogon rises by 24
+grid-on and 5 grid-off, and `drogon-lo` rises by 20/26. All six route outputs remain collision-free
+and within the configured 75° mini lean limit.
+
+---
+
+## 2026-09-04 — island-first routing and island retries
+
+- Fresh A/B runs used the same candidate files and toggled only the benchmark-only
+  `--island-first off` switch. Production defaults to island-first.
+- Structural island contacts get the first route attempt. A failed structural island gets one
+  deterministic retry after ordinary structural routes have made additional trunks. Failed
+  island-derived mini-cluster members then get an individual mini attachment attempt against the
+  completed carrier set. This preserves the established carrier-first mini workflow while never
+  silently spending a viable attachment on a non-island contact.
+- Candidate totals and positions are unchanged. “Island refusals” includes `Island`, `MiniIsland`,
+  and `MiniCluster` contacts whose preserved source strategy is `Island`.
+
+### Results
+
+| Model | Pass | Grid on | Grid off |
+| --- | --- | --- | --- |
+| drogon | before | 1087 refusals; **588 island**; 137 bases | 906 refusals; **502 island**; 221 bases |
+| drogon | after | 1023 refusals; **520 island**; 137 bases | 869 refusals; **462 island**; 221 bases |
+| gripper | before | 83 refusals; **27 island**; 137 bases | 82 refusals; **27 island**; 141 bases |
+| gripper | after | 63 refusals; **5 island**; 136 bases | 60 refusals; **5 island**; 145 bases |
+| drogon-lo | before | 777 refusals; **495 island**; 126 bases | 627 refusals; **423 island**; 207 bases |
+| drogon-lo | after | 723 refusals; **435 island**; 126 bases | 576 refusals; **374 island**; 210 bases |
+
+All six before/after outputs are collision-free. Island refusals improve in every case: by
+68/40 on Drogon, 22/22 on gripper, and 60/49 on drogon-lo (grid on/off). Total refusals also
+fall in every case; max lean remains within the configured 75° mini limit.
+
+---
+
+## 2026-09-04 — fine-feature mini fallback to regular cones
+
+- Baseline and implementation were run at `cdddd0e`, toggling only
+  `--fine-feature-fallback off|on`. The default is ON. Both passes generated fresh seated tips
+  with `--fine-feature-max 1`; candidate positions, classifications and totals were identical.
+- A failed one-member fine-feature cluster is retried after every cluster carrier and island
+  retry has had first use of capacity. Density clusters never take this fallback. The retry
+  restores the contact's pre-conversion diameter, shape, cone length and ball diameter.
+- Config: Debug, net10.0; same machine and serial, single-process conditions as preceding runs.
+
+### Results
+
+| Model | Fallback | Grid on | Grid off |
+| --- | --- | --- | --- |
+| drogon | off | **1023** refusals: ContactBlocked 4, NoClearStep 772, NoReachableGridPoint 82, NoBranchEndInRange 165; 137 bases; collision-free | **869** refusals: ContactBlocked 2, NoClearStep 716, NoBranchEndInRange 151; 221 bases; collision-free |
+| drogon | on | **994** refusals: ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165; 140 bases; collision-free | **850** refusals: ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142; 227 bases; collision-free |
+| gripper | off | **63** refusals: ContactBlocked 0, NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; 136 bases; collision-free | **60** refusals: ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3; 145 bases; collision-free |
+| gripper | on | **63** refusals: ContactBlocked 0, NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; 136 bases; collision-free | **60** refusals: ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3; 145 bases; collision-free |
+| drogon-lo | off | **723** refusals: ContactBlocked 5, NoClearStep 506, NoReachableGridPoint 71, NoBranchEndInRange 141; 126 bases; collision-free | **576** refusals: ContactBlocked 4, NoClearStep 436, NoBranchEndInRange 136; 210 bases; collision-free |
+| drogon-lo | on | **702** refusals: ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135; 129 bases; collision-free | **549** refusals: ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135; 216 bases; collision-free |
+
+### Observations
+
+1. The default-on fallback recovers **29 / 19** Drogon contacts and **21 / 27** drogon-lo
+   contacts (grid on/off). Gripper is bit-identical because none of its failed fine-feature
+   clusters can route as regular cones after the carrier set is complete.
+2. `ContactBlocked` remains unchanged in all six comparisons, preserving the physical-contact
+   win from fine-feature classification. On drogon-lo, `NoClearStep` falls 506 → 491 grid-on and
+   436 → 410 grid-off; the remaining gains are six and one `NoBranchEndInRange` refusals.
+3. Drogon-lo is now strictly better than the pre-023f 757 / 601 refusal baseline at **702 / 549**,
+   and also improves job 024's island-first 723 / 576 result. The remaining refusals are genuine
+   failures of both the mini cluster and its restored regular cone (plus any final island mini
+   retry), not a one-way classification artefact.
+4. All twelve route outputs are collision-free. Maximum lean remains at or below 75°; enabling
+   the fallback does not change candidate classification or density-cluster behavior.
