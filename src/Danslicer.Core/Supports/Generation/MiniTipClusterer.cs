@@ -3,8 +3,9 @@ using System.Numerics;
 namespace Danslicer.Core.Supports.Generation;
 
 /// <summary>
-/// Converts unusually crowded regular contacts into deterministic mini-tip clusters. Connected
-/// groups are split into bounded, spatially compact chunks so every chunk can own one branch end.
+/// Converts unusually crowded regular-size contacts, including required island contacts, into
+/// deterministic mini-tip clusters. Connected groups are split into bounded, spatially compact
+/// chunks so every chunk can own one branch end.
 /// </summary>
 internal static class MiniTipClusterer
 {
@@ -19,7 +20,7 @@ internal static class MiniTipClusterer
             return candidates;
 
         var regular = candidates.Select((candidate, index) => (Candidate: candidate, Index: index))
-            .Where(item => item.Candidate.Strategy is not (TipStrategy.MiniIsland or TipStrategy.MiniCluster))
+            .Where(item => IsDensityClusterCandidate(item.Candidate.Strategy))
             .OrderBy(item => item.Candidate.Point.X)
             .ThenBy(item => item.Candidate.Point.Y)
             .ThenBy(item => item.Candidate.Point.Z)
@@ -87,6 +88,7 @@ internal static class MiniTipClusterer
                         PenetrationDepth = 0f,
                         MiniClusterId = nextClusterId,
                         MiniClusterCenter = clusterCenter,
+                        MiniClusterSourceStrategy = item.Candidate.Strategy,
                     };
                 }
                 nextClusterId++;
@@ -94,6 +96,14 @@ internal static class MiniTipClusterer
         }
         return output;
     }
+
+    private static bool IsDensityClusterCandidate(TipStrategy strategy) => strategy is
+        TipStrategy.Island or
+        TipStrategy.LocalMinimum or
+        TipStrategy.Overhang or
+        TipStrategy.Edge or
+        TipStrategy.Corner or
+        TipStrategy.GridProjection;
 
     private static Vector3 WeightedCenter(IEnumerable<TipCandidate> candidates)
     {

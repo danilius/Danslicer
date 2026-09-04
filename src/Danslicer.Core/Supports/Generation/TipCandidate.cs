@@ -42,4 +42,10 @@ public readonly record struct TipCandidate(
     float BallDiameter = 0f,
     float PenetrationDepth = 0f,
     int? MiniClusterId = null,
-    Vector3? MiniClusterCenter = null);
+    Vector3? MiniClusterCenter = null,
+    /// <summary>
+    /// Placement strategy before this contact became a density-cluster member. Preserving the
+    /// source makes required-island coverage auditable after <see cref="Strategy"/> changes to
+    /// <see cref="TipStrategy.MiniCluster"/>.
+    /// </summary>
+    TipStrategy? MiniClusterSourceStrategy = null);

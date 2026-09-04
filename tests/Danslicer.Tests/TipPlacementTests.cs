@@ -49,11 +49,11 @@ public class TipPlacementTests
     }
 
     [Fact]
-    public void CrowdedRegularContactsFormDeterministicBoundedMiniClusters()
+    public void CrowdedIslandAndRegularContactsFormDeterministicBoundedMiniClusters()
     {
         var contacts = Enumerable.Range(0, 6).Select(index => new TipCandidate(
             new Vector3(index * 0.2f, 0, 10), Vector3.UnitZ, 0.4f, index + 1,
-            TipStrategy.Island, index)).ToList();
+            index < 3 ? TipStrategy.Island : TipStrategy.Overhang, index)).ToList();
         contacts.Add(new TipCandidate(new Vector3(20, 0, 10), Vector3.UnitZ, 0.4f, 1,
             TipStrategy.Island, 99));
         var parameters = TipPlacementParameters.Default with
@@ -82,8 +82,48 @@ public class TipPlacementTests
             Assert.Equal(SupportTipShape.Cone, candidate.TipShape);
             Assert.Equal(0.9f, candidate.ConeLength);
             Assert.NotNull(candidate.MiniClusterCenter);
+            Assert.NotNull(candidate.MiniClusterSourceStrategy);
         });
+        Assert.Equal(3, clustered.Count(candidate =>
+            candidate.MiniClusterSourceStrategy == TipStrategy.Island));
+        Assert.Equal(3, clustered.Count(candidate =>
+            candidate.MiniClusterSourceStrategy == TipStrategy.Overhang));
         Assert.Null(forward[^1].MiniClusterId);
+        Assert.Null(forward[^1].MiniClusterSourceStrategy);
+    }
+
+    [Fact]
+    public void TeethCombKeepsEveryDeduplicatedIslandContactWhenClustering()
+    {
+        var mesh = Meshes.Merge(Enumerable.Range(0, 6)
+            .Select(index => Meshes.Box(0.4f, 0.4f, 3,
+                new Vector3(index * 0.8f, 0, 5)))
+            .ToArray());
+        var parameters = P(minIsland: 0.1f) with
+        {
+            EnableMiniSupports = true,
+            EnableMiniTipClusters = false,
+            MiniIslandMaxAreaMm2 = 0.1f,
+            IslandSpacingMm = 0.5f,
+            MiniSupportClusterDistanceMm = 1.25f,
+            MiniSupportMaxTipsPerCluster = 4,
+        };
+
+        var before = Place(mesh, parameters);
+        var beforeIslands = before.Where(candidate => candidate.Strategy == TipStrategy.Island)
+            .OrderBy(candidate => candidate.Point.X).ToList();
+        var after = Place(mesh, parameters with { EnableMiniTipClusters = true });
+        var afterIslands = after.Where(candidate =>
+                candidate.MiniClusterSourceStrategy == TipStrategy.Island)
+            .OrderBy(candidate => candidate.Point.X).ToList();
+
+        Assert.Equal(6, beforeIslands.Count);
+        Assert.Equal(beforeIslands.Count, afterIslands.Count);
+        Assert.Equal(beforeIslands.Select(candidate => candidate.Point),
+            afterIslands.Select(candidate => candidate.Point));
+        Assert.Equal(before.Count, after.Count);
+        Assert.DoesNotContain(after, candidate =>
+            candidate.MiniClusterSourceStrategy == TipStrategy.MiniIsland);
     }
 
     [Fact]
