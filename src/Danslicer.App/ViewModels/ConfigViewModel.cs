@@ -364,6 +364,31 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
     }
 
+    // External tools
+
+    public string UvtoolsExecutablePath
+    {
+        get => _config.UvtoolsExecutablePath;
+        set
+        {
+            var path = value ?? "";
+            if (path == _config.UvtoolsExecutablePath) return;
+            Update(() => _config.UvtoolsExecutablePath = path);
+            OnPropertyChanged(nameof(IsUvtoolsExecutablePathValid));
+            OnPropertyChanged(nameof(UvtoolsExecutablePathValidationMessage));
+        }
+    }
+
+    public bool IsUvtoolsExecutablePathValid =>
+        !string.IsNullOrWhiteSpace(UvtoolsExecutablePath) && File.Exists(UvtoolsExecutablePath);
+
+    public string UvtoolsExecutablePathValidationMessage =>
+        string.IsNullOrWhiteSpace(UvtoolsExecutablePath)
+            ? "Not configured."
+            : IsUvtoolsExecutablePathValid
+                ? "Executable found."
+                : "File not found.";
+
     public int SupportDisplayModeIndex
     {
         get => (int)SupportDisplay.Mode;

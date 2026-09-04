@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.Platform.Storage;
 using Danslicer.App.ViewModels;
 
 namespace Danslicer.App.Views;
@@ -54,6 +56,22 @@ public partial class ConfigWindow : Window
         var index = SectionList.SelectedIndex;
         if (index >= 0 && index < Sections.Children.Count)
             Sections.Children[index].BringIntoView();
+    }
+
+    private async void OnBrowseUvtoolsClick(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Choose UVtools executable",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Applications") { Patterns = ["*.exe", "*.app", "*"] },
+            ],
+        });
+        var path = files.FirstOrDefault()?.TryGetLocalPath();
+        if (path is not null && DataContext is ConfigViewModel config)
+            config.UvtoolsExecutablePath = path;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

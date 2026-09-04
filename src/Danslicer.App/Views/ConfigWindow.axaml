@@ -71,6 +71,7 @@
                     <ListBoxItem Content="Printers" />
                     <ListBoxItem Content="Resins" />
                     <ListBoxItem Content="Supports" />
+                    <ListBoxItem Content="External tools" />
                     <ListBoxItem Content="SpaceMouse" />
                 </ListBox>
             </DockPanel>
@@ -241,6 +242,26 @@
                 <StackPanel x:Name="SupportsSection">
                     <TextBlock Text="Supports" Classes="section" />
                     <controls:SupportSettingsView DataContext="{Binding}" />
+                </StackPanel>
+
+                <StackPanel x:Name="ExternalToolsSection">
+                    <TextBlock Text="External tools" Classes="section" />
+                    <Grid Tag="external tools uvtools executable application path browse validation"
+                          ColumnDefinitions="190,*,Auto" ColumnSpacing="6" Margin="0,2">
+                        <TextBlock Text="UVtools executable" Classes="label" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding UvtoolsExecutablePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="Path to UVtools" />
+                        <Button Grid.Column="2" Content="Browse…" Click="OnBrowseUvtoolsClick" />
+                    </Grid>
+                    <TextBlock Text="{Binding UvtoolsExecutablePathValidationMessage}"
+                               Foreground="#FFB35C" FontSize="12" Margin="190,4,0,0"
+                               IsVisible="{Binding !IsUvtoolsExecutablePathValid}" />
+                    <TextBlock Text="{Binding UvtoolsExecutablePathValidationMessage}"
+                               Foreground="#78C68A" FontSize="12" Margin="190,4,0,0"
+                               IsVisible="{Binding IsUvtoolsExecutablePathValid}" />
+                    <TextBlock Classes="label" TextWrapping="Wrap" Margin="190,4,0,0"
+                               Text="Danslicer opens exported files in your installed copy; UVtools is not bundled." />
                 </StackPanel>
 
                 <StackPanel x:Name="SpaceMouseSection">

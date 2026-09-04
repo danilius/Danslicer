@@ -326,6 +326,12 @@ public sealed class UserConfig
     public string ActiveSupportPresetName { get; set; } = CadCleanSupportPresetName;
 
     /// <summary>
+    /// User-selected UVtools executable. Danslicer launches it as a separate process and never
+    /// links or bundles UVtools.
+    /// </summary>
+    public string UvtoolsExecutablePath { get; set; } = "";
+
+    /// <summary>
     /// Window-level shortcut overrides keyed by stable action id. Defaults live in the App layer;
     /// keeping only differences here makes a fresh keymap empty and lets new defaults flow through.
     /// </summary>
@@ -365,6 +371,7 @@ public sealed class UserConfig
             config.NormalizePrinters();
             config.NormalizeResinPresets();
             config.NormalizeSupportPresets();
+            config.UvtoolsExecutablePath ??= "";
             config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
                 ? MathF.Max(0, config.Placement.HeightMm)
                 : 0;
