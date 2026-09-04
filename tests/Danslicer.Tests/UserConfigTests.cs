@@ -445,6 +445,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(5f, supports.MiniSupportMaxLength);
         Assert.Equal(75f, supports.MiniSupportMaxAngleDegrees);
         Assert.Equal(4, supports.MiniSupportMaxFanPerBranchEnd);
+        Assert.Equal(1f, supports.FineFeatureMaxAreaMm2);
         Assert.False(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
         Assert.True(supports.UseBaseGrid);

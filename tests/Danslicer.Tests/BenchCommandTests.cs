@@ -9,6 +9,7 @@ public class BenchCommandTests
     {
         var report = new BenchmarkReport
         {
+            FineFeatureMaxAreaMm2 = 1f,
             Models =
             [
                 new ModelBenchmark
@@ -28,6 +29,7 @@ public class BenchCommandTests
                             ["Overhang"] = 10,
                         },
                         MiniClusters = 2,
+                        FineFeatureMinis = 2,
                         MiniClusterMembersBySourceStrategy = new Dictionary<string, int>
                         {
                             ["Island"] = 3,
@@ -71,9 +73,9 @@ public class BenchCommandTests
         var markdown = BenchCommand.BuildMarkdown(report);
 
         Assert.Contains("| Model | Command | Flags | Wall s | Exit | Counts | Notes |", markdown);
-        Assert.Contains("| model | `tips` | `--seat --json` | 1.235 | 0 | **12** candidates " +
+        Assert.Contains("| model | `tips` | `--seat --json --fine-feature-max 1` | 1.235 | 0 | **12** candidates " +
                         "(Island 2, MiniCluster 6, Overhang 10) across **2** mini clusters " +
-                        "(**3 island / 3 regular members**)", markdown);
+                        "(**3 island / 3 regular members**), **2 fine-feature singles**", markdown);
         Assert.Contains("`--seat --strategy tree --base-grid on --reinforce on --json` | " +
                         "2.346 | 2", markdown);
         Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);
