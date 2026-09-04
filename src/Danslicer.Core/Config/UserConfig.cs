@@ -78,6 +78,12 @@ public sealed class ViewportConfig
     /// <summary>Anti-aliasing on the final deferred image.</summary>
     public bool FxaaEnabled { get; set; } = true;
 
+    /// <summary>Wireframe overlay on visible objects (works on both render paths).</summary>
+    public bool WireframeEnabled { get; set; }
+
+    /// <summary>The corner view cube (design 6.2).</summary>
+    public bool ViewCubeEnabled { get; set; } = true;
+
     /// <summary>Build-plate opacity when the camera is below it: 0 invisible, 1 fully opaque.</summary>
     public float PlateOpacityFromBelow { get; set; } = 0.3f;
 

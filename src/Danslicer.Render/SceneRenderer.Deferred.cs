@@ -259,6 +259,7 @@ public sealed partial class SceneRenderer
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, _deferred!.ForwardFbo);
         gl.DepthFunc(DepthFunction.Lequal);
 
+        DrawWireframe(frame, view, projection);
         DrawTransparentAuxMeshes(frame, view, projection);
         if (plateFaded && frame.PlateOpacityFromBelow > 0.001f)
             DrawPlate(frame.Printer, view, projection, frame.PlateOpacityFromBelow);

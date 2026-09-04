@@ -478,6 +478,51 @@
                         </Border>
                     </Popup>
                 </StackPanel>
+
+                <!-- View settings: a small gear below the GL-drawn view cube (top-right).
+                     Sibling of the viewport for the same reason as the toolbar. -->
+                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,116,44,0"
+                            IsVisible="{Binding IsModelView}">
+                    <Button x:Name="ViewSettingsButton" Classes="viewportTool" Content="⚙"
+                            ToolTip.Tip="View settings" Click="OnViewSettingsClick" />
+                    <Popup x:Name="ViewSettingsPopup" Placement="LeftEdgeAlignedTop"
+                           PlacementTarget="{Binding #ViewSettingsButton}"
+                           IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
+                           Closed="OnViewportPopupClosed">
+                        <Border x:Name="ViewSettingsPopupContent" Width="235" Padding="10"
+                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                    <TextBlock Text="View" Classes="section" Margin="0" />
+                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
+                                            ToolTip.Tip="Close View" Click="OnViewSettingsCloseClick" />
+                                </Grid>
+                                <CheckBox x:Name="PopDeferred" Content="Deferred rendering"
+                                          Click="OnToggleDeferredRenderingClick" />
+                                <Grid ColumnDefinitions="80,*" Margin="0,2,0,2">
+                                    <TextBlock Text="Shading" Classes="label" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="PopShading" Grid.Column="1"
+                                              SelectionChanged="OnPopShadingChanged" />
+                                </Grid>
+                                <CheckBox x:Name="PopCavity" Content="Cavity" Click="OnToggleCavityClick" />
+                                <CheckBox x:Name="PopOutlines" Content="Outlines" Click="OnToggleOutlinesClick" />
+                                <CheckBox x:Name="PopFxaa" Content="FXAA" Click="OnToggleFxaaClick" />
+                                <CheckBox x:Name="PopWireframe" Content="Wireframe overlay"
+                                          Click="OnToggleWireframeClick" />
+                                <CheckBox x:Name="PopViewCube" Content="View cube"
+                                          Click="OnToggleViewCubeClick" />
+                                <CheckBox Content="Overhang tint"
+                                          IsChecked="{Binding ShowOverhangs, Mode=TwoWay}" />
+                                <CheckBox Content="Hover waterline"
+                                          IsChecked="{Binding SupportWaterline.Enabled, Mode=TwoWay}"
+                                          IsVisible="{Binding IsSupportView}" />
+                                <ToggleButton Content="Select Through" Margin="0,4,0,0"
+                                              IsChecked="{Binding SelectThroughSupports, Mode=TwoWay}"
+                                              IsVisible="{Binding IsSupportView}" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                </StackPanel>
             </Grid>
         </DockPanel>
         </Grid>

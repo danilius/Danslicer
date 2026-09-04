@@ -81,6 +81,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private int HitViewCube(Point pos)
     {
+        if (!Configuration.AppConfig.Current.Viewport.ViewCubeEnabled) return -1;
         var scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
         return ViewCube.HitRegion((float)(pos.X * scaling), (float)(pos.Y * scaling),
             (int)(Bounds.Width * scaling), (int)(Bounds.Height * scaling), scaling, Camera.View);
@@ -339,6 +340,8 @@ public sealed class ViewportControl : OpenGlControlBase
             Deferred = DeferredEffects.FromConfig(Configuration.AppConfig.Current.Viewport),
             ClipRange = ClipRange,
             WaterlineZ = SupportWaterline?.WorldZ,
+            WireframeEnabled = Configuration.AppConfig.Current.Viewport.WireframeEnabled,
+            ShowViewCube = Configuration.AppConfig.Current.Viewport.ViewCubeEnabled,
             ViewCubeHover = _viewCubeHover,
             RenderScaling = scaling,
         });

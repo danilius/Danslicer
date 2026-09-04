@@ -14,6 +14,9 @@ public sealed unsafe class GpuMesh : IDisposable
     private readonly uint _vao;
     private readonly uint _vbo;
     private readonly uint _vertexCount;
+    private uint _edgeVao;
+    private uint _edgeEbo;
+    private uint _edgeIndexCount;
 
     public GpuMesh(GL gl, Mesh mesh)
     {
@@ -54,8 +57,59 @@ public sealed unsafe class GpuMesh : IDisposable
         _gl.BindVertexArray(0);
     }
 
+    /// <summary>
+    /// Draws the triangulation's edges as lines (the wireframe overlay). The edge index buffer
+    /// is built on first use only, so meshes that never show a wireframe pay nothing; shared
+    /// edges draw twice, which is invisible at equal colour and depth.
+    /// </summary>
+    public void DrawEdges()
+    {
+        if (_edgeVao == 0) BuildEdges();
+        _gl.BindVertexArray(_edgeVao);
+        _gl.DrawElements(PrimitiveType.Lines, _edgeIndexCount, DrawElementsType.UnsignedInt, (void*)0);
+        _gl.BindVertexArray(0);
+    }
+
+    /// <summary>Line indices over the per-corner vertex layout: three edges per triangle.</summary>
+    public static uint[] EdgeIndices(int triangleCount)
+    {
+        var indices = new uint[triangleCount * 6];
+        for (var t = 0; t < triangleCount; t++)
+        {
+            var v = (uint)(t * 3);
+            var k = t * 6;
+            indices[k] = v; indices[k + 1] = v + 1;
+            indices[k + 2] = v + 1; indices[k + 3] = v + 2;
+            indices[k + 4] = v + 2; indices[k + 5] = v;
+        }
+        return indices;
+    }
+
+    private void BuildEdges()
+    {
+        var gl = _gl;
+        var indices = EdgeIndices((int)(_vertexCount / 3));
+        _edgeIndexCount = (uint)indices.Length;
+        _edgeVao = gl.GenVertexArray();
+        _edgeEbo = gl.GenBuffer();
+        gl.BindVertexArray(_edgeVao);
+        gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
+        gl.EnableVertexAttribArray(0);
+        gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), (void*)0);
+        gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _edgeEbo);
+        fixed (uint* ptr = indices)
+            gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(indices.Length * sizeof(uint)),
+                ptr, BufferUsageARB.StaticDraw);
+        gl.BindVertexArray(0);
+    }
+
     public void Dispose()
     {
+        if (_edgeVao != 0)
+        {
+            _gl.DeleteBuffer(_edgeEbo);
+            _gl.DeleteVertexArray(_edgeVao);
+        }
         _gl.DeleteBuffer(_vbo);
         _gl.DeleteVertexArray(_vao);
     }

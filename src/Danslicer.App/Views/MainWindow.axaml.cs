@@ -76,6 +76,15 @@ public partial class MainWindow : Window
     private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(RaftsToolPopup);
 
+    private void OnViewSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        SyncViewSettingsPopup();
+        ToggleViewportPopup(ViewSettingsPopup);
+    }
+
+    private void OnViewSettingsCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(ViewSettingsPopup, ViewportPopupCloseTrigger.HeaderButton);
+
     private static void ToggleViewportPopup(Popup popup) => popup.IsOpen = !popup.IsOpen;
 
     private void OnViewportPopupOpened(object? sender, EventArgs e)
@@ -86,6 +95,7 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(sender, SupportsToolPopup) => SupportsPopupContent,
             _ when ReferenceEquals(sender, VisibilityToolPopup) => VisibilityPopupContent,
             _ when ReferenceEquals(sender, RaftsToolPopup) => RaftsPopupContent,
+            _ when ReferenceEquals(sender, ViewSettingsPopup) => ViewSettingsPopupContent,
             _ => null,
         };
         focusTarget?.Focus();
@@ -102,6 +112,7 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(sender, SupportsPopupContent) => SupportsToolPopup,
             _ when ReferenceEquals(sender, VisibilityPopupContent) => VisibilityToolPopup,
             _ when ReferenceEquals(sender, RaftsPopupContent) => RaftsToolPopup,
+            _ when ReferenceEquals(sender, ViewSettingsPopupContent) => ViewSettingsPopup,
             _ => null,
         };
         if (popup is null) return;
@@ -380,6 +391,65 @@ public partial class MainWindow : Window
         CavityMenuItem.IsChecked = viewport.CavityEnabled;
         OutlinesMenuItem.IsChecked = viewport.OutlinesEnabled;
         FxaaMenuItem.IsChecked = viewport.FxaaEnabled;
+        SyncViewSettingsPopup();
+    }
+
+    private bool _syncingViewSettings;
+
+    private static readonly ViewportShadingMode[] ShadingOrder =
+    [
+        ViewportShadingMode.Studio, ViewportShadingMode.MatCapClay,
+        ViewportShadingMode.MatCapMetal, ViewportShadingMode.MatCapPearl,
+    ];
+
+    /// <summary>Reflects the persisted view settings into the gear pop-out below the view cube.</summary>
+    private void SyncViewSettingsPopup()
+    {
+        var viewport = AppConfig.Current.Viewport;
+        var deferred = viewport.RenderPath == RenderPathMode.Deferred;
+        // Guarded so pushing state into the ComboBox cannot write back into the config
+        // (the preset-combo feedback loop is the cautionary tale).
+        _syncingViewSettings = true;
+        try
+        {
+            PopShading.ItemsSource ??= new[] { "Studio", "MatCap Clay", "MatCap Metal", "MatCap Pearl" };
+            PopDeferred.IsChecked = deferred;
+            PopShading.SelectedIndex = Array.IndexOf(ShadingOrder, viewport.Shading);
+            PopShading.IsEnabled = deferred;
+            PopCavity.IsChecked = viewport.CavityEnabled;
+            PopOutlines.IsChecked = viewport.OutlinesEnabled;
+            PopFxaa.IsChecked = viewport.FxaaEnabled;
+            PopCavity.IsEnabled = deferred;
+            PopOutlines.IsEnabled = deferred;
+            PopFxaa.IsEnabled = deferred;
+            PopWireframe.IsChecked = viewport.WireframeEnabled;
+            PopViewCube.IsChecked = viewport.ViewCubeEnabled;
+        }
+        finally
+        {
+            _syncingViewSettings = false;
+        }
+    }
+
+    private void OnPopShadingChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingViewSettings || PopShading.SelectedIndex < 0) return;
+        AppConfig.Current.Viewport.Shading = ShadingOrder[PopShading.SelectedIndex];
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleWireframeClick(object? sender, RoutedEventArgs e)
+    {
+        var viewport = AppConfig.Current.Viewport;
+        viewport.WireframeEnabled = !viewport.WireframeEnabled;
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleViewCubeClick(object? sender, RoutedEventArgs e)
+    {
+        var viewport = AppConfig.Current.Viewport;
+        viewport.ViewCubeEnabled = !viewport.ViewCubeEnabled;
+        ApplyRenderPathChange();
     }
 
     private void ApplyRenderPathChange()

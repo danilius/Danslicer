@@ -134,6 +134,43 @@ internal static class Shaders
         }
         """;
 
+    /// <summary>
+    /// Wireframe overlay over the mesh VBO (attribute 0 only). The clip-space nudge pulls the
+    /// lines a hair toward the camera so they win the depth test against their own surface.
+    /// </summary>
+    public const string WireVertex = """
+        layout(location = 0) in vec3 aPosition;
+
+        uniform mat4 uModel;
+        uniform mat4 uView;
+        uniform mat4 uProjection;
+
+        out vec3 vWorldPosition;
+
+        void main()
+        {
+            vec4 world = uModel * vec4(aPosition, 1.0);
+            vWorldPosition = world.xyz;
+            gl_Position = uProjection * uView * world;
+            gl_Position.z -= gl_Position.w * 0.0006;
+        }
+        """;
+
+    public const string WireFragment = """
+        in vec3 vWorldPosition;
+        uniform vec3 uColor;
+        uniform float uClipEnabled;
+        uniform float uClipLowerZ;
+        uniform float uClipUpperZ;
+        out vec4 fragColor;
+        void main()
+        {
+            if (uClipEnabled > 0.5 &&
+                (vWorldPosition.z < uClipLowerZ || vWorldPosition.z > uClipUpperZ)) discard;
+            fragColor = vec4(uColor, 1.0);
+        }
+        """;
+
     public const string LineVertex = """
         layout(location = 0) in vec3 aPosition;
         layout(location = 1) in vec4 aColor;
