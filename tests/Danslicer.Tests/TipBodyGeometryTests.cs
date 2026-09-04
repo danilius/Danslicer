@@ -41,35 +41,56 @@ public sealed class TipBodyGeometryTests
     }
 
     [Fact]
-    public void RenderedAndAnalyticSectionsAgreeAfterTheNormalLeadInBend()
+    public void NonZeroLeadInRendersOneClosedBodyWithAContactApex()
     {
-        var tip = new SupportNode
+        var graph = ConeTip(-Vector3.UnitZ, 0.3f);
+        var tip = graph.Nodes.Single(node => node.Type == SupportNodeType.Tip);
+        var bend = TipBodyGeometry.Centerline(tip.Position, tip.SurfaceNormal,
+            graph.Nodes.Single(node => node.Type == SupportNodeType.Junction).Position,
+            tip.TipNormalLeadIn)[1];
+
+        var mesh = Assert.Single(SupportRenderMesh.Build(graph)).Mesh;
+
+        AssertClosed(mesh);
+        Assert.Single(mesh.Positions, position => Vector3.DistanceSquared(position, tip.Position) < 1e-10f);
+        Assert.DoesNotContain(mesh.Positions,
+            position => Vector3.DistanceSquared(position, bend) < 1e-10f);
+    }
+
+    [Fact]
+    public void NormalLeadInDoesNotMakeTheContactEndBlunter()
+    {
+        var straight = Assert.Single(SupportRenderMesh.Build(
+            ConeTip(-Vector3.UnitZ, 0))).Mesh;
+        var leadIn = Assert.Single(SupportRenderMesh.Build(
+            ConeTip(-Vector3.UnitZ, 0.3f))).Mesh;
+        var contact = new Vector3(0, 0, 10);
+
+        var straightRadius = MaxRadiusNearContact(straight, contact, -Vector3.UnitZ, 0.05f);
+        var leadInRadius = MaxRadiusNearContact(leadIn, contact, -Vector3.UnitZ, 0.05f);
+
+        Assert.True(leadInRadius <= straightRadius + 1e-5f,
+            $"lead-in radius {leadInRadius} exceeds straight radius {straightRadius}");
+    }
+
+    [Fact]
+    public void RenderedAndAnalyticSectionsAgreeThroughTheNormalLeadInAndBend()
+    {
+        var graph = ConeTip(-Vector3.UnitZ, 0.3f);
+        var renderMesh = Assert.Single(SupportRenderMesh.Build(graph)).Mesh;
+
+        foreach (var z in new[] { 9.85, 9.5, 9.0, 8.5 })
         {
-            Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 10),
-            SurfaceNormal = -Vector3.UnitZ, TipDiameter = 0.4f,
-            TipShape = SupportTipShape.Cone, ConeLength = 1f, TipNormalLeadIn = 0.3f,
-        };
-        var junction = new SupportNode
-            { Type = SupportNodeType.Junction, Position = new Vector3(2, 0, 8) };
-        var leaning = TipBodyGeometry.Sections(tip, junction, 0.3f, 0.3f,
-            embedContact: false).First(section => MathF.Abs(section.Start.X - section.End.X) > 0.01f);
-        var builder = new MeshBuilder();
-        SupportRenderMesh.AppendFrustum(builder, leaning.Start, leaning.End,
-            leaning.StartRadius, leaning.EndRadius);
-        var renderMesh = builder.ToMesh();
-        var z = (leaning.Start.Z + leaning.End.Z) * 0.5;
+            var rendered = SliceMesh(renderMesh, z);
+            var analytic = SupportSliceGeometry.SectionsAt(graph, z);
+            var renderedArea = MeshSlicer.AreaMm2(Clipper.Union(rendered, FillRule.NonZero));
+            var analyticArea = MeshSlicer.AreaMm2(Clipper.Union(analytic, FillRule.NonZero));
 
-        var rendered = SliceMesh(renderMesh, z);
-        var analytic = new Paths64();
-        SupportSliceGeometry.ConeSection(leaning.Start, leaning.End,
-            leaning.StartRadius, leaning.EndRadius, z, analytic);
-        var renderedArea = MeshSlicer.AreaMm2(Clipper.Union(rendered, FillRule.NonZero));
-        var analyticArea = MeshSlicer.AreaMm2(Clipper.Union(analytic, FillRule.NonZero));
-
-        Assert.NotEmpty(rendered);
-        Assert.NotEmpty(analytic);
-        Assert.True(renderedArea / analyticArea is >= 0.96 and <= 1.01,
-            $"rendered {renderedArea}, analytic {analyticArea}");
+            Assert.NotEmpty(rendered);
+            Assert.NotEmpty(analytic);
+            Assert.True(renderedArea / analyticArea is >= 0.94 and <= 1.02,
+                $"z {z}: rendered {renderedArea}, analytic {analyticArea}");
+        }
     }
 
     [Fact]
@@ -155,5 +176,41 @@ public sealed class TipBodyGeometryTests
         MeshSlicer.CollectSegments(prepared,
             Enumerable.Range(0, prepared.TriangleCount).ToList(), z, segments);
         return MeshSlicer.ChainSegments(segments);
+    }
+
+    private static float MaxRadiusNearContact(Mesh mesh, Vector3 contact, Vector3 axis,
+        float axialDistance)
+    {
+        var direction = Vector3.Normalize(axis);
+        return mesh.Positions
+            .Select(position => position - contact)
+            .Where(offset =>
+            {
+                var distance = Vector3.Dot(offset, direction);
+                return distance >= 0 && distance <= axialDistance + 1e-5f;
+            })
+            .Select(offset => (offset - direction * Vector3.Dot(offset, direction)).Length())
+            .DefaultIfEmpty(0)
+            .Max();
+    }
+
+    /// <summary>Every directed edge must have exactly one reverse edge.</summary>
+    private static void AssertClosed(Mesh mesh)
+    {
+        var edges = new Dictionary<(int, int), int>();
+        for (var triangle = 0; triangle < mesh.TriangleCount; triangle++)
+        for (var corner = 0; corner < 3; corner++)
+        {
+            var first = mesh.Indices[triangle * 3 + corner];
+            var second = mesh.Indices[triangle * 3 + (corner + 1) % 3];
+            edges[(first, second)] = edges.GetValueOrDefault((first, second)) + 1;
+        }
+
+        foreach (var ((first, second), count) in edges)
+        {
+            Assert.Equal(1, count);
+            Assert.True(edges.ContainsKey((second, first)),
+                $"edge {second}->{first} missing its partner");
+        }
     }
 }
