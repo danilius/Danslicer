@@ -585,3 +585,41 @@ and within the configured 75° mini lean limit.
 All six before/after outputs are collision-free. Island refusals improve in every case: by
 68/40 on Drogon, 22/22 on gripper, and 60/49 on drogon-lo (grid on/off). Total refusals also
 fall in every case; max lean remains within the configured 75° mini limit.
+
+---
+
+## 2026-09-04 — fine-feature mini fallback to regular cones
+
+- Baseline and implementation were run at `cdddd0e`, toggling only
+  `--fine-feature-fallback off|on`. The default is ON. Both passes generated fresh seated tips
+  with `--fine-feature-max 1`; candidate positions, classifications and totals were identical.
+- A failed one-member fine-feature cluster is retried after every cluster carrier and island
+  retry has had first use of capacity. Density clusters never take this fallback. The retry
+  restores the contact's pre-conversion diameter, shape, cone length and ball diameter.
+- Config: Debug, net10.0; same machine and serial, single-process conditions as preceding runs.
+
+### Results
+
+| Model | Fallback | Grid on | Grid off |
+| --- | --- | --- | --- |
+| drogon | off | **1023** refusals: ContactBlocked 4, NoClearStep 772, NoReachableGridPoint 82, NoBranchEndInRange 165; 137 bases; collision-free | **869** refusals: ContactBlocked 2, NoClearStep 716, NoBranchEndInRange 151; 221 bases; collision-free |
+| drogon | on | **994** refusals: ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165; 140 bases; collision-free | **850** refusals: ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142; 227 bases; collision-free |
+| gripper | off | **63** refusals: ContactBlocked 0, NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; 136 bases; collision-free | **60** refusals: ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3; 145 bases; collision-free |
+| gripper | on | **63** refusals: ContactBlocked 0, NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; 136 bases; collision-free | **60** refusals: ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3; 145 bases; collision-free |
+| drogon-lo | off | **723** refusals: ContactBlocked 5, NoClearStep 506, NoReachableGridPoint 71, NoBranchEndInRange 141; 126 bases; collision-free | **576** refusals: ContactBlocked 4, NoClearStep 436, NoBranchEndInRange 136; 210 bases; collision-free |
+| drogon-lo | on | **702** refusals: ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135; 129 bases; collision-free | **549** refusals: ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135; 216 bases; collision-free |
+
+### Observations
+
+1. The default-on fallback recovers **29 / 19** Drogon contacts and **21 / 27** drogon-lo
+   contacts (grid on/off). Gripper is bit-identical because none of its failed fine-feature
+   clusters can route as regular cones after the carrier set is complete.
+2. `ContactBlocked` remains unchanged in all six comparisons, preserving the physical-contact
+   win from fine-feature classification. On drogon-lo, `NoClearStep` falls 506 → 491 grid-on and
+   436 → 410 grid-off; the remaining gains are six and one `NoBranchEndInRange` refusals.
+3. Drogon-lo is now strictly better than the pre-023f 757 / 601 refusal baseline at **702 / 549**,
+   and also improves job 024's island-first 723 / 576 result. The remaining refusals are genuine
+   failures of both the mini cluster and its restored regular cone (plus any final island mini
+   retry), not a one-way classification artefact.
+4. All twelve route outputs are collision-free. Maximum lean remains at or below 75°; enabling
+   the fallback does not change candidate classification or density-cluster behavior.
