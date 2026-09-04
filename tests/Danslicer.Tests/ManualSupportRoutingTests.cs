@@ -74,6 +74,20 @@ public sealed class ManualSupportRoutingTests
     }
 
     [Fact]
+    public void ManualSupportReadsGridPitchChangedAfterDocumentStartup()
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings.BaseGridPitch = 6f;
+
+        Assert.True(document.AddManualSupport(
+            box, new Vector3(4, 0, 8), -Vector3.UnitZ));
+
+        var supportBase = Assert.Single(document.Supports.Nodes,
+            node => node.Type == SupportNodeType.Base);
+        Assert.Equal(6f, supportBase.Position.X, 3);
+    }
+
+    [Fact]
     public void RoutedSupportUsesCurrentTipMemberAndBaseSettings()
     {
         var (document, box) = FloatingBoxDocument();

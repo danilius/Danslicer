@@ -350,6 +350,21 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void GenerationRequestReadsGridSettingsChangedAfterDocumentStartup()
+    {
+        var doc = new Document();
+        var obj = new SceneObject("floating", Box(new(-5, -5, 5), new(5, 5, 15)));
+        doc.AddObject(obj);
+
+        doc.SupportSettings.UseBaseGrid = false;
+        doc.SupportSettings.BaseGridPitch = 11f;
+        var request = doc.CaptureSupportGeneration(obj);
+
+        Assert.False(request.Settings.UseBaseGrid);
+        Assert.Equal(11f, request.Settings.BaseGridPitch);
+    }
+
+    [Fact]
     public void GeneratedSupportsUseCapturedTipRoutingAndBaseSettings()
     {
         var doc = new Document
