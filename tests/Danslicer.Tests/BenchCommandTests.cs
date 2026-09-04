@@ -24,7 +24,14 @@ public class BenchCommandTests
                         {
                             ["Island"] = 2,
                             ["MiniIsland"] = 0,
+                            ["MiniCluster"] = 6,
                             ["Overhang"] = 10,
+                        },
+                        MiniClusters = 2,
+                        MiniClusterMembersBySourceStrategy = new Dictionary<string, int>
+                        {
+                            ["Island"] = 3,
+                            ["Overhang"] = 3,
                         },
                         Spacing = new SpacingBenchmark { Min = 1.1f, Median = 2.2f, Mean = 3.3f },
                     },
@@ -65,7 +72,8 @@ public class BenchCommandTests
 
         Assert.Contains("| Model | Command | Flags | Wall s | Exit | Counts | Notes |", markdown);
         Assert.Contains("| model | `tips` | `--seat --json` | 1.235 | 0 | **12** candidates " +
-                        "(Island 2, Overhang 10)", markdown);
+                        "(Island 2, MiniCluster 6, Overhang 10) across **2** mini clusters " +
+                        "(**3 island / 3 regular members**)", markdown);
         Assert.Contains("`--seat --strategy tree --base-grid on --reinforce on --json` | " +
                         "2.346 | 2", markdown);
         Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);

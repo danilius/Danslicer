@@ -131,6 +131,13 @@ internal static class TipsCommand
 
         var byStrategy = tips.GroupBy(t => t.Strategy)
             .ToDictionary(g => g.Key.ToString(), g => g.Count());
+        var miniClusterMembers = tips.Where(tip => tip.MiniClusterId is not null).ToList();
+        var miniClusterCount = miniClusterMembers.Select(tip => tip.MiniClusterId!.Value)
+            .Distinct().Count();
+        var miniClusterMembersBySourceStrategy = miniClusterMembers
+            .Where(tip => tip.MiniClusterSourceStrategy is not null)
+            .GroupBy(tip => tip.MiniClusterSourceStrategy!.Value.ToString())
+            .ToDictionary(group => group.Key, group => group.Count());
         var spacing = SpacingStats(tips);
 
         if (json)
@@ -140,8 +147,8 @@ internal static class TipsCommand
                 File = path,
                 Count = tips.Count,
                 ByStrategy = byStrategy,
-                MiniClusters = tips.Where(tip => tip.MiniClusterId is not null)
-                    .Select(tip => tip.MiniClusterId!.Value).Distinct().Count(),
+                MiniClusters = miniClusterCount,
+                MiniClusterMembersBySourceStrategy = miniClusterMembersBySourceStrategy,
                 Spacing = spacing,
                 SeatOffset = seatOffset is { } o ? MeshSeat.Json(o) : null,
                 TipShape = parameters.TipShape.ToString(),
@@ -164,6 +171,7 @@ internal static class TipsCommand
                     MiniClusterCenter = t.MiniClusterCenter is { } center
                         ? [center.X, center.Y, center.Z]
                         : null,
+                    MiniClusterSourceStrategy = t.MiniClusterSourceStrategy?.ToString(),
                 }).ToList(),
             };
             var opts = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -176,9 +184,10 @@ internal static class TipsCommand
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
         Console.WriteLine($"Tip shape:   {parameters.TipShape}  cone {Fmt(parameters.ConeLengthMm)}  ball {Fmt(parameters.BallDiameterMm)}  penetration {Fmt(parameters.PenetrationDepthMm)}");
         Console.WriteLine($"Candidates:  {tips.Count}");
-        var miniClusterCount = tips.Where(tip => tip.MiniClusterId is not null)
-            .Select(tip => tip.MiniClusterId!.Value).Distinct().Count();
         Console.WriteLine($"Mini clusters: {miniClusterCount}");
+        Console.WriteLine($"Cluster members: island " +
+                          $"{miniClusterMembersBySourceStrategy.GetValueOrDefault(nameof(TipStrategy.Island))}, " +
+                          $"regular {miniClusterMembers.Count - miniClusterMembersBySourceStrategy.GetValueOrDefault(nameof(TipStrategy.Island))}");
         foreach (var strategy in Enum.GetValues<TipStrategy>())
         {
             byStrategy.TryGetValue(strategy.ToString(), out var n);
@@ -235,6 +244,7 @@ internal static class TipsCommand
         public required int Count { get; init; }
         public required Dictionary<string, int> ByStrategy { get; init; }
         public required int MiniClusters { get; init; }
+        public required Dictionary<string, int> MiniClusterMembersBySourceStrategy { get; init; }
         public SpacingDto? Spacing { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public float[]? SeatOffset { get; init; }
@@ -261,6 +271,8 @@ internal static class TipsCommand
         public int? MiniClusterId { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public float[]? MiniClusterCenter { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? MiniClusterSourceStrategy { get; init; }
     }
 
     private sealed class SpacingDto

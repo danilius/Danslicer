@@ -78,8 +78,13 @@ internal static class BenchCommand
                 ? "Spacing n/a."
                 : $"Spacing min {F(tips.Spacing.Min)} / median {F(tips.Spacing.Median)} / " +
                   $"mean {F(tips.Spacing.Mean)}.";
+            var islandClusterMembers =
+                tips.MiniClusterMembersBySourceStrategy.GetValueOrDefault("Island");
+            var regularClusterMembers =
+                tips.MiniClusterMembersBySourceStrategy.Values.Sum() - islandClusterMembers;
             var clusters = tips.MiniClusters > 0
-                ? $" across **{tips.MiniClusters}** mini clusters"
+                ? $" across **{tips.MiniClusters}** mini clusters " +
+                  $"(**{islandClusterMembers} island / {regularClusterMembers} regular members**)"
                 : string.Empty;
             text.AppendLine($"| {Escape(model.Key)} | `tips` | `--seat --json` | " +
                 $"{tips.WallSeconds:0.000} | {tips.ExitCode} | **{tips.Candidates}** candidates" +
@@ -148,6 +153,10 @@ internal static class BenchCommand
             MiniClusters = root.TryGetProperty("miniClusters", out var clusters)
                 ? clusters.GetInt32()
                 : 0,
+            MiniClusterMembersBySourceStrategy =
+                root.TryGetProperty("miniClusterMembersBySourceStrategy", out var members)
+                    ? ReadIntDictionary(members)
+                    : [],
             Spacing = root.TryGetProperty("spacing", out var spacing) &&
                       spacing.ValueKind != JsonValueKind.Null
                 ? new SpacingBenchmark
@@ -288,6 +297,7 @@ internal sealed class TipsBenchmark
     public int Candidates { get; init; }
     public required Dictionary<string, int> ByStrategy { get; init; }
     public int MiniClusters { get; init; }
+    public Dictionary<string, int> MiniClusterMembersBySourceStrategy { get; init; } = [];
     public SpacingBenchmark? Spacing { get; init; }
 }
 
