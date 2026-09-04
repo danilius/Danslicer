@@ -45,6 +45,74 @@ public static class SupportRenderMesh
     public static int TrianglesPerFrustum => 4 * RadialSegments;
 
     /// <summary>
+    /// Conservative world-space bounds for every support shape the viewport can draw. This is
+    /// intentionally analytic: clip-range refreshes run on graph change events, where rebuilding
+    /// the tessellated render meshes would make large generated forests unnecessarily expensive.
+    /// Hidden elements are omitted just as they are by <see cref="Build"/>; disabled elements stay
+    /// in the bounds because the viewport still draws them faded.
+    /// </summary>
+    public static Aabb VisibleBounds(SupportGraph graph)
+    {
+        var bounds = Aabb.Empty;
+        foreach (var segment in graph.Segments)
+        {
+            if (segment.Hidden) continue;
+            var a = graph.GetNode(segment.NodeA);
+            var b = graph.GetNode(segment.NodeB);
+            if (a.Hidden || b.Hidden) continue;
+
+            var radius = MathF.Max(segment.Diameter * 0.5f, 0f);
+            if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out _))
+            {
+                radius = MathF.Max(radius, MathF.Max(tip.TipDiameter * 0.5f, 0f));
+                radius = MathF.Max(radius,
+                    MathF.Max(SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f, 0f));
+                foreach (var point in TipBodyGeometry.Centerline(
+                             tip.Position, tip.SurfaceNormal,
+                             tip.Id == a.Id ? b.Position : a.Position, tip.TipNormalLeadIn))
+                    bounds = IncludeSphere(bounds, point, radius);
+
+                var contactRadius = tip.BallDiameter > 0
+                    ? tip.BallDiameter * 0.5f
+                    : tip.TipDiameter * 0.5f;
+                bounds = IncludeSphere(bounds,
+                    tip.BallDiameter > 0 ? tip.ContactBallCenter : tip.Position,
+                    MathF.Max(contactRadius, 0f));
+                continue;
+            }
+
+            bounds = IncludeSphere(bounds, a.Position, radius);
+            bounds = IncludeSphere(bounds, b.Position, radius);
+        }
+
+        foreach (var node in graph.Nodes)
+        {
+            if (node.Hidden || node.Type != SupportNodeType.Base ||
+                node.BaseShape == SupportBaseShape.None) continue;
+            var radius = MathF.Max(node.BaseDiameter * 0.5f, 0f);
+            foreach (var segment in graph.SegmentsAt(node.Id))
+                if (!segment.Hidden)
+                    radius = MathF.Max(radius, MathF.Max(segment.Diameter * 0.5f, 0f));
+            var top = node.Position + Vector3.UnitZ *
+                (MathF.Max(node.BaseHeight, 0f) +
+                 (node.BaseShape == SupportBaseShape.DiscCone
+                     ? MathF.Max(node.BaseConeHeight, 0f)
+                     : 0f));
+            var extent = new Vector3(radius, radius, 0f);
+            bounds = bounds.Union(new Aabb(Vector3.Min(node.Position, top) - extent,
+                Vector3.Max(node.Position, top) + extent));
+        }
+
+        return bounds;
+    }
+
+    private static Aabb IncludeSphere(Aabb bounds, Vector3 centre, float radius)
+    {
+        var extent = new Vector3(radius);
+        return bounds.Union(new Aabb(centre - extent, centre + extent));
+    }
+
+    /// <summary>
     /// Builds render meshes for every visible segment of <paramref name="graph"/>, grouped by
     /// (kind, selected, disabled). <paramref name="isSelected"/> may be null when nothing is.
     /// </summary>

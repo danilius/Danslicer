@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Danslicer.App.Configuration;
 using Danslicer.Core;
 using Danslicer.Core.Config;
+using Danslicer.Core.Geometry;
 using Danslicer.Core.IO;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
@@ -485,7 +486,7 @@ public partial class MainViewModel : ViewModelBase
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         SliceCommand.NotifyCanExecuteChanged();
-        SupportClip.RefreshBounds(Document.Scene.WorldBounds, Document.Printer.BuildVolume.Z);
+        SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z);
 
         // Geometry changed: the slice no longer matches the scene.
         if (LastSlice is not null && !IsSlicing) InvalidateSlice();
@@ -538,7 +539,7 @@ public partial class MainViewModel : ViewModelBase
     {
         var loaded = ProjectFile.Load(path);
         Document.ReplaceWith(loaded.Document);
-        SupportClip.RefreshBounds(Document.Scene.WorldBounds, Document.Printer.BuildVolume.Z,
+        SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z,
             reset: true);
         PrintSettings.Refresh();
         RefreshPrinterOptions(notifyDocument: false);
@@ -555,6 +556,9 @@ public partial class MainViewModel : ViewModelBase
         ViewportStatus = $"Opened {System.IO.Path.GetFileName(ProjectPath)}.";
         return loaded.ViewState;
     }
+
+    private Aabb VisiblePrintBounds() => Document.Scene.WorldBounds.Union(
+        SupportRenderMesh.VisibleBounds(Document.Supports));
 
     /// <summary>
     /// Rebuilds the slicing choices after Preferences changes. A project-embedded definition is
