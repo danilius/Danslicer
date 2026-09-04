@@ -14,10 +14,10 @@ public sealed class RenderPathConfigTests : IDisposable
     }
 
     [Fact]
-    public void DefaultRenderPathIsClassic()
+    public void DefaultRenderPathIsDeferred()
     {
         var viewport = new ViewportConfig();
-        Assert.Equal(RenderPathMode.Classic, viewport.RenderPath);
+        Assert.Equal(RenderPathMode.Deferred, viewport.RenderPath);
         Assert.Equal(ViewportShadingMode.Studio, viewport.Shading);
         Assert.True(viewport.CavityEnabled);
         Assert.True(viewport.OutlinesEnabled);
@@ -59,7 +59,7 @@ public sealed class RenderPathConfigTests : IDisposable
     }
 
     [Fact]
-    public void MissingRenderPathFieldsKeepClassicDefaults()
+    public void MissingRenderPathFieldsGetTheDeferredDefault()
     {
         var path = PathFor("legacy.json");
         Directory.CreateDirectory(_dir);
@@ -67,7 +67,7 @@ public sealed class RenderPathConfigTests : IDisposable
 
         var loaded = UserConfig.Load(path).Viewport;
 
-        Assert.Equal(RenderPathMode.Classic, loaded.RenderPath);
+        Assert.Equal(RenderPathMode.Deferred, loaded.RenderPath);
         Assert.Equal(ViewportShadingMode.Studio, loaded.Shading);
         Assert.True(loaded.FxaaEnabled);
     }
