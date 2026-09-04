@@ -276,7 +276,7 @@ public sealed class UserConfigTests : IDisposable
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
-                MiniSupportClusterDistance = 1.4f,
+                MiniSupportClusterDistance = 1.4f, FineFeatureMaxAreaMm2 = 1.8f,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 ReinforceEnabled = true,
@@ -311,6 +311,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(72f, supports.MiniSupportMaxAngleDegrees);
         Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.4f, supports.MiniSupportClusterDistance);
+        Assert.Equal(1.8f, supports.FineFeatureMaxAreaMm2);
         Assert.True(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
         Assert.False(supports.UseBaseGrid);
@@ -337,6 +338,7 @@ public sealed class UserConfigTests : IDisposable
         config.Supports.TipDiameter = 0.23f;
         config.Supports.UseBaseGrid = false;
         config.Supports.MiniSupportMaxFanPerBranchEnd = 7;
+        config.Supports.FineFeatureMaxAreaMm2 = 1.7f;
         Assert.True(config.SaveSupportPresetAs("Delicate teeth"));
         var path = PathFor("support-presets.json");
 
@@ -349,6 +351,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.23f, preset.Settings.TipDiameter);
         Assert.False(preset.Settings.UseBaseGrid);
         Assert.Equal(7, preset.Settings.MiniSupportMaxFanPerBranchEnd);
+        Assert.Equal(1.7f, preset.Settings.FineFeatureMaxAreaMm2);
         Assert.Equal("Delicate teeth", loaded.ActiveSupportPresetName);
         Assert.NotSame(loaded.Supports, preset.Settings);
     }

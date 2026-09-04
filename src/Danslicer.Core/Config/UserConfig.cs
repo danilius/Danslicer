@@ -187,6 +187,8 @@ public sealed record SupportConfig
     /// The 1.25 mm default is half the default 2.5 mm placement spacing.
     /// </summary>
     public float MiniSupportClusterDistance { get; set; } = 1.25f;
+    /// <summary>Maximum local cross-section for an isolated one-member mini cluster.</summary>
+    public float FineFeatureMaxAreaMm2 { get; set; } = 1f;
     public bool RefusedTipsFallBackToMini { get; set; }
     public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
     public bool UseBaseGrid { get; set; } = true;
@@ -232,6 +234,7 @@ public sealed record SupportConfig
             ? Math.Clamp(MiniSupportMaxAngleDegrees, 1f, 89f) : 75f;
         MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
         MiniSupportClusterDistance = Positive(MiniSupportClusterDistance, 1.25f);
+        FineFeatureMaxAreaMm2 = NonNegative(FineFeatureMaxAreaMm2);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;

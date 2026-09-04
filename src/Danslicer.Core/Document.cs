@@ -594,6 +594,7 @@ public sealed class Document
                 MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
                 MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
                 MiniSupportClusterDistanceMm = request.Settings.MiniSupportClusterDistance,
+                FineFeatureMaxAreaMm2 = request.Settings.FineFeatureMaxAreaMm2,
             },
             new TreeRoutingOptions
             {
