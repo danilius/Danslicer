@@ -556,3 +556,32 @@ counts are unchanged, and every candidate still has exactly one auditable source
 trade-off is model-dependent: gripper refusals improve by 8 in both modes; Drogon rises by 24
 grid-on and 5 grid-off, and `drogon-lo` rises by 20/26. All six route outputs remain collision-free
 and within the configured 75° mini lean limit.
+
+---
+
+## 2026-09-04 — island-first routing and island retries
+
+- Fresh A/B runs used the same candidate files and toggled only the benchmark-only
+  `--island-first off` switch. Production defaults to island-first.
+- Structural island contacts get the first route attempt. A failed structural island gets one
+  deterministic retry after ordinary structural routes have made additional trunks. Failed
+  island-derived mini-cluster members then get an individual mini attachment attempt against the
+  completed carrier set. This preserves the established carrier-first mini workflow while never
+  silently spending a viable attachment on a non-island contact.
+- Candidate totals and positions are unchanged. “Island refusals” includes `Island`, `MiniIsland`,
+  and `MiniCluster` contacts whose preserved source strategy is `Island`.
+
+### Results
+
+| Model | Pass | Grid on | Grid off |
+| --- | --- | --- | --- |
+| drogon | before | 1087 refusals; **588 island**; 137 bases | 906 refusals; **502 island**; 221 bases |
+| drogon | after | 1023 refusals; **520 island**; 137 bases | 869 refusals; **462 island**; 221 bases |
+| gripper | before | 83 refusals; **27 island**; 137 bases | 82 refusals; **27 island**; 141 bases |
+| gripper | after | 63 refusals; **5 island**; 136 bases | 60 refusals; **5 island**; 145 bases |
+| drogon-lo | before | 777 refusals; **495 island**; 126 bases | 627 refusals; **423 island**; 207 bases |
+| drogon-lo | after | 723 refusals; **435 island**; 126 bases | 576 refusals; **374 island**; 210 bases |
+
+All six before/after outputs are collision-free. Island refusals improve in every case: by
+68/40 on Drogon, 22/22 on gripper, and 60/49 on drogon-lo (grid on/off). Total refusals also
+fall in every case; max lean remains within the configured 75° mini limit.

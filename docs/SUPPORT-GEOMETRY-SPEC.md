@@ -149,9 +149,9 @@ rods spreading to nearby contact points.
   print-killers; they get tips and routing priority before other strategies place
   anything.
 - **Island Support** (Support-mode toolbar button): generates island supports ONLY.
-- **Island Detection** (Support-mode toolbar button): run AFTER supports are
-  generated or manually added — lists all still-unsupported islands and marks each
-  with a **red sphere** in the viewport.
+- **Island Detection** (Support-mode toolbar button): may run before supports exist, listing every
+  bare-model island, or after generation/manual edits, listing only islands not reached by an
+  active support contact. It marks each finding with a **red sphere** in the viewport.
 - A pop-out tunes Island Detection and Island Support parameters.
 - Working goal: the low-res drogon is the canonical push-until-well-supported test
   subject for auto + manual support quality.
