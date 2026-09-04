@@ -76,6 +76,10 @@ internal static class FineFeatureMiniClassifier
                 MiniClusterCenter = item.Candidate.Point,
                 MiniClusterSourceStrategy = item.Candidate.Strategy,
                 IsFineFeatureMini = true,
+                FallbackTipDiameter = item.Candidate.TipDiameter,
+                FallbackTipShape = item.Candidate.TipShape,
+                FallbackConeLength = item.Candidate.ConeLength,
+                FallbackBallDiameter = item.Candidate.BallDiameter,
             };
         }
 

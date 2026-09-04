@@ -12,7 +12,16 @@ public readonly record struct RoutingTip(Vector3 SurfacePoint, Vector3 InwardSur
     /// <summary>Preserves island provenance for diagnostics even when priority is benchmark-disabled.</summary>
     bool IsIslandOrigin = false,
     /// <summary>Routes print-critical island contacts before all ordinary strategies.</summary>
-    bool IsIslandPriority = false);
+    bool IsIslandPriority = false,
+    /// <summary>
+    /// Set for one-member clusters created by the fineness pass; such a tip may be retried as
+    /// its original regular contact when mini routing fails.
+    /// </summary>
+    bool IsFineFeatureMini = false,
+    float? FallbackTipDiameter = null,
+    SupportTipShape? FallbackTipShape = null,
+    float? FallbackConeLength = null,
+    float? FallbackBallDiameter = null);
 
 public enum BaseLatticeType
 {

@@ -532,6 +532,10 @@ public class TipPlacementTests
         Assert.Equal(TipStrategy.LocalMinimum, mini.MiniClusterSourceStrategy);
         Assert.Equal(mini.Point, mini.MiniClusterCenter);
         Assert.InRange(mini.FineFeatureAreaMm2!.Value, 0.5f, 0.8f);
+        Assert.Equal(parameters.TipDiameterMm, mini.FallbackTipDiameter);
+        Assert.Equal(parameters.TipShape, mini.FallbackTipShape);
+        Assert.Equal(parameters.ConeLengthMm, mini.FallbackConeLength);
+        Assert.Equal(parameters.BallDiameterMm, mini.FallbackBallDiameter);
     }
 
     [Fact]

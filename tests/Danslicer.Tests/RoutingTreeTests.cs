@@ -277,6 +277,111 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void FineFeatureClusterFallsBackToItsOriginalRegularCone()
+    {
+        var tip = FineFeatureTip(isIslandPriority: true);
+
+        var result = Route([tip], new TreeRoutingOptions
+        {
+            UseBaseGrid = false,
+            TrunkDiameter = 0.4f / 0.65f,
+        });
+
+        Assert.Empty(result.Failures);
+        Assert.DoesNotContain(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+        var segment = Assert.Single(result.Graph.Segments,
+            candidate => candidate.Type == SupportSegmentType.Tip);
+        Assert.Equal(0.4f, segment.Diameter, 5);
+        var contact = result.Graph.GetNode(segment.NodeA).Type == SupportNodeType.Tip
+            ? result.Graph.GetNode(segment.NodeA)
+            : result.Graph.GetNode(segment.NodeB);
+        Assert.Equal(0.4f, contact.TipDiameter);
+        Assert.Equal(SupportTipShape.Capsule, contact.TipShape);
+        Assert.Equal(2f, contact.ConeLength);
+    }
+
+    [Fact]
+    public void FineFeatureClusterDoesNotFallBackWhenDisabled()
+    {
+        var result = Route([FineFeatureTip()], new TreeRoutingOptions
+        {
+            UseBaseGrid = false,
+            FineFeatureMinisFallBackToRegular = false,
+        });
+
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(RoutingFailureReason.NoBranchEndInRange, failure.Reason);
+        Assert.Empty(result.Graph.Nodes);
+    }
+
+    [Fact]
+    public void FailedDensityClusterDoesNotFallBackToRegularTips()
+    {
+        var center = new Vector3(0, 0, 0.04f);
+        var tips = new[]
+        {
+            FineFeatureTip() with { SurfacePoint = new Vector3(-0.01f, 0, 0.04f),
+                MiniClusterCenter = center },
+            FineFeatureTip() with { SurfacePoint = new Vector3(0.01f, 0, 0.04f),
+                MiniClusterCenter = center },
+        };
+
+        var result = Route(tips, new TreeRoutingOptions { UseBaseGrid = false });
+
+        Assert.Equal(2, result.Failures.Count);
+        Assert.All(result.Failures,
+            failure => Assert.Equal(RoutingFailureReason.NoBranchEndInRange, failure.Reason));
+        Assert.Empty(result.Graph.Nodes);
+    }
+
+    [Fact]
+    public void NonFineSingleMemberClusterDoesNotFallBackToRegular()
+    {
+        var result = Route([FineFeatureTip() with { IsFineFeatureMini = false }],
+            new TreeRoutingOptions { UseBaseGrid = false });
+
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(RoutingFailureReason.NoBranchEndInRange, failure.Reason);
+        Assert.Empty(result.Graph.Nodes);
+    }
+
+    [Fact]
+    public void FineFeatureFallbackIsDeterministic()
+    {
+        var options = new TreeRoutingOptions { UseBaseGrid = false, Seed = 17 };
+
+        var first = Route([FineFeatureTip()], options);
+        var second = Route([FineFeatureTip()], options);
+
+        Assert.Equal(
+            first.Graph.Nodes.OrderBy(node => node.Id)
+                .Select(node => (node.Id, node.Type, node.Position, node.TipDiameter,
+                    node.TipShape, node.ConeLength, node.BallDiameter)),
+            second.Graph.Nodes.OrderBy(node => node.Id)
+                .Select(node => (node.Id, node.Type, node.Position, node.TipDiameter,
+                    node.TipShape, node.ConeLength, node.BallDiameter)));
+        Assert.Equal(
+            first.Graph.Segments.OrderBy(segment => segment.Id)
+                .Select(segment => (segment.Id, segment.Type, segment.NodeA, segment.NodeB,
+                    segment.Diameter)),
+            second.Graph.Segments.OrderBy(segment => segment.Id)
+                .Select(segment => (segment.Id, segment.Type, segment.NodeA, segment.NodeB,
+                    segment.Diameter)));
+        Assert.Equal(first.Failures, second.Failures);
+    }
+
+    private static RoutingTip FineFeatureTip(bool isIslandPriority = false) => new(
+        new Vector3(0, 0, 0.04f), Vector3.UnitZ, 0.25f,
+        TipShape: SupportTipShape.Cone, ConeLength: 1f,
+        MiniSupportOnly: true, MiniClusterId: 1,
+        MiniClusterCenter: new Vector3(0, 0, 0.04f),
+        IsIslandOrigin: isIslandPriority, IsIslandPriority: isIslandPriority,
+        IsFineFeatureMini: true, FallbackTipDiameter: 0.4f,
+        FallbackTipShape: SupportTipShape.Capsule, FallbackConeLength: 2f,
+        FallbackBallDiameter: 0.1f);
+
+    [Fact]
     public void MiniSupportWithoutAReachableBranchEndReportsItsOwnRefusalReason()
     {
         var result = Route(new[]

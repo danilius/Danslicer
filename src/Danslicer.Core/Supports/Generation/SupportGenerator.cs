@@ -103,7 +103,12 @@ public static class SupportGenerator
             MiniSupportOnly: c.Strategy is TipStrategy.MiniIsland or TipStrategy.MiniCluster,
             MiniClusterId: c.MiniClusterId, MiniClusterCenter: c.MiniClusterCenter,
             IsIslandOrigin: IsIslandCandidate(c),
-            IsIslandPriority: IsIslandCandidate(c)));
+            IsIslandPriority: IsIslandCandidate(c),
+            IsFineFeatureMini: c.IsFineFeatureMini,
+            FallbackTipDiameter: c.FallbackTipDiameter,
+            FallbackTipShape: c.FallbackTipShape,
+            FallbackConeLength: c.FallbackConeLength,
+            FallbackBallDiameter: c.FallbackBallDiameter));
 
         var router = new TreeSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed });

@@ -33,6 +33,11 @@ public sealed record TreeRoutingOptions
     /// structurally required regular contacts remain visible as honest refusals.
     /// </summary>
     public bool RefusedTipsFallBackToMini { get; init; }
+    /// <summary>
+    /// When true, a fine-feature mini that cannot route is retried as the regular contact it
+    /// was converted from, instead of being refused.
+    /// </summary>
+    public bool FineFeatureMinisFallBackToRegular { get; init; } = true;
     /// <summary>When true, new bases are constrained to the plate-origin square grid.</summary>
     public bool UseBaseGrid { get; init; } = true;
     /// <summary>Pitch of the plate-origin-aligned square base grid.</summary>
@@ -110,6 +115,8 @@ public sealed class TreeSupportRouter
         var indexedTips = expandedTips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
         var pendingMini = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
         var deferredIslandRetries = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
+        var pendingFineFeatureRegular =
+            new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
         foreach (var item in indexedTips
                      .OrderByDescending(item => item.Tip.IsIslandPriority)
                      .ThenByDescending(item => item.Tip.SurfacePoint.Z)
@@ -151,20 +158,49 @@ public sealed class TreeSupportRouter
                      .GroupBy(item => item.Tip.MiniClusterId!.Value)
                      .OrderBy(group => group.Key))
         {
-            foreach (var failure in RouteMiniCluster(cluster.OrderBy(item => item.Index)
+            var orderedCluster = cluster.OrderBy(item => item.Index).ToList();
+            foreach (var failure in RouteMiniCluster(orderedCluster
                          .Select(item => item.Tip).ToList(), options, state))
             {
+                var index = orderedCluster.FindIndex(item => item.Tip.Equals(failure.Tip));
+                index = index < 0 ? int.MaxValue : orderedCluster[index].Index;
+                if (options.FineFeatureMinisFallBackToRegular &&
+                    orderedCluster.Count == 1 && failure.Tip.IsFineFeatureMini)
+                {
+                    pendingFineFeatureRegular.Add((failure.Tip, index, failure.Reason));
+                    continue;
+                }
                 if (failure.Tip.IsIslandPriority)
                 {
-                    var index = indexedTips.FindIndex(item => item.Tip.Equals(failure.Tip));
-                    pendingMini.Add((failure.Tip, index < 0 ? int.MaxValue : index,
-                        failure.Reason));
+                    pendingMini.Add((failure.Tip, index, failure.Reason));
                 }
                 else
                 {
                     unrouted.Add(failure.Tip);
                     failures.Add(failure);
                 }
+            }
+        }
+        foreach (var failure in pendingFineFeatureRegular.OrderBy(item => item.Index))
+        {
+            var rebuilt = failure.Tip with
+            {
+                MiniSupportOnly = false,
+                MiniClusterId = null,
+                MiniClusterCenter = null,
+                IsFineFeatureMini = false,
+                TipDiameter = failure.Tip.FallbackTipDiameter ?? failure.Tip.TipDiameter,
+                TipShape = failure.Tip.FallbackTipShape ?? failure.Tip.TipShape,
+                ConeLength = failure.Tip.FallbackConeLength ?? failure.Tip.ConeLength,
+                BallDiameter = failure.Tip.FallbackBallDiameter ?? failure.Tip.BallDiameter,
+            };
+            if (RouteOne(rebuilt, options, state, out var reason)) continue;
+            if (failure.Tip.IsIslandPriority)
+                pendingMini.Add((failure.Tip, failure.Index, reason));
+            else
+            {
+                unrouted.Add(failure.Tip);
+                failures.Add(new RoutingFailure(failure.Tip, reason));
             }
         }
         foreach (var pending in pendingMini

@@ -56,4 +56,8 @@ public readonly record struct TipCandidate(
     /// </summary>
     float? FineFeatureAreaMm2 = null,
     /// <summary>True when an isolated contact became a one-member mini cluster by area.</summary>
-    bool IsFineFeatureMini = false);
+    bool IsFineFeatureMini = false,
+    float? FallbackTipDiameter = null,
+    SupportTipShape? FallbackTipShape = null,
+    float? FallbackConeLength = null,
+    float? FallbackBallDiameter = null);
