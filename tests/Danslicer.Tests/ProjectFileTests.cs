@@ -96,6 +96,22 @@ public sealed class ProjectFileTests
     }
 
     [Fact]
+    public void ProjectWithoutPrinterSelectionFallsBackToBuiltIn()
+    {
+        using var file = new TemporaryProject();
+        ProjectFile.Save(file.Path, CompleteDocument(sharedMesh: false), new ProjectViewState());
+        RewriteManifest(file.Path, root =>
+        {
+            root.Remove("printerId");
+            root.Remove("printer");
+        });
+
+        var loaded = ProjectFile.Load(file.Path);
+
+        Assert.Equal(PrinterDefinition.PhotonMonoX, loaded.Document.Printer);
+    }
+
+    [Fact]
     public void ReplacingAnOpenDocumentStartsWithFreshSelectionAndUndoHistory()
     {
         var current = CompleteDocument(sharedMesh: false);

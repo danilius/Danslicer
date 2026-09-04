@@ -173,7 +173,7 @@ public class SlicingTests
         };
         var printer = new PrinterDefinition(
             "custom-mirror", false, "Custom mirror", "Custom mirror", "pwmx",
-            8, 6, 10, 8, 6, MirrorX: false, MirrorY: false, FormatVersion: 516);
+            8, 6, 10, 8, 6, MirrorX: false, MirrorY: false, FormatVersion: 517);
         var settings = PrintSettings.Default with { LayerHeight = 0.5f, AntiAliasing = false };
 
         var plain = Slicer.Slice([obj], printer, settings);
@@ -186,6 +186,9 @@ public class SlicingTests
         Assert.Equal((1, 1), SingleLitPixel(Decode(plain), 8));
         Assert.Equal((6, 1), SingleLitPixel(Decode(mirrorX), 8));
         Assert.Equal((1, 4), SingleLitPixel(Decode(mirrorY), 8));
+        using var output = new MemoryStream();
+        PhotonWorkshopWriter.Write(plain, output);
+        Assert.Equal(517u, PhotonWorkshopFile.Read(output.ToArray()).Version);
     }
 
     private static byte[] Decode(SliceResult result)
