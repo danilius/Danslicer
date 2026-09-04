@@ -362,6 +362,38 @@ continues to a plate base (747 bases).
 
 ---
 
+## 2026-09-04 — 6 mm base-grid default A/B
+
+- Branch: `grid-routing-prototype` at `999edde`; `UseBaseGrid` remains default ON and
+  `BaseGridPitch` now defaults to 6 mm instead of the 20 mm used by the preceding A/B rows.
+- Config: Debug, net10.0; same machine and single-process conditions as the preceding runs.
+- `danslicer bench` generated fresh seated tips for both canonical models and routed each candidate
+  set once with the 6 mm grid on and once with free base placement. Regular-tip fallback to mini
+  supports remained at its default OFF.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `tips` | `--seat --json` | 18.188 | 0 | **1961** candidates (Island 639, MiniIsland 492, LocalMinimum 106, Corner 275, Edge 180, Overhang 269) | Spacing min 0.499 / median 1.053 / mean 1.599. |
+| drogon | `route` | `--seat --strategy tree --base-grid on --json` | 9.275 | 2 | nodes 1948, segs 1807 (tip 509, mini-support 349, branch 509, trunk 440), **unrouted 1103 / 1961**, bases **141**, max lean 74.7°, collisionFree **true** | 6 mm grid. Refusals: ContactBlocked 141, NoClearStep 688, NoReachableGridPoint 205, NoBranchEndInRange 69. |
+| drogon | `route` | `--seat --strategy tree --base-grid off --json` | 18.573 | 2 | nodes 2400, segs 2163 (tip 675, mini-support 342, branch 488, trunk 658), **unrouted 944 / 1961**, bases **237**, max lean 74.8°, collisionFree **true** | Free placement. Refusals: ContactBlocked 186, NoClearStep 709, NoBranchEndInRange 49. |
+| gripper | `tips` | `--seat --json` | 2.616 | 0 | **482** candidates (Island 91, MiniIsland 22, Edge 93, Overhang 276) | Spacing min 0.512 / median 2.712 / mean 2.622. |
+| gripper | `route` | `--seat --strategy tree --base-grid on --json` | 0.395 | 2 | nodes 1238, segs 1105 (tip 367, mini-support 20, branch 367, trunk 351), **unrouted 95 / 482**, bases **133**, max lean 45.0°, collisionFree **true** | 6 mm grid. Refusals: ContactBlocked 32, NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2. |
+| gripper | `route` | `--seat --strategy tree --base-grid off --json` | 0.800 | 2 | nodes 1130, segs 989 (tip 370, mini-support 18, branch 231, trunk 370), **unrouted 94 / 482**, bases **141**, max lean 45.0°, collisionFree **true** | Free placement. Refusals: ContactBlocked 34, NoClearStep 58, NoBranchEndInRange 2. |
+
+### Observations
+
+1. Against the preceding shaped 20 mm grid-on reference, the 6 mm pitch reduces refusals from
+   **1771 → 1103** on Drogon and **400 → 95** on the gripper. `NoReachableGridPoint` falls from
+   1086 → 205 and 342 → 8 respectively, while both outputs remain collision-free.
+2. The denser lattice raises grid-on bases from 17 → 141 on Drogon and 17 → 133 on the gripper.
+   That approaches the acceptance of free placement while retaining regular plate alignment.
+3. Grid-off rows are bit-identical to the preceding shaped A/B reference apart from wall time,
+   confirming that the default pitch change has no effect when `UseBaseGrid` is off.
+
+---
+
 ## 2026-09-03 overnight — flush tip junction geometry
 
 - Branch: `grid-routing-prototype` at `7b94636`; cone-tip render and slice geometry now transitions
