@@ -25,8 +25,12 @@ duplicate/mirror, 027 out-of-plate, 028 UVtools, 029 multi-model hiding, 030
 support-target selection, 031 stylesheet proposal. The WORKER's first task: its own
 stylesheet proposal(s) (user directive: both lanes propose complete dark
 Blender-leaning Avalonia themes, runtime-selectable, inline vector icons — see job
-031's brief in the inbox for the agreed deliverable shape); check WORKSHEET.md for
-any WIP the outgoing worker parked. Also owed: a REVIEW.md go-note for 023d
+031's brief in the inbox for the agreed deliverable shape). The outgoing worker
+PARKED its stylesheet WIP on branch `theme-claude` (`5be68c8`, in Danslicer-claude):
+shared icon set plus an execution plan at `src/Danslicer.App/Themes/PLAN.md` — the
+new worker continues from there. W3's screen checklist for the user's next testing
+batch is in `Danslicer-claude\CLAUDE-LANE.md` (untracked). WORKSHEET.md `11ecaee`
+carries the outgoing worker's final lane state. Also owed: a REVIEW.md go-note for 023d
 (support-panel removal) once W3 is confirmed on main.
 
 **Governance (hard rules):** merging to main is the USER's call, per-merge, proposed
