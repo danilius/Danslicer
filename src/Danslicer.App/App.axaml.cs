@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Danslicer.App.Configuration;
 using Danslicer.App.ViewModels;
 using Danslicer.App.Views;
 
@@ -11,6 +12,7 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        ThemeManager.Apply(AppConfig.Current.AppearanceTheme, this);
     }
 
     public override void OnFrameworkInitializationCompleted()

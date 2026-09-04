@@ -377,6 +377,13 @@ public sealed class WindowStateConfig
     public double RightPanelWidth { get; set; }
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum AppTheme
+{
+    Classic,
+    Forge,
+}
+
 /// <summary>
 /// User configuration persisted as JSON in the user profile. Unknown properties in the file are
 /// ignored and missing ones keep their defaults, so the file survives version changes in both
@@ -396,6 +403,9 @@ public sealed class UserConfig
     public List<ResinPreset> ResinPresets { get; set; } = CreateBuiltInResinPresets();
     public List<SupportPreset> SupportPresets { get; set; } = CreateBuiltInSupportPresets();
     public string ActiveSupportPresetName { get; set; } = CadCleanSupportPresetName;
+
+    /// <summary>Application chrome theme. Classic preserves the original Danslicer styling.</summary>
+    public AppTheme AppearanceTheme { get; set; } = AppTheme.Classic;
 
     /// <summary>
     /// User-selected UVtools executable. Danslicer launches it as a separate process and never
@@ -443,6 +453,7 @@ public sealed class UserConfig
             config.NormalizePrinters();
             config.NormalizeResinPresets();
             config.NormalizeSupportPresets();
+            if (!Enum.IsDefined(config.AppearanceTheme)) config.AppearanceTheme = AppTheme.Classic;
             config.UvtoolsExecutablePath ??= "";
             config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
                 ? MathF.Max(0, config.Placement.HeightMm)

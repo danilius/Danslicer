@@ -62,6 +62,7 @@ public sealed class UserConfigTests : IDisposable
                 HeightMm = 8.5f,
             },
             UvtoolsExecutablePath = @"C:\Program Files\UVtools\UVtools.exe",
+            AppearanceTheme = AppTheme.Forge,
         };
         var path = PathFor("config.json");
 
@@ -78,6 +79,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.True(loaded.SpaceMouse.InvertZoom);
         Assert.Equal(0.02f, loaded.SpaceMouse.Deadzone);
         Assert.Equal(@"C:\Program Files\UVtools\UVtools.exe", loaded.UvtoolsExecutablePath);
+        Assert.Equal(AppTheme.Forge, loaded.AppearanceTheme);
         Assert.Equal(30f, loaded.Viewport.OverhangAngleDegrees);
         Assert.Equal(0.6f, loaded.Viewport.PlateOpacityFromBelow);
         Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
@@ -139,6 +141,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.True(loaded.Viewport.SupportDisplay.ShowBases);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBracing);
         Assert.False(loaded.Supports.IndependentManualSupports);
+        Assert.Equal(AppTheme.Classic, loaded.AppearanceTheme);
     }
 
     [Fact]
