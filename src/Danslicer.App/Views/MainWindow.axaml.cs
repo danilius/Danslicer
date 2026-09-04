@@ -599,6 +599,10 @@ public partial class MainWindow : Window
         viewport.RenderPath = viewport.RenderPath == RenderPathMode.Deferred
             ? RenderPathMode.Classic
             : RenderPathMode.Deferred;
+        // A Painted clip-cap style resolves differently per render path (exact CPU caps on
+        // Classic, screen-space caps on Deferred); this toggle bypasses the ViewportControl
+        // property change notification that normally triggers that re-resolution.
+        Viewport.NotifyRenderPathChanged();
         ApplyRenderPathChange();
     }
 
