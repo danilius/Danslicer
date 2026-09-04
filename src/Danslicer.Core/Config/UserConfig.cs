@@ -184,6 +184,7 @@ public sealed record SupportConfig
     public float ConeLength { get; set; } = 2f;
     public float BallDiameter { get; set; }
     public float PenetrationDepth { get; set; }
+    public float TipNormalLeadInMm { get; set; } = 0.3f;
 
     public float TrunkDiameter { get; set; } = 1.2f;
     public float BranchDiameter { get; set; } = 1.2f;
@@ -249,6 +250,7 @@ public sealed record SupportConfig
         ConeLength = Positive(ConeLength, 2f);
         BallDiameter = NonNegative(BallDiameter);
         PenetrationDepth = NonNegative(PenetrationDepth);
+        TipNormalLeadInMm = NonNegativeOrFallback(TipNormalLeadInMm, 0.3f);
         TrunkDiameter = Positive(TrunkDiameter, 1.2f);
         BranchDiameter = Positive(BranchDiameter, 1.2f);
         MemberAngleDegrees = float.IsFinite(MemberAngleDegrees)
@@ -293,6 +295,9 @@ public sealed record SupportConfig
 
     private static float NonNegative(float value) =>
         float.IsFinite(value) ? MathF.Max(0, value) : 0;
+
+    private static float NonNegativeOrFallback(float value, float fallback) =>
+        float.IsFinite(value) ? MathF.Max(0, value) : fallback;
 }
 
 /// <summary>

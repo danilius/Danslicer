@@ -320,7 +320,8 @@ public sealed class PlacementAndSupportCommandTests
             SupportSettings = new SupportConfig
             {
                 TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.2f,
-                PenetrationDepth = 0.1f, TrunkDiameter = 1.6f, BranchDiameter = 1.3f,
+                PenetrationDepth = 0.1f, TipNormalLeadInMm = 0.45f,
+                TrunkDiameter = 1.6f, BranchDiameter = 1.3f,
                 MemberAngleDegrees = 37f, TipMemberLength = 2.8f, MaxBranchLength = 12f,
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
@@ -349,6 +350,7 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(2.5f, request.Settings.ConeLength);
         Assert.Equal(0.2f, request.Settings.BallDiameter);
         Assert.Equal(0.1f, request.Settings.PenetrationDepth);
+        Assert.Equal(0.45f, request.Settings.TipNormalLeadInMm);
         Assert.Equal(1.6f, request.Settings.TrunkDiameter);
         Assert.Equal(1.3f, request.Settings.BranchDiameter);
         Assert.Equal(37f, request.Settings.MemberAngleDegrees);

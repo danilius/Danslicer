@@ -476,6 +476,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.PenetrationDepth = Clamp(value, 0f, 100f, 0f));
     }
 
+    public float SupportTipNormalLeadInMm
+    {
+        get => Supports.TipNormalLeadInMm;
+        set => Update(() => Supports.TipNormalLeadInMm = Clamp(value, 0f, 100f, 0.3f));
+    }
+
     public float SupportTrunkDiameter
     {
         get => Supports.TrunkDiameter;

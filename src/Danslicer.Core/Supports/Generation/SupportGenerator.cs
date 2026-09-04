@@ -57,7 +57,8 @@ public static class SupportGenerator
                 MathF.Abs(lowestObject.Point.Z - mesh.Bounds.Min.Z) <= 1e-4f && c.Equals(lowestObject),
             IsRegionLowest: lowestRegion is { } lowest && c.Equals(lowest),
             TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter,
-            PenetrationDepth: c.PenetrationDepth));
+            PenetrationDepth: c.PenetrationDepth,
+            TipNormalLeadIn: c.TipNormalLeadIn));
 
         var router = new GridSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed }, existingGraph);
@@ -112,7 +113,8 @@ public static class SupportGenerator
             FallbackTipDiameter: c.FallbackTipDiameter,
             FallbackTipShape: c.FallbackTipShape,
             FallbackConeLength: c.FallbackConeLength,
-            FallbackBallDiameter: c.FallbackBallDiameter));
+            FallbackBallDiameter: c.FallbackBallDiameter,
+            TipNormalLeadIn: c.TipNormalLeadIn));
 
         var router = new TreeSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed });

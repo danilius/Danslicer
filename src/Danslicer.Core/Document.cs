@@ -588,7 +588,8 @@ public sealed class Document
         var router = new TreeSupportRouter(obstacles, rules);
         var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
             TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
-            BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth);
+            BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth,
+            TipNormalLeadIn: settings.TipNormalLeadInMm);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
         var options = new TreeRoutingOptions
@@ -730,6 +731,7 @@ public sealed class Document
                 ConeLengthMm = request.Settings.ConeLength,
                 BallDiameterMm = request.Settings.BallDiameter,
                 PenetrationDepthMm = request.Settings.PenetrationDepth,
+                TipNormalLeadInMm = request.Settings.TipNormalLeadInMm,
                 SpacingMm = request.Settings.Spacing,
                 MinSpacingMm = request.Settings.Spacing,
                 IslandSpacingMm = request.Settings.IslandSpacingMm,

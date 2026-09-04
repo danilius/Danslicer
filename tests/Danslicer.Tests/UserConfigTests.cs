@@ -279,7 +279,8 @@ public sealed class UserConfigTests : IDisposable
             Supports = new SupportConfig
             {
                 TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.3f,
-                PenetrationDepth = 0.15f, TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
+                PenetrationDepth = 0.15f, TipNormalLeadInMm = 0.45f,
+                TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
                 MemberAngleDegrees = 38f, TipMemberLength = 3f, MaxBranchLength = 11f,
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
@@ -308,6 +309,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(2.5f, supports.ConeLength);
         Assert.Equal(0.3f, supports.BallDiameter);
         Assert.Equal(0.15f, supports.PenetrationDepth);
+        Assert.Equal(0.45f, supports.TipNormalLeadInMm);
         Assert.Equal(1.8f, supports.TrunkDiameter);
         Assert.Equal(1.4f, supports.BranchDiameter);
         Assert.Equal(38f, supports.MemberAngleDegrees);
@@ -373,6 +375,7 @@ public sealed class UserConfigTests : IDisposable
     {
         var config = new UserConfig();
         config.Supports.TipDiameter = 0.23f;
+        config.Supports.TipNormalLeadInMm = 0.55f;
         config.Supports.UseBaseGrid = false;
         config.Supports.MiniSupportMaxFanPerBranchEnd = 7;
         config.Supports.FineFeatureMaxAreaMm2 = 1.7f;
@@ -387,6 +390,7 @@ public sealed class UserConfigTests : IDisposable
             candidate => candidate.Name == "Delicate teeth");
         Assert.Equal(SupportPreset.CurrentVersion, preset.Version);
         Assert.Equal(0.23f, preset.Settings.TipDiameter);
+        Assert.Equal(0.55f, preset.Settings.TipNormalLeadInMm);
         Assert.False(preset.Settings.UseBaseGrid);
         Assert.Equal(7, preset.Settings.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.7f, preset.Settings.FineFeatureMaxAreaMm2);
@@ -471,6 +475,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(2f, supports.ConeLength);
         Assert.Equal(0f, supports.BallDiameter);
         Assert.Equal(0f, supports.PenetrationDepth);
+        Assert.Equal(0.3f, supports.TipNormalLeadInMm);
         Assert.Equal(1.2f, supports.TrunkDiameter);
         Assert.Equal(1.2f, supports.BranchDiameter);
         Assert.Equal(45f, supports.MemberAngleDegrees);

@@ -162,6 +162,7 @@ internal static class TipsCommand
                 ConeLength = parameters.ConeLengthMm,
                 BallDiameter = parameters.BallDiameterMm,
                 PenetrationDepth = parameters.PenetrationDepthMm,
+                TipNormalLeadIn = parameters.TipNormalLeadInMm,
                 Candidates = tips.Select(t => new CandidateDto
                 {
                     Strategy = t.Strategy.ToString(),
@@ -174,6 +175,7 @@ internal static class TipsCommand
                     ConeLength = t.ConeLength,
                     BallDiameter = t.BallDiameter,
                     PenetrationDepth = t.PenetrationDepth,
+                    TipNormalLeadIn = t.TipNormalLeadIn,
                     MiniClusterId = t.MiniClusterId,
                     MiniClusterCenter = t.MiniClusterCenter is { } center
                         ? [center.X, center.Y, center.Z]
@@ -267,6 +269,7 @@ internal static class TipsCommand
         public required float ConeLength { get; init; }
         public required float BallDiameter { get; init; }
         public required float PenetrationDepth { get; init; }
+        public required float TipNormalLeadIn { get; init; }
         public required List<CandidateDto> Candidates { get; init; }
     }
 
@@ -282,6 +285,7 @@ internal static class TipsCommand
         public required float ConeLength { get; init; }
         public required float BallDiameter { get; init; }
         public required float PenetrationDepth { get; init; }
+        public required float TipNormalLeadIn { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public int? MiniClusterId { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

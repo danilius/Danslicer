@@ -81,6 +81,9 @@ public sealed record TipPlacementParameters
     /// <summary>How far a cone tip continues past the contact along its axis, millimetres.</summary>
     public float PenetrationDepthMm { get; init; } = 0f;
 
+    /// <summary>Normal-aligned contact lead-in before the tip bends toward its junction.</summary>
+    public float TipNormalLeadInMm { get; init; } = 0.3f;
+
     /// <summary>
     /// Sharp-feature bias, 0 to 1. Zero ignores edges; 1 strongly prefers ridges and corners
     /// in scoring and extra edge samples. Interior faces still receive tips unless
