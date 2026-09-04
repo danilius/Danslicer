@@ -41,6 +41,32 @@ before proposing. Re-arm on start: the queue monitor (folders/QUESTIONS-hash/bra
 head each minute) and the hourly heartbeat with stale-claim detection — both died
 with the old session.
 
+**Running ChatGPT (exact operating manual, as run today):** ChatGPT is a Codex
+scheduled task on the user's desktop app (their machine must stay on, app running —
+if the queue goes silent past ~15 min with jobs eligible, tell the user; you cannot
+restart it). Every ~5 min it starts a FRESH chat that: reads
+`F:\Git Repos\Danslicer-chatgpt\ChatGPT\PROTOCOL.md` and the top of `REVIEW.md`,
+claims the lowest-numbered ELIGIBLE `NNN[letter]-slug.md` in `inbox\` (eligible =
+its `Requires:` jobs sit in `completed\`; letters order between numbers, e.g. 023b <
+023c < 024), moves it to `working\`, implements on branch `grid-routing-prototype`
+in `F:\Git Repos\Danslicer-chatgpt` (merges main first when REVIEW.md notes a new
+head), commits granularly, never pushes, then writes `completed\NNN-slug.result.md`
+and archives the job (failures go to `failed\` — none ever has). You SUPERVISE by:
+(1) monitoring the mailbox (folder listings + QUESTIONS.md content hash + branch
+head, each minute) and reviewing EVERY commit detached in the scratch worktree —
+build+test with exit-code checks; (2) writing reviews/corrections/answers into
+`REVIEW.md` newest-at-top (it reads them at each run start — red commits get a "fix
+before completing" note there); (3) writing new briefs into `inbox\` — SELF-CONTAINED
+(fresh chat each run: exact file paths, exact API signatures pasted in, reference
+test files named for patterns, NEVER "derive it from the code" clauses — those caused
+every failure), benchmarks via `danslicer bench` when routing changes, "full suite
+green + result file" always; (4) on completion, merge-testing against main in the
+scratch worktree and PROPOSING the merge to the user; after approval you merge/push
+and note the new head in REVIEW.md; (5) triaging stale claims (`working\` untouched
+>2h with no commits → move to `failed\`, requeue split). QUESTIONS.md is its
+question channel (answer in REVIEW.md); its mtime churns every run — compare content,
+not timestamps. The mailbox is git-excluded; never commit it.
+
 **Read next:** `docs/WORKSHEET.md` (live board, user decisions D1-D7),
 `ChatGPT\PROTOCOL.md`, memory files (`danslicer-multi-agent-workflow`,
 `danslicer-session-comms`, `danslicer-ui-testing`,
