@@ -45,6 +45,24 @@ public sealed class SliceResult
 
 public static class Slicer
 {
+    /// <summary>
+    /// The embedded preview is cosmetic. Slicing must never fail because a thumbnail could not be
+    /// drawn, so any failure here degrades to a blank preview rather than aborting the slice.
+    /// </summary>
+    private static byte[] RenderPreviewSafely(
+        IReadOnlyList<PreviewRenderer.RenderObject> objects, Supports.SupportGraph? supports)
+    {
+        try
+        {
+            return PreviewRenderer.Render(objects, supports, PreviewWidth, PreviewHeight);
+        }
+        catch (Exception ex) when (ex is ArithmeticException or ArgumentException
+                                   or IndexOutOfRangeException or InvalidOperationException)
+        {
+            return PreviewRenderer.Blank(PreviewWidth, PreviewHeight);
+        }
+    }
+
     public const int PreviewWidth = 224;
     public const int PreviewHeight = 168;
 
@@ -184,7 +202,7 @@ public static class Slicer
             ResinSettings = resinSettings,
             Layers = layers,
             VolumeMl = (float)(volumeMm3 / 1000.0),
-            Preview = PreviewRenderer.Render(previewObjects, supports, PreviewWidth, PreviewHeight),
+            Preview = RenderPreviewSafely(previewObjects, supports),
             MinX = (float)(double.IsInfinity(minX) ? 0 : minX),
             MinY = (float)(double.IsInfinity(minY) ? 0 : minY),
             MaxX = (float)(double.IsInfinity(maxX) ? 0 : maxX),

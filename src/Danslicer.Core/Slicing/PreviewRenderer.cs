@@ -63,6 +63,16 @@ public static class PreviewRenderer
     /// <see cref="Danslicer.Core.IO.PhotonWorkshopWriter"/> expects. An empty scene yields a flat
     /// background image rather than throwing.
     /// </summary>
+    /// <summary>A background-filled preview of the requested size, used when nothing renders.</summary>
+    public static byte[] Blank(int width, int height)
+    {
+        var data = new byte[width * height * 2];
+        var background = Rgb565(BackgroundColor);
+        for (int i = 0; i < width * height; i++)
+            WritePixel(data, i, background);
+        return data;
+    }
+
     public static byte[] Render(IReadOnlyList<RenderObject> objects, Supports.SupportGraph? supports,
         int width, int height)
     {
@@ -72,23 +82,25 @@ public static class PreviewRenderer
             WritePixel(data, i, backgroundRgb565);
 
         var triangles = new List<RawTriangle>();
-        var bounds = Aabb.Empty;
 
         foreach (var obj in objects)
-        {
-            bounds = bounds.Union(obj.Mesh.Bounds.Transform(obj.Transform));
             CollectTriangles(obj.Mesh, obj.Transform, ModelColor, triangles);
-        }
 
         if (supports is not null)
         {
             foreach (var part in Supports.SupportRenderMesh.Build(supports))
             {
                 if (part.Disabled) continue;
-                bounds = bounds.Union(part.Mesh.Bounds);
                 CollectTriangles(part.Mesh, Matrix4x4.Identity, SupportColor, triangles);
             }
         }
+
+        // Frame from the triangles we actually kept, not from Mesh.Bounds: CollectTriangles has
+        // already dropped any non-finite geometry, so a single bad vertex anywhere upstream cannot
+        // poison the camera. A thumbnail must never be able to fail a slice.
+        var bounds = Aabb.Empty;
+        foreach (var tri in triangles)
+            bounds = bounds.Include(tri.A).Include(tri.B).Include(tri.C);
 
         if (triangles.Count == 0 || bounds.IsEmpty) return data;
 
@@ -103,16 +115,19 @@ public static class PreviewRenderer
         return data;
     }
 
+    private static bool IsFinite(Vector3 v) =>
+        float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
     private static void CollectTriangles(Mesh mesh, Matrix4x4 transform, Vector3 baseColor, List<RawTriangle> output)
     {
         for (int t = 0; t < mesh.TriangleCount; t++)
         {
             mesh.GetTriangle(t, out var a, out var b, out var c);
-            output.Add(new RawTriangle(
-                Vector3.Transform(a, transform),
-                Vector3.Transform(b, transform),
-                Vector3.Transform(c, transform),
-                baseColor));
+            var pa = Vector3.Transform(a, transform);
+            var pb = Vector3.Transform(b, transform);
+            var pc = Vector3.Transform(c, transform);
+            if (!IsFinite(pa) || !IsFinite(pb) || !IsFinite(pc)) continue;
+            output.Add(new RawTriangle(pa, pb, pc, baseColor));
         }
     }
 
@@ -120,6 +135,13 @@ public static class PreviewRenderer
     {
         var target = bounds.Center;
         var radius = MathF.Max(bounds.Radius, 1e-3f);
+        if (!IsFinite(target) || !float.IsFinite(radius))
+        {
+            // Unreachable once bounds come from finite triangles, but a camera built from NaN
+            // throws out of Matrix4x4.CreatePerspectiveFieldOfView and would fail the whole slice.
+            target = Vector3.Zero;
+            radius = 1f;
+        }
         var fovRad = FovDegrees * MathF.PI / 180f;
         var distance = radius / MathF.Sin(fovRad * 0.5f) * FrameMargin;
 
