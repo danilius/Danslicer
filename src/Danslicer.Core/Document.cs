@@ -38,6 +38,8 @@ public sealed class Document
     public UndoStack History { get; } = new();
     public PrinterDefinition Printer { get; set; } = PrinterDefinition.PhotonMonoX;
     public PrintSettings PrintSettings { get; set; } = PrintSettings.Default;
+    public ResinPreset ResinPreset { get; set; } = ResinPreset.Default;
+    public ResinSettings ResinSettings { get; set; } = ResinSettings.Default;
     public PlacementMode PlacementMode { get; set; } = PlacementMode.AutoDrop;
     public float PlacementHeightMm { get; set; }
     public SupportConfig SupportSettings { get; set; } = new();
@@ -93,6 +95,8 @@ public sealed class Document
 
         PrintSettings = source.PrintSettings;
         Printer = source.Printer;
+        ResinPreset = source.ResinPreset;
+        ResinSettings = source.ResinSettings;
         Scene.ReplaceWith(source.Scene.Objects.Select(obj => new SceneObject(obj.Name, obj.Mesh, obj.Id)
         {
             Transform = obj.Transform,
@@ -107,6 +111,15 @@ public sealed class Document
 
     /// <summary>Raise Changed for transient edits (e.g. live drag) that bypass the command stack.</summary>
     public void NotifyTransientChange() => Changed?.Invoke();
+
+    /// <summary>Applies a named resin snapshot without touching per-print raster choices.</summary>
+    public void ApplyResinPreset(ResinPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        ResinPreset = preset.Normalize();
+        ResinSettings = ResinPreset.Settings with { };
+        NotifyTransientChange();
+    }
 
     public void Select(SceneObject obj, bool additive = false)
     {

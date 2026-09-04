@@ -69,6 +69,7 @@
                     <ListBoxItem Content="Viewport" />
                     <ListBoxItem Content="Keymap" />
                     <ListBoxItem Content="Printers" />
+                    <ListBoxItem Content="Resins" />
                     <ListBoxItem Content="Supports" />
                     <ListBoxItem Content="SpaceMouse" />
                 </ListBox>
@@ -197,6 +198,42 @@
                             <TextBlock Text="{Binding Printers.ValidationMessage}"
                                        IsVisible="{Binding Printers.HasValidationMessage}"
                                        Foreground="#FFB35C" FontSize="12" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel x:Name="ResinsSection">
+                    <TextBlock Text="Resins" Classes="section" />
+                    <Grid Tag="resin presets exposure cure bottom layers lift retract light off delay"
+                          ColumnDefinitions="190,*" ColumnSpacing="14">
+                        <StackPanel>
+                            <ListBox ItemsSource="{Binding Resins.DisplayNames}"
+                                     SelectedIndex="{Binding Resins.SelectedIndex, Mode=TwoWay}"
+                                     MinHeight="150" MaxHeight="260" />
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Content="Save" Command="{Binding Resins.SaveCommand}" Margin="0,0,4,4" />
+                                <Button Content="Save As…" Command="{Binding Resins.BeginSaveAsCommand}" Margin="0,0,4,4" />
+                                <Button Content="Rename" Command="{Binding Resins.BeginRenameCommand}" Margin="0,0,4,4" />
+                                <Button Content="Delete" Command="{Binding Resins.DeleteCommand}" Margin="0,0,4,4" />
+                            </WrapPanel>
+                            <StackPanel IsVisible="{Binding Resins.IsNameEditorVisible}" Margin="0,4,0,0">
+                                <TextBox Text="{Binding Resins.NameDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="Preset name" />
+                                <TextBlock Text="{Binding Resins.ValidationMessage}"
+                                           IsVisible="{Binding Resins.HasValidationMessage}"
+                                           Foreground="#FFB35C" FontSize="12" TextWrapping="Wrap" />
+                                <WrapPanel Margin="0,4,0,0">
+                                    <Button Content="{Binding Resins.NameEditorAction}"
+                                            Command="{Binding Resins.ConfirmNameCommand}" Margin="0,0,4,0" />
+                                    <Button Content="Cancel" Command="{Binding Resins.CancelNameCommand}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Text="Applying a resin changes cure and peel settings only. Layer height, anti-aliasing and XY compensation remain per-print." />
+                            <ItemsControl ItemsSource="{Binding Resins.Fields}"
+                                          ItemTemplate="{StaticResource PrinterFieldTemplate}" />
                         </StackPanel>
                     </Grid>
                 </StackPanel>

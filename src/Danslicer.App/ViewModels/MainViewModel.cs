@@ -209,12 +209,15 @@ public partial class MainViewModel : ViewModelBase
         // Keep the document pointed at the live persisted settings. Each support operation takes
         // its own value snapshot, so edits affect the next generation/manual placement only.
         Document.SupportSettings = AppConfig.Current.Supports;
+        Document.ApplyResinPreset(AppConfig.Current.FindResinPreset(ResinPreset.DefaultId) ??
+                                  AppConfig.Current.ResinPresets.FirstOrDefault() ?? ResinPreset.Default);
         PrintSettings = new PrintSettingsViewModel(Document);
-        SupportSettings = new ConfigViewModel();
+        SupportSettings = new ConfigViewModel(Document);
         SupportSettings.Saved += () =>
         {
             Document.SupportSettings = AppConfig.Current.Supports;
             RefreshPrinterOptions();
+            SupportSettings.Resins.Refresh();
         };
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
@@ -423,6 +426,7 @@ public partial class MainViewModel : ViewModelBase
         Document.ReplaceWith(loaded.Document);
         PrintSettings.Refresh();
         RefreshPrinterOptions(notifyDocument: false);
+        SupportSettings.Resins.Refresh();
         SelectedObject = null;
         LastSlice = null;
         PreviewImage = null;
@@ -638,6 +642,7 @@ public partial class MainViewModel : ViewModelBase
         var objects = Document.Scene.Objects.ToList();
         var printer = Document.Printer;
         var settings = Document.PrintSettings;
+        var resin = Document.ResinSettings;
         var progress = new Progress<double>(p =>
         {
             SliceProgress = p;
@@ -646,7 +651,8 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token, Document.Supports), token);
+            var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token,
+                Document.Supports, resin), token);
             LastSlice = result;
             SliceSummary =
                 $"{result.LayerCount} layers × {settings.LayerHeight:0.###} mm = {result.PrintHeight:0.##} mm\n" +
@@ -685,7 +691,8 @@ public partial class MainViewModel : ViewModelBase
     public async Task<bool> ExportAsync(string path)
     {
         var result = LastSlice;
-        if (result is null || result.Settings != Document.PrintSettings)
+        if (result is null || result.Settings != Document.PrintSettings ||
+            result.ResinSettings != Document.ResinSettings)
             result = await Slice();
         if (result is null) return false;
 
@@ -754,6 +761,6 @@ public partial class MainViewModel : ViewModelBase
         // Re-assign so bindings see a change even when the same bitmap instance was reused.
         PreviewImage = null;
         PreviewImage = bitmap;
-        PreviewLayerText = $"Layer {index + 1} / {result.LayerCount}   Z {layer.Z:0.###} mm   {layer.AreaMm2:0.#} mm²   {result.Settings.ExposureForLayer(index):0.##} s";
+        PreviewLayerText = $"Layer {index + 1} / {result.LayerCount}   Z {layer.Z:0.###} mm   {layer.AreaMm2:0.#} mm²   {result.ResinSettings.ExposureForLayer(index):0.##} s";
     }
 }

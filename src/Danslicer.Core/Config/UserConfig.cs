@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.Printers;
+using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
 
 namespace Danslicer.Core.Config;
@@ -215,6 +216,7 @@ public sealed class UserConfig
     public PlacementConfig Placement { get; set; } = new();
     public SupportConfig Supports { get; set; } = new();
     public List<PrinterDefinition> Printers { get; set; } = CreateBuiltInPrinters();
+    public List<ResinPreset> ResinPresets { get; set; } = CreateBuiltInResinPresets();
     public List<SupportPreset> SupportPresets { get; set; } = CreateBuiltInSupportPresets();
     public string ActiveSupportPresetName { get; set; } = CadCleanSupportPresetName;
 
@@ -255,6 +257,7 @@ public sealed class UserConfig
             config.Supports ??= new SupportConfig();
             config.Supports.Normalize();
             config.NormalizePrinters();
+            config.NormalizeResinPresets();
             config.NormalizeSupportPresets();
             config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
                 ? MathF.Max(0, config.Placement.HeightMm)
@@ -308,6 +311,55 @@ public sealed class UserConfig
         var printer = FindPrinter(id);
         if (printer is null || printer.IsBuiltIn) return false;
         return Printers.Remove(printer);
+    }
+
+    public ResinPreset? FindResinPreset(string id) => ResinPresets.FirstOrDefault(
+        preset => string.Equals(preset.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    public ResinPreset? FindResinPresetByName(string name) => ResinPresets.FirstOrDefault(
+        preset => string.Equals(preset.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    public bool SaveResinPreset(string id, ResinSettings settings)
+    {
+        var preset = FindResinPreset(id);
+        if (preset is null) return false;
+        ResinPresets[ResinPresets.IndexOf(preset)] = preset with
+        {
+            Settings = settings.Normalize(),
+        };
+        return true;
+    }
+
+    public ResinPreset? SaveResinPresetAs(string name, ResinSettings settings)
+    {
+        var normalizedName = name.Trim();
+        if (normalizedName.Length == 0 || FindResinPresetByName(normalizedName) is not null)
+            return null;
+        var preset = new ResinPreset
+        {
+            Name = normalizedName,
+            Settings = settings.Normalize(),
+        };
+        ResinPresets.Add(preset);
+        return preset;
+    }
+
+    public bool RenameResinPreset(string id, string name)
+    {
+        var preset = FindResinPreset(id);
+        var normalizedName = name.Trim();
+        if (preset is null || normalizedName.Length == 0 || ResinPresets.Any(other =>
+                other.Id != preset.Id &&
+                string.Equals(other.Name, normalizedName, StringComparison.OrdinalIgnoreCase)))
+            return false;
+        ResinPresets[ResinPresets.IndexOf(preset)] = preset with { Name = normalizedName };
+        return true;
+    }
+
+    public bool DeleteResinPreset(string id)
+    {
+        var preset = FindResinPreset(id);
+        return preset is not null && ResinPresets.Remove(preset);
     }
 
     public SupportPreset? FindSupportPreset(string name) => SupportPresets.FirstOrDefault(
@@ -379,6 +431,8 @@ public sealed class UserConfig
 
     private static List<PrinterDefinition> CreateBuiltInPrinters() => [PrinterDefinition.PhotonMonoX];
 
+    private static List<ResinPreset> CreateBuiltInResinPresets() => [ResinPreset.Default];
+
     private void NormalizePrinters()
     {
         Printers ??= [];
@@ -393,6 +447,34 @@ public sealed class UserConfig
         }
         normalized.Insert(0, PrinterDefinition.PhotonMonoX);
         Printers = normalized;
+    }
+
+    private void NormalizeResinPresets()
+    {
+        ResinPresets ??= [];
+        var normalized = new List<ResinPreset>();
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in ResinPresets)
+        {
+            if (candidate is null) continue;
+            var preset = candidate.Normalize();
+            if (!ids.Add(preset.Id) || !names.Add(preset.Name)) continue;
+            normalized.Add(preset);
+        }
+        var defaultIndex = normalized.FindIndex(preset =>
+            string.Equals(preset.Id, ResinPreset.DefaultId, StringComparison.OrdinalIgnoreCase));
+        if (defaultIndex < 0)
+        {
+            normalized.Insert(0, ResinPreset.Default);
+        }
+        else if (defaultIndex > 0)
+        {
+            var defaultPreset = normalized[defaultIndex];
+            normalized.RemoveAt(defaultIndex);
+            normalized.Insert(0, defaultPreset);
+        }
+        ResinPresets = normalized;
     }
 
     private void NormalizeSupportPresets()

@@ -132,9 +132,10 @@ public class SlicingTests
     {
         var obj = new SceneObject("box", Box(10, 20, 2.5f));
         obj.Transform = Transform.Identity with { Translation = new Vector3(-5, -10, 0) };
-        var settings = PrintSettings.Default with { LayerHeight = 0.5f, BottomLayers = 2 };
+        var settings = PrintSettings.Default with { LayerHeight = 0.5f };
+        var resin = ResinSettings.Default with { BottomLayers = 2 };
 
-        var result = Slicer.Slice(new[] { obj }, Printer, settings);
+        var result = Slicer.Slice(new[] { obj }, Printer, settings, resinSettings: resin);
         Assert.Equal(5, result.LayerCount);
         Assert.Equal(200f * 400f, result.Layers[2].LitPixels, 0);
         Assert.Equal(10 * 20 * 2.5 / 1000.0, result.VolumeMl, 3);
@@ -151,9 +152,9 @@ public class SlicingTests
         Assert.Equal(2400, file.ResolutionY);
         Assert.Equal(16u, file.AntiAliasing);
         Assert.Equal(5, file.Layers.Count);
-        Assert.Equal(settings.BottomExposure, file.Layers[0].Exposure);
-        Assert.Equal(settings.Exposure, file.Layers[4].Exposure);
-        Assert.Equal(settings.LiftSpeed / 60f, file.LiftSpeedMmPerSec, 4);
+        Assert.Equal(resin.BottomExposure, file.Layers[0].Exposure);
+        Assert.Equal(resin.Exposure, file.Layers[4].Exposure);
+        Assert.Equal(resin.LiftSpeed / 60f, file.LiftSpeedMmPerSec, 4);
         Assert.Equal("Photon Mono X", file.MachineName);
         Assert.Equal("pw0Img", file.LayerImageFormat);
 
@@ -162,6 +163,31 @@ public class SlicingTests
         result.Layers[2].Decode(3840, 2400, expected);
         Assert.Equal(expected, pixels);
         Assert.Equal(result.Layers[2].LitPixels, (uint)pixels.Count(p => p != 0));
+    }
+
+    [Fact]
+    public void ExportHeaderConsumesSelectedResinExposureBytes()
+    {
+        var obj = new SceneObject("box", Box(1, 1, 1))
+        {
+            Transform = Transform.Identity with { Translation = new Vector3(-0.5f, -0.5f, 0) },
+        };
+        var low = Slicer.Slice([obj], Printer, PrintSettings.Default,
+            resinSettings: ResinSettings.Default with { Exposure = 1.25f });
+        var high = Slicer.Slice([obj], Printer, PrintSettings.Default,
+            resinSettings: ResinSettings.Default with { Exposure = 4.5f });
+        using var lowStream = new MemoryStream();
+        using var highStream = new MemoryStream();
+        PhotonWorkshopWriter.Write(low, lowStream);
+        PhotonWorkshopWriter.Write(high, highStream);
+
+        var lowBytes = lowStream.ToArray();
+        var highBytes = highStream.ToArray();
+        const int exposureHeaderOffset = 76;
+        Assert.Equal(1.25f, BitConverter.ToSingle(lowBytes, exposureHeaderOffset));
+        Assert.Equal(4.5f, BitConverter.ToSingle(highBytes, exposureHeaderOffset));
+        Assert.NotEqual(lowBytes.AsSpan(exposureHeaderOffset, sizeof(float)).ToArray(),
+            highBytes.AsSpan(exposureHeaderOffset, sizeof(float)).ToArray());
     }
 
     [Fact]
