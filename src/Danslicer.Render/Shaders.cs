@@ -52,6 +52,9 @@ internal static class Shaders
         uniform vec3 uOverhangColorA;  // checker colour on even cells
         uniform vec3 uOverhangColorB;  // checker colour on odd cells
         uniform float uOverhangCell;   // checker cell edge, mm
+        uniform float uClipEnabled;
+        uniform float uClipLowerZ;
+        uniform float uClipUpperZ;
 
         out vec4 fragColor;
 
@@ -59,6 +62,9 @@ internal static class Shaders
 
         void main()
         {
+            if (uClipEnabled > 0.5 &&
+                (vWorldPosition.z < uClipLowerZ || vWorldPosition.z > uClipUpperZ)) discard;
+
             vec3 n = normalize(vViewNormal);
             bool back = !gl_FrontFacing;
             if (back) n = -n;
@@ -102,6 +108,15 @@ internal static class Shaders
 
             if (uWarnBelowPlate > 0.5 && vWorldPosition.z < -0.001) color = mix(color, vec3(0.95, 0.15, 0.10), 0.6);
 
+            if (uClipEnabled > 0.5)
+            {
+                float distanceToCut = min(abs(vWorldPosition.z - uClipLowerZ),
+                                          abs(vWorldPosition.z - uClipUpperZ));
+                float cutBand = max(fwidth(vWorldPosition.z) * 1.5, 0.002);
+                float cut = 1.0 - smoothstep(0.0, cutBand, distanceToCut);
+                color = mix(color, vec3(1.0, 0.55, 0.16), cut * 0.8);
+            }
+
             vec3 lit = color * (diffuse + 0.08) + vec3(spec) + vec3(edge);
             fragColor = vec4(lit, uOpacity);
         }
@@ -114,17 +129,37 @@ internal static class Shaders
         uniform mat4 uViewProjection;
 
         out vec4 vColor;
+        out vec3 vWorldPosition;
 
         void main()
         {
             vColor = aColor;
+            vWorldPosition = aPosition;
             gl_Position = uViewProjection * vec4(aPosition, 1.0);
         }
         """;
 
     public const string LineFragment = """
         in vec4 vColor;
+        in vec3 vWorldPosition;
+        uniform float uClipEnabled;
+        uniform float uClipLowerZ;
+        uniform float uClipUpperZ;
         out vec4 fragColor;
-        void main() { fragColor = vColor; }
+        void main()
+        {
+            if (uClipEnabled > 0.5 &&
+                (vWorldPosition.z < uClipLowerZ || vWorldPosition.z > uClipUpperZ)) discard;
+            vec4 color = vColor;
+            if (uClipEnabled > 0.5)
+            {
+                float distanceToCut = min(abs(vWorldPosition.z - uClipLowerZ),
+                                          abs(vWorldPosition.z - uClipUpperZ));
+                float cutBand = max(fwidth(vWorldPosition.z) * 1.5, 0.002);
+                float cut = 1.0 - smoothstep(0.0, cutBand, distanceToCut);
+                color.rgb = mix(color.rgb, vec3(1.0, 0.55, 0.16), cut * 0.8);
+            }
+            fragColor = color;
+        }
         """;
 }

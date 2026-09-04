@@ -42,16 +42,23 @@ public static class SupportDisplayPolicy
         };
 
     public static bool IsNodeDisplayed(SupportGraph graph, SupportNode node,
-        SupportDisplayConfig display) => node.Type switch
-    {
-        SupportNodeType.Tip => IsTipMarkerDisplayed(graph, node, display),
-        SupportNodeType.Base => display.ShowBases &&
-            (display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent),
-        SupportNodeType.Junction => graph.SegmentsAt(node.Id)
-            .Any(segment => !segment.Hidden && IsSegmentDisplayed(segment.Type, display) &&
-                !graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA).Hidden),
-        _ => false,
-    };
+        SupportDisplayConfig display, ViewportClipRange clip = default) => clip.Contains(node.Position) &&
+        node.Type switch
+        {
+            SupportNodeType.Tip => IsTipMarkerDisplayed(graph, node, display),
+            SupportNodeType.Base => display.ShowBases &&
+                (display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent),
+            SupportNodeType.Junction => graph.SegmentsAt(node.Id)
+                .Any(segment => !segment.Hidden && IsSegmentDisplayed(segment.Type, display) &&
+                    !graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA).Hidden),
+            _ => false,
+        };
+
+    public static bool IsSegmentDisplayed(SupportGraph graph, SupportSegment segment,
+        SupportDisplayConfig display, ViewportClipRange clip = default) =>
+        IsSegmentDisplayed(segment.Type, display) &&
+        clip.TryClipSegment(graph.GetNode(segment.NodeA).Position,
+            graph.GetNode(segment.NodeB).Position, out _, out _);
 
     private static bool IsTipMarkerDisplayed(SupportGraph graph, SupportNode node,
         SupportDisplayConfig display)
@@ -66,21 +73,21 @@ public static class SupportDisplayPolicy
     }
 
     public static bool IsElementDisplayed(SupportGraph graph, Guid id,
-        SupportDisplayConfig display)
+        SupportDisplayConfig display, ViewportClipRange clip = default)
     {
         if (graph.TryGetNode(id, out var node))
-            return !node.Hidden && IsNodeDisplayed(graph, node, display);
+            return !node.Hidden && IsNodeDisplayed(graph, node, display, clip);
         if (!graph.TryGetSegment(id, out var segment) || segment.Hidden ||
-            !IsSegmentDisplayed(segment.Type, display)) return false;
+            !IsSegmentDisplayed(graph, segment, display, clip)) return false;
         return !graph.GetNode(segment.NodeA).Hidden && !graph.GetNode(segment.NodeB).Hidden;
     }
 
     public static IEnumerable<Guid> DisplayedElementIds(SupportGraph graph,
-        SupportDisplayConfig display)
+        SupportDisplayConfig display, ViewportClipRange clip = default)
     {
         foreach (var node in graph.Nodes)
-            if (IsElementDisplayed(graph, node.Id, display)) yield return node.Id;
+            if (IsElementDisplayed(graph, node.Id, display, clip)) yield return node.Id;
         foreach (var segment in graph.Segments)
-            if (IsElementDisplayed(graph, segment.Id, display)) yield return segment.Id;
+            if (IsElementDisplayed(graph, segment.Id, display, clip)) yield return segment.Id;
     }
 }

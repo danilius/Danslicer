@@ -34,7 +34,15 @@ public readonly record struct Ray(Vector3 Origin, Vector3 Direction)
     }
 
     /// <summary>Brute-force closest hit against a mesh in the mesh's local space.</summary>
-    public float? IntersectMesh(Mesh mesh, out int triangleIndex)
+    public float? IntersectMesh(Mesh mesh, out int triangleIndex) =>
+        IntersectMesh(mesh, out triangleIndex, includeHit: null);
+
+    /// <summary>
+    /// Brute-force closest accepted hit against a mesh. The optional predicate receives the
+    /// local-space hit point, allowing viewport-only clipping without rebuilding geometry.
+    /// </summary>
+    public float? IntersectMesh(Mesh mesh, out int triangleIndex,
+        Func<Vector3, bool>? includeHit)
     {
         triangleIndex = -1;
         float? best = null;
@@ -42,7 +50,8 @@ public readonly record struct Ray(Vector3 Origin, Vector3 Direction)
         {
             mesh.GetTriangle(t, out var a, out var b, out var c);
             var hit = IntersectTriangle(a, b, c);
-            if (hit is { } d && (best is null || d < best))
+            if (hit is { } d && (includeHit?.Invoke(At(d)) ?? true) &&
+                (best is null || d < best))
             {
                 best = d;
                 triangleIndex = t;

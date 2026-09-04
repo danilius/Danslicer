@@ -1,6 +1,7 @@
 using System.Numerics;
 using Danslicer.Core.Config;
 using Danslicer.Core.Supports;
+using Danslicer.Core;
 
 namespace Danslicer.Tests;
 
@@ -132,6 +133,19 @@ public sealed class SupportDisplayPolicyTests
 
         Assert.False(SupportDisplayPolicy.IsElementDisplayed(
             graph, nodes[2].Id, new SupportDisplayConfig()));
+    }
+
+    [Fact]
+    public void ClipRangeFiltersNodesAndOnlyWhollyOutsideSegments()
+    {
+        var (graph, nodes, segments) = CompleteGraph();
+        var clip = new ViewportClipRange(0, 5, 3.5f, 4.5f, Active: true);
+        var display = new SupportDisplayConfig();
+
+        Assert.False(SupportDisplayPolicy.IsElementDisplayed(graph, nodes[0].Id, display, clip));
+        Assert.True(SupportDisplayPolicy.IsElementDisplayed(graph, nodes[2].Id, display, clip));
+        Assert.True(SupportDisplayPolicy.IsElementDisplayed(graph, segments[0].Id, display, clip));
+        Assert.False(SupportDisplayPolicy.IsElementDisplayed(graph, segments[3].Id, display, clip));
     }
 
     private static (SupportGraph Graph, SupportNode[] Nodes, SupportSegment[] Segments) CompleteGraph()

@@ -206,6 +206,23 @@
                 <ScrollViewer IsVisible="{Binding IsSupportView}">
                     <StackPanel>
                         <TextBlock Text="Support" Classes="section" />
+                        <TextBlock Text="Layer range" Classes="label"
+                                   ToolTip.Tip="Viewport isolation only — slicing and support generation are unaffected" />
+                        <controls:LayerRangeSlider Minimum="{Binding SupportClip.MinimumZ}"
+                                                   Maximum="{Binding SupportClip.MaximumZ}"
+                                                   LowerValue="{Binding SupportClip.LowerZ, Mode=TwoWay}"
+                                                   UpperValue="{Binding SupportClip.UpperZ, Mode=TwoWay}"
+                                                   ToolTip.Tip="Drag either end to clip the Support viewport from below or above" />
+                        <Grid ColumnDefinitions="Auto,58,Auto,Auto,58,Auto,*" Margin="0,0,0,6">
+                            <TextBlock Text="Low" Classes="label" Margin="0,0,4,0" />
+                            <controls:ExpressionBox Grid.Column="1" Text="{Binding SupportClip.LowerField.Text, Mode=TwoWay}" />
+                            <TextBlock Grid.Column="2" Text="mm" Classes="label" Margin="4,0,10,0" />
+                            <TextBlock Grid.Column="3" Text="High" Classes="label" Margin="0,0,4,0" />
+                            <controls:ExpressionBox Grid.Column="4" Text="{Binding SupportClip.UpperField.Text, Mode=TwoWay}" />
+                            <TextBlock Grid.Column="5" Text="mm" Classes="label" Margin="4,0,0,0" />
+                            <Button Grid.Column="6" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
+                                    HorizontalAlignment="Right" Padding="8,2" />
+                        </Grid>
                         <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
                             <TextBlock Text="Display" Classes="label" />
                             <ComboBox Grid.Column="1"
@@ -316,6 +333,7 @@
                                           SupportSelectionMode="{Binding IsSupportView}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
                                           SupportDisplay="{Binding SupportSettings.SupportDisplay}"
+                                          ClipRange="{Binding ViewportClipRange}"
                                           ShowMoveGizmo="{Binding ShowMoveGizmo}"
                                           ShowRotateGizmo="{Binding ShowRotateGizmo}"
                                           ShowScaleGizmo="{Binding ShowScaleGizmo}"

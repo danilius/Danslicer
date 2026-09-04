@@ -58,6 +58,8 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>The one live support-settings model shared by Preferences and the Support panel.</summary>
     public ConfigViewModel SupportSettings { get; }
+    public LayerRangeClipViewModel SupportClip { get; } = new();
+    public ViewportClipRange ViewportClipRange => SupportClip.Range;
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
     public ModeScopedCommand HideScopedCommand { get; }
@@ -119,6 +121,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnViewModeChanged(WorkspaceMode value)
     {
+        SupportClip.Active = value == WorkspaceMode.Support;
         _changingViewMode = true;
         try
         {
@@ -213,6 +216,7 @@ public partial class MainViewModel : ViewModelBase
                                   AppConfig.Current.ResinPresets.FirstOrDefault() ?? ResinPreset.Default);
         PrintSettings = new PrintSettingsViewModel(Document);
         SupportSettings = new ConfigViewModel(Document);
+        SupportClip.Changed += () => OnPropertyChanged(nameof(ViewportClipRange));
         SupportSettings.Saved += () =>
         {
             Document.SupportSettings = AppConfig.Current.Supports;
@@ -372,6 +376,7 @@ public partial class MainViewModel : ViewModelBase
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         SliceCommand.NotifyCanExecuteChanged();
+        SupportClip.RefreshBounds(Document.Scene.WorldBounds, Document.Printer.BuildVolume.Z);
 
         // Geometry changed: the slice no longer matches the scene.
         if (LastSlice is not null && !IsSlicing) InvalidateSlice();
@@ -424,6 +429,8 @@ public partial class MainViewModel : ViewModelBase
     {
         var loaded = ProjectFile.Load(path);
         Document.ReplaceWith(loaded.Document);
+        SupportClip.RefreshBounds(Document.Scene.WorldBounds, Document.Printer.BuildVolume.Z,
+            reset: true);
         PrintSettings.Refresh();
         RefreshPrinterOptions(notifyDocument: false);
         SupportSettings.Resins.Refresh();
@@ -604,7 +611,7 @@ public partial class MainViewModel : ViewModelBase
         {
             Document.ClearSelection();
             Document.SelectSupportElements(SupportDisplayPolicy.DisplayedElementIds(
-                Document.Supports, AppConfig.Current.Viewport.SupportDisplay));
+                Document.Supports, AppConfig.Current.Viewport.SupportDisplay, ViewportClipRange));
             return;
         }
         WorkspaceSelection.SelectAll(Document, ViewMode);
