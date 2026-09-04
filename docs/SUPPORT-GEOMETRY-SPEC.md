@@ -115,6 +115,24 @@ rods spreading to nearby contact points.
   full-size cones. Each member retains its source strategy as metadata so island coverage remains
   auditable after reclassification. Mini-island contacts keep their existing classification and
   route pass.
+- After density clustering, an isolated `Island` or `LocalMinimum` contact whose measured local
+  cross-section is no greater than `FineFeatureMaxAreaMm2` becomes a one-member mini cluster.
+  Islands use their already-computed first-appearance area. Local minima use the connected solid
+  section in a horizontal slice 0.5 mm above the contact; if that fixed-height probe does not
+  contain the contact XY, the contact stays regular rather than guessing. Mini-island
+  classification still wins, and crowded density groups are never split by this pass.
+- The proposed `FineFeatureMaxAreaMm2` default is **1.0 mm²**. On `drogon-lo`, the four isolated
+  bottom-spike minima measure 0.36, 0.62, 0.68 and 0.78 mm² at the 0.5 mm probe; the next measured
+  local minimum is 4.01 mm², leaving a clean gap around the round-number default.
+- After density clustering, an isolated `Island` or `LocalMinimum` contact whose measured local
+  cross-section is no greater than `FineFeatureMaxAreaMm2` becomes a one-member mini cluster.
+  Islands use their already-computed first-appearance area. Local minima use the connected solid
+  section in a horizontal slice 0.5 mm above the contact; if that fixed-height probe does not
+  contain the contact XY, the contact stays regular rather than guessing. Mini-island
+  classification still wins, and crowded density groups are never split by this pass.
+- The proposed `FineFeatureMaxAreaMm2` default is **1.0 mm²**. On `drogon-lo`, the four isolated
+  bottom-spike minima measure 0.36, 0.62, 0.68 and 0.78 mm² at the 0.5 mm probe; the next measured
+  local minimum is 4.01 mm², leaving a clean gap around the round-number default.
 - The proposed crowding-distance default is **1.25 mm**, derived as half the default 2.5 mm tip
   spacing. Each cluster location is the score-weighted centre of its member contacts.
 - One purpose-built branch end below the cluster feeds one ascending mini rod per member. The

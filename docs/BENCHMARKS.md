@@ -525,3 +525,65 @@ fixtures originated as an island contact, while `MiniIsland` counts remain uncha
 the 398 island members provide the headless proof available under the no-app-launch protocol; the
 user should locate them in the head/teeth view after regenerating supports, because an existing
 graph is not retroactively reclassified.
+
+---
+
+## 2026-09-04 — isolated fine-feature mini tips
+
+- Baseline and implementation were run at `cd60d2d`, toggling only
+  `--fine-feature-max 0` versus the proposed **1.0 mm²** default. Candidate positions and totals
+  are unchanged; only isolated island/local-minimum contacts left over after density clustering
+  are reclassified as one-member mini clusters.
+- Islands reuse their first-appearance area. Local minima use their connected horizontal section
+  0.5 mm above the contact. On `drogon-lo`, the four converted local minima measured 0.36, 0.62,
+  0.68 and 0.78 mm²; the next measured minimum was 4.01 mm². This is the basis for the flagged
+  1.0 mm² default.
+
+### Results
+
+| Model | Pass | Tips / conversions | Grid on | Grid off |
+| --- | --- | --- | --- | --- |
+| drogon | before | 1961 candidates; Island 190, MiniIsland 492, MiniCluster 449; 132 density clusters | 1063 refusals, 144 bases, collision-free | 901 refusals, 228 bases, collision-free |
+| drogon | after | 1961 candidates; Island 20, MiniIsland 492, MiniCluster 620; **171 fine singles** (170 island, 1 local minimum) | 1087 refusals, 137 bases, collision-free | 906 refusals, 221 bases, collision-free |
+| gripper | before | 482 candidates; Island 82, MiniIsland 22, MiniCluster 9; 3 density clusters | 91 refusals, 133 bases, collision-free | 90 refusals, 139 bases, collision-free |
+| gripper | after | 482 candidates; Island 33, MiniIsland 22, MiniCluster 58; **49 fine singles** (all island) | 83 refusals, 137 bases, collision-free | 82 refusals, 141 bases, collision-free |
+| drogon-lo | before | 1492 candidates; Island 181, MiniIsland 356, MiniCluster 398; 123 density clusters | 757 refusals, 130 bases, collision-free | 601 refusals, 210 bases, collision-free |
+| drogon-lo | after | 1492 candidates; Island 34, MiniIsland 356, MiniCluster 549; **151 fine singles** (147 island, 4 local minima) | 777 refusals, 126 bases, collision-free | 627 refusals, 207 bases, collision-free |
+
+The default converts the targeted four isolated `drogon-lo` spike minima while leaving the next
+much broader minimum regular. Density clusters remain unchanged and take precedence, mini-island
+counts are unchanged, and every candidate still has exactly one auditable source strategy. The
+trade-off is model-dependent: gripper refusals improve by 8 in both modes; Drogon rises by 24
+grid-on and 5 grid-off, and `drogon-lo` rises by 20/26. All six route outputs remain collision-free
+and within the configured 75° mini lean limit.
+
+---
+
+## 2026-09-04 — isolated fine-feature mini tips
+
+- Baseline and implementation were run at `cd60d2d`, toggling only
+  `--fine-feature-max 0` versus the proposed **1.0 mm²** default. Candidate positions and totals
+  are unchanged; only isolated island/local-minimum contacts left over after density clustering
+  are reclassified as one-member mini clusters.
+- Islands reuse their first-appearance area. Local minima use their connected horizontal section
+  0.5 mm above the contact. On `drogon-lo`, the four converted local minima measured 0.36, 0.62,
+  0.68 and 0.78 mm²; the next measured minimum was 4.01 mm². This is the basis for the flagged
+  1.0 mm² default.
+
+### Results
+
+| Model | Pass | Tips / conversions | Grid on | Grid off |
+| --- | --- | --- | --- | --- |
+| drogon | before | 1961 candidates; Island 190, MiniIsland 492, MiniCluster 449; 132 density clusters | 1063 refusals, 144 bases, collision-free | 901 refusals, 228 bases, collision-free |
+| drogon | after | 1961 candidates; Island 20, MiniIsland 492, MiniCluster 620; **171 fine singles** (170 island, 1 local minimum) | 1087 refusals, 137 bases, collision-free | 906 refusals, 221 bases, collision-free |
+| gripper | before | 482 candidates; Island 82, MiniIsland 22, MiniCluster 9; 3 density clusters | 91 refusals, 133 bases, collision-free | 90 refusals, 139 bases, collision-free |
+| gripper | after | 482 candidates; Island 33, MiniIsland 22, MiniCluster 58; **49 fine singles** (all island) | 83 refusals, 137 bases, collision-free | 82 refusals, 141 bases, collision-free |
+| drogon-lo | before | 1492 candidates; Island 181, MiniIsland 356, MiniCluster 398; 123 density clusters | 757 refusals, 130 bases, collision-free | 601 refusals, 210 bases, collision-free |
+| drogon-lo | after | 1492 candidates; Island 34, MiniIsland 356, MiniCluster 549; **151 fine singles** (147 island, 4 local minima) | 777 refusals, 126 bases, collision-free | 627 refusals, 207 bases, collision-free |
+
+The default converts the targeted four isolated `drogon-lo` spike minima while leaving the next
+much broader minimum regular. Density clusters remain unchanged and take precedence, mini-island
+counts are unchanged, and every candidate still has exactly one auditable source strategy. The
+trade-off is model-dependent: gripper refusals improve by 8 in both modes; Drogon rises by 24
+grid-on and 5 grid-off, and `drogon-lo` rises by 20/26. All six route outputs remain collision-free
+and within the configured 75° mini lean limit.
