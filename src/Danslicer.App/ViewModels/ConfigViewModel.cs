@@ -28,6 +28,10 @@ public sealed class ConfigViewModel : ViewModelBase
     private string _supportPresetNameDraft = "";
     private string _supportPresetValidationMessage = "";
     private PresetNameOperation _presetNameOperation;
+    // The Support panel and the Preferences window bind SelectedSupportPresetIndex to the same
+    // instance; index write-backs raised while the display-name list is being replaced must not
+    // re-apply presets, or the two views recurse into each other (see ResinPresetViewModel).
+    private bool _refreshingPresets;
 
     public ConfigViewModel() : this(null, persistChanges: true, null, null)
     {
@@ -106,6 +110,7 @@ public sealed class ConfigViewModel : ViewModelBase
             if (value == _selectedSupportPresetIndex) return;
             _selectedSupportPresetIndex = value;
             OnPropertyChanged();
+            if (_refreshingPresets) return;
             if (value < 0 || value >= AppConfig.Current.SupportPresets.Count) return;
             if (!AppConfig.Current.ApplySupportPreset(AppConfig.Current.SupportPresets[value].Name)) return;
             AppConfig.Save();
@@ -182,11 +187,20 @@ public sealed class ConfigViewModel : ViewModelBase
         var config = AppConfig.Current;
         var active = config.FindSupportPreset(config.ActiveSupportPresetName);
         var modified = active is not null && active.Settings != config.Supports;
-        SupportPresetDisplayNames = config.SupportPresets
+        var display = config.SupportPresets
             .Select(preset => preset.Name + (modified && ReferenceEquals(preset, active) ? " *" : ""))
             .ToArray();
-        _selectedSupportPresetIndex = active is null ? -1 : config.SupportPresets.IndexOf(active);
-        OnPropertyChanged(nameof(SelectedSupportPresetIndex));
+        _refreshingPresets = true;
+        try
+        {
+            if (!display.SequenceEqual(_supportPresetDisplayNames)) SupportPresetDisplayNames = display;
+            _selectedSupportPresetIndex = active is null ? -1 : config.SupportPresets.IndexOf(active);
+            OnPropertyChanged(nameof(SelectedSupportPresetIndex));
+        }
+        finally
+        {
+            _refreshingPresets = false;
+        }
         SaveSupportPresetCommand.NotifyCanExecuteChanged();
         BeginRenameSupportPresetCommand.NotifyCanExecuteChanged();
         DeleteSupportPresetCommand.NotifyCanExecuteChanged();
