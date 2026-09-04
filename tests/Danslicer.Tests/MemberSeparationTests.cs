@@ -11,14 +11,14 @@ public sealed class MemberSeparationTests
     {
         var shared = Guid.NewGuid();
         var crossing = MemberSeparation.AreTooClose(
-            new(-1, -1, 0), new(1, 1, 0),
+            new(-1, -1, 0), new(1, 1, 0), 0,
             Guid.NewGuid(), Guid.NewGuid(),
-            new(-1, 1, 0), new(1, -1, 0),
+            new(-1, 1, 0), new(1, -1, 0), 0,
             Guid.NewGuid(), Guid.NewGuid(), 0.01f);
         var incident = MemberSeparation.AreTooClose(
-            Vector3.Zero, Vector3.UnitX,
+            Vector3.Zero, Vector3.UnitX, 0,
             shared, Guid.NewGuid(),
-            Vector3.Zero, Vector3.UnitY,
+            Vector3.Zero, Vector3.UnitY, 0,
             shared, Guid.NewGuid(), 0.01f);
 
         Assert.True(crossing);
@@ -26,17 +26,58 @@ public sealed class MemberSeparationTests
     }
 
     [Fact]
-    public void ParallelMembersInsideTheCentrelineThresholdConflict()
+    public void ParallelMembersInsideTheSurfaceGapConflict()
     {
         var close = MemberSeparation.AreTooClose(
-            Vector3.Zero, Vector3.UnitX, Guid.NewGuid(), Guid.NewGuid(),
-            new(0, 1.4f, 0), new(1, 1.4f, 0), Guid.NewGuid(), Guid.NewGuid(), 1.41f);
+            Vector3.Zero, Vector3.UnitX, 0.5f, Guid.NewGuid(), Guid.NewGuid(),
+            new(0, 1.39f, 0), new(1, 1.39f, 0), 0.4f,
+            Guid.NewGuid(), Guid.NewGuid(), 0.5f);
         var farEnough = MemberSeparation.AreTooClose(
-            Vector3.Zero, Vector3.UnitX, Guid.NewGuid(), Guid.NewGuid(),
-            new(0, 1.4f, 0), new(1, 1.4f, 0), Guid.NewGuid(), Guid.NewGuid(), 1.39f);
+            Vector3.Zero, Vector3.UnitX, 0.5f, Guid.NewGuid(), Guid.NewGuid(),
+            new(0, 1.41f, 0), new(1, 1.41f, 0), 0.4f,
+            Guid.NewGuid(), Guid.NewGuid(), 0.5f);
 
         Assert.True(close);
         Assert.False(farEnough);
+    }
+
+    [Fact]
+    public void ThickMembersIntersectEvenWithNoAdditionalSurfaceGap()
+    {
+        var intersects = MemberSeparation.AreTooClose(
+            Vector3.Zero, Vector3.UnitX, 0.6f, Guid.NewGuid(), Guid.NewGuid(),
+            new(0, 0.6f, 0), new(1, 0.6f, 0), 0.6f,
+            Guid.NewGuid(), Guid.NewGuid(), 0f);
+
+        Assert.True(intersects);
+    }
+
+    [Fact]
+    public void IncreasingDiameterCanMakeAnAcceptablePairConflict()
+    {
+        var thin = MemberSeparation.AreTooClose(
+            Vector3.Zero, Vector3.UnitX, 0.2f, Guid.NewGuid(), Guid.NewGuid(),
+            new(0, 1.4f, 0), new(1, 1.4f, 0), 0.2f,
+            Guid.NewGuid(), Guid.NewGuid(), 0.5f);
+        var thick = MemberSeparation.AreTooClose(
+            Vector3.Zero, Vector3.UnitX, 0.5f, Guid.NewGuid(), Guid.NewGuid(),
+            new(0, 1.4f, 0), new(1, 1.4f, 0), 0.5f,
+            Guid.NewGuid(), Guid.NewGuid(), 0.5f);
+
+        Assert.False(thin);
+        Assert.True(thick);
+    }
+
+    [Fact]
+    public void ReportingMetricIgnoresMemberDiameterWhileIntersectionCountDoesNot()
+    {
+        var thin = ParallelMembers(0.1f);
+        var thick = ParallelMembers(1.2f);
+
+        Assert.Equal(MemberSeparation.CountPairs(thin, 1f),
+            MemberSeparation.CountPairs(thick, 1f));
+        Assert.Equal(0, MemberSeparation.CountIntersections(thin));
+        Assert.Equal(1, MemberSeparation.CountIntersections(thick));
     }
 
     [Fact]
@@ -140,6 +181,35 @@ public sealed class MemberSeparationTests
             NodeB = high.Id,
             Diameter = 0.01f,
         });
+        return graph;
+    }
+
+    private static SupportGraph ParallelMembers(float diameter)
+    {
+        var graph = new SupportGraph();
+        var positions = new[]
+        {
+            Vector3.Zero, Vector3.UnitX,
+            new Vector3(0, 0.6f, 0), new Vector3(1, 0.6f, 0),
+        };
+        var nodes = positions.Select((position, index) => new SupportNode
+        {
+            Id = Guid.Parse($"10000000-0000-0000-0000-{index + 1:000000000000}"),
+            Type = SupportNodeType.Junction,
+            Position = position,
+        }).ToArray();
+        foreach (var node in nodes) graph.AddNode(node);
+        for (var index = 0; index < 2; index++)
+        {
+            graph.AddSegment(new SupportSegment
+            {
+                Id = Guid.Parse($"20000000-0000-0000-0000-{index + 1:000000000000}"),
+                Type = SupportSegmentType.Branch,
+                NodeA = nodes[index * 2].Id,
+                NodeB = nodes[index * 2 + 1].Id,
+                Diameter = diameter,
+            });
+        }
         return graph;
     }
 

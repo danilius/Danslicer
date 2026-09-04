@@ -717,6 +717,8 @@ final six outputs are collision-free.
 - `MinMemberSeparationMm` ships at **0.0 (disabled)** for exact compatibility. The proposed
   screen-trial value is **0.5 mm**: it removes every measured sub-0.5 mm crossing while avoiding
   the much steeper organic refusal cost of 1.0 mm.
+- **Superseded:** the refusal figures in this section used a centreline constraint; the
+  surface-gap measurements in the following section are the corrected decision data.
 
 ### Results
 
@@ -746,3 +748,47 @@ drogon-lo (grid on/off), while all sub-0.5 mm pairs disappear. At 1.0 mm the sam
 137 / 114, 11 / 5, and 89 / 105. The larger setting fully clears the common 1 mm measurement
 band but drops too many organic contacts to recommend without a screen verdict. All eighteen
 outputs remain model-collision-free.
+
+---
+
+## 2026-09-04 — member surface-gap correction
+
+- Run at `1470b64`, toggling only `--min-member-separation 0|0.5|1`. Candidate generation is
+  identical in every pass. The constraint now requires `first radius + second radius + gap`
+  between straight centrelines, so the configured value is the air gap between member surfaces.
+- Fixed centreline counts below 0.5 and 1.0 mm remain diameter- and setting-independent reporting
+  probes. `Intersections` counts non-incident pairs closer than their summed radii and therefore
+  physically overlapping. Both metrics cover every enabled tip, mini-support, branch, trunk and
+  bracing segment; only disabled segments and pairs sharing a graph node are excluded.
+- The setting remains **0.0 by default** for compatibility. **0.5 mm is no longer recommended as
+  a general default**: it removes all 523/474 Drogon, 230/237 gripper and 455/426 drogon-lo
+  baseline intersections, but costs 180/173, 28/10 and 131/150 contacts respectively. Keep 0.5 mm
+  as an opt-in screen trial when preventing fused members matters more than contact coverage.
+
+### Results
+
+| Model | Grid | Surface gap mm | Centreline pairs <0.5 / <1 mm | Intersections | Refusals by reason | Total | Bases | Collision-free |
+| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | --- |
+| drogon | on | 0 | 217 / 565 | **523** | ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165 | **994** | 140 | true |
+| drogon | on | 0.5 | 0 / 0 | **0** | ContactBlocked 6, MemberCrossing 216, NoClearStep 706, NoReachableGridPoint 81, NoBranchEndInRange 165 | **1174** | 153 | true |
+| drogon | on | 1.0 | 0 / 0 | **0** | ContactBlocked 3, MemberCrossing 343, NoClearStep 735, NoReachableGridPoint 81, NoBranchEndInRange 171 | **1333** | 147 | true |
+| drogon | off | 0 | 192 / 554 | **474** | ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142 | **850** | 227 | true |
+| drogon | off | 0.5 | 0 / 0 | **0** | MemberCrossing 253, NoClearStep 619, NoBranchEndInRange 151 | **1023** | 271 | true |
+| drogon | off | 1.0 | 0 / 0 | **0** | ContactBlocked 1, MemberCrossing 355, NoClearStep 665, NoBranchEndInRange 162 | **1183** | 255 | true |
+| gripper | on | 0 | 87 / 186 | **230** | NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2 | **63** | 136 | true |
+| gripper | on | 0.5 | 0 / 0 | **0** | MemberCrossing 29, NoClearStep 52, NoReachableGridPoint 8, NoBranchEndInRange 2 | **91** | 147 | true |
+| gripper | on | 1.0 | 0 / 0 | **0** | ContactBlocked 1, MemberCrossing 56, NoClearStep 60, NoReachableGridPoint 8, NoBranchEndInRange 3 | **128** | 157 | true |
+| gripper | off | 0 | 100 / 210 | **237** | ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3 | **60** | 145 | true |
+| gripper | off | 0.5 | 0 / 0 | **0** | ContactBlocked 1, MemberCrossing 7, NoClearStep 56, NoBranchEndInRange 6 | **70** | 174 | true |
+| gripper | off | 1.0 | 0 / 0 | **0** | ContactBlocked 1, MemberCrossing 11, NoClearStep 56, NoBranchEndInRange 7 | **75** | 178 | true |
+| drogon-lo | on | 0 | 178 / 457 | **455** | ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135 | **702** | 129 | true |
+| drogon-lo | on | 0.5 | 0 / 0 | **0** | ContactBlocked 8, MemberCrossing 122, NoClearStep 481, NoReachableGridPoint 71, NoBranchEndInRange 151 | **833** | 138 | true |
+| drogon-lo | on | 1.0 | 0 / 0 | **0** | ContactBlocked 6, MemberCrossing 208, NoClearStep 477, NoReachableGridPoint 68, NoBranchEndInRange 182 | **941** | 138 | true |
+| drogon-lo | off | 0 | 188 / 462 | **426** | ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135 | **549** | 216 | true |
+| drogon-lo | off | 0.5 | 0 / 0 | **0** | ContactBlocked 6, MemberCrossing 135, NoClearStep 422, NoBranchEndInRange 136 | **699** | 242 | true |
+| drogon-lo | off | 1.0 | 0 / 0 | **0** | ContactBlocked 5, MemberCrossing 226, NoClearStep 444, NoBranchEndInRange 142 | **817** | 223 | true |
+
+At 1.0 mm the refusal deltas reach 339/333 on Drogon, 65/15 on gripper and 239/268 on
+drogon-lo (grid on/off), with no additional measured intersection benefit over 0.5 mm. All
+eighteen corrected passes are model-collision-free; every enabled 0.5 and 1.0 mm pass reports
+zero physical intersections.

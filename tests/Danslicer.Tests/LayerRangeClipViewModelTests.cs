@@ -1,5 +1,7 @@
 using Danslicer.App.ViewModels;
 using Danslicer.Core.Geometry;
+using Danslicer.Core.Scene;
+using Danslicer.Core.Supports;
 using System.Numerics;
 
 namespace Danslicer.Tests;
@@ -51,5 +53,39 @@ public sealed class LayerRangeClipViewModelTests
 
         Assert.False(model.Range.IsClipping);
         Assert.Equal(3, model.LowerZ);
+    }
+
+    [Fact]
+    public void MainViewModelRangeTracksVisibleSupportGenerationAndDeletion()
+    {
+        var viewModel = new MainViewModel();
+        viewModel.Document.AddObject(new SceneObject("floating", new Mesh(
+            [new(0, 0, 5), new(1, 0, 5), new(0, 1, 10)], [0, 1, 2])));
+
+        Assert.Equal(5, viewModel.SupportClip.MinimumZ);
+        Assert.Equal(10, viewModel.SupportClip.MaximumZ);
+
+        var contact = new SupportNode { Type = SupportNodeType.Tip, Position = new(0, 0, 5) };
+        var plate = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        viewModel.Document.Supports.AddNode(contact);
+        viewModel.Document.Supports.AddNode(plate);
+        viewModel.Document.Supports.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk,
+            NodeA = contact.Id,
+            NodeB = plate.Id,
+            Diameter = 1,
+        });
+
+        Assert.Equal(-0.5, viewModel.SupportClip.MinimumZ, precision: 6);
+        Assert.Equal(10, viewModel.SupportClip.MaximumZ);
+        viewModel.SupportClip.Active = true;
+        Assert.False(viewModel.ViewportClipRange.IsClipping);
+
+        viewModel.Document.Supports.RemoveNode(plate.Id);
+
+        Assert.Equal(5, viewModel.SupportClip.MinimumZ);
+        Assert.Equal(10, viewModel.SupportClip.MaximumZ);
+        Assert.False(viewModel.ViewportClipRange.IsClipping);
     }
 }

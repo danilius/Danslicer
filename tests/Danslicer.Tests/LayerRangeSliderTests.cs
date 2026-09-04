@@ -40,4 +40,18 @@ public sealed class LayerRangeSliderTests
         Assert.Equal(0, LayerRangeSliderGeometry.AxisToValue(
             position: 500, minimum: 0, maximum: 10, start: 7, end: 107, descending: true));
     }
+
+    [Fact]
+    public void VerticalUpperAndLowerThumbsControlTheirCorrespondingBounds()
+    {
+        var afterUpperDrag = LayerRangeSliderGeometry.DragRange(
+            LayerRangeSliderThumb.Upper, position: 57, minimum: 0, maximum: 10,
+            start: 7, end: 107, descending: true, lower: 2, upper: 8);
+        var afterLowerDrag = LayerRangeSliderGeometry.DragRange(
+            LayerRangeSliderThumb.Lower, position: 67, minimum: 0, maximum: 10,
+            start: 7, end: 107, descending: true, lower: 2, upper: 8);
+
+        Assert.Equal((2d, 5d), afterUpperDrag);
+        Assert.Equal((4d, 8d), afterLowerDrag);
+    }
 }

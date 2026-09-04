@@ -30,9 +30,7 @@ public sealed class LayerRangeSlider : Control
     private static readonly IBrush ThumbFill = new SolidColorBrush(Color.Parse("#F2F2F2"));
     private static readonly Pen ThumbPen = new(new SolidColorBrush(Color.Parse("#25282C")), 1);
     private const double ThumbRadius = 7;
-    private Thumb _dragging;
-
-    private enum Thumb { None, Lower, Upper }
+    private LayerRangeSliderThumb _dragging;
 
     static LayerRangeSlider() => AffectsRender<LayerRangeSlider>(
         MinimumProperty, MaximumProperty, LowerValueProperty, UpperValueProperty,
@@ -100,7 +98,7 @@ public sealed class LayerRangeSlider : Control
         var upperPosition = LayerRangeSliderGeometry.ValueToAxis(
             UpperValue, Minimum, Maximum, start, end, descending: vertical);
         _dragging = Math.Abs(axisPosition - lowerPosition) <= Math.Abs(axisPosition - upperPosition)
-            ? Thumb.Lower : Thumb.Upper;
+            ? LayerRangeSliderThumb.Lower : LayerRangeSliderThumb.Upper;
         SetCurrentValue(IsDraggingProperty, true);
         SetFromPoint(point);
         e.Pointer.Capture(this);
@@ -110,7 +108,7 @@ public sealed class LayerRangeSlider : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_dragging == Thumb.None) return;
+        if (_dragging == LayerRangeSliderThumb.None) return;
         SetFromPoint(e.GetPosition(this));
         e.Handled = true;
     }
@@ -118,8 +116,8 @@ public sealed class LayerRangeSlider : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_dragging == Thumb.None) return;
-        _dragging = Thumb.None;
+        if (_dragging == LayerRangeSliderThumb.None) return;
+        _dragging = LayerRangeSliderThumb.None;
         SetCurrentValue(IsDraggingProperty, false);
         e.Pointer.Capture(null);
         e.Handled = true;
@@ -132,14 +130,17 @@ public sealed class LayerRangeSlider : Control
         var axisLength = vertical ? Bounds.Height : Bounds.Width;
         var start = ThumbRadius;
         var end = Math.Max(start + 1, axisLength - ThumbRadius);
-        var value = LayerRangeSliderGeometry.AxisToValue(
-            axisPosition, Minimum, Maximum, start, end, descending: vertical);
-        if (_dragging == Thumb.Lower)
-            SetCurrentValue(LowerValueProperty, Math.Min(value, UpperValue));
+        var (lower, upper) = LayerRangeSliderGeometry.DragRange(
+            _dragging, axisPosition, Minimum, Maximum, start, end,
+            descending: vertical, LowerValue, UpperValue);
+        if (_dragging == LayerRangeSliderThumb.Lower)
+            SetCurrentValue(LowerValueProperty, lower);
         else
-            SetCurrentValue(UpperValueProperty, Math.Max(value, LowerValue));
+            SetCurrentValue(UpperValueProperty, upper);
     }
 }
+
+internal enum LayerRangeSliderThumb { None, Lower, Upper }
 
 internal static class LayerRangeSliderGeometry
 {
@@ -158,5 +159,18 @@ internal static class LayerRangeSliderGeometry
         var fraction = end <= start ? 0 : Math.Clamp((position - start) / (end - start), 0, 1);
         if (descending) fraction = 1 - fraction;
         return minimum + fraction * Math.Max(0, maximum - minimum);
+    }
+
+    internal static (double Lower, double Upper) DragRange(LayerRangeSliderThumb thumb,
+        double position, double minimum, double maximum, double start, double end,
+        bool descending, double lower, double upper)
+    {
+        var value = AxisToValue(position, minimum, maximum, start, end, descending);
+        return thumb switch
+        {
+            LayerRangeSliderThumb.Lower => (Math.Min(value, upper), upper),
+            LayerRangeSliderThumb.Upper => (lower, Math.Max(value, lower)),
+            _ => (lower, upper),
+        };
     }
 }

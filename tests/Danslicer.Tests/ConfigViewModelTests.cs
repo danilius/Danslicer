@@ -78,11 +78,13 @@ public sealed class ConfigViewModelTests
         viewModel.SupportUseBaseGrid = false;
         viewModel.SupportBaseGridPitch = 11f;
         viewModel.SupportMinMemberSeparationMm = 0.8f;
+        viewModel.SupportIndependentManualSupports = true;
 
         Assert.False(editingSettings.UseBaseGrid);
         Assert.Equal(11f, editingSettings.BaseGridPitch);
         Assert.Equal(0.8f, editingSettings.MinMemberSeparationMm);
-        Assert.Equal(3, changes);
+        Assert.True(editingSettings.IndependentManualSupports);
+        Assert.Equal(4, changes);
         Assert.False(viewModel.ShowSupportPresetControls);
     }
 }

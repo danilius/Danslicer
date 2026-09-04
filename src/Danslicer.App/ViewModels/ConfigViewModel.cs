@@ -518,6 +518,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.PreferExistingTrunks = value);
     }
 
+    public bool SupportIndependentManualSupports
+    {
+        get => Supports.IndependentManualSupports;
+        set => Update(() => Supports.IndependentManualSupports = value);
+    }
+
     public float SupportExistingTrunkBranchRange
     {
         get => Supports.ExistingTrunkBranchRange;
