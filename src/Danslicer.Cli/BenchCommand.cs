@@ -30,10 +30,13 @@ internal static class BenchCommand
             var report = new BenchmarkReport
             {
                 GeneratedAtUtc = DateTimeOffset.UtcNow,
+                FineFeatureMaxAreaMm2 = options.FineFeatureMaxAreaMm2,
                 Models =
                 [
-                    RunModel("drogon", options.DrogonPath, options.Reinforce),
-                    RunModel("gripper", options.GripperPath, options.Reinforce),
+                    RunModel("drogon", options.DrogonPath, options.Reinforce,
+                        options.FineFeatureMaxAreaMm2),
+                    RunModel("gripper", options.GripperPath, options.Reinforce,
+                        options.FineFeatureMaxAreaMm2),
                 ],
             };
             report.Markdown = BuildMarkdown(report);
@@ -86,7 +89,12 @@ internal static class BenchCommand
                 ? $" across **{tips.MiniClusters}** mini clusters " +
                   $"(**{islandClusterMembers} island / {regularClusterMembers} regular members**)"
                 : string.Empty;
-            text.AppendLine($"| {Escape(model.Key)} | `tips` | `--seat --json` | " +
+            if (tips.FineFeatureMinis > 0)
+                clusters += $", **{tips.FineFeatureMinis} fine-feature singles**";
+            var fineFeatureFlag = report.FineFeatureMaxAreaMm2 is { } fineFeatureMax
+                ? $" --fine-feature-max {F(fineFeatureMax)}"
+                : string.Empty;
+            text.AppendLine($"| {Escape(model.Key)} | `tips` | `--seat --json{fineFeatureFlag}` | " +
                 $"{tips.WallSeconds:0.000} | {tips.ExitCode} | **{tips.Candidates}** candidates" +
                 $"{Parenthesize(strategies)}{clusters} | {spacing} |");
 
@@ -111,11 +119,18 @@ internal static class BenchCommand
         return text.ToString().TrimEnd();
     }
 
-    private static ModelBenchmark RunModel(string key, string path, bool reinforce)
+    private static ModelBenchmark RunModel(string key, string path, bool reinforce,
+        float? fineFeatureMaxAreaMm2)
     {
         if (!File.Exists(path)) throw new IOException($"model not found: {path}");
 
-        var tipsRun = Capture(() => TipsCommand.Run([path, "--seat", "--json"]));
+        var tipsArgs = new List<string> { path, "--seat", "--json" };
+        if (fineFeatureMaxAreaMm2 is { } fineFeatureMax)
+        {
+            tipsArgs.Add("--fine-feature-max");
+            tipsArgs.Add(F(fineFeatureMax));
+        }
+        var tipsRun = Capture(() => TipsCommand.Run([.. tipsArgs]));
         if (tipsRun.ExitCode != 0)
             throw new InvalidOperationException($"{key} tips exited {tipsRun.ExitCode}: {tipsRun.Stderr.Trim()}");
         var tips = ParseTips(tipsRun);
@@ -152,6 +167,9 @@ internal static class BenchCommand
             ByStrategy = ReadIntDictionary(root.GetProperty("byStrategy")),
             MiniClusters = root.TryGetProperty("miniClusters", out var clusters)
                 ? clusters.GetInt32()
+                : 0,
+            FineFeatureMinis = root.TryGetProperty("fineFeatureMinis", out var fineFeatures)
+                ? fineFeatures.GetInt32()
                 : 0,
             MiniClusterMembersBySourceStrategy =
                 root.TryGetProperty("miniClusterMembersBySourceStrategy", out var members)
@@ -224,6 +242,7 @@ internal static class BenchCommand
         var gripper = DefaultGripperPath;
         string? output = null;
         var reinforce = false;
+        float? fineFeatureMaxAreaMm2 = null;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -232,10 +251,13 @@ internal static class BenchCommand
                 case "--gripper": gripper = args[++i]; break;
                 case "--output": output = args[++i]; break;
                 case "--reinforce": reinforce = ParseToggle(args[++i], "reinforce"); break;
+                case "--fine-feature-max":
+                    fineFeatureMaxAreaMm2 = float.Parse(args[++i], CultureInfo.InvariantCulture);
+                    break;
                 default: throw new ArgumentException($"unknown option '{args[i]}'");
             }
         }
-        return new BenchOptions(drogon, gripper, output, reinforce);
+        return new BenchOptions(drogon, gripper, output, reinforce, fineFeatureMaxAreaMm2);
     }
 
     private static bool ParseToggle(string value, string name) => value.ToLowerInvariant() switch
@@ -268,16 +290,17 @@ internal static class BenchCommand
     private static string F1(float value) => value.ToString("0.0", CultureInfo.InvariantCulture);
 
     private static void Usage() => Console.Error.WriteLine(
-        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--output <summary.json>]");
+        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--output <summary.json>]");
 
     private sealed record BenchOptions(string DrogonPath, string GripperPath, string? OutputPath,
-        bool Reinforce);
+        bool Reinforce, float? FineFeatureMaxAreaMm2);
     private sealed record CapturedRun(int ExitCode, double WallSeconds, string Stdout, string Stderr);
 }
 
 internal sealed class BenchmarkReport
 {
     public DateTimeOffset GeneratedAtUtc { get; init; }
+    public float? FineFeatureMaxAreaMm2 { get; init; }
     public required List<ModelBenchmark> Models { get; init; }
     public string Markdown { get; set; } = string.Empty;
 }
@@ -297,6 +320,7 @@ internal sealed class TipsBenchmark
     public int Candidates { get; init; }
     public required Dictionary<string, int> ByStrategy { get; init; }
     public int MiniClusters { get; init; }
+    public int FineFeatureMinis { get; init; }
     public Dictionary<string, int> MiniClusterMembersBySourceStrategy { get; init; } = [];
     public SpacingBenchmark? Spacing { get; init; }
 }
