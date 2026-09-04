@@ -63,6 +63,8 @@ internal static class TipsCommand
                 case "--force-edges": parameters = parameters with { ForceEdgePlacement = true }; break;
                 case "--sharp-edge": parameters = parameters with { SharpEdgeDegrees = F(args[++i]) }; break;
                 case "--keep-clean-distance": parameters = parameters with { KeepCleanDistanceMm = F(args[++i]) }; break;
+                case "--contact-angle": parameters = parameters with { MaxContactFaceAngleDegrees = F(args[++i]) }; break;
+                case "--contact-sees-plate": parameters = parameters with { RequireContactSeesPlate = true }; break;
                 case "--grid":
                 {
                     var name = args[++i].ToLowerInvariant();
@@ -100,6 +102,7 @@ internal static class TipsCommand
             Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
             Console.Error.WriteLine("                 [--grid square|hex] [--grid-spacing 5] [--grid-offset-x 0] [--grid-offset-y 0]");
             Console.Error.WriteLine("                 [--grid-rotation 0] [--keep-clean-distance 0]");
+            Console.Error.WriteLine("                 [--contact-angle 90] [--contact-sees-plate]");
             return 1;
         }
 
@@ -128,6 +131,7 @@ internal static class TipsCommand
         }
         var faces = Enumerable.Range(0, mesh.TriangleCount).ToHashSet();
         var tips = TipPlacer.Place(mesh, faces, parameters, existingGraph: null, keepCleanFaces: null, seed);
+        tips = ContactFaceFilter.Apply(tips, mesh, parameters);
 
         var byStrategy = tips.GroupBy(t => t.Strategy)
             .ToDictionary(g => g.Key.ToString(), g => g.Count());
