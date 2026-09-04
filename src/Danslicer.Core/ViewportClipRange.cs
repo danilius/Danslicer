@@ -46,4 +46,17 @@ public readonly record struct ViewportClipRange(
         TryClipSegment(a, b, out var clippedA, out var clippedB)
             ? (clippedA + clippedB) * 0.5f
             : null;
+
+    /// <summary>
+    /// The horizontal cut planes actually visible right now, lower first: <c>Upper</c> distinguishes
+    /// the top cut (visible from above) from the bottom cut (visible from below). Empty when not
+    /// clipping. Shared by the exact CPU cap builder and the deferred screen-space cap technique so
+    /// both styles cap exactly the same set of cuts.
+    /// </summary>
+    public IEnumerable<(float Z, bool Upper)> ActiveCapPlanes()
+    {
+        if (!IsClipping) yield break;
+        if (LowerZ > MinimumZ + Epsilon) yield return (LowerZ, false);
+        if (UpperZ < MaximumZ - Epsilon) yield return (UpperZ, true);
+    }
 }

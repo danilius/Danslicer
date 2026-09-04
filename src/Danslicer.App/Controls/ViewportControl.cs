@@ -331,8 +331,21 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void MarkClipCapsDirty() => _clipCapsDirty = true;
 
-    private bool ShouldBuildSlicedCaps => Document is not null && CapInterior &&
-        CapStyle == ClipCapStyle.Sliced && ClipRange.IsClipping;
+    private bool ShouldBuildSlicedCaps => Document is not null && ClipCapPolicy.ShouldBuildExactCaps(
+        CapInterior, CapStyle, Configuration.AppConfig.Current.Viewport.RenderPath, ClipRange.IsClipping);
+
+    /// <summary>
+    /// Render-path menu/pop-out toggles change <c>AppConfig</c> directly rather than through an
+    /// Avalonia property, so they cannot trigger <see cref="OnPropertyChanged"/>; the host calls
+    /// this after flipping the setting so a Painted cap style re-resolves against the new path
+    /// (exact CPU caps on Classic, screen-space caps on Deferred).
+    /// </summary>
+    public void NotifyRenderPathChanged()
+    {
+        _clipCapsDirty = true;
+        RebuildClipCaps();
+        Redraw();
+    }
 
     private void QueueClipCapRangeRebuild()
     {
@@ -383,14 +396,8 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var (z, face) in planes) AddSupportCaps(document.Supports, z, face);
     }
 
-    private IEnumerable<(double Z, ClipCapFace Face)> ActiveClipPlanes()
-    {
-        const float epsilon = 1e-5f;
-        if (ClipRange.LowerZ > ClipRange.MinimumZ + epsilon)
-            yield return (ClipRange.LowerZ, ClipCapFace.Lower);
-        if (ClipRange.UpperZ < ClipRange.MaximumZ - epsilon)
-            yield return (ClipRange.UpperZ, ClipCapFace.Upper);
-    }
+    private IEnumerable<(double Z, ClipCapFace Face)> ActiveClipPlanes() => ClipRange.ActiveCapPlanes()
+        .Select(plane => ((double)plane.Z, plane.Upper ? ClipCapFace.Upper : ClipCapFace.Lower));
 
     private void AddSupportCaps(SupportGraph graph, double z, ClipCapFace face)
     {
@@ -508,6 +515,8 @@ public sealed class ViewportControl : OpenGlControlBase
             RenderPath = Configuration.AppConfig.Current.Viewport.RenderPath,
             Deferred = DeferredEffects.FromConfig(Configuration.AppConfig.Current.Viewport),
             ClipRange = ClipRange,
+            CapInterior = CapInterior,
+            CapStyle = CapStyle,
             WaterlineZ = SupportWaterline?.WorldZ,
             WireframeEnabled = Configuration.AppConfig.Current.Viewport.WireframeEnabled,
             ShowViewCube = Configuration.AppConfig.Current.Viewport.ViewCubeEnabled,

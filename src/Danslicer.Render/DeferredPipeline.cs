@@ -126,9 +126,12 @@ internal sealed unsafe class DeferredPipeline : IDisposable
             PixelType.UnsignedInt2101010Rev, nearest: true);
         IdTexture = CreateTarget(InternalFormat.Rgba8, PixelFormat.Rgba,
             PixelType.UnsignedByte, nearest: true);
-        // ES 3.0 defines depth sampling only with NEAREST filters (no compare mode).
-        DepthTexture = CreateTarget(InternalFormat.DepthComponent24, PixelFormat.DepthComponent,
-            PixelType.UnsignedInt, nearest: true);
+        // ES 3.0 defines depth sampling only with NEAREST filters (no compare mode). Packed
+        // depth-stencil so the Painted clip-cap technique (SceneRenderer.Deferred.cs) has a
+        // stencil buffer to mark cross-sections in; sampling the depth component back out for the
+        // composite pass is unaffected (default GL_DEPTH_STENCIL_TEXTURE_MODE is DEPTH_COMPONENT).
+        DepthTexture = CreateTarget(InternalFormat.Depth24Stencil8, PixelFormat.DepthStencil,
+            PixelType.UnsignedInt248, nearest: true);
         // FXAA reads between texels, so the scene target filters bilinearly.
         SceneTexture = CreateTarget(InternalFormat.Rgba8, PixelFormat.Rgba,
             PixelType.UnsignedByte, nearest: false);
@@ -141,7 +144,7 @@ internal sealed unsafe class DeferredPipeline : IDisposable
             TextureTarget.Texture2D, NormalTexture, 0);
         gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment2,
             TextureTarget.Texture2D, IdTexture, 0);
-        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthStencilAttachment,
             TextureTarget.Texture2D, DepthTexture, 0);
         var drawBuffers = stackalloc GLEnum[]
             { GLEnum.ColorAttachment0, GLEnum.ColorAttachment1, GLEnum.ColorAttachment2 };
@@ -162,7 +165,7 @@ internal sealed unsafe class DeferredPipeline : IDisposable
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, ForwardFbo);
         gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
             TextureTarget.Texture2D, SceneTexture, 0);
-        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthStencilAttachment,
             TextureTarget.Texture2D, DepthTexture, 0);
         Check("forward");
 

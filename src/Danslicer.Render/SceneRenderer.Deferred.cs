@@ -1,6 +1,8 @@
+using System.Linq;
 using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
+using Danslicer.Core.Geometry;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Silk.NET.OpenGL;
@@ -174,6 +176,154 @@ public sealed partial class SceneRenderer
                 frame.ClipRange);
             gpu.Draw();
         }
+
+        DrawPaintedClipCaps(frame, view, projection);
+    }
+
+    /// <summary>
+    /// The "Painted" clip-cap style (see <see cref="ClipCapPolicy"/>): fills the visible cross-section
+    /// at each active clip plane in screen space instead of building exact CPU geometry
+    /// (<c>ClipCapBuilder</c>). Uses the classic OpenGL cross-section trick: render the same opaque
+    /// geometry already drawn above twice into the stencil buffer (back faces increment, front faces
+    /// decrement) restricted to the half-space beyond that one plane, which leaves a non-zero stencil
+    /// wherever a capped solid actually crosses it; then paint a plane-sized quad there through the
+    /// ordinary G-buffer shader, so lighting, MatCap shading, the cut-edge highlight and outlines all
+    /// treat it exactly like real geometry. Works for any manifold solid, not just convex ones, and
+    /// needs no per-object triangulation, which is the entire point of the style.
+    /// </summary>
+    private void DrawPaintedClipCaps(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection)
+    {
+        if (!ClipCapPolicy.ShouldPaintCaps(frame.CapInterior, frame.CapStyle, frame.RenderPath,
+                frame.ClipRange.IsClipping))
+            return;
+
+        var planes = frame.ClipRange.ActiveCapPlanes().ToArray();
+        if (planes.Length == 0) return;
+
+        var gl = _gl;
+        var (center, halfExtent) = CapQuadFootprint(frame);
+
+        gl.Enable(EnableCap.StencilTest);
+        gl.StencilMask(0xFFu);
+
+        foreach (var (z, upper) in planes)
+        {
+            gl.ClearStencil(0);
+            gl.Clear(ClearBufferMask.StencilBufferBit);
+
+            // Mark the cross-section: every fragment beyond this one plane contributes, regardless
+            // of depth order, so the net stencil parity is a flood-fill-free inside/outside test.
+            gl.Disable(EnableCap.DepthTest);
+            gl.DepthMask(false);
+            gl.ColorMask(false, false, false, false);
+            gl.Enable(EnableCap.CullFace);
+            gl.StencilFunc(StencilFunction.Always, 0, 0xFFu);
+
+            // Only the named plane bounds the mask pass; the opposite bound (if any) is irrelevant
+            // to this cap's cross-section, which the mesh's own geometry alone determines.
+            var singleBoundClip = upper
+                ? frame.ClipRange with { LowerZ = frame.ClipRange.MinimumZ, UpperZ = z }
+                : frame.ClipRange with { LowerZ = z, UpperZ = frame.ClipRange.MaximumZ };
+
+            gl.CullFace(TriangleFace.Front);
+            gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.IncrWrap);
+            DrawCappableGeometry(frame, view, projection, singleBoundClip);
+
+            gl.CullFace(TriangleFace.Back);
+            gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.DecrWrap);
+            DrawCappableGeometry(frame, view, projection, singleBoundClip);
+
+            // Paint the cap through the ordinary shader wherever the stencil says a solid crosses.
+            gl.Disable(EnableCap.CullFace);
+            gl.ColorMask(true, true, true, true);
+            gl.Enable(EnableCap.DepthTest);
+            gl.DepthMask(true);
+            gl.DepthFunc(DepthFunction.Lequal);
+            gl.StencilFunc(StencilFunction.Notequal, 0, 0xFFu);
+            gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
+
+            // Inset like ClipCapBuilder.PlaneInsetMm, so the cap sits just inside the visible slab
+            // rather than exactly on the shader's discard boundary.
+            const float planeInsetMm = 0.0001f;
+            var insetZ = z + (upper ? -planeInsetMm : planeInsetMm);
+            using var quad = new GpuMesh(gl, BuildCapQuad(center, halfExtent, insetZ, upper));
+            var id = RegisterPick(null);
+            BindGBufferShader(Matrix4x4.Identity, view, projection, ObjectColor, backfaceTint: 0f,
+                warnOutsideBuildVolume: false, overhangCos: 2f, id, selected: false, frame.ClipRange);
+            quad.Draw();
+        }
+
+        gl.Disable(EnableCap.StencilTest);
+        gl.Disable(EnableCap.CullFace);
+        gl.DepthFunc(DepthFunction.Lequal);
+    }
+
+    /// <summary>
+    /// Draws every opaque solid that also appears in the ordinary G-buffer pass (scene objects, minus
+    /// hidden and ghosted ones which never reach the opaque pass; plus opaque aux meshes such as
+    /// support geometry), colour- and depth-write-free, for one side of the stencil mask.
+    /// </summary>
+    private void DrawCappableGeometry(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection,
+        ViewportClipRange clip)
+    {
+        var gl = _gl;
+        foreach (var obj in frame.Scene.Objects)
+        {
+            if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+            if (!_meshes.TryGetValue(obj.Mesh, out var gpu))
+            {
+                gpu = new GpuMesh(gl, obj.Mesh);
+                _meshes[obj.Mesh] = gpu;
+            }
+            BindGBufferShader(obj.Transform.ToMatrix(), view, projection, ObjectColor, backfaceTint: 0f,
+                warnOutsideBuildVolume: false, overhangCos: 2f, id: 0, selected: false, clip);
+            gpu.Draw();
+        }
+
+        foreach (var draw in frame.AuxMeshes)
+        {
+            if (draw.Opacity < 1f) continue;
+            if (!_meshes.TryGetValue(draw.Mesh, out var gpu))
+            {
+                gpu = new GpuMesh(gl, draw.Mesh);
+                _meshes[draw.Mesh] = gpu;
+            }
+            BindGBufferShader(Matrix4x4.Identity, view, projection, ObjectColor, backfaceTint: 0f,
+                warnOutsideBuildVolume: false, overhangCos: 2f, id: 0, selected: false, clip);
+            gpu.Draw();
+        }
+    }
+
+    /// <summary>
+    /// A generous flat quad footprint (world XY centre and half-extent) guaranteed to cover every
+    /// pixel the stencil mask could have marked: the scene's own bounds with a wide margin, or the
+    /// build plate's footprint when the scene is empty. Oversizing costs nothing extra since the
+    /// stencil test discards everything outside the actual cross-section.
+    /// </summary>
+    private static (Vector2 Center, float HalfExtent) CapQuadFootprint(RenderFrame frame)
+    {
+        var bounds = frame.Scene.WorldBounds;
+        var plateHalf = MathF.Max(frame.Printer.BuildVolume.X, frame.Printer.BuildVolume.Y) * 0.5f;
+        if (bounds.IsEmpty) return (Vector2.Zero, MathF.Max(plateHalf, 25f) * 4f);
+        var center = new Vector2(bounds.Center.X, bounds.Center.Y);
+        var half = MathF.Max(MathF.Max(bounds.Size.X, bounds.Size.Y) * 0.5f, plateHalf);
+        return (center, half * 4f + 10f);
+    }
+
+    /// <summary>Builds a flat horizontal quad at <paramref name="z"/>; winding sets its face normal
+    /// to +Z (<paramref name="upper"/>, matching a cut visible from above) or -Z (visible from
+    /// below), mirroring <c>ClipCapBuilder</c>'s convention for the two cap faces.</summary>
+    private static Mesh BuildCapQuad(Vector2 center, float halfExtent, float z, bool upper)
+    {
+        var positions = new[]
+        {
+            new Vector3(center.X - halfExtent, center.Y - halfExtent, z),
+            new Vector3(center.X + halfExtent, center.Y - halfExtent, z),
+            new Vector3(center.X + halfExtent, center.Y + halfExtent, z),
+            new Vector3(center.X - halfExtent, center.Y + halfExtent, z),
+        };
+        var indices = upper ? new[] { 0, 1, 2, 0, 2, 3 } : new[] { 0, 2, 1, 0, 3, 2 };
+        return new Mesh(positions, indices);
     }
 
     private void BindGBufferShader(in Matrix4x4 model, in Matrix4x4 view, in Matrix4x4 projection,

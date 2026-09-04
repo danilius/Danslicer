@@ -46,6 +46,14 @@ public sealed class RenderFrame
     public DeferredEffects Deferred { get; init; } = DeferredEffects.Default;
     /// <summary>Support-mode world-Z isolation. Full/inactive ranges leave output bit-identical.</summary>
     public ViewportClipRange ClipRange { get; init; }
+    /// <summary>Close visible horizontal clip cuts with viewport-only faces. Mirrors the config flag.</summary>
+    public bool CapInterior { get; init; } = true;
+    /// <summary>
+    /// Which cap technique to use. Sliced expects the caller to have supplied exact geometry via
+    /// <see cref="AuxMeshes"/> already; Painted asks the deferred renderer to fill the cut in
+    /// screen space instead (see <see cref="ClipCapPolicy"/> for the Classic-path fallback).
+    /// </summary>
+    public ClipCapStyle CapStyle { get; init; } = ClipCapStyle.Sliced;
     /// <summary>Hovered model-surface world Z, or null when the Support waterline is inactive.</summary>
     public float? WaterlineZ { get; init; }
     /// <summary>Wireframe overlay on visible objects; identical on both paths.</summary>
