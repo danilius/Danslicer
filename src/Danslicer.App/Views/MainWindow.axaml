@@ -95,48 +95,82 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem x:Name="OpenProjectMenuItem" Header="_Open Project..." Click="OnOpenProjectClick" />
-                <MenuItem x:Name="SaveProjectMenuItem" Header="_Save Project" Click="OnSaveProjectClick" />
-                <MenuItem x:Name="SaveProjectAsMenuItem" Header="Save Project _As..." Click="OnSaveProjectAsClick" />
+                <MenuItem x:Name="OpenProjectMenuItem" Header="_Open Project..." Click="OnOpenProjectClick">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconOpen}" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem x:Name="SaveProjectMenuItem" Header="_Save Project" Click="OnSaveProjectClick">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconSave}" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem x:Name="SaveProjectAsMenuItem" Header="Save Project _As..." Click="OnSaveProjectAsClick">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconSave}" /></MenuItem.Icon>
+                </MenuItem>
                 <Separator />
-                <MenuItem x:Name="ImportMenuItem" Header="_Import STL..." Click="OnImportClick" />
+                <MenuItem x:Name="ImportMenuItem" Header="_Import STL..." Click="OnImportClick">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconOpen}" /></MenuItem.Icon>
+                </MenuItem>
                 <MenuItem x:Name="FileExportMenuItem" Header="_Export Print File..." Click="OnExportClick"
-                          IsVisible="{Binding IsLayersView}" />
+                          IsVisible="{Binding IsLayersView}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconExport}" /></MenuItem.Icon>
+                </MenuItem>
                 <Separator />
                 <MenuItem Header="E_xit" Click="OnExitClick" />
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem x:Name="UndoMenuItem" Header="_Undo" Command="{Binding UndoCommand}" />
-                <MenuItem x:Name="RedoMenuItem" Header="_Redo" Command="{Binding RedoCommand}" />
+                <MenuItem x:Name="UndoMenuItem" Header="_Undo" Command="{Binding UndoCommand}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconUndo}" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem x:Name="RedoMenuItem" Header="_Redo" Command="{Binding RedoCommand}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconRedo}" /></MenuItem.Icon>
+                </MenuItem>
                 <Separator />
-                <MenuItem x:Name="SelectAllMenuItem" Header="Select _All" Command="{Binding SelectAllCommand}" />
-                <MenuItem x:Name="DeleteMenuItem" Header="_Delete" Command="{Binding DeleteCommand}" />
+                <MenuItem x:Name="SelectAllMenuItem" Header="Select _All" Command="{Binding SelectAllCommand}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconSelect}" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem x:Name="DeleteMenuItem" Header="_Delete" Command="{Binding DeleteCommand}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconDelete}" /></MenuItem.Icon>
+                </MenuItem>
                 <Separator />
-                <MenuItem x:Name="PreferencesMenuItem" Header="_Preferences..." Click="OnPreferencesClick" />
+                <MenuItem x:Name="PreferencesMenuItem" Header="_Preferences..." Click="OnPreferencesClick">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconSettings}" /></MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="_Object" IsVisible="{Binding IsModelView}">
                 <MenuItem x:Name="DuplicateObjectsMenuItem" Header="_Duplicate" Command="{Binding DuplicateScopedCommand}"
-                          IsVisible="{Binding DuplicateScopedCommand.IsAvailable}" />
+                          IsVisible="{Binding DuplicateScopedCommand.IsAvailable}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconDuplicate}" /></MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="_Mirror" IsVisible="{Binding MirrorXScopedCommand.IsAvailable}">
-                    <MenuItem x:Name="MirrorXMenuItem" Header="Mirror _X" Command="{Binding MirrorXScopedCommand}" />
-                    <MenuItem x:Name="MirrorYMenuItem" Header="Mirror _Y" Command="{Binding MirrorYScopedCommand}" />
-                    <MenuItem x:Name="MirrorZMenuItem" Header="Mirror _Z" Command="{Binding MirrorZScopedCommand}" />
+                    <MenuItem x:Name="MirrorXMenuItem" Header="Mirror _X" Command="{Binding MirrorXScopedCommand}">
+                        <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconMirror}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem x:Name="MirrorYMenuItem" Header="Mirror _Y" Command="{Binding MirrorYScopedCommand}">
+                        <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconMirror}" /></MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem x:Name="MirrorZMenuItem" Header="Mirror _Z" Command="{Binding MirrorZScopedCommand}">
+                        <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconMirror}" /></MenuItem.Icon>
+                    </MenuItem>
                 </MenuItem>
                 <Separator IsVisible="{Binding IsLayoutView}" />
                 <MenuItem x:Name="DropToPlateMenuItem" Header="_Drop to Plate" Command="{Binding DropToPlateScopedCommand}"
-                          IsVisible="{Binding DropToPlateScopedCommand.IsAvailable}" />
+                          IsVisible="{Binding DropToPlateScopedCommand.IsAvailable}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconDrop}" /></MenuItem.Icon>
+                </MenuItem>
                 <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F"
                           IsVisible="{Binding IsLayoutView}" />
                 <Separator IsVisible="{Binding IsModelView}" />
                 <MenuItem Header="_Hide" Command="{Binding HideScopedCommand}" InputGesture="H"
-                          IsVisible="{Binding HideScopedCommand.IsAvailable}" />
+                          IsVisible="{Binding HideScopedCommand.IsAvailable}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconHide}" /></MenuItem.Icon>
+                </MenuItem>
                 <MenuItem x:Name="HideUnselectedMenuItem" Header="Hide _Unselected Supports" Command="{Binding HideUnselectedSupportsScopedCommand}"
                           IsVisible="{Binding HideUnselectedSupportsScopedCommand.IsAvailable}" />
                 <MenuItem Header="_Unhide All" Command="{Binding UnhideAllScopedCommand}" InputGesture="Alt+H"
                           IsVisible="{Binding UnhideAllScopedCommand.IsAvailable}" />
                 <Separator IsVisible="{Binding IsSupportView}" />
                 <MenuItem x:Name="GenerateSupportsMenuItem" Header="_Generate Supports" Command="{Binding GenerateSupportsScopedCommand}"
-                          IsVisible="{Binding GenerateSupportsScopedCommand.IsAvailable}" />
+                          IsVisible="{Binding GenerateSupportsScopedCommand.IsAvailable}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconSupports}" /></MenuItem.Icon>
+                </MenuItem>
                 <Separator IsVisible="{Binding IsModelView}" />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
                 <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}"
@@ -152,14 +186,22 @@
                           IsVisible="{Binding IsModelView}" />
             </MenuItem>
             <MenuItem Header="_Print" IsVisible="{Binding IsLayersView}">
-                <MenuItem x:Name="SliceMenuItem" Header="_Slice" Command="{Binding SliceScopedCommand}" />
-                <MenuItem x:Name="PrintExportMenuItem" Header="_Export Print File..." Click="OnExportClick" />
+                <MenuItem x:Name="SliceMenuItem" Header="_Slice" Command="{Binding SliceScopedCommand}">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconSlice}" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem x:Name="PrintExportMenuItem" Header="_Export Print File..." Click="OnExportClick">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconExport}" /></MenuItem.Icon>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Toggle Workspace / _Slicing" Command="{Binding ToggleViewCommand}" InputGesture="Tab" />
                 <Separator />
-                <MenuItem Header="Frame _All" Click="OnFrameAllClick" InputGesture="Home" />
-                <MenuItem Header="Frame _Selected" Click="OnFrameSelectedClick" InputGesture="OemPeriod" />
+                <MenuItem Header="Frame _All" Click="OnFrameAllClick" InputGesture="Home">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconFrame}" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Frame _Selected" Click="OnFrameSelectedClick" InputGesture="OemPeriod">
+                    <MenuItem.Icon><controls:ThemeIcon Data="{StaticResource DsIconFrame}" /></MenuItem.Icon>
+                </MenuItem>
                 <Separator />
                 <MenuItem Header="_Front" Click="OnViewFrontClick" InputGesture="D1" />
                 <MenuItem Header="_Right" Click="OnViewRightClick" InputGesture="D3" />
@@ -296,22 +338,38 @@
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <StackPanel Orientation="Horizontal" IsVisible="{Binding IsLayoutView}">
                         <TextBlock Text="Gizmo" Classes="label" Margin="0,0,8,0" />
-                        <ToggleButton Classes="tool" Content="Move" IsChecked="{Binding ShowMoveGizmo}" ToolTip.Tip="Show move gizmo" />
-                        <ToggleButton Classes="tool" Content="Rotate" IsChecked="{Binding ShowRotateGizmo}" ToolTip.Tip="Show rotate gizmo" />
-                        <ToggleButton Classes="tool" Content="Scale" IsChecked="{Binding ShowScaleGizmo}" ToolTip.Tip="Show scale gizmo" />
+                        <ToggleButton Classes="tool" IsChecked="{Binding ShowMoveGizmo}" ToolTip.Tip="Show move gizmo">
+                            <StackPanel Orientation="Horizontal" Spacing="5"><controls:ThemeIcon Data="{StaticResource DsIconMove}" /><TextBlock Text="Move" /></StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Classes="tool" IsChecked="{Binding ShowRotateGizmo}" ToolTip.Tip="Show rotate gizmo">
+                            <StackPanel Orientation="Horizontal" Spacing="5"><controls:ThemeIcon Data="{StaticResource DsIconRotate}" /><TextBlock Text="Rotate" /></StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Classes="tool" IsChecked="{Binding ShowScaleGizmo}" ToolTip.Tip="Show scale gizmo">
+                            <StackPanel Orientation="Horizontal" Spacing="5"><controls:ThemeIcon Data="{StaticResource DsIconScale}" /><TextBlock Text="Scale" /></StackPanel>
+                        </ToggleButton>
                         <TextBlock Classes="headerSep" />
-                        <ToggleButton Classes="tool" Content="Snap" IsChecked="{Binding SnapEnabled}" ToolTip.Tip="Snapping (Shift+Tab). Ctrl inverts while dragging. 1 mm, 5°, 0.1×" />
+                        <ToggleButton Classes="tool" IsChecked="{Binding SnapEnabled}" ToolTip.Tip="Snapping (Shift+Tab). Ctrl inverts while dragging. 1 mm, 5°, 0.1×">
+                            <StackPanel Orientation="Horizontal" Spacing="5"><controls:ThemeIcon Data="{StaticResource DsIconSnap}" /><TextBlock Text="Snap" /></StackPanel>
+                        </ToggleButton>
                         <TextBlock Classes="headerSep" />
-                        <ToggleButton Classes="tool" Content="Auto Drop" IsChecked="{Binding AutoDropEnabled}" ToolTip.Tip="Re-seat the lowest mesh point at the entered offset after every transform" />
+                        <ToggleButton Classes="tool" IsChecked="{Binding AutoDropEnabled}" ToolTip.Tip="Re-seat the lowest mesh point at the entered offset after every transform">
+                            <StackPanel Orientation="Horizontal" Spacing="5"><controls:ThemeIcon Data="{StaticResource DsIconDrop}" /><TextBlock Text="Auto Drop" /></StackPanel>
+                        </ToggleButton>
                         <controls:ExpressionBox Width="58" Text="{Binding PlacementHeight.Text, Mode=TwoWay}"
                                                 ToolTip.Tip="Lowest-point offset above the plate (0 = on plate)" />
                         <TextBlock Text="mm" Classes="label" Margin="4,0,4,0" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                         <TextBlock Text="Workspace" Classes="label" Margin="0,0,8,0" />
-                        <ToggleButton Classes="tool" Content="Layout" IsChecked="{Binding IsLayoutView}" />
-                        <ToggleButton Classes="tool" Content="Support" IsChecked="{Binding IsSupportView}" />
-                        <ToggleButton Classes="tool" Content="Slicing" IsChecked="{Binding IsLayersView}" />
+                        <ToggleButton Classes="tool" IsChecked="{Binding IsLayoutView}">
+                            <StackPanel Orientation="Horizontal" Spacing="5"><controls:ThemeIcon Data="{StaticResource DsIconObjects}" /><TextBlock Text="Layout" /></StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Classes="tool" IsChecked="{Binding IsSupportView}">
+                            <StackPanel Orientation="Horizontal" Spacing="5"><controls:ThemeIcon Data="{StaticResource DsIconSupports}" /><TextBlock Text="Support" /></StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Classes="tool" IsChecked="{Binding IsLayersView}">
+                            <StackPanel Orientation="Horizontal" Spacing="5"><controls:ThemeIcon Data="{StaticResource DsIconSlice}" /><TextBlock Text="Slicing" /></StackPanel>
+                        </ToggleButton>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -394,14 +452,18 @@
                 <!-- The GL composition surface covers ViewportControl's own 2D layer. Keep this
                      toolbar here as a sibling, after both viewport surfaces, so it stays visible. -->
                 <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
-                    <Button x:Name="UvtoolsCheckButton" Classes="viewportTool" Content="UV"
+                    <Button x:Name="UvtoolsCheckButton" Classes="viewportTool"
                             IsVisible="{Binding IsUvtoolsCheckToolVisible}"
                             IsEnabled="{Binding CanCheckWithUvtools}"
                             ToolTip.Tip="{Binding UvtoolsCheckTooltip}"
-                            Click="OnUvtoolsCheckClick" />
-                    <Button x:Name="ObjectsToolButton" Classes="viewportTool" Content="▦"
+                            Click="OnUvtoolsCheckClick">
+                        <controls:ThemeIcon Data="{StaticResource DsIconUvtools}" ClassicText="UV" />
+                    </Button>
+                    <Button x:Name="ObjectsToolButton" Classes="viewportTool"
                             IsVisible="{Binding IsObjectsToolVisible}"
-                            ToolTip.Tip="Objects" Click="OnObjectsToolClick" />
+                            ToolTip.Tip="Objects" Click="OnObjectsToolClick">
+                        <controls:ThemeIcon Data="{StaticResource DsIconObjects}" ClassicText="▦" />
+                    </Button>
                     <Popup x:Name="ObjectsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #ObjectsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
@@ -410,9 +472,14 @@
                                 Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                                    <TextBlock Text="Objects" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Objects" Click="OnObjectsPopupCloseClick" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconObjects}" />
+                                        <TextBlock Text="Objects" Classes="section" Margin="0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Objects" Click="OnObjectsPopupCloseClick">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconClose}" ClassicText="×" />
+                                    </Button>
                                 </Grid>
                                 <TextBlock DockPanel.Dock="Bottom"
                                            Text="Object selection is available in Layout mode."
@@ -433,8 +500,10 @@
                         </Border>
                     </Popup>
 
-                    <Button x:Name="SupportsToolButton" Classes="viewportTool" Content="Y" ToolTip.Tip="Supports"
-                            IsVisible="{Binding IsSupportsToolVisible}" Click="OnSupportsToolClick" />
+                    <Button x:Name="SupportsToolButton" Classes="viewportTool" ToolTip.Tip="Supports"
+                            IsVisible="{Binding IsSupportsToolVisible}" Click="OnSupportsToolClick">
+                        <controls:ThemeIcon Data="{StaticResource DsIconSupports}" ClassicText="Y" />
+                    </Button>
                     <Popup x:Name="SupportsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #SupportsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
@@ -443,9 +512,14 @@
                                 Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                                    <TextBlock Text="Supports" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Supports" Click="OnSupportsPopupCloseClick" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconSupports}" />
+                                        <TextBlock Text="Supports" Classes="section" Margin="0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Supports" Click="OnSupportsPopupCloseClick">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconClose}" ClassicText="×" />
+                                    </Button>
                                 </Grid>
                                 <Button DockPanel.Dock="Top" Content="Generate Supports"
                                         Command="{Binding GenerateSupportsScopedCommand}"
@@ -457,14 +531,18 @@
                         </Border>
                     </Popup>
 
-                    <Button x:Name="IslandSupportToolButton" Classes="viewportTool" Content="I+"
+                    <Button x:Name="IslandSupportToolButton" Classes="viewportTool"
                             IsVisible="{Binding IsIslandSupportToolVisible}"
                             ToolTip.Tip="Generate island supports only"
-                            Command="{Binding GenerateIslandSupportsScopedCommand}" />
+                            Command="{Binding GenerateIslandSupportsScopedCommand}">
+                        <controls:ThemeIcon Data="{StaticResource DsIconIslandAdd}" ClassicText="I+" />
+                    </Button>
 
-                    <Button x:Name="IslandDetectionToolButton" Classes="viewportTool" Content="I?"
+                    <Button x:Name="IslandDetectionToolButton" Classes="viewportTool"
                             IsVisible="{Binding IsIslandDetectionToolVisible}"
-                            ToolTip.Tip="Detect unsupported islands" Click="OnIslandDetectionToolClick" />
+                            ToolTip.Tip="Detect unsupported islands" Click="OnIslandDetectionToolClick">
+                        <controls:ThemeIcon Data="{StaticResource DsIconIslandSearch}" ClassicText="I?" />
+                    </Button>
                     <Popup x:Name="IslandDetectionToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #IslandDetectionToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
@@ -473,9 +551,14 @@
                                 Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                                    <TextBlock Text="Island Detection" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Island Detection" Click="OnIslandDetectionPopupCloseClick" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconIslandSearch}" />
+                                        <TextBlock Text="Island Detection" Classes="section" Margin="0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Island Detection" Click="OnIslandDetectionPopupCloseClick">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconClose}" ClassicText="×" />
+                                    </Button>
                                 </Grid>
                                 <StackPanel DockPanel.Dock="Top">
                                     <Grid ColumnDefinitions="*,*" Margin="0,0,0,6">
@@ -527,9 +610,11 @@
                         </Border>
                     </Popup>
 
-                    <Button x:Name="VisibilityToolButton" Classes="viewportTool" Content="◉"
+                    <Button x:Name="VisibilityToolButton" Classes="viewportTool"
                             ToolTip.Tip="Support visibility" IsVisible="{Binding IsVisibilityToolVisible}"
-                            Click="OnVisibilityToolClick" />
+                            Click="OnVisibilityToolClick">
+                        <controls:ThemeIcon Data="{StaticResource DsIconVisibility}" ClassicText="◉" />
+                    </Button>
                     <Popup x:Name="VisibilityToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #VisibilityToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
@@ -538,9 +623,14 @@
                                 Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                                    <TextBlock Text="Visibility" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Visibility" Click="OnVisibilityPopupCloseClick" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconVisibility}" />
+                                        <TextBlock Text="Visibility" Classes="section" Margin="0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Visibility" Click="OnVisibilityPopupCloseClick">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconClose}" ClassicText="×" />
+                                    </Button>
                                 </Grid>
                                 <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
                                     <TextBlock Text="Display" Classes="label" />
@@ -564,9 +654,11 @@
                         </Border>
                     </Popup>
 
-                    <Button x:Name="RaftsToolButton" Classes="viewportTool" Content="≋"
+                    <Button x:Name="RaftsToolButton" Classes="viewportTool"
                             IsVisible="{Binding IsRaftsToolVisible}" ToolTip.Tip="Rafts"
-                            Click="OnRaftsToolClick" />
+                            Click="OnRaftsToolClick">
+                        <controls:ThemeIcon Data="{StaticResource DsIconRaft}" ClassicText="≋" />
+                    </Button>
                     <Popup x:Name="RaftsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #RaftsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
@@ -575,9 +667,14 @@
                                 Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                                    <TextBlock Text="Rafts" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Rafts" Click="OnRaftsPopupCloseClick" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconRaft}" />
+                                        <TextBlock Text="Rafts" Classes="section" Margin="0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Rafts" Click="OnRaftsPopupCloseClick">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconClose}" ClassicText="×" />
+                                    </Button>
                                 </Grid>
                                 <TextBlock Text="Rafts are coming soon." Classes="label" />
                             </StackPanel>
@@ -589,8 +686,10 @@
                      Sibling of the viewport for the same reason as the toolbar. -->
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,116,44,0"
                             IsVisible="{Binding IsModelView}">
-                    <Button x:Name="ViewSettingsButton" Classes="viewportTool" Content="⚙"
-                            ToolTip.Tip="View settings" Click="OnViewSettingsClick" />
+                    <Button x:Name="ViewSettingsButton" Classes="viewportTool"
+                            ToolTip.Tip="View settings" Click="OnViewSettingsClick">
+                        <controls:ThemeIcon Data="{StaticResource DsIconSettings}" ClassicText="⚙" />
+                    </Button>
                     <Popup x:Name="ViewSettingsPopup" Placement="LeftEdgeAlignedTop"
                            PlacementTarget="{Binding #ViewSettingsButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
@@ -599,9 +698,14 @@
                                 Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                                    <TextBlock Text="View" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close View" Click="OnViewSettingsCloseClick" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconSettings}" />
+                                        <TextBlock Text="View" Classes="section" Margin="0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close View" Click="OnViewSettingsCloseClick">
+                                        <controls:ThemeIcon Data="{StaticResource DsIconClose}" ClassicText="×" />
+                                    </Button>
                                 </Grid>
                                 <CheckBox x:Name="PopDeferred" Content="Deferred rendering"
                                           Click="OnToggleDeferredRenderingClick" />

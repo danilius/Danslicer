@@ -19,6 +19,9 @@ internal static class ThemeManager
     private static ResourceDictionary? _activePalette;
     private static StyleInclude? _activeStyles;
 
+    internal static AppTheme CurrentTheme { get; private set; } = AppTheme.Classic;
+    internal static event Action? ThemeChanged;
+
     internal static AppTheme Normalize(AppTheme theme) =>
         Enum.IsDefined(theme) ? theme : AppTheme.Classic;
 
@@ -34,6 +37,7 @@ internal static class ThemeManager
         if (application is null) return;
 
         theme = Normalize(theme);
+        CurrentTheme = theme;
         if (_activePalette is not null)
             application.Resources.MergedDictionaries.Remove(_activePalette);
         if (_activeStyles is not null)
@@ -43,11 +47,14 @@ internal static class ThemeManager
         application.Resources.MergedDictionaries.Add(_activePalette);
         _activeStyles = null;
 
-        if (theme != AppTheme.Forge) return;
-        _activeStyles = new StyleInclude(new Uri("avares://Danslicer.App/"))
+        if (theme == AppTheme.Forge)
         {
-            Source = new Uri(ForgeStylesUri),
-        };
-        application.Styles.Add(_activeStyles);
+            _activeStyles = new StyleInclude(new Uri("avares://Danslicer.App/"))
+            {
+                Source = new Uri(ForgeStylesUri),
+            };
+            application.Styles.Add(_activeStyles);
+        }
+        ThemeChanged?.Invoke();
     }
 }
