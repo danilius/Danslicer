@@ -35,6 +35,7 @@ public static class SupportGenerator
             ? placement with { Grid = routing }
             : placement;
         var candidates = TipPlacer.Place(mesh, regionFaces, effectivePlacement, existingGraph, keepCleanFaces, seed);
+        candidates = ContactFaceFilter.Apply(candidates, mesh, effectivePlacement);
         progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         // Both sides of this mapping speak the inward (penetration) normal, so it passes through;
@@ -80,6 +81,7 @@ public static class SupportGenerator
         };
         var candidates = TipPlacer.Place(mesh, regionFaces, effectivePlacement, existingGraph,
             keepCleanFaces, seed);
+        candidates = ContactFaceFilter.Apply(candidates, mesh, effectivePlacement);
         progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         var lowestRegion = candidates.OrderBy(candidate => candidate.Point.Z)

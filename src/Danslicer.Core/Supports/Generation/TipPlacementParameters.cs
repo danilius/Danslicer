@@ -111,6 +111,33 @@ public sealed record TipPlacementParameters
     /// </summary>
     public float KeepCleanDistanceMm { get; init; } = 0f;
 
+    /// <summary>
+    /// Which faces are eligible to receive a support contact at all (<see cref="ContactFaceFilter"/>):
+    /// maximum angle of a candidate's face normal from straight down (0,0,-1). 0° keeps only
+    /// perfectly horizontal undersides; 90° (the default) keeps every downward-facing candidate,
+    /// excluding only faces that point sideways or up — today's behaviour for existing users.
+    /// 45° is the common choice for excluding side walls (e.g. a chunky CAD part that should only
+    /// get supports on its lower faces).
+    /// <para>
+    /// This is measured from straight down. <see cref="OverhangAngleDegrees"/> measures from
+    /// vertical instead (0° = vertical wall, 90° = horizontal underside) and controls a different
+    /// thing (which faces get Poisson-sampled as overhangs) — the two angles are complementary
+    /// (down-angle = 90° − overhang-angle) and are easy to confuse. Do not conflate them.
+    /// </para>
+    /// </summary>
+    public float MaxContactFaceAngleDegrees { get; init; } = 90f;
+
+    /// <summary>
+    /// When true, <see cref="ContactFaceFilter"/> additionally requires an unobstructed
+    /// straight-down line of sight from the contact point to <see cref="PlateZ"/>; a candidate the
+    /// mesh occludes from the plate is dropped even if it passes
+    /// <see cref="MaxContactFaceAngleDegrees"/>. Off by default (today's behaviour). This composes
+    /// with the angle setting rather than replacing it: a downward-facing candidate always has a
+    /// straight-down ray that geometrically reaches the plate plane unless something else in the
+    /// mesh blocks it, so this is not a third exclusive mode.
+    /// </summary>
+    public bool RequireContactSeesPlate { get; init; }
+
     public static TipPlacementParameters Default { get; } = new();
 
     /// <summary>
