@@ -495,3 +495,52 @@ continues to a plate base (747 bases).
 4. The required drogon-lo iteration run found 398 clustered members in 123 clusters from 1492
    candidates. Grid-on routed in 1.222 s with 757 refusals; grid-off in 3.637 s with 601 refusals;
    both outputs were collision-free.
+
+## 2026-09-04 — contact-face filter (angle limit + sees-plate), gripper A/B
+
+- Commit under test: worktree `support-face-filter` branch off `9a8abe6`.
+- New `ContactFaceFilter` narrows the stage-1 candidate list by
+  `TipPlacementParameters.MaxContactFaceAngleDegrees` (angle from straight down; default 90° is a
+  no-op) and, independently, `RequireContactSeesPlate` (an unobstructed straight-down ray to the
+  plate). Both applied after `TipPlacer.Place`, before routing, in `SupportGenerator.Generate` and
+  `GenerateTree`; measured here through the CLI's new `tips --contact-angle` /
+  `--contact-sees-plate` flags, which apply the same filter directly.
+- Config: Release CLI, net10.0; single machine, seated gripper only (drogon unaffected by this
+  change and not rerun). User's motivating question: does excluding near-vertical faces stop the
+  gripper's side-wall supports without losing supports its lower faces still need?
+
+### Results
+
+| Pass | Command | Wall s | Counts | Notes |
+| --- | --- | ---: | --- | --- |
+| baseline (angle 90, sees-plate off) | `tips --seat --json` | 2.4 | **482** candidates (Island 82, MiniIsland 22, MiniCluster 9, Edge 93, Overhang 276) | Byte-identical to the 2026-09-04 clustering baseline above; this is `ContactFaceFilter`'s no-op default. |
+| angle 45, sees-plate off | `tips --seat --json --contact-angle 45` | 2.4 | **472** candidates (Island 75, MiniIsland 20, MiniCluster 8, Edge 93, Overhang 276) | Overhang and Edge counts are unchanged: both strategies already gate on `OverhangAngleDegrees` (45° from vertical), which is the same threshold from the other axis, so the angle limit only trims Island/MiniIsland/MiniCluster contacts that reached a near-vertical face through the projection ray's looser `Z < -1e-3` downward test. |
+| angle 45, sees-plate on | `tips --seat --json --contact-angle 45 --contact-sees-plate` | 2.4 | **423** candidates (Island 75, MiniIsland 20, MiniCluster 8, Edge 54, Overhang 266) | Sees-plate removes a further 39 Edge and 10 Overhang candidates whose straight-down ray is blocked by other gripper geometry, on top of the angle pass. |
+| baseline | `route --seat --strategy tree --base-grid on --reinforce off --json` | 0.4 | nodes 1238, segs 1105, **unrouted 91 / 482**, collisionFree **true**, max lean 45.0° | ContactBlocked 28, NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2. |
+| angle 45, sees-plate off | `route --seat --strategy tree --base-grid on --reinforce off --json` (baseline tips) | 0.4 | nodes 1217, segs 1087, **unrouted 90 / 472**, collisionFree **true**, max lean 45.0° | ContactBlocked 27, NoClearStep 55, NoReachableGridPoint 8, NoBranchEndInRange 0. |
+| angle 45, sees-plate on | `route --seat --strategy tree --base-grid on --reinforce off --json` (sees-plate tips) | 0.4 | nodes 1217, segs 1087, **unrouted 41 / 423**, collisionFree **true**, max lean 45.0° | ContactBlocked 27, NoClearStep 6, NoReachableGridPoint 8, NoBranchEndInRange 0. |
+
+### Observations
+
+1. The default (90°, sees-plate off) reproduces the existing candidate list exactly — confirmed
+   both by this run matching the prior baseline counts and by a dedicated regression test
+   (`ContactFaceFilterTests.DefaultSettingsLeaveTheCandidateListByteIdentical`) asserting reference
+   equality, not just equal counts.
+2. On the gripper specifically, the angle limit alone has a modest effect (482 → 472): the model's
+   Overhang and Edge samples already respect a 45°-equivalent downward threshold via
+   `OverhangAngleDegrees`, so the angle setting mainly catches Island/MiniIsland contacts that
+   landed on a near-vertical face (down-angle up to just under 90°) through the island projection's
+   looser acceptance test. This is a real, useful trim, but it is not by itself the "no side
+   support at all" result the user asked for.
+3. Sees-plate has a much larger effect (472 → 423, and unrouted tips fall from 90 to 41 once
+   routed) by dropping Edge/Overhang contacts shadowed by the model's own chunky geometry — exactly
+   the population a future "internal supports" pass (struts landing on a void floor instead of the
+   plate) would want to consume instead of discarding; `ContactFaceFilter.Apply`'s `out
+   IReadOnlyList<RejectedContactFace>` overload already reports each drop's reason (`Angle` vs
+   `Occluded`) for that purpose, though nothing consumes it yet.
+4. Honest read: this candidate-level filter measurably reduces near-vertical and shadowed
+   contacts, but the user's specific complaint (visible side-wall supports in the viewport) has not
+   been confirmed fixed by this benchmark alone — it needs the on-screen check in the report below,
+   since a contact whose own face is downward-facing enough to pass both settings can still route
+   through geometry that reads as a "side" support once trunks/branches are drawn. All three route
+   passes stayed collision-free with the same 45° maximum lean.
