@@ -28,4 +28,8 @@
     <ProjectReference Include="..\Danslicer.Core\Danslicer.Core.csproj" />
     <ProjectReference Include="..\Danslicer.Render\Danslicer.Render.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Danslicer.Tests" />
+  </ItemGroup>
 </Project>

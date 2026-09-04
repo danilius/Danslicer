@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -63,17 +64,67 @@ public partial class MainWindow : Window
     private SupportPresetEditorWindow? _presetEditorWindow;
     private readonly List<KeyBinding> _windowKeyBindings = [];
 
-    private void OnViewportFlyoutClosed(object? sender, EventArgs e) => Viewport.Focus();
+    private void OnObjectsToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(ObjectsToolPopup);
 
-    private void OnViewportObjectSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnSupportsToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(SupportsToolPopup);
+
+    private void OnVisibilityToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(VisibilityToolPopup);
+
+    private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(RaftsToolPopup);
+
+    private static void ToggleViewportPopup(Popup popup) => popup.IsOpen = !popup.IsOpen;
+
+    private void OnViewportPopupOpened(object? sender, EventArgs e)
     {
-        if (ViewModel?.IsObjectListSelectionEnabled == true &&
-            ViewportObjectList.IsKeyboardFocusWithin)
-            ObjectsToolButton.Flyout?.Hide();
+        var focusTarget = sender switch
+        {
+            _ when ReferenceEquals(sender, ObjectsToolPopup) => ObjectsPopupContent,
+            _ when ReferenceEquals(sender, SupportsToolPopup) => SupportsPopupContent,
+            _ when ReferenceEquals(sender, VisibilityToolPopup) => VisibilityPopupContent,
+            _ when ReferenceEquals(sender, RaftsToolPopup) => RaftsPopupContent,
+            _ => null,
+        };
+        focusTarget?.Focus();
     }
 
-    private void OnGenerateSupportsFlyoutClick(object? sender, RoutedEventArgs e) =>
-        SupportsToolButton.Flyout?.Hide();
+    private void OnViewportPopupClosed(object? sender, EventArgs e) => Viewport.Focus();
+
+    private void OnViewportPopupKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        var popup = sender switch
+        {
+            _ when ReferenceEquals(sender, ObjectsPopupContent) => ObjectsToolPopup,
+            _ when ReferenceEquals(sender, SupportsPopupContent) => SupportsToolPopup,
+            _ when ReferenceEquals(sender, VisibilityPopupContent) => VisibilityToolPopup,
+            _ when ReferenceEquals(sender, RaftsPopupContent) => RaftsToolPopup,
+            _ => null,
+        };
+        if (popup is null) return;
+        CloseViewportPopup(popup, ViewportPopupCloseTrigger.Escape);
+        e.Handled = true;
+    }
+
+    private void OnObjectsPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(ObjectsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnSupportsPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(SupportsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnVisibilityPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(VisibilityToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnRaftsPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(RaftsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private static void CloseViewportPopup(Popup popup, ViewportPopupCloseTrigger trigger)
+    {
+        if (ViewportToolbarPolicy.ShouldClosePopup(trigger)) popup.IsOpen = false;
+    }
 
     private void OpenSupportPresetEditor()
     {

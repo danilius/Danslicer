@@ -10,6 +10,14 @@ public enum ViewportTool
     Rafts,
 }
 
+public enum ViewportPopupCloseTrigger
+{
+    HeaderButton,
+    Escape,
+    OutsidePointer,
+    ContentAction,
+}
+
 /// <summary>Keeps the floating viewport tools deterministic and independently testable.</summary>
 public static class ViewportToolbarPolicy
 {
@@ -31,4 +39,7 @@ public static class ViewportToolbarPolicy
     };
 
     public static bool CanSelectObjects(WorkspaceMode mode) => mode == WorkspaceMode.Layout;
+
+    public static bool ShouldClosePopup(ViewportPopupCloseTrigger trigger) => trigger is
+        ViewportPopupCloseTrigger.HeaderButton or ViewportPopupCloseTrigger.Escape;
 }
