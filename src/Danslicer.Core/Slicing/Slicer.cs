@@ -1,5 +1,7 @@
 using System.Buffers;
+using System.Numerics;
 using Danslicer.Core.IO;
+using Danslicer.Core.Geometry;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 
@@ -30,10 +32,15 @@ public sealed class SliceResult
     public required float MinY { get; init; }
     public required float MaxX { get; init; }
     public required float MaxY { get; init; }
+    /// <summary>Axes whose out-of-volume content was omitted by permissive slicing.</summary>
+    public BuildVolumeViolationAxes CroppedAxes { get; init; }
 
     public int LayerCount => Layers.Count;
     public float PrintHeight => Layers.Count * Settings.LayerHeight;
     public double EstimatedSeconds => ResinSettings.EstimatePrintTime(Layers.Count);
+    public string? BuildVolumeWarning => CroppedAxes == BuildVolumeViolationAxes.None
+        ? null
+        : BuildVolumeBounds.CroppedWarning(CroppedAxes);
 }
 
 public static class Slicer
@@ -43,8 +50,9 @@ public static class Slicer
 
     /// <summary>
     /// Slices all visible objects into layers, plus the support graph's analytic sections when one
-    /// is given. Throws if any object sits below the plate or nothing is sliceable. Layers are
-    /// processed in parallel and encoded immediately.
+    /// is given. Unless <paramref name="allowOutOfBounds"/> is set, throws when content exceeds
+    /// the build volume. Always throws when nothing is sliceable. Layers are processed in parallel
+    /// and encoded immediately.
     /// </summary>
     public static SliceResult Slice(
         IEnumerable<SceneObject> objects,
@@ -53,7 +61,8 @@ public static class Slicer
         IProgress<double>? progress = null,
         CancellationToken cancellation = default,
         Supports.SupportGraph? supports = null,
-        ResinSettings? resinSettings = null)
+        ResinSettings? resinSettings = null,
+        bool allowOutOfBounds = false)
     {
         resinSettings = (resinSettings ?? ResinSettings.Default).Normalize();
         var prepared = new List<MeshSlicer.PreparedMesh>();
@@ -79,20 +88,25 @@ public static class Slicer
                 if (top > maxZ) maxZ = top;
             }
         }
-        if (minZ < -1e-3) throw new InvalidOperationException($"Geometry extends {-minZ:0.###} mm below the plate.");
-        if (maxZ > printer.BuildVolume.Z + 1e-3) throw new InvalidOperationException($"Geometry exceeds the {printer.BuildVolume.Z} mm build height.");
-
-        // The plate is the LCD, centred on the origin: anything outside would be silently cropped.
         var halfX = printer.BuildVolume.X / 2.0;
         var halfY = printer.BuildVolume.Y / 2.0;
         var overX = Math.Max(prepared.Max(m => m.MaxX) - halfX, -halfX - prepared.Min(m => m.MinX));
         var overY = Math.Max(prepared.Max(m => m.MaxY) - halfY, -halfY - prepared.Min(m => m.MinY));
-        if (overX > 1e-3 || overY > 1e-3)
+        var sceneBounds = new Aabb(
+            new Vector3((float)prepared.Min(m => m.MinX), (float)prepared.Min(m => m.MinY), (float)minZ),
+            new Vector3((float)prepared.Max(m => m.MaxX), (float)prepared.Max(m => m.MaxY), (float)maxZ));
+        var croppedAxes = BuildVolumeBounds.Check(sceneBounds, printer.BuildVolume);
+        if (!allowOutOfBounds && croppedAxes != BuildVolumeViolationAxes.None)
         {
+            if (minZ < -BuildVolumeBounds.ToleranceMm)
+                throw new InvalidOperationException($"Geometry extends {-minZ:0.###} mm below the plate.");
+            if (maxZ > printer.BuildVolume.Z + BuildVolumeBounds.ToleranceMm)
+                throw new InvalidOperationException($"Geometry exceeds the {printer.BuildVolume.Z} mm build height.");
+
             var axes = string.Join(" and ", new[]
             {
-                overX > 1e-3 ? $"{overX:0.#} mm in X" : null,
-                overY > 1e-3 ? $"{overY:0.#} mm in Y" : null,
+                overX > BuildVolumeBounds.ToleranceMm ? $"{overX:0.#} mm in X" : null,
+                overY > BuildVolumeBounds.ToleranceMm ? $"{overY:0.#} mm in Y" : null,
             }.Where(s => s is not null));
             throw new InvalidOperationException(
                 $"Geometry extends past the plate by {axes} " +
@@ -100,7 +114,10 @@ public static class Slicer
         }
 
         var h = (double)settings.LayerHeight;
-        var layerCount = (int)Math.Ceiling(maxZ / h - 1e-6);
+        // Permissive slicing crops Z at the printer travel just as the rasterizer crops X/Y at
+        // the LCD. Layers always start at the plate, so below-plate geometry is already omitted.
+        var printableMaxZ = allowOutOfBounds ? Math.Min(maxZ, printer.BuildVolume.Z) : maxZ;
+        var layerCount = (int)Math.Ceiling(printableMaxZ / h - 1e-6);
         if (layerCount <= 0) throw new InvalidOperationException("Model has no height.");
 
         var buckets = prepared.Select(m => MeshSlicer.BucketTriangles(m, h, layerCount)).ToList();
@@ -172,6 +189,7 @@ public static class Slicer
             MinY = (float)(double.IsInfinity(minY) ? 0 : minY),
             MaxX = (float)(double.IsInfinity(maxX) ? 0 : maxX),
             MaxY = (float)(double.IsInfinity(maxY) ? 0 : maxY),
+            CroppedAxes = croppedAxes,
         };
     }
 

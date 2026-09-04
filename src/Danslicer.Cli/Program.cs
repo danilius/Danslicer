@@ -41,7 +41,7 @@ void Usage()
 {
     Console.Error.WriteLine("Usage:");
     Console.Error.WriteLine("  danslicer info <file.stl|file.obj|file.danslicer>");
-    Console.Error.WriteLine("  danslicer slice <file.stl|file.obj>... | <file.danslicer> -o <out.pwmx> [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
+    Console.Error.WriteLine("  danslicer slice <file.stl|file.obj>... | <file.danslicer> -o <out.pwmx> [--allow-out-of-bounds] [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
     Console.Error.WriteLine("  danslicer inspect <file.pwmx>");
     Console.Error.WriteLine("  danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--fine-feature-fallback on|off] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
     Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--seat] [--spacing 2.5] [--min-spacing 2.5]");
@@ -88,111 +88,7 @@ int Info(string[] a)
     return 0;
 }
 
-int Slice(string[] a)
-{
-    var inputs = new List<string>();
-    string? output = null;
-    float? layerHeight = null;
-    float? exposure = null;
-    float? bottomExposure = null;
-    int? bottomLayers = null;
-    float? xyCompensation = null;
-    var noAntiAliasing = false;
-    for (int i = 0; i < a.Length; i++)
-    {
-        switch (a[i])
-        {
-            case "-o": output = a[++i]; break;
-            case "--layer": layerHeight = P(a[++i]); break;
-            case "--exposure": exposure = P(a[++i]); break;
-            case "--bottom-exposure": bottomExposure = P(a[++i]); break;
-            case "--bottom-layers": bottomLayers = int.Parse(a[++i], ci); break;
-            case "--xy": xyCompensation = P(a[++i]); break;
-            case "--no-aa": noAntiAliasing = true; break;
-            default: inputs.Add(a[i]); break;
-        }
-    }
-    if (inputs.Count == 0 || output is null) { Usage(); return 1; }
-
-    var printer = PrinterDefinition.PhotonMonoX;
-    List<SceneObject> objects;
-    Danslicer.Core.Supports.SupportGraph? supports = null;
-    PrintSettings settings;
-    ResinSettings resin;
-    var projectInputs = inputs.Where(ProjectFile.IsProjectPath).ToList();
-    if (projectInputs.Count > 0)
-    {
-        if (inputs.Count != 1)
-        {
-            Console.Error.WriteLine("error: a project file cannot be combined with mesh inputs.");
-            return 1;
-        }
-        var project = ProjectFile.Load(projectInputs[0]).Document;
-        printer = project.Printer;
-        objects = project.Scene.Objects.ToList();
-        supports = project.Supports;
-        settings = project.PrintSettings;
-        resin = project.ResinSettings;
-    }
-    else
-    {
-        objects = [];
-        settings = PrintSettings.Default;
-        resin = ResinSettings.Default;
-        foreach (var path in inputs)
-        {
-            var mesh = MeshFile.Read(path);
-            var obj = new SceneObject(Path.GetFileNameWithoutExtension(path), mesh);
-            var b = mesh.Bounds;
-            obj.Transform = Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, -b.Min.Z) };
-            objects.Add(obj);
-        }
-    }
-    settings = settings with
-    {
-        LayerHeight = layerHeight ?? settings.LayerHeight,
-        XyCompensation = xyCompensation ?? settings.XyCompensation,
-        AntiAliasing = noAntiAliasing ? false : settings.AntiAliasing,
-    };
-    resin = resin with
-    {
-        Exposure = exposure ?? resin.Exposure,
-        BottomExposure = bottomExposure ?? resin.BottomExposure,
-        BottomLayers = bottomLayers ?? resin.BottomLayers,
-    };
-
-    var sw = Stopwatch.StartNew();
-    var lastPercent = -1;
-    var progress = new Progress<double>(p =>
-    {
-        var percent = (int)(p * 100);
-        if (percent / 10 != lastPercent / 10) Console.Error.Write($"{percent}% ");
-        lastPercent = percent;
-    });
-    SliceResult result;
-    try
-    {
-        result = Slicer.Slice(objects, printer, settings, progress, supports: supports,
-            resinSettings: resin);
-    }
-    catch (InvalidOperationException ex)
-    {
-        Console.Error.WriteLine();
-        Console.Error.WriteLine($"error: {ex.Message}");
-        return 2;
-    }
-    Console.Error.WriteLine();
-    PhotonWorkshopWriter.Write(result, output);
-    sw.Stop();
-
-    Console.WriteLine($"Wrote:      {output}");
-    Console.WriteLine($"Layers:     {result.LayerCount} x {F(settings.LayerHeight)} mm = {F(result.PrintHeight)} mm");
-    Console.WriteLine($"Volume:     {F(result.VolumeMl)} ml");
-    Console.WriteLine($"Est. time:  {TimeSpan.FromSeconds(result.EstimatedSeconds):h\\:mm\\:ss}");
-    Console.WriteLine($"Footprint:  X {F(result.MinX)}..{F(result.MaxX)}  Y {F(result.MinY)}..{F(result.MaxY)} mm");
-    Console.WriteLine($"Sliced in:  {sw.Elapsed.TotalSeconds:0.0} s");
-    return 0;
-}
+int Slice(string[] a) => Danslicer.Cli.SliceCommand.Run(a, Usage);
 
 int Inspect(string[] a)
 {
@@ -217,5 +113,4 @@ int Inspect(string[] a)
     return 0;
 }
 
-float P(string s) => float.Parse(s, CultureInfo.InvariantCulture);
 string F(float v) => v.ToString("0.###", CultureInfo.InvariantCulture);

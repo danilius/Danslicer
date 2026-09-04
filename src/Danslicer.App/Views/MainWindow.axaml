@@ -37,6 +37,10 @@
             <Setter Property="Foreground" Value="#9AA0A6" />
             <Setter Property="FontSize" Value="12" />
         </Style>
+        <Style Selector="TextBlock.status.warning">
+            <Setter Property="Foreground" Value="#EF5350" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
         <Style Selector="TextBlock.section">
             <Setter Property="Foreground" Value="#C8CCD0" />
             <Setter Property="FontSize" Value="12" />
@@ -188,7 +192,8 @@
 
         <Border DockPanel.Dock="Bottom" Background="#1B1D20" Padding="8,3">
             <Grid ColumnDefinitions="*,Auto,Auto">
-                <TextBlock Text="{Binding ViewportStatus}" Classes="label" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding ViewportStatusDisplay}" Classes="label status"
+                           Classes.warning="{Binding HasSliceWarning}" TextTrimming="CharacterEllipsis" />
                 <ProgressBar Grid.Column="1" Width="160" Height="8" Margin="12,0" Minimum="0" Maximum="1"
                              Value="{Binding SliceProgress}" IsVisible="{Binding IsSlicing}" />
                 <TextBlock Grid.Column="2" Text="{Binding HistoryStatus}" Classes="label" Margin="16,0,0,0" />

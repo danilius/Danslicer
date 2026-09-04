@@ -111,7 +111,18 @@ public partial class MainViewModel : ViewModelBase
     public string? ProjectPath { get; private set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewportStatusDisplay))]
     public partial string ViewportStatus { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewportStatusDisplay), nameof(HasSliceWarning))]
+    public partial string? SliceWarning { get; set; }
+
+    public string ViewportStatusDisplay => SliceWarning is null
+        ? ViewportStatus
+        : $"{SliceWarning}  {ViewportStatus}";
+
+    public bool HasSliceWarning => SliceWarning is not null;
 
     [ObservableProperty]
     public partial string HistoryStatus { get; set; } = "";
@@ -523,6 +534,7 @@ public partial class MainViewModel : ViewModelBase
         SupportSettings.Resins.Refresh();
         SelectedObject = null;
         LastSlice = null;
+        SliceWarning = null;
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Not sliced yet.";
@@ -812,8 +824,9 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token,
-                Document.Supports, resin), token);
+                Document.Supports, resin, allowOutOfBounds: true), token);
             LastSlice = result;
+            SliceWarning = result.BuildVolumeWarning;
             SliceSummary =
                 $"{result.LayerCount} layers × {settings.LayerHeight:0.###} mm = {result.PrintHeight:0.##} mm\n" +
                 $"{result.VolumeMl:0.##} ml resin\n" +
@@ -873,6 +886,7 @@ public partial class MainViewModel : ViewModelBase
     public void InvalidateSlice()
     {
         LastSlice = null;
+        SliceWarning = null;
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Scene changed since the last slice.";
