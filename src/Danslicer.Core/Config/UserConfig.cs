@@ -461,8 +461,36 @@ public sealed class UserConfig
     {
         var preset = FindSupportPreset(name);
         if (preset is null) return false;
+        if (IsBuiltInSupportPreset(preset))
+            return SaveSupportPresetAs(UniqueSupportPresetName($"{preset.Name} copy"));
         preset.Settings = Supports with { };
         ActiveSupportPresetName = preset.Name;
+        return true;
+    }
+
+    /// <summary>
+    /// Persists only the live grid fields into the active preset. Built-ins stay unchanged and
+    /// instead produce an active user copy; unrelated live edits remain unsaved.
+    /// </summary>
+    public bool SaveActiveSupportPresetGrid()
+    {
+        var preset = FindSupportPreset(ActiveSupportPresetName);
+        if (preset is null) return false;
+        var saved = preset.Settings with
+        {
+            UseBaseGrid = Supports.UseBaseGrid,
+            BaseGridPitch = Supports.BaseGridPitch,
+        };
+        if (IsBuiltInSupportPreset(preset))
+        {
+            var copyName = UniqueSupportPresetName($"{preset.Name} copy");
+            SupportPresets.Add(new SupportPreset { Name = copyName, Settings = saved });
+            ActiveSupportPresetName = copyName;
+        }
+        else
+        {
+            preset.Settings = saved;
+        }
         return true;
     }
 
@@ -502,6 +530,20 @@ public sealed class UserConfig
         if (string.Equals(ActiveSupportPresetName, preset.Name, StringComparison.OrdinalIgnoreCase))
             ActiveSupportPresetName = SupportPresets.FirstOrDefault()?.Name ?? "";
         return true;
+    }
+
+    private static bool IsBuiltInSupportPreset(SupportPreset preset) =>
+        string.Equals(preset.Name, CadCleanSupportPresetName, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(preset.Name, OrganicDenseSupportPresetName, StringComparison.OrdinalIgnoreCase);
+
+    private string UniqueSupportPresetName(string baseName)
+    {
+        if (FindSupportPreset(baseName) is null) return baseName;
+        for (var suffix = 2; ; suffix++)
+        {
+            var candidate = $"{baseName} {suffix}";
+            if (FindSupportPreset(candidate) is null) return candidate;
+        }
     }
 
     private static List<SupportPreset> CreateBuiltInSupportPresets() =>

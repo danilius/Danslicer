@@ -17,12 +17,14 @@ public sealed class ConfigViewModel : ViewModelBase
 {
     private enum PresetNameOperation { None, SaveAs, Rename }
 
+    private readonly UserConfig _config;
+    private readonly Action _saveConfig;
     private readonly SupportConfig? _supportOverride;
     private readonly bool _persistChanges;
     private readonly Action? _supportChanged;
-    private SpaceMouseConfig SpaceMouse => AppConfig.Current.SpaceMouse;
-    private ViewportConfig Viewport => AppConfig.Current.Viewport;
-    private SupportConfig Supports => _supportOverride ?? AppConfig.Current.Supports;
+    private SpaceMouseConfig SpaceMouse => _config.SpaceMouse;
+    private ViewportConfig Viewport => _config.Viewport;
+    private SupportConfig Supports => _supportOverride ?? _config.Supports;
     private IReadOnlyList<string> _supportPresetDisplayNames = [];
     private int _selectedSupportPresetIndex = -1;
     private bool _isSupportPresetNameEditorVisible;
@@ -34,37 +36,48 @@ public sealed class ConfigViewModel : ViewModelBase
     // re-apply presets, or the two views recurse into each other (see ResinPresetViewModel).
     private bool _refreshingPresets;
 
-    public ConfigViewModel() : this(null, persistChanges: true, null, null)
+    public ConfigViewModel() : this(AppConfig.Current, AppConfig.Save,
+        null, persistChanges: true, null, null)
     {
     }
 
-    public ConfigViewModel(Document document) : this(null, persistChanges: true, null, document)
+    public ConfigViewModel(Document document) : this(AppConfig.Current, AppConfig.Save,
+        null, persistChanges: true, null, document)
     {
     }
 
     internal ConfigViewModel(SupportConfig supportSettings, Action supportChanged)
-        : this(supportSettings, persistChanges: false, supportChanged, null)
+        : this(AppConfig.Current, AppConfig.Save,
+            supportSettings, persistChanges: false, supportChanged, null)
     {
     }
 
-    private ConfigViewModel(SupportConfig? supportOverride, bool persistChanges,
+    internal ConfigViewModel(UserConfig config, Action saveConfig)
+        : this(config, saveConfig, null, persistChanges: true, null, null)
+    {
+    }
+
+    private ConfigViewModel(UserConfig config, Action saveConfig,
+        SupportConfig? supportOverride, bool persistChanges,
         Action? supportChanged, Document? document)
     {
+        _config = config;
+        _saveConfig = saveConfig;
         _supportOverride = supportOverride;
         _persistChanges = persistChanges;
         _supportChanged = supportChanged;
-        Keymap = new KeymapViewModel(AppConfig.Current);
+        Keymap = new KeymapViewModel(_config);
         Keymap.Changed += () => Saved?.Invoke();
-        Printers = new PrinterEditorViewModel(AppConfig.Current, AppConfig.Save);
+        Printers = new PrinterEditorViewModel(_config, _saveConfig);
         Printers.Changed += () => Saved?.Invoke();
-        Resins = new ResinPresetViewModel(AppConfig.Current, document ?? new Document(), AppConfig.Save);
+        Resins = new ResinPresetViewModel(_config, document ?? new Document(), _saveConfig);
         Resins.Changed += () => Saved?.Invoke();
         SaveSupportPresetCommand = new RelayCommand(SaveSupportPreset, HasSelectedSupportPreset);
         BeginSaveSupportPresetAsCommand = new RelayCommand(BeginSaveSupportPresetAs);
         BeginRenameSupportPresetCommand = new RelayCommand(
             BeginRenameSupportPreset, HasSelectedSupportPreset);
         DeleteSupportPresetCommand = new RelayCommand(
-            DeleteSupportPreset, () => HasSelectedSupportPreset() && AppConfig.Current.SupportPresets.Count > 1);
+            DeleteSupportPreset, () => HasSelectedSupportPreset() && _config.SupportPresets.Count > 1);
         ConfirmSupportPresetNameCommand = new RelayCommand(ConfirmSupportPresetName);
         CancelSupportPresetNameCommand = new RelayCommand(CancelSupportPresetName);
         EditSupportPresetCommand = new RelayCommand(
@@ -115,9 +128,9 @@ public sealed class ConfigViewModel : ViewModelBase
             _selectedSupportPresetIndex = value;
             OnPropertyChanged();
             if (_refreshingPresets) return;
-            if (value < 0 || value >= AppConfig.Current.SupportPresets.Count) return;
-            if (!AppConfig.Current.ApplySupportPreset(AppConfig.Current.SupportPresets[value].Name)) return;
-            AppConfig.Save();
+            if (value < 0 || value >= _config.SupportPresets.Count) return;
+            if (!_config.ApplySupportPreset(_config.SupportPresets[value].Name)) return;
+            _saveConfig();
             OnPropertyChanged(string.Empty);
             RefreshSupportPresetOptions();
             Saved?.Invoke();
@@ -165,10 +178,15 @@ public sealed class ConfigViewModel : ViewModelBase
     public event Action? Saved;
     public event Action? EditSupportPresetRequested;
 
-    private void Update(Action apply, [CallerMemberName] string? property = null)
+    private void Update(Action apply, bool saveGridToPreset = false,
+        [CallerMemberName] string? property = null)
     {
         apply();
-        if (_persistChanges) AppConfig.Save();
+        if (_persistChanges)
+        {
+            if (saveGridToPreset) _config.SaveActiveSupportPresetGrid();
+            _saveConfig();
+        }
         OnPropertyChanged(property);
         if (_persistChanges) RefreshSupportPresetOptions();
         _supportChanged?.Invoke();
@@ -184,11 +202,11 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private bool HasSelectedSupportPreset() =>
         SelectedSupportPresetIndex >= 0 &&
-        SelectedSupportPresetIndex < AppConfig.Current.SupportPresets.Count;
+        SelectedSupportPresetIndex < _config.SupportPresets.Count;
 
     private void RefreshSupportPresetOptions()
     {
-        var config = AppConfig.Current;
+        var config = _config;
         var active = config.FindSupportPreset(config.ActiveSupportPresetName);
         var modified = active is not null && active.Settings != config.Supports;
         var display = config.SupportPresets
@@ -214,9 +232,9 @@ public sealed class ConfigViewModel : ViewModelBase
     private void SaveSupportPreset()
     {
         if (!HasSelectedSupportPreset()) return;
-        var config = AppConfig.Current;
+        var config = _config;
         config.SaveSupportPreset(config.SupportPresets[SelectedSupportPresetIndex].Name);
-        AppConfig.Save();
+        _saveConfig();
         RefreshSupportPresetOptions();
         Saved?.Invoke();
     }
@@ -224,10 +242,10 @@ public sealed class ConfigViewModel : ViewModelBase
     private void BeginSaveSupportPresetAs()
     {
         var baseName = HasSelectedSupportPreset()
-            ? AppConfig.Current.SupportPresets[SelectedSupportPresetIndex].Name
+            ? _config.SupportPresets[SelectedSupportPresetIndex].Name
             : "Support preset";
         var candidate = $"{baseName} copy";
-        for (var suffix = 2; AppConfig.Current.FindSupportPreset(candidate) is not null; suffix++)
+        for (var suffix = 2; _config.FindSupportPreset(candidate) is not null; suffix++)
             candidate = $"{baseName} copy {suffix}";
         BeginSupportPresetNameEdit(PresetNameOperation.SaveAs, candidate);
     }
@@ -236,7 +254,7 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         if (!HasSelectedSupportPreset()) return;
         BeginSupportPresetNameEdit(PresetNameOperation.Rename,
-            AppConfig.Current.SupportPresets[SelectedSupportPresetIndex].Name);
+            _config.SupportPresets[SelectedSupportPresetIndex].Name);
     }
 
     private void BeginSupportPresetNameEdit(PresetNameOperation operation, string draft)
@@ -256,7 +274,7 @@ public sealed class ConfigViewModel : ViewModelBase
             return;
         }
 
-        var config = AppConfig.Current;
+        var config = _config;
         var succeeded = _presetNameOperation switch
         {
             PresetNameOperation.SaveAs => config.SaveSupportPresetAs(name),
@@ -270,7 +288,7 @@ public sealed class ConfigViewModel : ViewModelBase
             return;
         }
 
-        AppConfig.Save();
+        _saveConfig();
         CancelSupportPresetName();
         RefreshSupportPresetOptions();
         Saved?.Invoke();
@@ -285,10 +303,10 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private void DeleteSupportPreset()
     {
-        if (!HasSelectedSupportPreset() || AppConfig.Current.SupportPresets.Count <= 1) return;
-        var config = AppConfig.Current;
+        if (!HasSelectedSupportPreset() || _config.SupportPresets.Count <= 1) return;
+        var config = _config;
         config.DeleteSupportPreset(config.SupportPresets[SelectedSupportPresetIndex].Name);
-        AppConfig.Save();
+        _saveConfig();
         CancelSupportPresetName();
         RefreshSupportPresetOptions();
         Saved?.Invoke();
@@ -298,7 +316,7 @@ public sealed class ConfigViewModel : ViewModelBase
         [CallerMemberName] string? property = null)
     {
         Viewport.SupportDisplay = apply(Viewport.SupportDisplay);
-        AppConfig.Save();
+        _saveConfig();
         OnPropertyChanged(property);
         OnPropertyChanged(nameof(SupportDisplay));
         OnPropertyChanged(nameof(IsSupportElementVisibilityAvailable));
@@ -532,13 +550,22 @@ public sealed class ConfigViewModel : ViewModelBase
     public float SupportBaseGridPitch
     {
         get => Supports.BaseGridPitch;
-        set => Update(() => Supports.BaseGridPitch = Clamp(value, 0.01f, 1000f, 6f));
+        set
+        {
+            var normalized = Clamp(value, 0.01f, 1000f, 6f);
+            if (Supports.BaseGridPitch == normalized) return;
+            Update(() => Supports.BaseGridPitch = normalized, saveGridToPreset: true);
+        }
     }
 
     public bool SupportUseBaseGrid
     {
         get => Supports.UseBaseGrid;
-        set => Update(() => Supports.UseBaseGrid = value);
+        set
+        {
+            if (Supports.UseBaseGrid == value) return;
+            Update(() => Supports.UseBaseGrid = value, saveGridToPreset: true);
+        }
     }
 
     public bool SupportReinforceEnabled
