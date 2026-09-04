@@ -66,10 +66,13 @@ public static class Slicer
     {
         resinSettings = (resinSettings ?? ResinSettings.Default).Normalize();
         var prepared = new List<MeshSlicer.PreparedMesh>();
+        var previewObjects = new List<PreviewRenderer.RenderObject>();
         foreach (var obj in objects)
         {
             if (obj.RenderState == RenderState.Hidden) continue;
-            prepared.Add(new MeshSlicer.PreparedMesh(obj.Mesh, obj.Transform.ToMatrix()));
+            var matrix = obj.Transform.ToMatrix();
+            prepared.Add(new MeshSlicer.PreparedMesh(obj.Mesh, matrix));
+            previewObjects.Add(new PreviewRenderer.RenderObject(obj.Mesh, matrix));
         }
         if (prepared.Count == 0) throw new InvalidOperationException("Nothing to slice.");
 
@@ -123,8 +126,6 @@ public static class Slicer
         var buckets = prepared.Select(m => MeshSlicer.BucketTriangles(m, h, layerCount)).ToList();
 
         var layers = new SlicedLayer[layerCount];
-        var previewHeights = new int[PreviewWidth * PreviewHeight];
-        var previewLock = new object();
         var minX = double.PositiveInfinity; var minY = double.PositiveInfinity;
         var maxX = double.NegativeInfinity; var maxY = double.NegativeInfinity;
         var boundsLock = new object();
@@ -165,7 +166,6 @@ public static class Slicer
                         minY = Math.Min(minY, b.top / MeshSlicer.UnitsPerMm);
                         maxY = Math.Max(maxY, b.bottom / MeshSlicer.UnitsPerMm);
                     }
-                    AccumulatePreview(worker.Pixels, printer, i, previewHeights, previewLock);
                 }
 
                 var completed = Interlocked.Increment(ref done);
@@ -184,7 +184,7 @@ public static class Slicer
             ResinSettings = resinSettings,
             Layers = layers,
             VolumeMl = (float)(volumeMm3 / 1000.0),
-            Preview = RenderPreview(previewHeights, layerCount),
+            Preview = PreviewRenderer.Render(previewObjects, supports, PreviewWidth, PreviewHeight),
             MinX = (float)(double.IsInfinity(minX) ? 0 : minX),
             MinY = (float)(double.IsInfinity(minY) ? 0 : minY),
             MaxX = (float)(double.IsInfinity(maxX) ? 0 : maxX),
@@ -206,51 +206,5 @@ public static class Slicer
         }
 
         public void Dispose() => ArrayPool<byte>.Shared.Return(Pixels);
-    }
-
-    private static void AccumulatePreview(byte[] pixels, PrinterDefinition printer, int layer, int[] heights, object sync)
-    {
-        // Sample the layer on the preview grid; keep the highest layer that is lit at each cell.
-        var local = new List<int>();
-        for (int gy = 0; gy < PreviewHeight; gy++)
-        {
-            var py = (int)((gy + 0.5) * printer.ResolutionY / PreviewHeight);
-            var rowOffset = py * printer.ResolutionX;
-            for (int gx = 0; gx < PreviewWidth; gx++)
-            {
-                var px = (int)((gx + 0.5) * printer.ResolutionX / PreviewWidth);
-                if (pixels[rowOffset + px] > 127) local.Add(gy * PreviewWidth + gx);
-            }
-        }
-        if (local.Count == 0) return;
-        lock (sync)
-        {
-            foreach (var idx in local)
-                if (layer + 1 > heights[idx]) heights[idx] = layer + 1;
-        }
-    }
-
-    private static byte[] RenderPreview(int[] heights, int layerCount)
-    {
-        var data = new byte[PreviewWidth * PreviewHeight * 2];
-        for (int i = 0; i < heights.Length; i++)
-        {
-            byte r, g, b;
-            if (heights[i] == 0)
-            {
-                r = 40; g = 42; b = 46;
-            }
-            else
-            {
-                var t = heights[i] / (float)Math.Max(layerCount, 1);
-                r = (byte)(90 + 150 * t);
-                g = (byte)(140 + 100 * t);
-                b = (byte)(200 + 55 * t);
-            }
-            var rgb565 = (ushort)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
-            data[i * 2] = (byte)rgb565;
-            data[i * 2 + 1] = (byte)(rgb565 >> 8);
-        }
-        return data;
     }
 }
