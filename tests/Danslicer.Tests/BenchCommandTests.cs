@@ -33,6 +33,7 @@ public class BenchCommandTests
                         new RouteBenchmark
                         {
                             BaseGrid = "on",
+                            Reinforce = true,
                             WallSeconds = 2.3456,
                             ExitCode = 2,
                             Nodes = 8,
@@ -65,7 +66,8 @@ public class BenchCommandTests
         Assert.Contains("| Model | Command | Flags | Wall s | Exit | Counts | Notes |", markdown);
         Assert.Contains("| model | `tips` | `--seat --json` | 1.235 | 0 | **12** candidates " +
                         "(Island 2, Overhang 10)", markdown);
-        Assert.Contains("`--seat --strategy tree --base-grid on --json` | 2.346 | 2", markdown);
+        Assert.Contains("`--seat --strategy tree --base-grid on --reinforce on --json` | " +
+                        "2.346 | 2", markdown);
         Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);
         Assert.Contains("**unrouted 9 / 12**, bases **1**, max lean 44.6°, " +
                         "collisionFree **true**", markdown);

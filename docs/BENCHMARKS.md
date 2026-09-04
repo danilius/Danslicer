@@ -416,3 +416,39 @@ continues to a plate base (747 bases).
    counts, segment taxonomy, refusals, base count, maximum lean and collision status all match.
 2. The changed defaults are derived render/slice surfaces only. Routing topology, configured graph
    diameters and collision decisions remain unchanged; both canonical graphs remain collision-free.
+
+---
+
+## 2026-09-04 — Reinforce growth rule A/B
+
+- Branch: `grid-routing-prototype` after `0dfa69a`; Reinforce is now built from persisted support
+  config. These runs use its existing defaults: lowest-object seed, 3 ring tips, 2 mm radius and
+  1.25× tip diameter. Reinforce remains OFF by default.
+- Config: Debug, net10.0; same machine and serial, single-process conditions as the preceding runs.
+- `danslicer bench --reinforce off|on` generated fresh seated tips for each run. Both candidate
+  sets reproduced the canonical 1961-tip Drogon and 482-tip gripper distributions.
+
+### Results
+
+| Model | Command | Flags | Wall s | Exit | Counts | Notes |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| drogon | `route` | `--seat --strategy tree --base-grid on --reinforce off --json` | 9.247 | 2 | nodes 1948, segs 1807 (tip 509, mini-support 349, branch 509, trunk 440), **unrouted 1103 / 1961**, bases **141**, max lean 74.7°, collisionFree **true** | Default-off control; bit-identical topology to the 6 mm reference. |
+| drogon | `route` | `--seat --strategy tree --base-grid on --reinforce on --json` | 9.442 | 2 | nodes 1948, segs 1807 (tip 509, mini-support 349, branch 509, trunk 440), **unrouted 1104 / 1961**, bases **141**, max lean 74.7°, collisionFree **true** | Segment delta **0**; wall +0.195 s (+2.1%). One projected ring tip was below the seated plate and was honestly refused. |
+| drogon | `route` | `--seat --strategy tree --base-grid off --reinforce off --json` | 18.311 | 2 | nodes 2400, segs 2163 (tip 675, mini-support 342, branch 488, trunk 658), **unrouted 944 / 1961**, bases **237**, max lean 74.8°, collisionFree **true** | Default-off control; bit-identical topology to the free-placement reference. |
+| drogon | `route` | `--seat --strategy tree --base-grid off --reinforce on --json` | 18.615 | 2 | nodes 2400, segs 2163 (tip 675, mini-support 342, branch 488, trunk 658), **unrouted 945 / 1961**, bases **237**, max lean 74.8°, collisionFree **true** | Segment delta **0**; wall +0.304 s (+1.7%). The same below-plate ring tip was refused. |
+| gripper | `route` | `--seat --strategy tree --base-grid on --reinforce off --json` | 0.400 | 2 | nodes 1238, segs 1105 (tip 367, mini-support 20, branch 367, trunk 351), **unrouted 95 / 482**, bases **133**, max lean 45.0°, collisionFree **true** | Default-off control; bit-identical topology to the 6 mm reference. |
+| gripper | `route` | `--seat --strategy tree --base-grid on --reinforce on --json` | 0.399 | 2 | nodes 1238, segs 1105 (tip 367, mini-support 20, branch 367, trunk 351), **unrouted 95 / 482**, bases **133**, max lean 45.0°, collisionFree **true** | Segment delta **0**; wall −0.001 s (−0.3%), within timer noise. Ring samples did not re-project onto this lowest boundary contact. |
+| gripper | `route` | `--seat --strategy tree --base-grid off --reinforce off --json` | 0.759 | 2 | nodes 1130, segs 989 (tip 370, mini-support 18, branch 231, trunk 370), **unrouted 94 / 482**, bases **141**, max lean 45.0°, collisionFree **true** | Default-off control; bit-identical topology to the free-placement reference. |
+| gripper | `route` | `--seat --strategy tree --base-grid off --reinforce on --json` | 0.758 | 2 | nodes 1130, segs 989 (tip 370, mini-support 18, branch 231, trunk 370), **unrouted 94 / 482**, bases **141**, max lean 45.0°, collisionFree **true** | Segment delta **0**; wall −0.001 s (−0.1%), within timer noise. Ring samples did not re-project. |
+
+### Observations
+
+1. Reinforce OFF remains bit-identical to the job-019 6 mm reference in both grid modes: every
+   topology count, refusal bucket, base count, maximum lean and collision result matches.
+2. The canonical files are seated, so their absolute lowest contact lies on or at a model boundary
+   near the plate. The default lowest-object ring therefore adds no printable segments: Drogon
+   produces one explicit `BelowPlate` refusal and gripper has no ring sample within projection
+   reach. This is an honest zero-segment delta, not a hidden fallback.
+3. Route-time differences range from −0.3% to +2.1% and are timer noise at this scale. Reinforce
+   does visibly add routed segments on the raised bridge, sphere and dome preset-preview fixtures,
+   where the selected lowest contact has printable clearance beneath it.
