@@ -104,6 +104,13 @@ public sealed class ViewportConfig
     /// <summary>The corner view cube (design 6.2).</summary>
     public bool ViewCubeEnabled { get; set; } = true;
 
+    /// <summary>
+    /// On-screen size of the view cube, in DIP pixels before DPI scaling. Bounds mirror
+    /// <c>ViewCube.MinSizePixels</c>/<c>MaxSizePixels</c> in Danslicer.Render, which Core cannot
+    /// reference directly — keep the two in sync if either changes.
+    /// </summary>
+    public int ViewCubeSizePixels { get; set; } = 96;
+
     /// <summary>Build-plate opacity when the camera is below it: 0 invisible, 1 fully opaque.</summary>
     public float PlateOpacityFromBelow { get; set; } = 0.3f;
 
@@ -131,6 +138,7 @@ public sealed class ViewportConfig
         CavityValleyStrength = Clamp(CavityValleyStrength, 0f, 4f, 0.7f);
         CavityRadiusPixels = Clamp(CavityRadiusPixels, 0.5f, 8f, 1.5f);
         OutlineStrength = Clamp(OutlineStrength, 0f, 1f, 0.75f);
+        ViewCubeSizePixels = Math.Clamp(ViewCubeSizePixels, 48, 192);
     }
 
     private static float Clamp(float value, float min, float max, float fallback) =>

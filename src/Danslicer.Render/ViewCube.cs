@@ -16,6 +16,21 @@ public sealed unsafe class ViewCube : IDisposable
     private const float Band = 0.6f;
     private const float OrthoExtent = 2.1f; // > cube diagonal radius sqrt(3), any rotation fits
 
+    /// <summary>Default on-screen size in DIP-independent pixels, before DPI scaling.</summary>
+    public const int DefaultSizePixels = 96;
+
+    /// <summary>
+    /// Clamp bounds for the configurable size (<see cref="Danslicer.Core.Config.ViewportConfig.ViewCubeSizePixels"/>).
+    /// Core has no reference to this project, so <c>UserConfig.Normalize</c> repeats these two
+    /// numbers rather than sharing the constant — keep them in sync if either changes.
+    /// </summary>
+    public const int MinSizePixels = 48;
+    public const int MaxSizePixels = 192;
+
+    // Label text width in face-plane units (-1..1 spans the whole face); sized off the widest
+    // label ("BOTTOM") so every face uses the same glyph scale and nothing overflows the face.
+    private const float LabelTargetWidth = 1.6f;
+
     private readonly GL _gl;
     private readonly ShaderProgram _shader;
     private readonly uint _vao;
@@ -50,11 +65,18 @@ public sealed unsafe class ViewCube : IDisposable
 
     // ----- Layout shared by drawing and hit testing -----
 
-    /// <summary>Corner viewport of the cube in framebuffer pixels (GL origin, bottom-left).</summary>
-    public static (int X, int Y, int Size) Rect(int width, int height, double scaling)
+    /// <summary>
+    /// Corner viewport of the cube in framebuffer pixels (GL origin, bottom-left).
+    /// <paramref name="sizePixels"/> is the configured on-screen size before DPI scaling
+    /// (<see cref="DefaultSizePixels"/> when unset); the margin keeps the same proportion to it
+    /// that the original fixed-96 layout used, so bigger cubes get a bigger margin too.
+    /// </summary>
+    public static (int X, int Y, int Size) Rect(int width, int height, double scaling,
+        int sizePixels = DefaultSizePixels)
     {
-        var size = (int)(96 * Math.Max(scaling, 0.5));
-        var margin = (int)(10 * Math.Max(scaling, 0.5));
+        var clamped = Math.Clamp(sizePixels, MinSizePixels, MaxSizePixels);
+        var size = (int)(clamped * Math.Max(scaling, 0.5));
+        var margin = (int)(clamped * (10f / DefaultSizePixels) * Math.Max(scaling, 0.5));
         return (width - size - margin, height - size - margin, size);
     }
 
@@ -65,9 +87,9 @@ public sealed unsafe class ViewCube : IDisposable
     /// orthographic camera and intersected with the unit cube analytically.
     /// </summary>
     public static int HitRegion(float pxX, float pxY, int width, int height, double scaling,
-        in Matrix4x4 cameraView)
+        in Matrix4x4 cameraView, int sizePixels = DefaultSizePixels)
     {
-        var (rx, ry, size) = Rect(width, height, scaling);
+        var (rx, ry, size) = Rect(width, height, scaling, sizePixels);
         // pxY arrives top-left based (pointer coords); the rect is bottom-left based.
         var glY = height - 1 - pxY;
         if (pxX < rx || pxX >= rx + size || glY < ry || glY >= ry + size) return -1;
@@ -104,10 +126,11 @@ public sealed unsafe class ViewCube : IDisposable
 
     // ----- Drawing -----
 
-    public void Draw(int width, int height, double scaling, in Matrix4x4 cameraView, int hoverRegion)
+    public void Draw(int width, int height, double scaling, in Matrix4x4 cameraView, int hoverRegion,
+        int sizePixels = DefaultSizePixels)
     {
         var gl = _gl;
-        var (rx, ry, size) = Rect(width, height, scaling);
+        var (rx, ry, size) = Rect(width, height, scaling, sizePixels);
         if (size <= 0 || rx < 0 || ry < 0) return;
 
         gl.Viewport(rx, ry, (uint)size, (uint)size);
@@ -214,6 +237,13 @@ public sealed unsafe class ViewCube : IDisposable
                 }
             }
         }
+
+        // Labels draw last so they land on top of the face quads above (Draw() has no depth
+        // test, so later-submitted triangles simply win the pixel — no texture, no extra pass,
+        // and the same buffer/shader draws both render paths since ViewCube.Draw is shared).
+        foreach (var (axis, sign, text) in ViewCubeLabels.Faces)
+            AddLabel(data, axis, sign, text);
+
         return [.. data];
 
         static void Set(ref int x, ref int y, ref int z, int axis, int value)
@@ -222,6 +252,60 @@ public sealed unsafe class ViewCube : IDisposable
             else if (axis == 1) y = value;
             else z = value;
         }
+    }
+
+    /// <summary>
+    /// Bakes one face's label as a grid of tiny quads, one per lit font cell. The face-plane basis
+    /// (<paramref name="axis"/>/<paramref name="sign"/>) is derived the same way an outside camera
+    /// looking straight at the face would be (world-up reference, right = up x normal), so every
+    /// face reads upright and non-mirrored regardless of which side of the cube it is on.
+    /// </summary>
+    private static void AddLabel(List<float> data, int axis, int sign, string text)
+    {
+        var normal = AxisVector(axis) * sign;
+        var worldUp = MathF.Abs(normal.Z) > 0.99f ? new Vector3(0, 1, 0) : new Vector3(0, 0, 1);
+        var right = Vector3.Normalize(Vector3.Cross(worldUp, normal));
+        var up = Vector3.Cross(normal, right);
+
+        var (widthPx, heightPx) = ViewCubeLabels.Measure(text);
+        var pixel = LabelTargetWidth / ViewCubeLabels.Measure("BOTTOM").Width; // one scale, all faces
+        var totalWidth = widthPx * pixel;
+        var totalHeight = heightPx * pixel;
+        var textColor = LabelColor(FaceColor(axis, sign));
+        var centerRegion = RegionId(
+            axis == 0 ? sign : 0, axis == 1 ? sign : 0, axis == 2 ? sign : 0);
+
+        var gap = pixel * 0.12f; // slim gutter between cells for a legible dot-matrix look
+        var half = pixel / 2f - gap;
+        foreach (var (row, col) in ViewCubeLabels.Rasterize(text))
+        {
+            var u = (col + 0.5f) * pixel - totalWidth / 2f;
+            var v = totalHeight / 2f - (row + 0.5f) * pixel;
+            var p00 = normal + right * (u - half) + up * (v - half);
+            var p10 = normal + right * (u + half) + up * (v - half);
+            var p11 = normal + right * (u + half) + up * (v + half);
+            var p01 = normal + right * (u - half) + up * (v + half);
+            // CCW as seen from outside: right/up/normal form a camera-style basis (x,y,z-toward-
+            // viewer), so this winding matches the CCW front-face convention used everywhere else.
+            foreach (var p in new[] { p00, p10, p11, p00, p11, p01 })
+            {
+                data.Add(p.X); data.Add(p.Y); data.Add(p.Z);
+                data.Add(textColor.X); data.Add(textColor.Y); data.Add(textColor.Z);
+                data.Add(centerRegion);
+            }
+        }
+    }
+
+    private static Vector3 AxisVector(int axis) =>
+        axis == 0 ? Vector3.UnitX : axis == 1 ? Vector3.UnitY : Vector3.UnitZ;
+
+    /// <summary>Near-black or near-white text, chosen from the face colour's luminance so labels
+    /// stay legible against any cube palette (including a future dark theme with a bright accent),
+    /// rather than a colour hardcoded against today's Blender-style axis colours.</summary>
+    private static Vector3 LabelColor(Vector3 faceColor)
+    {
+        var luminance = Vector3.Dot(faceColor, new Vector3(0.299f, 0.587f, 0.114f));
+        return luminance > 0.5f ? new Vector3(0.05f) : new Vector3(0.95f);
     }
 
     private static void Quad(List<float> data, int axis, int sign, int t1, int t2,

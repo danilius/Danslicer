@@ -339,6 +339,14 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Viewport.PlateOpacityFromBelow = Math.Clamp(value, 0f, 1f));
     }
 
+    /// <summary>On-screen size of the corner view cube, in DIP pixels. Bounds match
+    /// <c>ViewCube.MinSizePixels</c>/<c>MaxSizePixels</c> and <c>ViewportConfig.Normalize</c>.</summary>
+    public int ViewCubeSizePixels
+    {
+        get => Viewport.ViewCubeSizePixels;
+        set => Update(() => Viewport.ViewCubeSizePixels = Math.Clamp(value, 48, 192));
+    }
+
     public Avalonia.Media.Color OverhangColorA
     {
         get => ToColor(Viewport.OverhangColorA, Avalonia.Media.Color.FromRgb(0xFA, 0xCC, 0x26));

@@ -99,7 +99,8 @@ public sealed class ViewportControl : OpenGlControlBase
         if (!Configuration.AppConfig.Current.Viewport.ViewCubeEnabled) return -1;
         var scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
         return ViewCube.HitRegion((float)(pos.X * scaling), (float)(pos.Y * scaling),
-            (int)(Bounds.Width * scaling), (int)(Bounds.Height * scaling), scaling, Camera.View);
+            (int)(Bounds.Width * scaling), (int)(Bounds.Height * scaling), scaling, Camera.View,
+            Configuration.AppConfig.Current.Viewport.ViewCubeSizePixels);
     }
     private readonly Gizmo _gizmo = new();
     private Point _lastPointer;
@@ -521,6 +522,7 @@ public sealed class ViewportControl : OpenGlControlBase
             WireframeEnabled = Configuration.AppConfig.Current.Viewport.WireframeEnabled,
             ShowViewCube = Configuration.AppConfig.Current.Viewport.ViewCubeEnabled,
             ViewCubeHover = _viewCubeHover,
+            ViewCubeSizePixels = Configuration.AppConfig.Current.Viewport.ViewCubeSizePixels,
             RenderScaling = scaling,
         });
 
