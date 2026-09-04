@@ -31,6 +31,15 @@ public sealed class ViewportToolbarTests
     public void ObjectSelectionIsOwnedByLayout(WorkspaceMode mode, bool expected) =>
         Assert.Equal(expected, ViewportToolbarPolicy.CanSelectObjects(mode));
 
+    [Theory]
+    [InlineData(ViewportPopupCloseTrigger.HeaderButton, true)]
+    [InlineData(ViewportPopupCloseTrigger.Escape, true)]
+    [InlineData(ViewportPopupCloseTrigger.OutsidePointer, false)]
+    [InlineData(ViewportPopupCloseTrigger.ContentAction, false)]
+    public void PopupClosePolicyKeepsToolsPinnedUntilExplicitlyClosed(
+        ViewportPopupCloseTrigger trigger, bool expected) =>
+        Assert.Equal(expected, ViewportToolbarPolicy.ShouldClosePopup(trigger));
+
     [Fact]
     public void MainViewModelObjectListTracksTheDocumentAndSelectionBothWays()
     {

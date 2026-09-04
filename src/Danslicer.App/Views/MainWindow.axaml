@@ -77,6 +77,15 @@
             <Setter Property="BorderBrush" Value="#7A858F" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
+        <Style Selector="Button.popupClose">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
@@ -355,91 +364,119 @@
                 <!-- The GL composition surface covers ViewportControl's own 2D layer. Keep this
                      toolbar here as a sibling, after both viewport surfaces, so it stays visible. -->
                 <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
-                    <Button x:Name="ObjectsToolButton" Classes="viewportTool" Content="▦" ToolTip.Tip="Objects">
-                        <Button.Flyout>
-                            <Flyout Placement="RightEdgeAlignedTop"
-                                    Closed="OnViewportFlyoutClosed">
-                                <Border Width="240" MaxHeight="520" Padding="10" Background="#F523262A">
-                                    <DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Text="Objects" Classes="section"
-                                                   Margin="0,0,0,6" />
-                                        <TextBlock DockPanel.Dock="Bottom"
-                                                   Text="Object selection is available in Layout mode."
-                                                   Classes="label" Margin="0,6,0,0"
-                                                   IsVisible="{Binding !IsObjectListSelectionEnabled}" />
-                                        <ListBox x:Name="ViewportObjectList"
-                                                 ItemsSource="{Binding Objects}"
-                                                 SelectedItem="{Binding SelectedObject}"
-                                                 IsEnabled="{Binding IsObjectListSelectionEnabled}"
-                                                 Background="Transparent"
-                                                 SelectionChanged="OnViewportObjectSelectionChanged">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Name}" FontSize="12" />
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                    </DockPanel>
-                                </Border>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
+                    <Button x:Name="ObjectsToolButton" Classes="viewportTool" Content="▦"
+                            ToolTip.Tip="Objects" Click="OnObjectsToolClick" />
+                    <Popup x:Name="ObjectsToolPopup" Placement="RightEdgeAlignedTop"
+                           PlacementTarget="{Binding #ObjectsToolButton}"
+                           IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
+                           Closed="OnViewportPopupClosed">
+                        <Border x:Name="ObjectsPopupContent" Width="240" MaxHeight="520" Padding="10"
+                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                    <TextBlock Text="Objects" Classes="section" Margin="0" />
+                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
+                                            ToolTip.Tip="Close Objects" Click="OnObjectsPopupCloseClick" />
+                                </Grid>
+                                <TextBlock DockPanel.Dock="Bottom"
+                                           Text="Object selection is available in Layout mode."
+                                           Classes="label" Margin="0,6,0,0"
+                                           IsVisible="{Binding !IsObjectListSelectionEnabled}" />
+                                <ListBox x:Name="ViewportObjectList"
+                                         ItemsSource="{Binding Objects}"
+                                         SelectedItem="{Binding SelectedObject}"
+                                         IsEnabled="{Binding IsObjectListSelectionEnabled}"
+                                         Background="Transparent">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" FontSize="12" />
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+                    </Popup>
 
                     <Button x:Name="SupportsToolButton" Classes="viewportTool" Content="Y" ToolTip.Tip="Supports"
-                            IsVisible="{Binding IsSupportView}">
-                        <Button.Flyout>
-                            <Flyout Placement="RightEdgeAlignedTop"
-                                    Closed="OnViewportFlyoutClosed">
-                                <Border Width="340" MaxHeight="700" Padding="10" Background="#F523262A">
-                                    <DockPanel>
-                                        <Button DockPanel.Dock="Top" Content="Generate Supports"
-                                                Command="{Binding GenerateSupportsScopedCommand}"
-                                                HorizontalAlignment="Stretch" Margin="0,0,0,8"
-                                                Click="OnGenerateSupportsFlyoutClick" />
-                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-                                            <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
-                                        </ScrollViewer>
-                                    </DockPanel>
-                                </Border>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
+                            IsVisible="{Binding IsSupportView}" Click="OnSupportsToolClick" />
+                    <Popup x:Name="SupportsToolPopup" Placement="RightEdgeAlignedTop"
+                           PlacementTarget="{Binding #SupportsToolButton}"
+                           IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
+                           Closed="OnViewportPopupClosed">
+                        <Border x:Name="SupportsPopupContent" Width="340" MaxHeight="700" Padding="10"
+                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                    <TextBlock Text="Supports" Classes="section" Margin="0" />
+                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
+                                            ToolTip.Tip="Close Supports" Click="OnSupportsPopupCloseClick" />
+                                </Grid>
+                                <Button DockPanel.Dock="Top" Content="Generate Supports"
+                                        Command="{Binding GenerateSupportsScopedCommand}"
+                                        HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                    <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+                    </Popup>
 
-                    <Button Classes="viewportTool" Content="◉" ToolTip.Tip="Support visibility"
-                            IsVisible="{Binding IsSupportView}">
-                        <Button.Flyout>
-                            <Flyout Placement="RightEdgeAlignedTop"
-                                    Closed="OnViewportFlyoutClosed">
-                                <Border Width="300" Padding="10" Background="#F523262A">
-                                    <StackPanel>
-                                        <TextBlock Text="Visibility" Classes="section" Margin="0,0,0,6" />
-                                        <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
-                                            <TextBlock Text="Display" Classes="label" />
-                                            <ComboBox Grid.Column="1"
-                                                      ItemsSource="{Binding SupportSettings.SupportDisplayModes}"
-                                                      SelectedIndex="{Binding SupportSettings.SupportDisplayModeIndex, Mode=TwoWay}" />
-                                        </Grid>
-                                        <WrapPanel Margin="0,2,0,4"
-                                                   IsEnabled="{Binding SupportSettings.IsSupportElementVisibilityAvailable}">
-                                            <CheckBox Content="Tips" IsChecked="{Binding SupportSettings.ShowSupportTips}" Margin="0,0,8,0" />
-                                            <CheckBox Content="Minis" IsChecked="{Binding SupportSettings.ShowMiniSupports}" Margin="0,0,8,0" />
-                                            <CheckBox Content="Branches" IsChecked="{Binding SupportSettings.ShowSupportBranches}" Margin="0,0,8,0" />
-                                            <CheckBox Content="Trunks" IsChecked="{Binding SupportSettings.ShowSupportTrunks}" Margin="0,0,8,0" />
-                                            <CheckBox Content="Bases" IsChecked="{Binding SupportSettings.ShowSupportBases}" Margin="0,0,8,0" />
-                                            <CheckBox Content="Bracing" IsChecked="{Binding SupportSettings.ShowSupportBracing}" />
-                                        </WrapPanel>
-                                        <CheckBox Content="Contact points over transparent supports"
-                                                  IsChecked="{Binding SupportSettings.ShowContactPointsInTransparent}"
-                                                  IsVisible="{Binding SupportSettings.IsTransparentSupportDisplay}" />
-                                    </StackPanel>
-                                </Border>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
+                    <Button x:Name="VisibilityToolButton" Classes="viewportTool" Content="◉"
+                            ToolTip.Tip="Support visibility" IsVisible="{Binding IsSupportView}"
+                            Click="OnVisibilityToolClick" />
+                    <Popup x:Name="VisibilityToolPopup" Placement="RightEdgeAlignedTop"
+                           PlacementTarget="{Binding #VisibilityToolButton}"
+                           IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
+                           Closed="OnViewportPopupClosed">
+                        <Border x:Name="VisibilityPopupContent" Width="300" Padding="10"
+                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                    <TextBlock Text="Visibility" Classes="section" Margin="0" />
+                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
+                                            ToolTip.Tip="Close Visibility" Click="OnVisibilityPopupCloseClick" />
+                                </Grid>
+                                <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
+                                    <TextBlock Text="Display" Classes="label" />
+                                    <ComboBox Grid.Column="1"
+                                              ItemsSource="{Binding SupportSettings.SupportDisplayModes}"
+                                              SelectedIndex="{Binding SupportSettings.SupportDisplayModeIndex, Mode=TwoWay}" />
+                                </Grid>
+                                <WrapPanel Margin="0,2,0,4"
+                                           IsEnabled="{Binding SupportSettings.IsSupportElementVisibilityAvailable}">
+                                    <CheckBox Content="Tips" IsChecked="{Binding SupportSettings.ShowSupportTips}" Margin="0,0,8,0" />
+                                    <CheckBox Content="Minis" IsChecked="{Binding SupportSettings.ShowMiniSupports}" Margin="0,0,8,0" />
+                                    <CheckBox Content="Branches" IsChecked="{Binding SupportSettings.ShowSupportBranches}" Margin="0,0,8,0" />
+                                    <CheckBox Content="Trunks" IsChecked="{Binding SupportSettings.ShowSupportTrunks}" Margin="0,0,8,0" />
+                                    <CheckBox Content="Bases" IsChecked="{Binding SupportSettings.ShowSupportBases}" Margin="0,0,8,0" />
+                                    <CheckBox Content="Bracing" IsChecked="{Binding SupportSettings.ShowSupportBracing}" />
+                                </WrapPanel>
+                                <CheckBox Content="Contact points over transparent supports"
+                                          IsChecked="{Binding SupportSettings.ShowContactPointsInTransparent}"
+                                          IsVisible="{Binding SupportSettings.IsTransparentSupportDisplay}" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
 
-                    <Button Classes="viewportTool" Content="≋" IsEnabled="False"
-                            IsVisible="{Binding IsSupportView}"
-                            ToolTip.Tip="Rafts — coming soon" />
+                    <Button x:Name="RaftsToolButton" Classes="viewportTool" Content="≋"
+                            IsVisible="{Binding IsSupportView}" ToolTip.Tip="Rafts"
+                            Click="OnRaftsToolClick" />
+                    <Popup x:Name="RaftsToolPopup" Placement="RightEdgeAlignedTop"
+                           PlacementTarget="{Binding #RaftsToolButton}"
+                           IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
+                           Closed="OnViewportPopupClosed">
+                        <Border x:Name="RaftsPopupContent" Width="240" Padding="10"
+                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                    <TextBlock Text="Rafts" Classes="section" Margin="0" />
+                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
+                                            ToolTip.Tip="Close Rafts" Click="OnRaftsPopupCloseClick" />
+                                </Grid>
+                                <TextBlock Text="Rafts are coming soon." Classes="label" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
                 </StackPanel>
             </Grid>
         </DockPanel>
