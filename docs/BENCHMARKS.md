@@ -792,3 +792,41 @@ At 1.0 mm the refusal deltas reach 339/333 on Drogon, 65/15 on gripper and 239/2
 drogon-lo (grid on/off), with no additional measured intersection benefit over 0.5 mm. All
 eighteen corrected passes are model-collision-free; every enabled 0.5 and 1.0 mm pass reports
 zero physical intersections.
+
+---
+
+## 2026-09-04 — configurable mini contact shape
+
+- Run at `4ec3ea0` with fresh seated candidates, grid on/off, fine-feature fallback on,
+  reinforcement off, and `--mini-tip-shape cone|capsule`. The low Drogon pass used
+  `--drogon "F:\Git Repos\Danslicer\test files\drogon collapse.stl"`.
+- `Cone` remains the persisted and routing default. Its six routes are bit-identical to the
+  current-main 028c2 baseline in candidates, node/segment counts, refusals by reason, bases,
+  collision status, centreline crossing counts, and physical intersection counts.
+- Capsule contacts ignore mini cone length and use the existing capsule render/slice path. Mini
+  routing already clears the full rod diameter, and the crossing/intersection audit measures the
+  full mini member, so the endpoint-profile change does not alter routing topology or these
+  conservative geometry metrics.
+
+### Results
+
+| Model | Shape | Candidates | Grid | Refusals by reason | Total | Bases | Crossings <0.5 / <1 mm | Intersections | Collision-free |
+| --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | --- |
+| drogon | cone | 1961 | on | ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165 | **994** | 140 | 217 / 565 | **523** | true |
+| drogon | capsule | 1961 | on | ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165 | **994** | 140 | 217 / 565 | **523** | true |
+| drogon | cone | 1961 | off | ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142 | **850** | 227 | 192 / 554 | **474** | true |
+| drogon | capsule | 1961 | off | ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142 | **850** | 227 | 192 / 554 | **474** | true |
+| gripper | cone | 482 | on | NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2 | **63** | 136 | 87 / 186 | **230** | true |
+| gripper | capsule | 482 | on | NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2 | **63** | 136 | 87 / 186 | **230** | true |
+| gripper | cone | 482 | off | ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3 | **60** | 145 | 100 / 210 | **237** | true |
+| gripper | capsule | 482 | off | ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3 | **60** | 145 | 100 / 210 | **237** | true |
+| drogon-lo | cone | 1492 | on | ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135 | **702** | 129 | 178 / 457 | **455** | true |
+| drogon-lo | capsule | 1492 | on | ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135 | **702** | 129 | 178 / 457 | **455** | true |
+| drogon-lo | cone | 1492 | off | ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135 | **549** | 216 | 188 / 462 | **426** | true |
+| drogon-lo | capsule | 1492 | off | ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135 | **549** | 216 | 188 / 462 | **426** | true |
+
+The capsule option is therefore a visual/printed contact-profile choice, not a routing trade-off:
+all six cone/capsule pairs have identical topology and refusal outcomes, and no new model collision
+or member-intersection signal appears. Screen verification should compare the same mini contacts
+from the same camera position, because aggregate benchmark counts intentionally cannot show the
+blunter hemispherical contact.
