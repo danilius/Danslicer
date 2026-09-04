@@ -1,5 +1,7 @@
 using System.Numerics;
+using Clipper2Lib;
 using Danslicer.Core.Geometry;
+using Danslicer.Core.Slicing;
 
 namespace Danslicer.Core.Supports.Generation;
 
@@ -16,8 +18,8 @@ public readonly record struct DetectedIsland(Vector3 Position, float AreaMm2, in
 
 /// <summary>
 /// Deterministic island analysis shared by the app and CLI. The model is freshly sliced on every
-/// call. When supports are supplied, an island is supported when an active tip contact reaches
-/// its newborn layer and falls inside the island's area-equivalent footprint.
+/// call. When supports are supplied, their analytic printable sections are sliced immediately
+/// below each newborn layer; an intersecting section marks that island as supported.
 /// </summary>
 public static class IslandDetection
 {
@@ -29,11 +31,15 @@ public static class IslandDetection
         var layers = LayerStack.Slice(worldMesh, layerHeightMm);
         var islands = IslandFinder.Find(layers, worldMesh.Bounds.Min.Z, layerHeightMm,
             minIslandAreaMm2, plateZ, overhangAngleDegrees);
-        var activeTips = supports?.Nodes.Where(node =>
-            node.Type == SupportNodeType.Tip && !node.Disabled).ToList() ?? [];
+        var supportLayers = supports is null ? null : islands
+            .Select(island => island.LayerIndex)
+            .Distinct()
+            .ToDictionary(index => index, index => SupportSliceGeometry.SectionsAt(
+                supports, Math.Max(0, (index - 0.5) * layerHeightMm)));
 
         return islands
-            .Where(island => !IsReachedBySupport(island, activeTips, layerHeightMm))
+            .Where(island => supportLayers is null ||
+                             !IsReachedBySupport(island, supportLayers[island.LayerIndex]))
             .OrderBy(island => island.LayerIndex)
             .ThenBy(island => island.Centroid.X)
             .ThenBy(island => island.Centroid.Y)
@@ -42,18 +48,23 @@ public static class IslandDetection
             .ToList();
     }
 
-    private static bool IsReachedBySupport(Island island, IReadOnlyList<SupportNode> tips,
-        float layerHeightMm)
+    private static bool IsReachedBySupport(Island island, Paths64 supportSections)
     {
         var radius = MathF.Max(0.25f, MathF.Sqrt(island.AreaMm2 / MathF.PI));
         var radiusSquared = radius * radius;
-        foreach (var tip in tips)
+        var centroid = new Point64(
+            (long)Math.Round(island.Centroid.X * MeshSlicer.UnitsPerMm),
+            (long)Math.Round(island.Centroid.Y * MeshSlicer.UnitsPerMm));
+        foreach (var section in supportSections)
         {
-            if (MathF.Abs(tip.Position.Z - island.Z) > MathF.Max(layerHeightMm * 2f, 0.1f))
-                continue;
-            var delta = new Vector2(tip.Position.X - island.Centroid.X,
-                tip.Position.Y - island.Centroid.Y);
-            if (delta.LengthSquared() <= radiusSquared) return true;
+            if (Clipper.PointInPolygon(centroid, section) != PointInPolygonResult.IsOutside)
+                return true;
+            foreach (var point in section)
+            {
+                var dx = (float)(point.X / MeshSlicer.UnitsPerMm) - island.Centroid.X;
+                var dy = (float)(point.Y / MeshSlicer.UnitsPerMm) - island.Centroid.Y;
+                if (dx * dx + dy * dy <= radiusSquared) return true;
+            }
         }
         return false;
     }

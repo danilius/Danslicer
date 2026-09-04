@@ -223,6 +223,20 @@ public sealed class SupportGeneratorTests
             Type = SupportNodeType.Tip,
             Position = island.Position,
         });
+        var tip = graph.Nodes.Single();
+        var supportBase = new SupportNode
+        {
+            Type = SupportNodeType.Base,
+            Position = new Vector3(island.X, island.Y, 0),
+        };
+        graph.AddNode(supportBase);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Tip,
+            NodeA = tip.Id,
+            NodeB = supportBase.Id,
+            Diameter = 0.8f,
+        });
 
         var supported = IslandDetection.FindUnsupported(mesh, graph, 0.5f, 0.1f, 0, 45);
 
