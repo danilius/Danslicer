@@ -36,7 +36,7 @@ public sealed record TreeRoutingOptions
     /// <summary>When true, new bases are constrained to the plate-origin square grid.</summary>
     public bool UseBaseGrid { get; init; } = true;
     /// <summary>Pitch of the plate-origin-aligned square base grid.</summary>
-    public float BaseGridPitch { get; init; } = 20f;
+    public float BaseGridPitch { get; init; } = 6f;
     /// <summary>Directions tried when a branch must swing around an obstacle or reach a trunk.</summary>
     public int BranchDirections { get; init; } = 12;
     /// <summary>Branch lengths tried per direction, as fractions of <see cref="MaxBranchLength"/>.</summary>

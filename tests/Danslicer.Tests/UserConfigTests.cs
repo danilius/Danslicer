@@ -3,6 +3,7 @@ using Danslicer.Core.Config;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Tests;
 
@@ -433,7 +434,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.False(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
         Assert.True(supports.UseBaseGrid);
-        Assert.Equal(20f, supports.BaseGridPitch);
+        Assert.Equal(6f, supports.BaseGridPitch);
+        Assert.Equal(6f, new TreeRoutingOptions().BaseGridPitch);
         Assert.Equal(SupportBaseShape.Disc, supports.BaseShape);
         Assert.Equal(4f, supports.BaseDiameter);
         Assert.Equal(0.8f, supports.BaseHeight);

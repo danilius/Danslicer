@@ -176,7 +176,7 @@ public sealed record SupportConfig
     public bool RefusedTipsFallBackToMini { get; set; }
     public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
     public bool UseBaseGrid { get; set; } = true;
-    public float BaseGridPitch { get; set; } = 20f;
+    public float BaseGridPitch { get; set; } = 6f;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public SupportBaseShape BaseShape { get; set; } = SupportBaseShape.Disc;
@@ -209,7 +209,7 @@ public sealed record SupportConfig
         MiniSupportMaxAngleDegrees = float.IsFinite(MiniSupportMaxAngleDegrees)
             ? Math.Clamp(MiniSupportMaxAngleDegrees, 1f, 89f) : 75f;
         MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
-        BaseGridPitch = Positive(BaseGridPitch, 20f);
+        BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(BaseShape)) BaseShape = SupportBaseShape.Disc;
         BaseDiameter = Positive(BaseDiameter, 4f);
         BaseHeight = NonNegative(BaseHeight);

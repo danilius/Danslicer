@@ -106,6 +106,7 @@ public class SupportGraphTests
     public void AddManualSupportBuildsAnUndoableVerticalTree()
     {
         var doc = new Danslicer.Core.Document();
+        doc.SupportSettings.BaseGridPitch = 20f;
         var mesh = new Danslicer.Core.Geometry.Mesh(
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
@@ -135,6 +136,7 @@ public class SupportGraphTests
     public void DeleteSupportSelectionRemovesElementsUndoably()
     {
         var doc = new Danslicer.Core.Document();
+        doc.SupportSettings.BaseGridPitch = 20f;
         var mesh = new Danslicer.Core.Geometry.Mesh(
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
@@ -187,6 +189,7 @@ public class SupportGraphTests
     public void SelectSupportComponentTakesTheWholeTreeWithoutBracing()
     {
         var doc = new Danslicer.Core.Document();
+        doc.SupportSettings.BaseGridPitch = 20f;
         var mesh = new Danslicer.Core.Geometry.Mesh(
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
@@ -219,6 +222,7 @@ public class SupportGraphTests
     public void MoveTipVerticalRedropsTheSimpleTree()
     {
         var doc = new Danslicer.Core.Document();
+        doc.SupportSettings.BaseGridPitch = 20f;
         var mesh = new Danslicer.Core.Geometry.Mesh(
             new[] { Vector3.Zero, Vector3.UnitX, Vector3.UnitY }, new[] { 0, 1, 2 });
         var obj = new Danslicer.Core.Scene.SceneObject("part", mesh);
