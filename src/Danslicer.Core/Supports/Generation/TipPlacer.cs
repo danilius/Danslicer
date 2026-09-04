@@ -467,8 +467,12 @@ public static class TipPlacer
         TipPlacementParameters parameters,
         float? fineFeatureAreaMm2 = null) =>
         new(point, inward, diameter, score, strategy, face,
-            strategy == TipStrategy.MiniIsland ? SupportTipShape.Cone : parameters.TipShape,
-            strategy == TipStrategy.MiniIsland ? parameters.MiniSupportConeLengthMm : parameters.ConeLengthMm,
+            strategy == TipStrategy.MiniIsland ? parameters.MiniTipShape : parameters.TipShape,
+            strategy == TipStrategy.MiniIsland
+                ? parameters.MiniTipShape == SupportTipShape.Cone
+                    ? parameters.MiniSupportConeLengthMm
+                    : 0f
+                : parameters.ConeLengthMm,
             strategy == TipStrategy.MiniIsland ? 0f : parameters.BallDiameterMm,
             Math.Max(parameters.PenetrationDepthMm, 0f),
             FineFeatureAreaMm2: fineFeatureAreaMm2,

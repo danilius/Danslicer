@@ -28,6 +28,9 @@ public sealed record TreeRoutingOptions
     public bool IgnoreExistingSupports { get; init; }
     public float MiniSupportDiameter { get; init; } = 0.6f;
     public float MiniSupportTipDiameter { get; init; } = 0.25f;
+    /// <summary>Contact geometry for mini-support rods. Cone preserves existing output.</summary>
+    public SupportTipShape MiniTipShape { get; init; } = SupportTipShape.Cone;
+    /// <summary>Mini cone length in millimetres. Unused when <see cref="MiniTipShape"/> is Capsule.</summary>
     public float MiniSupportConeLength { get; init; } = 1f;
     public float MiniSupportMaxLength { get; init; } = 5f;
     /// <summary>Maximum mini-support lean from vertical.</summary>
@@ -100,7 +103,10 @@ public sealed class TreeSupportRouter
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.ExistingTrunkBranchRange);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportDiameter);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportTipDiameter);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportConeLength);
+        if (!Enum.IsDefined(options.MiniTipShape))
+            throw new ArgumentOutOfRangeException(nameof(options.MiniTipShape));
+        if (options.MiniTipShape == SupportTipShape.Cone)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportConeLength);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportMaxLength);
         if (!float.IsFinite(options.MiniSupportMaxAngleDegrees) ||
             options.MiniSupportMaxAngleDegrees <= 0 || options.MiniSupportMaxAngleDegrees >= 90)
@@ -293,8 +299,10 @@ public sealed class TreeSupportRouter
             RoutingUtilities.ApplyContact(miniTip, tip with
             {
                 TipDiameter = options.MiniSupportTipDiameter,
-                TipShape = SupportTipShape.Cone,
-                ConeLength = options.MiniSupportConeLength,
+                TipShape = options.MiniTipShape,
+                ConeLength = options.MiniTipShape == SupportTipShape.Cone
+                    ? options.MiniSupportConeLength
+                    : 0f,
                 BallDiameter = 0f,
             });
             ClampLeadInToClearPath(miniTip, branchEnd.Position);
@@ -367,7 +375,12 @@ public sealed class TreeSupportRouter
         }
         if (maximumDrop < minimumDrop) yield break;
 
-        var preferred = Math.Clamp(options.MiniSupportConeLength, minimumDrop, maximumDrop);
+        // Capsule geometry has no cone length. Keep its routing independent of that ignored
+        // setting while preserving the historical one-millimetre default carrier drop.
+        var preferredDrop = options.MiniTipShape == SupportTipShape.Cone
+            ? options.MiniSupportConeLength
+            : 1f;
+        var preferred = Math.Clamp(preferredDrop, minimumDrop, maximumDrop);
         foreach (var drop in new[]
                  {
                      preferred,

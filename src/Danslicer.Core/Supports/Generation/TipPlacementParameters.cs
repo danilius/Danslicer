@@ -41,6 +41,9 @@ public sealed record TipPlacementParameters
     /// </summary>
     public float MiniIslandMaxAreaMm2 { get; init; } = 0.1f;
     public float MiniSupportTipDiameterMm { get; init; } = 0.25f;
+    /// <summary>Contact geometry for mini-support rods. Cone preserves existing output.</summary>
+    public SupportTipShape MiniTipShape { get; init; } = SupportTipShape.Cone;
+    /// <summary>Mini cone length in millimetres. Unused when <see cref="MiniTipShape"/> is Capsule.</summary>
     public float MiniSupportConeLengthMm { get; init; } = 1f;
     /// <summary>Enables density-based conversion of crowded regular contacts.</summary>
     public bool EnableMiniTipClusters { get; init; }

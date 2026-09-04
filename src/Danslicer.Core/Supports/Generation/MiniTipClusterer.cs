@@ -82,8 +82,10 @@ internal static class MiniTipClusterer
                     {
                         Strategy = TipStrategy.MiniCluster,
                         TipDiameter = parameters.MiniSupportTipDiameterMm,
-                        TipShape = SupportTipShape.Cone,
-                        ConeLength = parameters.MiniSupportConeLengthMm,
+                        TipShape = parameters.MiniTipShape,
+                        ConeLength = parameters.MiniTipShape == SupportTipShape.Cone
+                            ? parameters.MiniSupportConeLengthMm
+                            : 0f,
                         BallDiameter = 0f,
                         PenetrationDepth = 0f,
                         MiniClusterId = nextClusterId,

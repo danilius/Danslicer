@@ -1,5 +1,6 @@
 using System.Numerics;
 using Danslicer.Core.Geometry;
+using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
 using Xunit;
 
@@ -26,6 +27,44 @@ public class SupportRenderMeshTests
         var part = Assert.Single(SupportRenderMesh.Build(graph));
         Assert.Equal(SupportRenderKind.MiniSupport, part.Kind);
         Assert.Equal(0.3f, part.Mesh.Bounds.Max.X, 3);
+    }
+
+    [Theory]
+    [InlineData(8.001)]
+    [InlineData(9.0)]
+    [InlineData(9.999)]
+    [InlineData(10.15)]
+    public void CapsuleMiniRenderAndAnalyticSlicesAgree(double z)
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = new Vector3(0, 0, 10),
+            TipShape = SupportTipShape.Capsule,
+            TipDiameter = 0.25f,
+            ConeLength = 0f,
+        };
+        var end = new SupportNode
+            { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 8) };
+        graph.AddNode(tip);
+        graph.AddNode(end);
+        graph.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.MiniSupport,
+            NodeA = tip.Id,
+            NodeB = end.Id,
+            Diameter = 0.6f,
+        });
+
+        var renderMesh = Assert.Single(SupportRenderMesh.Build(graph)).Mesh;
+        var rendered = MeshSlicer.PolygonsAt(
+            new MeshSlicer.PreparedMesh(renderMesh, Matrix4x4.Identity), z);
+        var analytic = MeshSlicer.Finish(SupportSliceGeometry.SectionsAt(graph, z), 0);
+        var renderedArea = MeshSlicer.AreaMm2(rendered);
+        var analyticArea = MeshSlicer.AreaMm2(analytic);
+
+        Assert.InRange(renderedArea, analyticArea * 0.90, analyticArea * 1.01);
     }
 
     private static SupportGraph VerticalPillar(out SupportSegment segment, float diameter = 1.2f)

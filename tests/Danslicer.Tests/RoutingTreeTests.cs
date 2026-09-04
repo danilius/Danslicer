@@ -220,6 +220,58 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void CapsuleMiniShapeReachesRouterCreatedContactsWithoutUsingConeLength()
+    {
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 1, 11), Vector3.UnitZ, 0.25f,
+                MiniSupportOnly: true),
+        };
+        var result = Route(tips, new TreeRoutingOptions
+        {
+            UseBaseGrid = false,
+            MiniTipShape = SupportTipShape.Capsule,
+            MiniSupportConeLength = 0f,
+        });
+
+        var miniSegment = Assert.Single(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+        var contact = result.Graph.GetNode(miniSegment.NodeA).Type == SupportNodeType.Tip
+            ? result.Graph.GetNode(miniSegment.NodeA)
+            : result.Graph.GetNode(miniSegment.NodeB);
+        Assert.Equal(SupportTipShape.Capsule, contact.TipShape);
+        Assert.Equal(0f, contact.ConeLength);
+    }
+
+    [Fact]
+    public void DefaultMiniShapeRoutesBitIdenticallyToExplicitCone()
+    {
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 0, 12), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 1, 11), Vector3.UnitZ, 0.25f,
+                MiniSupportOnly: true),
+        };
+        var options = new TreeRoutingOptions { UseBaseGrid = false, Seed = 29 };
+
+        var baseline = Route(tips, options);
+        var explicitCone = Route(tips, options with { MiniTipShape = SupportTipShape.Cone });
+
+        Assert.Equal(baseline.Graph.Nodes.Select(node =>
+                (node.Id, node.Type, node.Position, node.TipShape, node.ConeLength)),
+            explicitCone.Graph.Nodes.Select(node =>
+                (node.Id, node.Type, node.Position, node.TipShape, node.ConeLength)));
+        Assert.Equal(baseline.Graph.Segments.Select(segment =>
+                (segment.Id, segment.Type, segment.NodeA, segment.NodeB, segment.Diameter)),
+            explicitCone.Graph.Segments.Select(segment =>
+                (segment.Id, segment.Type, segment.NodeA, segment.NodeB, segment.Diameter)));
+        Assert.Equal(baseline.Failures, explicitCone.Failures);
+    }
+
+    [Fact]
     public void MiniClusterBuildsItsOwnCarrierAndEveryRodAscends()
     {
         var center = new Vector3(0, 0, 10);

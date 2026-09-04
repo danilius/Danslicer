@@ -166,6 +166,73 @@ public class TipPlacementTests
     }
 
     [Fact]
+    public void CapsuleMiniShapeReachesAllThreeIndependentPlacementPaths()
+    {
+        var parameters = P(minIsland: 0.1f) with
+        {
+            EnableMiniSupports = true,
+            EnableMiniTipClusters = true,
+            MiniTipShape = SupportTipShape.Capsule,
+            MiniSupportConeLengthMm = 0f,
+            FineFeatureMaxAreaMm2 = 1f,
+        };
+
+        var miniIsland = Assert.Single(Place(
+            Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5)), parameters),
+            candidate => candidate.Strategy == TipStrategy.MiniIsland);
+        var clustered = MiniTipClusterer.Apply(
+        [
+            new TipCandidate(new Vector3(0, 0, 10), Vector3.UnitZ, 0.4f, 1,
+                TipStrategy.Island, 0),
+            new TipCandidate(new Vector3(0.2f, 0, 10), Vector3.UnitZ, 0.4f, 1,
+                TipStrategy.Island, 1),
+            new TipCandidate(new Vector3(0.4f, 0, 10), Vector3.UnitZ, 0.4f, 1,
+                TipStrategy.Island, 2),
+        ], parameters);
+        var fineFeature = Assert.Single(FineFeatureMiniClassifier.Apply(
+        [
+            new TipCandidate(Vector3.Zero, Vector3.UnitZ, 0.4f, 1,
+                TipStrategy.Island, 0, FineFeatureAreaMm2: 0.5f),
+        ], parameters));
+
+        Assert.Equal(SupportTipShape.Capsule, miniIsland.TipShape);
+        Assert.All(clustered, candidate => Assert.Equal(SupportTipShape.Capsule,
+            candidate.TipShape));
+        Assert.Equal(SupportTipShape.Capsule, fineFeature.TipShape);
+        Assert.Equal(0f, miniIsland.ConeLength);
+        Assert.All(clustered, candidate => Assert.Equal(0f, candidate.ConeLength));
+        Assert.Equal(0f, fineFeature.ConeLength);
+    }
+
+    [Fact]
+    public void DefaultMiniShapeIsBitIdenticalToExplicitConeAcrossPlacementPaths()
+    {
+        var parameters = P(minIsland: 0.1f) with
+        {
+            EnableMiniSupports = true,
+            EnableMiniTipClusters = true,
+            FineFeatureMaxAreaMm2 = 1f,
+        };
+        var mesh = Meshes.DownwardSpike();
+
+        Assert.Equal(Place(mesh, parameters, seed: 19),
+            Place(mesh, parameters with { MiniTipShape = SupportTipShape.Cone }, seed: 19));
+
+        var fineCandidate = new TipCandidate(Vector3.Zero, Vector3.UnitZ, 0.4f, 1,
+            TipStrategy.Island, 0, FineFeatureAreaMm2: 0.5f);
+        Assert.Equal(FineFeatureMiniClassifier.Apply([fineCandidate], parameters),
+            FineFeatureMiniClassifier.Apply([fineCandidate], parameters with
+                { MiniTipShape = SupportTipShape.Cone }));
+
+        var clusteredCandidates = Enumerable.Range(0, 3).Select(index => new TipCandidate(
+            new Vector3(index * 0.2f, 0, 10), Vector3.UnitZ, 0.4f, 1,
+            TipStrategy.Island, index)).ToList();
+        Assert.Equal(MiniTipClusterer.Apply(clusteredCandidates, parameters),
+            MiniTipClusterer.Apply(clusteredCandidates, parameters with
+                { MiniTipShape = SupportTipShape.Cone }));
+    }
+
+    [Fact]
     public void MiniIslandMaximumAreaIsIndependentFromRegularIslandThreshold()
     {
         var mesh = Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5));
