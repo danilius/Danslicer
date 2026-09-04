@@ -1,5 +1,24 @@
 # Danslicer handover
 
+## MORNING SUMMARY 2026-09-04 (~03:30) — READ FIRST
+
+**The entire overnight queue is DONE. main `dd93834`, 478 green tests, pushed, app
+smoke-tested on screen.** All 18 ChatGPT jobs merged (refusal reasons, mini
+classification+band fix, optional grid+A/B, mode-scoped UI, branch shaping, display
+modes, manual attach, flush junctions, bench runner, slice integration, project
+save/open `.danslicer`, support presets, preset editor with live 3D preview [GL PROBE
+PASS on screen], keymap editor, tips perf −32.7%, printer definitions+editor, resin
+presets+split, layer clipping, hover waterline). Claude lane merged milestone 4
+deferred rendering flag-gated (default Classic; smoke test confirms the DEFERRED path
+renders live on this machine — no fallback triggered). One incident: the
+viewport/017 semantic merge initially shipped a non-compiling main (stale-binary
+green tests masked it); caught in the smoke test, fixed and verified with exit-code
+checks (`dd93834`). Qwen: 7 merged test files. ChatGPT queue EMPTY — refill from the
+user's morning verdicts. USER DECISIONS pending: grid on/off + 20mm pitch (A/B in
+BENCHMARKS.md), screen tests of everything above (checklists in the result files and
+CLAUDE-LANE.md), deferred-path adoption, `.danslicer` extension, preset split tables,
+island-search tweaks (still user-pending), the mirror-X test print.
+
 Written 2026-09-03 for a fresh conversation and updated through the day; the FIRST section
 supersedes all older state notes below. Read this, then `docs/DESIGN.md` for the full
 design, then `docs/SUPPORT-GEOMETRY-SPEC.md` for the user's dictated support spec (updated
