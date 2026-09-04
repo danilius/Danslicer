@@ -31,13 +31,16 @@ internal static class BenchCommand
             {
                 GeneratedAtUtc = DateTimeOffset.UtcNow,
                 FineFeatureMaxAreaMm2 = options.FineFeatureMaxAreaMm2,
+                FineFeatureFallback = options.FineFeatureFallback,
                 IslandFirst = options.IslandFirst,
                 Models =
                 [
                     RunModel("drogon", options.DrogonPath, options.Reinforce,
-                        options.FineFeatureMaxAreaMm2, options.IslandFirst),
+                        options.FineFeatureMaxAreaMm2, options.IslandFirst,
+                        options.FineFeatureFallback),
                     RunModel("gripper", options.GripperPath, options.Reinforce,
-                        options.FineFeatureMaxAreaMm2, options.IslandFirst),
+                        options.FineFeatureMaxAreaMm2, options.IslandFirst,
+                        options.FineFeatureFallback),
                 ],
             };
             report.Markdown = BuildMarkdown(report);
@@ -108,6 +111,7 @@ internal static class BenchCommand
                     "NoBranchEndInRange", "NoLanding", "BelowPlate");
                 text.AppendLine($"| {Escape(model.Key)} | `route` | " +
                     $"`--seat --strategy tree --base-grid {route.BaseGrid} " +
+                    $"--fine-feature-fallback {(report.FineFeatureFallback ? "on" : "off")} " +
                     $"--reinforce {(route.Reinforce ? "on" : "off")} --json` | " +
                     $"{route.WallSeconds:0.000} | {route.ExitCode} | nodes {route.Nodes}, " +
                     $"segs {route.Segments}{Parenthesize(segments)}, **unrouted " +
@@ -122,7 +126,7 @@ internal static class BenchCommand
     }
 
     private static ModelBenchmark RunModel(string key, string path, bool reinforce,
-        float? fineFeatureMaxAreaMm2, bool islandFirst)
+        float? fineFeatureMaxAreaMm2, bool islandFirst, bool fineFeatureFallback)
     {
         if (!File.Exists(path)) throw new IOException($"model not found: {path}");
 
@@ -147,7 +151,9 @@ internal static class BenchCommand
                 var routeArgs = new List<string>
                 {
                     path, "--tips", tipsPath, "--seat", "--strategy", "tree",
-                    "--base-grid", mode, "--reinforce", reinforce ? "on" : "off", "--json",
+                    "--base-grid", mode, "--fine-feature-fallback",
+                    fineFeatureFallback ? "on" : "off",
+                    "--reinforce", reinforce ? "on" : "off", "--json",
                 };
                 if (!islandFirst) routeArgs.AddRange(["--island-first", "off"]);
                 var routeRun = Capture(() => RouteCommand.Run([.. routeArgs]));
@@ -252,6 +258,7 @@ internal static class BenchCommand
         var reinforce = false;
         float? fineFeatureMaxAreaMm2 = null;
         var islandFirst = true;
+        var fineFeatureFallback = true;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -264,11 +271,14 @@ internal static class BenchCommand
                     fineFeatureMaxAreaMm2 = float.Parse(args[++i], CultureInfo.InvariantCulture);
                     break;
                 case "--island-first": islandFirst = ParseToggle(args[++i], "island-first"); break;
+                case "--fine-feature-fallback":
+                    fineFeatureFallback = ParseToggle(args[++i], "fine-feature-fallback");
+                    break;
                 default: throw new ArgumentException($"unknown option '{args[i]}'");
             }
         }
         return new BenchOptions(drogon, gripper, output, reinforce, fineFeatureMaxAreaMm2,
-            islandFirst);
+            islandFirst, fineFeatureFallback);
     }
 
     private static bool ParseToggle(string value, string name) => value.ToLowerInvariant() switch
@@ -301,10 +311,11 @@ internal static class BenchCommand
     private static string F1(float value) => value.ToString("0.0", CultureInfo.InvariantCulture);
 
     private static void Usage() => Console.Error.WriteLine(
-        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--island-first on|off] [--output <summary.json>]");
+        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--island-first on|off] [--fine-feature-fallback on|off] [--output <summary.json>]");
 
     private sealed record BenchOptions(string DrogonPath, string GripperPath, string? OutputPath,
-        bool Reinforce, float? FineFeatureMaxAreaMm2, bool IslandFirst);
+        bool Reinforce, float? FineFeatureMaxAreaMm2, bool IslandFirst,
+        bool FineFeatureFallback);
     private sealed record CapturedRun(int ExitCode, double WallSeconds, string Stdout, string Stderr);
 }
 
@@ -312,6 +323,7 @@ internal sealed class BenchmarkReport
 {
     public DateTimeOffset GeneratedAtUtc { get; init; }
     public float? FineFeatureMaxAreaMm2 { get; init; }
+    public bool FineFeatureFallback { get; init; } = true;
     public bool IslandFirst { get; init; } = true;
     public required List<ModelBenchmark> Models { get; init; }
     public string Markdown { get; set; } = string.Empty;

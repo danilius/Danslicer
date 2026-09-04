@@ -177,6 +177,10 @@ internal static class TipsCommand
                     MiniClusterSourceStrategy = t.MiniClusterSourceStrategy?.ToString(),
                     FineFeatureAreaMm2 = t.FineFeatureAreaMm2,
                     IsFineFeatureMini = t.IsFineFeatureMini,
+                    FallbackTipDiameter = t.FallbackTipDiameter,
+                    FallbackTipShape = t.FallbackTipShape?.ToString(),
+                    FallbackConeLength = t.FallbackConeLength,
+                    FallbackBallDiameter = t.FallbackBallDiameter,
                 }).ToList(),
             };
             var opts = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -283,6 +287,14 @@ internal static class TipsCommand
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public float? FineFeatureAreaMm2 { get; init; }
         public bool IsFineFeatureMini { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float? FallbackTipDiameter { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? FallbackTipShape { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float? FallbackConeLength { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float? FallbackBallDiameter { get; init; }
     }
 
     private sealed class SpacingDto
