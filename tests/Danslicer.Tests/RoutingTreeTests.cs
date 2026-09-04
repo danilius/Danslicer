@@ -692,6 +692,39 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void ObstructedNormalLeadInShortensWithoutChangingTheRoute()
+    {
+        var contact = new Vector3(0, 0, 10);
+        var result = Route(new[]
+        {
+            new RoutingTip(contact, -Vector3.UnitZ, 0.4f,
+                TipShape: SupportTipShape.Cone, ConeLength: 1f, TipNormalLeadIn: 0.3f),
+        }, new TreeRoutingOptions { UseBaseGrid = false }, new LeadInOnlyBlockScene());
+
+        Assert.Empty(result.Failures);
+        var tipNode = Assert.Single(result.Graph.Nodes, node => node.Type == SupportNodeType.Tip);
+        Assert.Equal(0.15f, tipNode.TipNormalLeadIn, 5);
+    }
+
+    /// <summary>
+    /// The legacy route check stops below z=9.5 and passes. The post-route bend check sees only
+    /// lead-ins which rise above that plane, forcing deterministic shortening without changing
+    /// the selected trunk.
+    /// </summary>
+    private sealed class LeadInOnlyBlockScene : ICollisionScene
+    {
+        public bool IntersectsCapsule(Vector3 start, Vector3 end, float radius,
+            Func<object?, bool>? obstacleFilter = null) =>
+            radius < 0.3f && MathF.Max(start.Z, end.Z) > 9.5f;
+
+        public ObstacleNearestPoint? NearestObstacle(Vector3 point,
+            Func<object?, bool>? obstacleFilter = null) => null;
+
+        public ObstacleRayHit? Raycast(Vector3 origin, Vector3 direction, float maxDistance,
+            Func<object?, bool>? obstacleFilter = null) => null;
+    }
+
+    [Fact]
     public void BaseShapeNoneEmitsBareBases()
     {
         var result = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },

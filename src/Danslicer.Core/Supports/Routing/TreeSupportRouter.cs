@@ -280,6 +280,7 @@ public sealed class TreeSupportRouter
                 ConeLength = options.MiniSupportConeLength,
                 BallDiameter = 0f,
             });
+            ClampLeadInToClearPath(miniTip, branchEnd.Position);
             state.Graph.AddNode(miniTip);
             state.AddSegment(SupportSegmentType.MiniSupport, branchEnd, miniTip,
                 options.MiniSupportDiameter, options.Origin);
@@ -955,12 +956,60 @@ public sealed class TreeSupportRouter
     {
         var contact = state.NewNode(SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
         RoutingUtilities.ApplyContact(contact, tip);
+        ClampLeadInToClearPath(contact, j1);
         state.Graph.AddNode(contact);
         var junction = state.NewNode(SupportNodeType.Junction, j1, options.Origin);
         state.Graph.AddNode(junction);
         state.AddSegment(SupportSegmentType.Tip, contact, junction,
             tipMemberDiameter, options.Origin);
         return (contact, junction);
+    }
+
+    /// <summary>
+    /// The contact-normal bend is derived geometry and must not turn an otherwise clear route
+    /// into a model collision. Keep route selection bit-identical and shorten only the stored
+    /// lead-in, deterministically, when the requested bend is obstructed.
+    /// </summary>
+    private void ClampLeadInToClearPath(SupportNode tip, Vector3 junction)
+    {
+        var requested = tip.TipNormalLeadIn;
+        if (requested <= 0) return;
+        var radius = MathF.Max(0.025f, tip.TipDiameter * 0.5f);
+        var contactAllowance = (radius + 0.25f) * 2 + 0.01f;
+        foreach (var factor in new[] { 1f, 0.75f, 0.5f, 0.25f, 0f })
+        {
+            var candidate = requested * factor;
+            if (TipPathIntersectsModel(tip, junction, candidate, radius, contactAllowance))
+                continue;
+            tip.TipNormalLeadIn = candidate;
+            return;
+        }
+        tip.TipNormalLeadIn = 0;
+    }
+
+    private bool TipPathIntersectsModel(SupportNode tip, Vector3 junction, float leadIn,
+        float radius, float contactAllowance)
+    {
+        var points = TipBodyGeometry.Centerline(tip.Position, tip.SurfaceNormal, junction, leadIn);
+        var remainingTrim = contactAllowance;
+        for (var i = 1; i < points.Count; i++)
+        {
+            var start = points[i - 1];
+            var end = points[i];
+            var length = Vector3.Distance(start, end);
+            if (remainingTrim >= length)
+            {
+                remainingTrim -= length;
+                continue;
+            }
+            if (remainingTrim > 0)
+            {
+                start = Vector3.Lerp(start, end, remainingTrim / length);
+                remainingTrim = 0;
+            }
+            if (_obstacles.IntersectsCapsule(start, end, radius)) return true;
+        }
+        return false;
     }
 
     private void EmitSupport(RoutingTip tip, Vector3 trunkTop, Vector3? branchFrom, bool tipOnly,
