@@ -48,6 +48,12 @@ public sealed class RenderFrame
     public ViewportClipRange ClipRange { get; init; }
     /// <summary>Hovered model-surface world Z, or null when the Support waterline is inactive.</summary>
     public float? WaterlineZ { get; init; }
+    /// <summary>Corner view cube (design 6.2); drawn over the finished frame on both paths.</summary>
+    public bool ShowViewCube { get; init; } = true;
+    /// <summary>Hovered view-cube region from <see cref="ViewCube.HitRegion"/>, or -1.</summary>
+    public int ViewCubeHover { get; init; } = -1;
+    /// <summary>Host DPI scale, so fixed-pixel overlays keep their physical size.</summary>
+    public double RenderScaling { get; init; } = 1.0;
 }
 
 /// <summary>
@@ -93,8 +99,17 @@ public sealed partial class SceneRenderer : IDisposable
         // The deferred path lives in SceneRenderer.Deferred.cs and is opt-in per frame; any GL
         // failure there logs, latches off and falls back so a frame is always produced.
         _pickTargetsValid = false; // only a completed deferred frame re-arms ID picking
-        if (frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame)) return;
-        RenderClassic(frame);
+        var deferredDrawn = frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame);
+        if (!deferredDrawn) RenderClassic(frame);
+
+        if (frame.ShowViewCube)
+        {
+            // Last over the finished frame, whichever path drew it.
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)frame.Framebuffer);
+            _viewCube ??= new ViewCube(_gl, IsGles);
+            _viewCube.Draw(frame.Width, frame.Height, frame.RenderScaling, frame.Camera.View,
+                frame.ViewCubeHover);
+        }
     }
 
     private void RenderClassic(RenderFrame frame)
@@ -360,6 +375,7 @@ public sealed partial class SceneRenderer : IDisposable
 
     public void Dispose()
     {
+        _viewCube?.Dispose();
         _deferred?.Dispose();
         foreach (var gpu in _meshes.Values) gpu.Dispose();
         _meshes.Clear();
