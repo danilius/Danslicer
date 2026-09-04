@@ -41,6 +41,43 @@ public sealed class ViewportToolbarTests
         Assert.Equal(expected, ViewportToolbarPolicy.ShouldClosePopup(trigger));
 
     [Fact]
+    public void SupportPopupOpenStateSurvivesModeRoundTrip()
+    {
+        var popup = new ViewportPopupState(ViewportTool.Supports);
+
+        popup.Toggle();
+
+        Assert.True(popup.IsVisible(WorkspaceMode.Support));
+        Assert.False(popup.IsVisible(WorkspaceMode.Layout));
+        Assert.True(popup.IsOpen);
+        Assert.True(popup.IsVisible(WorkspaceMode.Support));
+    }
+
+    [Fact]
+    public void ClosedPopupStaysClosedAcrossModeRoundTrip()
+    {
+        var popup = new ViewportPopupState(ViewportTool.Supports);
+        popup.Toggle();
+        popup.Close(ViewportPopupCloseTrigger.HeaderButton);
+
+        Assert.False(popup.IsVisible(WorkspaceMode.Layout));
+        Assert.False(popup.IsVisible(WorkspaceMode.Support));
+        Assert.False(popup.IsOpen);
+    }
+
+    [Theory]
+    [InlineData(WorkspaceMode.Layout)]
+    [InlineData(WorkspaceMode.Support)]
+    [InlineData(WorkspaceMode.Slicing)]
+    public void AllModePopupRemainsVisibleWhenOpen(WorkspaceMode mode)
+    {
+        var popup = new ViewportPopupState(ViewportTool.Objects);
+        popup.Toggle();
+
+        Assert.True(popup.IsVisible(mode));
+    }
+
+    [Fact]
     public void MainViewModelObjectListTracksTheDocumentAndSelectionBothWays()
     {
         var viewModel = new MainViewModel();

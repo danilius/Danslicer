@@ -70,6 +70,10 @@ public partial class MainWindow : Window
     private readonly List<KeyBinding> _windowKeyBindings = [];
     private MainViewModel? _panelLayoutViewModel;
     private GridLength _expandedRightPanelWidth = new(320);
+    private readonly ViewportPopupState _objectsPopupState = new(ViewportTool.Objects);
+    private readonly ViewportPopupState _supportsPopupState = new(ViewportTool.Supports);
+    private readonly ViewportPopupState _visibilityPopupState = new(ViewportTool.Visibility);
+    private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
 
     private void OnMainDataContextChanged(object? sender, EventArgs e) =>
         AttachPanelLayoutViewModel();
@@ -82,11 +86,14 @@ public partial class MainWindow : Window
         if (_panelLayoutViewModel is not null)
             _panelLayoutViewModel.PropertyChanged += OnPanelLayoutPropertyChanged;
         ApplyRightPanelMode();
+        ApplyViewportPopupMode();
     }
 
     private void OnPanelLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.ViewMode)) ApplyRightPanelMode();
+        if (e.PropertyName != nameof(MainViewModel.ViewMode)) return;
+        ApplyRightPanelMode();
+        ApplyViewportPopupMode();
     }
 
     private void ApplyRightPanelMode()
@@ -124,16 +131,16 @@ public partial class MainWindow : Window
     }
 
     private void OnObjectsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(ObjectsToolPopup);
+        ToggleViewportPopup(_objectsPopupState, ObjectsToolPopup);
 
     private void OnSupportsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(SupportsToolPopup);
+        ToggleViewportPopup(_supportsPopupState, SupportsToolPopup);
 
     private void OnVisibilityToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(VisibilityToolPopup);
+        ToggleViewportPopup(_visibilityPopupState, VisibilityToolPopup);
 
     private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(RaftsToolPopup);
+        ToggleViewportPopup(_raftsPopupState, RaftsToolPopup);
 
     private void OnViewSettingsClick(object? sender, RoutedEventArgs e)
     {
@@ -145,6 +152,23 @@ public partial class MainWindow : Window
         CloseViewportPopup(ViewSettingsPopup, ViewportPopupCloseTrigger.HeaderButton);
 
     private static void ToggleViewportPopup(Popup popup) => popup.IsOpen = !popup.IsOpen;
+
+    private void ToggleViewportPopup(ViewportPopupState state, Popup popup)
+    {
+        state.Toggle();
+        ApplyViewportPopupState(state, popup);
+    }
+
+    private void ApplyViewportPopupMode()
+    {
+        ApplyViewportPopupState(_objectsPopupState, ObjectsToolPopup);
+        ApplyViewportPopupState(_supportsPopupState, SupportsToolPopup);
+        ApplyViewportPopupState(_visibilityPopupState, VisibilityToolPopup);
+        ApplyViewportPopupState(_raftsPopupState, RaftsToolPopup);
+    }
+
+    private void ApplyViewportPopupState(ViewportPopupState state, Popup popup) =>
+        popup.IsOpen = state.IsVisible(ViewModel?.ViewMode ?? WorkspaceMode.Layout);
 
     private void OnViewportPopupOpened(object? sender, EventArgs e)
     {
@@ -180,19 +204,39 @@ public partial class MainWindow : Window
     }
 
     private void OnObjectsPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(ObjectsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+        CloseViewportPopup(_objectsPopupState, ObjectsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
     private void OnSupportsPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(SupportsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+        CloseViewportPopup(_supportsPopupState, SupportsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
     private void OnVisibilityPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(VisibilityToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+        CloseViewportPopup(_visibilityPopupState, VisibilityToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
     private void OnRaftsPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(RaftsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+        CloseViewportPopup(_raftsPopupState, RaftsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
-    private static void CloseViewportPopup(Popup popup, ViewportPopupCloseTrigger trigger)
+    private void CloseViewportPopup(
+        ViewportPopupState state, Popup popup, ViewportPopupCloseTrigger trigger)
     {
+        state.Close(trigger);
+        ApplyViewportPopupState(state, popup);
+    }
+
+    private void CloseViewportPopup(Popup popup, ViewportPopupCloseTrigger trigger)
+    {
+        var state = popup switch
+        {
+            _ when ReferenceEquals(popup, ObjectsToolPopup) => _objectsPopupState,
+            _ when ReferenceEquals(popup, SupportsToolPopup) => _supportsPopupState,
+            _ when ReferenceEquals(popup, VisibilityToolPopup) => _visibilityPopupState,
+            _ when ReferenceEquals(popup, RaftsToolPopup) => _raftsPopupState,
+            _ => null,
+        };
+        if (state is not null)
+        {
+            CloseViewportPopup(state, popup, trigger);
+            return;
+        }
         if (ViewportToolbarPolicy.ShouldClosePopup(trigger)) popup.IsOpen = false;
     }
 

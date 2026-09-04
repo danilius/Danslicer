@@ -371,6 +371,7 @@
                      toolbar here as a sibling, after both viewport surfaces, so it stays visible. -->
                 <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
                     <Button x:Name="ObjectsToolButton" Classes="viewportTool" Content="▦"
+                            IsVisible="{Binding IsObjectsToolVisible}"
                             ToolTip.Tip="Objects" Click="OnObjectsToolClick" />
                     <Popup x:Name="ObjectsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #ObjectsToolButton}"
@@ -404,7 +405,7 @@
                     </Popup>
 
                     <Button x:Name="SupportsToolButton" Classes="viewportTool" Content="Y" ToolTip.Tip="Supports"
-                            IsVisible="{Binding IsSupportView}" Click="OnSupportsToolClick" />
+                            IsVisible="{Binding IsSupportsToolVisible}" Click="OnSupportsToolClick" />
                     <Popup x:Name="SupportsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #SupportsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
@@ -428,7 +429,7 @@
                     </Popup>
 
                     <Button x:Name="VisibilityToolButton" Classes="viewportTool" Content="◉"
-                            ToolTip.Tip="Support visibility" IsVisible="{Binding IsSupportView}"
+                            ToolTip.Tip="Support visibility" IsVisible="{Binding IsVisibilityToolVisible}"
                             Click="OnVisibilityToolClick" />
                     <Popup x:Name="VisibilityToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #VisibilityToolButton}"
@@ -465,7 +466,7 @@
                     </Popup>
 
                     <Button x:Name="RaftsToolButton" Classes="viewportTool" Content="≋"
-                            IsVisible="{Binding IsSupportView}" ToolTip.Tip="Rafts"
+                            IsVisible="{Binding IsRaftsToolVisible}" ToolTip.Tip="Rafts"
                             Click="OnRaftsToolClick" />
                     <Popup x:Name="RaftsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #RaftsToolButton}"

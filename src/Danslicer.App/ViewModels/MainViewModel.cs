@@ -95,10 +95,16 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayoutView), nameof(IsSupportView), nameof(IsLayersView),
-        nameof(ViewportTools), nameof(IsObjectListSelectionEnabled))]
+        nameof(ViewportTools), nameof(IsObjectListSelectionEnabled), nameof(IsObjectsToolVisible),
+        nameof(IsSupportsToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
+
+    public bool IsObjectsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Objects, ViewMode);
+    public bool IsSupportsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Supports, ViewMode);
+    public bool IsVisibilityToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Visibility, ViewMode);
+    public bool IsRaftsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Rafts, ViewMode);
 
     /// <summary>
     /// Object rows remain useful context in Support and Slicing, but only Layout owns object
