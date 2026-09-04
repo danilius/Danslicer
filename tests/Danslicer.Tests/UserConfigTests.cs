@@ -138,6 +138,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.True(loaded.Viewport.SupportDisplay.ShowTrunks);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBases);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBracing);
+        Assert.False(loaded.Supports.IndependentManualSupports);
     }
 
     [Fact]
@@ -283,6 +284,7 @@ public sealed class UserConfigTests : IDisposable
                 TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
                 MemberAngleDegrees = 38f, TipMemberLength = 3f, MaxBranchLength = 11f,
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
+                IndependentManualSupports = true,
                 MinMemberSeparationMm = 0.75f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
@@ -318,6 +320,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(11f, supports.MaxBranchLength);
         Assert.False(supports.PreferExistingTrunks);
         Assert.Equal(9f, supports.ExistingTrunkBranchRange);
+        Assert.True(supports.IndependentManualSupports);
         Assert.Equal(0.7f, supports.MiniSupportDiameter);
         Assert.Equal(0.3f, supports.MiniSupportTipDiameter);
         Assert.Equal(1.2f, supports.MiniSupportConeLength);
@@ -383,6 +386,7 @@ public sealed class UserConfigTests : IDisposable
         config.Supports.FineFeatureMaxAreaMm2 = 1.7f;
         config.Supports.FineFeatureMinisFallBackToRegular = false;
         config.Supports.MinMemberSeparationMm = 0.8f;
+        config.Supports.IndependentManualSupports = true;
         Assert.True(config.SaveSupportPresetAs("Delicate teeth"));
         var path = PathFor("support-presets.json");
 
@@ -399,6 +403,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(1.7f, preset.Settings.FineFeatureMaxAreaMm2);
         Assert.False(preset.Settings.FineFeatureMinisFallBackToRegular);
         Assert.Equal(0.8f, preset.Settings.MinMemberSeparationMm);
+        Assert.True(preset.Settings.IndependentManualSupports);
         Assert.Equal("Delicate teeth", loaded.ActiveSupportPresetName);
         Assert.NotSame(loaded.Supports, preset.Settings);
     }

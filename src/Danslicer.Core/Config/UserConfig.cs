@@ -193,6 +193,11 @@ public sealed record SupportConfig
     public float MaxBranchLength { get; set; } = 8f;
     public bool PreferExistingTrunks { get; set; } = true;
     public float ExistingTrunkBranchRange { get; set; } = 8f;
+    /// <summary>
+    /// When true, manual placements route against models only and neither collide with nor reuse
+    /// existing supports. Automatic generation is unaffected.
+    /// </summary>
+    public bool IndependentManualSupports { get; set; }
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     public float MiniSupportDiameter { get; set; } = 0.6f;
