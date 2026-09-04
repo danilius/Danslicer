@@ -176,6 +176,11 @@ public sealed record SupportConfig
     public float MiniSupportMaxLength { get; set; } = 5f;
     public float MiniSupportMaxAngleDegrees { get; set; } = 75f;
     public int MiniSupportMaxFanPerBranchEnd { get; set; } = 4;
+    /// <summary>
+    /// Maximum distance between regular contacts for density-based mini-tip clustering.
+    /// The 1.25 mm default is half the default 2.5 mm placement spacing.
+    /// </summary>
+    public float MiniSupportClusterDistance { get; set; } = 1.25f;
     public bool RefusedTipsFallBackToMini { get; set; }
     public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
     public bool UseBaseGrid { get; set; } = true;
@@ -220,6 +225,7 @@ public sealed record SupportConfig
         MiniSupportMaxAngleDegrees = float.IsFinite(MiniSupportMaxAngleDegrees)
             ? Math.Clamp(MiniSupportMaxAngleDegrees, 1f, 89f) : 75f;
         MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
+        MiniSupportClusterDistance = Positive(MiniSupportClusterDistance, 1.25f);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;

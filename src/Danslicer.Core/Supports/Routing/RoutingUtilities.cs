@@ -54,6 +54,11 @@ internal static class RoutingUtilities
                     IsCritical = false,
                     IsObjectLowest = false,
                     IsRegionLowest = false,
+                    // A reinforcement ring is its own set of ordinary structural contacts, not
+                    // additional members of the seed's density cluster.
+                    MiniSupportOnly = false,
+                    MiniClusterId = null,
+                    MiniClusterCenter = null,
                 });
             }
         }
@@ -83,23 +88,27 @@ internal static class RoutingUtilities
     private static IReadOnlyList<RoutingTip> SelectSeeds(IReadOnlyList<RoutingTip> tips,
         ReinforceSeedSelector selector)
     {
+        // Density clusters already replace one structural contact with a fine fan. Keep
+        // reinforcement independent by choosing an ordinary contact whenever one exists.
+        var eligible = tips.Where(tip => tip.MiniClusterId is null).ToList();
+        if (eligible.Count == 0) eligible = tips.ToList();
         if (selector == ReinforceSeedSelector.CriticalTips)
-            return tips.Where(tip => tip.IsCritical).ToList();
+            return eligible.Where(tip => tip.IsCritical).ToList();
 
         var marked = selector == ReinforceSeedSelector.LowestPointOfObject
-            ? tips.Where(tip => tip.IsObjectLowest).ToList()
-            : tips.Where(tip => tip.IsRegionLowest).ToList();
+            ? eligible.Where(tip => tip.IsObjectLowest).ToList()
+            : eligible.Where(tip => tip.IsRegionLowest).ToList();
         if (marked.Count > 0)
         {
             // A flat underside can have many equally-low contacts while generation marks one
             // deterministic extreme. Choose the contact nearest the tied layer's centroid so the
             // ring stays on the surface instead of falling mostly beyond an outside edge.
             var markedZ = marked.Min(tip => tip.SurfacePoint.Z);
-            var tied = tips.Where(tip =>
+            var tied = eligible.Where(tip =>
                 MathF.Abs(tip.SurfacePoint.Z - markedZ) <= 1e-4f).ToList();
             return new[] { Lowest(tied) };
         }
-        return new[] { Lowest(tips) };
+        return new[] { Lowest(eligible) };
     }
 
     private static RoutingTip Lowest(IEnumerable<RoutingTip> tips)

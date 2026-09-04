@@ -452,3 +452,46 @@ continues to a plate base (747 bases).
 3. Route-time differences range from −0.3% to +2.1% and are timer noise at this scale. Reinforce
    does visibly add routed segments on the raised bridge, sphere and dome preset-preview fixtures,
    where the selected lowest contact has printable clearance beneath it.
+
+---
+
+## 2026-09-04 — density-based mini-tip clusters
+
+- Baseline: `5560a69`; clustered implementation: `f9218ad`, with the 1.25 mm crowding-distance
+  default and `MiniSupportMaxFanPerBranchEnd = 4` reused as the cluster cap.
+- Config: Debug, net10.0; same machine and serial, single-process conditions as preceding runs.
+- Both passes generated fresh seated candidates. Candidate totals and nearest-neighbour spacing
+  are unchanged; the clustered pass reclassifies crowded regular contacts as `MiniCluster` and
+  routes each bounded group through one purpose-built branch end.
+
+### Results
+
+| Model | Pass | Command | Wall s | Counts | Refusals / notes |
+| --- | --- | --- | ---: | --- | --- |
+| drogon | before | `tips --seat --json` | 17.927 | **1961** candidates (Island 639, MiniIsland 492, LocalMinimum 106, Corner 275, Edge 180, Overhang 269) | No density clusters. |
+| drogon | after | `tips --seat --json` | 17.850 | **1961** candidates (Island 190, MiniIsland 492, **MiniCluster 449**, LocalMinimum 106, Corner 275, Edge 180, Overhang 269), **132 clusters** | Same 0.499 / 1.053 / 1.599 mm min/median/mean spacing. |
+| drogon | before | `route --seat --strategy tree --base-grid on --json` | 9.093 | tip 509, mini 348, branch 509, trunk 440; **1104 refused** | ContactBlocked 141, NoClearStep 689, NoReachableGridPoint 205, NoBranchEndInRange 69; collision-free. |
+| drogon | after | `route --seat --strategy tree --base-grid on --json` | 9.483 | tip 424, mini 474, branch 487, trunk 433; **1063 refused** | ContactBlocked 24, NoClearStep 773, NoReachableGridPoint 184, NoBranchEndInRange 82; collision-free. |
+| drogon | before | `route --seat --strategy tree --base-grid off --json` | 17.751 | tip 675, mini 338, branch 488, trunk 658; **948 refused** | ContactBlocked 186, NoClearStep 713, NoBranchEndInRange 49; collision-free. |
+| drogon | after | `route --seat --strategy tree --base-grid off --json` | 18.589 | tip 532, mini 528, branch 439, trunk 598; **901 refused** | ContactBlocked 24, NoClearStep 806, NoBranchEndInRange 71; collision-free. |
+| gripper | before | `tips --seat --json` | 2.376 | **482** candidates (Island 91, MiniIsland 22, Edge 93, Overhang 276) | No density clusters. |
+| gripper | after | `tips --seat --json` | 2.396 | **482** candidates (Island 82, MiniIsland 22, **MiniCluster 9**, Edge 93, Overhang 276), **3 clusters** | Same 0.512 / 2.712 / 2.622 mm min/median/mean spacing. |
+| gripper | before | `route --seat --strategy tree --base-grid on --json` | 0.398 | tip 367, mini 20, branch 367, trunk 351; **95 refused** | ContactBlocked 32, NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; collision-free. |
+| gripper | after | `route --seat --strategy tree --base-grid on --json` | 0.386 | tip 362, mini 29, branch 365, trunk 349; **91 refused** | ContactBlocked 28, NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; collision-free. |
+| gripper | before | `route --seat --strategy tree --base-grid off --json` | 0.763 | tip 370, mini 18, branch 231, trunk 370; **94 refused** | ContactBlocked 34, NoClearStep 58, NoBranchEndInRange 2; collision-free. |
+| gripper | after | `route --seat --strategy tree --base-grid off --json` | 0.749 | tip 365, mini 27, branch 231, trunk 368; **90 refused** | ContactBlocked 30, NoClearStep 58, NoBranchEndInRange 2; collision-free. |
+
+### Observations
+
+1. Clustering converts exactly the crowded regular members without changing total candidate count
+   or placement spacing. The canonical pair produces 132 four-or-fewer-member Drogon clusters and
+   3 gripper clusters; oversized connected groups split instead of refusing excess members.
+2. Grid-on refusals fall **1104 → 1063** on Drogon and **95 → 91** on the gripper. Grid-off falls
+   **948 → 901** and **94 → 90**. The large drop in `ContactBlocked` is partly exchanged for
+   per-member `NoClearStep`/`NoBranchEndInRange`, preserving honest failure accounting.
+3. Every output remains collision-free and maximum lean stays within the configured 75° mini cap.
+   Route timings move from 9.093 → 9.483 s / 17.751 → 18.589 s on Drogon and remain within timer
+   noise on the gripper.
+4. The required drogon-lo iteration run found 398 clustered members in 123 clusters from 1492
+   candidates. Grid-on routed in 1.222 s with 757 refusals; grid-off in 3.637 s with 601 refusals;
+   both outputs were collision-free.

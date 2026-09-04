@@ -593,6 +593,7 @@ public sealed class Document
                 MiniIslandMaxAreaMm2 = request.Settings.MiniIslandMaxAreaMm2,
                 MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
                 MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
+                MiniSupportClusterDistanceMm = request.Settings.MiniSupportClusterDistance,
             },
             new TreeRoutingOptions
             {

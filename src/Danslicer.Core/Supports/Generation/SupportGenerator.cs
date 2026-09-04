@@ -73,7 +73,13 @@ public static class SupportGenerator
         int seed = 0,
         IProgress<SupportGenerationProgress>? progress = null)
     {
-        var candidates = TipPlacer.Place(mesh, regionFaces, placement, existingGraph, keepCleanFaces, seed);
+        var effectivePlacement = placement with
+        {
+            EnableMiniTipClusters = true,
+            MiniSupportMaxTipsPerCluster = routing.MiniSupportMaxFanPerBranchEnd,
+        };
+        var candidates = TipPlacer.Place(mesh, regionFaces, effectivePlacement, existingGraph,
+            keepCleanFaces, seed);
         progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         var lowestRegion = candidates.OrderBy(candidate => candidate.Point.Z)
@@ -85,7 +91,8 @@ public static class SupportGenerator
             IsRegionLowest: lowestRegion is { } lowest && c.Equals(lowest),
             TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter,
             PenetrationDepth: c.PenetrationDepth,
-            MiniSupportOnly: c.Strategy == TipStrategy.MiniIsland));
+            MiniSupportOnly: c.Strategy is TipStrategy.MiniIsland or TipStrategy.MiniCluster,
+            MiniClusterId: c.MiniClusterId, MiniClusterCenter: c.MiniClusterCenter));
 
         var router = new TreeSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed });

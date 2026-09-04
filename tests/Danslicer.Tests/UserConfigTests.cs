@@ -276,6 +276,7 @@ public sealed class UserConfigTests : IDisposable
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
+                MiniSupportClusterDistance = 1.4f,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 ReinforceEnabled = true,
@@ -309,6 +310,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(6f, supports.MiniSupportMaxLength);
         Assert.Equal(72f, supports.MiniSupportMaxAngleDegrees);
         Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
+        Assert.Equal(1.4f, supports.MiniSupportClusterDistance);
         Assert.True(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
         Assert.False(supports.UseBaseGrid);

@@ -21,7 +21,11 @@ internal static class TipsCommand
         var seat = false;
         // Mirrors the app's tree-generation default: preserve below-threshold islands for the
         // mini-support pass. Other direct TipPlacer callers remain opt-in.
-        var parameters = TipPlacementParameters.Default with { EnableMiniSupports = true };
+        var parameters = TipPlacementParameters.Default with
+        {
+            EnableMiniSupports = true,
+            EnableMiniTipClusters = true,
+        };
         var seed = 0;
         BaseLatticeType? gridLattice = null;
         float? gridSpacing = null;
@@ -136,6 +140,8 @@ internal static class TipsCommand
                 File = path,
                 Count = tips.Count,
                 ByStrategy = byStrategy,
+                MiniClusters = tips.Where(tip => tip.MiniClusterId is not null)
+                    .Select(tip => tip.MiniClusterId!.Value).Distinct().Count(),
                 Spacing = spacing,
                 SeatOffset = seatOffset is { } o ? MeshSeat.Json(o) : null,
                 TipShape = parameters.TipShape.ToString(),
@@ -154,6 +160,10 @@ internal static class TipsCommand
                     ConeLength = t.ConeLength,
                     BallDiameter = t.BallDiameter,
                     PenetrationDepth = t.PenetrationDepth,
+                    MiniClusterId = t.MiniClusterId,
+                    MiniClusterCenter = t.MiniClusterCenter is { } center
+                        ? [center.X, center.Y, center.Z]
+                        : null,
                 }).ToList(),
             };
             var opts = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -166,6 +176,9 @@ internal static class TipsCommand
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
         Console.WriteLine($"Tip shape:   {parameters.TipShape}  cone {Fmt(parameters.ConeLengthMm)}  ball {Fmt(parameters.BallDiameterMm)}  penetration {Fmt(parameters.PenetrationDepthMm)}");
         Console.WriteLine($"Candidates:  {tips.Count}");
+        var miniClusterCount = tips.Where(tip => tip.MiniClusterId is not null)
+            .Select(tip => tip.MiniClusterId!.Value).Distinct().Count();
+        Console.WriteLine($"Mini clusters: {miniClusterCount}");
         foreach (var strategy in Enum.GetValues<TipStrategy>())
         {
             byStrategy.TryGetValue(strategy.ToString(), out var n);
@@ -221,6 +234,7 @@ internal static class TipsCommand
         public required string File { get; init; }
         public required int Count { get; init; }
         public required Dictionary<string, int> ByStrategy { get; init; }
+        public required int MiniClusters { get; init; }
         public SpacingDto? Spacing { get; init; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public float[]? SeatOffset { get; init; }
@@ -243,6 +257,10 @@ internal static class TipsCommand
         public required float ConeLength { get; init; }
         public required float BallDiameter { get; init; }
         public required float PenetrationDepth { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? MiniClusterId { get; init; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public float[]? MiniClusterCenter { get; init; }
     }
 
     private sealed class SpacingDto

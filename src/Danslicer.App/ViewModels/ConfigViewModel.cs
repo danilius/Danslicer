@@ -510,6 +510,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.MiniSupportMaxFanPerBranchEnd = Math.Clamp(value, 1, 100));
     }
 
+    public float SupportMiniSupportClusterDistance
+    {
+        get => Supports.MiniSupportClusterDistance;
+        set => Update(() => Supports.MiniSupportClusterDistance = Clamp(value, 0.01f, 1000f, 1.25f));
+    }
+
     public bool SupportRefusedTipsFallBackToMini
     {
         get => Supports.RefusedTipsFallBackToMini;

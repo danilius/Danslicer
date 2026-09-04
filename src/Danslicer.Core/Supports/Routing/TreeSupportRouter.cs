@@ -105,11 +105,13 @@ public sealed class TreeSupportRouter
         var unrouted = new List<RoutingTip>();
         var failures = new List<RoutingFailure>();
 
-        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, _obstacles, options.Seed);
+        var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, _obstacles, options.Seed)
+            .ToList();
         var pendingMini = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
         foreach (var item in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
                      .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
         {
+            if (item.Tip.MiniClusterId is not null) continue;
             var reason = RoutingFailureReason.NoClearStep;
             if (!item.Tip.MiniSupportOnly && RouteOne(item.Tip, options, state, out reason))
                 continue;
@@ -119,6 +121,18 @@ public sealed class TreeSupportRouter
             {
                 unrouted.Add(item.Tip);
                 failures.Add(new RoutingFailure(item.Tip, reason));
+            }
+        }
+        foreach (var cluster in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
+                     .Where(item => item.Tip.MiniClusterId is not null)
+                     .GroupBy(item => item.Tip.MiniClusterId!.Value)
+                     .OrderBy(group => group.Key))
+        {
+            foreach (var failure in RouteMiniCluster(cluster.OrderBy(item => item.Index)
+                         .Select(item => item.Tip).ToList(), options, state))
+            {
+                unrouted.Add(failure.Tip);
+                failures.Add(failure);
             }
         }
         foreach (var pending in pendingMini.OrderByDescending(item => item.Tip.SurfacePoint.Z)
@@ -152,7 +166,7 @@ public sealed class TreeSupportRouter
     }
 
     private bool TryRouteMiniSupport(RoutingTip tip, TreeRoutingOptions options, RouteState state,
-        out RoutingFailureReason reason)
+        out RoutingFailureReason reason, Guid? requiredBranchEndId = null)
     {
         reason = RoutingFailureReason.NoClearStep;
         if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
@@ -162,6 +176,7 @@ public sealed class TreeSupportRouter
         }
         var hasBranchEndInRange = false;
         foreach (var branchEnd in state.BranchEnds
+                     .Where(node => requiredBranchEndId is null || node.Id == requiredBranchEndId)
                      .OrderBy(node => Vector3.DistanceSquared(node.Position, tip.SurfacePoint))
                      .ThenBy(node => node.Id))
         {
@@ -204,6 +219,217 @@ public sealed class TreeSupportRouter
         }
         if (!hasBranchEndInRange) reason = RoutingFailureReason.NoBranchEndInRange;
         return false;
+    }
+
+    private IReadOnlyList<RoutingFailure> RouteMiniCluster(IReadOnlyList<RoutingTip> members,
+        TreeRoutingOptions options, RouteState state)
+    {
+        if (members.Count == 0) return [];
+        var center = members[0].MiniClusterCenter ??
+                     members.Select(member => member.SurfacePoint).Aggregate(Vector3.Zero,
+                         (sum, point) => sum + point) / members.Count;
+        var lastCarrierReason = RoutingFailureReason.NoClearStep;
+        var hadCandidate = false;
+        foreach (var position in MiniClusterEndCandidates(members, center, options))
+        {
+            hadCandidate = true;
+            if (!members.Any(member => MiniSupportPathIsClear(member, position, options, state)))
+                continue;
+            if (!TryRouteClusterCarrier(position, options, state, out var branchEnd,
+                    out lastCarrierReason)) continue;
+
+            var failures = new List<RoutingFailure>();
+            foreach (var member in members.OrderBy(member => member.SurfacePoint.X)
+                         .ThenBy(member => member.SurfacePoint.Y)
+                         .ThenBy(member => member.SurfacePoint.Z))
+            {
+                if (TryRouteMiniSupport(member, options, state, out var memberReason, branchEnd.Id))
+                    continue;
+                failures.Add(new RoutingFailure(member, memberReason));
+            }
+            return failures;
+        }
+
+        var clusterReason = hadCandidate ? lastCarrierReason : RoutingFailureReason.NoBranchEndInRange;
+        return members.Select(member => new RoutingFailure(member, clusterReason)).ToList();
+    }
+
+    private static IEnumerable<Vector3> MiniClusterEndCandidates(
+        IReadOnlyList<RoutingTip> members, Vector3 center, TreeRoutingOptions options)
+    {
+        var minZ = members.Min(member => member.SurfacePoint.Z);
+        var tanAngle = MathF.Tan(options.MiniSupportMaxAngleDegrees * MathF.PI / 180f);
+        var minimumDrop = 0.05f;
+        var maximumDrop = float.PositiveInfinity;
+        foreach (var member in members)
+        {
+            var horizontal = Vector2.Distance(new(center.X, center.Y),
+                new(member.SurfacePoint.X, member.SurfacePoint.Y));
+            if (horizontal >= options.MiniSupportMaxLength) yield break;
+            var heightAboveLowest = member.SurfacePoint.Z - minZ;
+            minimumDrop = MathF.Max(minimumDrop, horizontal / tanAngle - heightAboveLowest + 1e-3f);
+            maximumDrop = MathF.Min(maximumDrop,
+                MathF.Sqrt(options.MiniSupportMaxLength * options.MiniSupportMaxLength -
+                           horizontal * horizontal) - heightAboveLowest);
+        }
+        if (maximumDrop < minimumDrop) yield break;
+
+        var preferred = Math.Clamp(options.MiniSupportConeLength, minimumDrop, maximumDrop);
+        foreach (var drop in new[]
+                 {
+                     preferred,
+                     minimumDrop,
+                     minimumDrop + (maximumDrop - minimumDrop) * 0.33f,
+                     minimumDrop + (maximumDrop - minimumDrop) * 0.66f,
+                     maximumDrop,
+                 }.Distinct().Order())
+        {
+            var position = new Vector3(center.X, center.Y, minZ - drop);
+            if (position.Z > options.PlateZ + Epsilon) yield return position;
+        }
+    }
+
+    private bool MiniSupportPathIsClear(RoutingTip tip, Vector3 branchEnd,
+        TreeRoutingOptions options, RouteState state)
+    {
+        var delta = tip.SurfacePoint - branchEnd;
+        var length = delta.Length();
+        if (length > options.MiniSupportMaxLength + Epsilon || length <= Epsilon ||
+            delta.Z <= Epsilon) return false;
+        var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), delta.Z) *
+                   180 / MathF.PI;
+        if (lean > options.MiniSupportMaxAngleDegrees + Epsilon) return false;
+        var queryRadius = options.MiniSupportDiameter * 0.5f + state.Clearance.ModelDistance;
+        var contactAllowance = MathF.Max(options.MiniSupportTipDiameter * 0.5f,
+            queryRadius) * 2 + 0.01f;
+        var clearEnd = length > contactAllowance
+            ? tip.SurfacePoint - delta / length * contactAllowance
+            : branchEnd;
+        return clearEnd == branchEnd ||
+               (!_obstacles.IntersectsCapsule(branchEnd, clearEnd, queryRadius) &&
+                !state.HitsGenerated(branchEnd, clearEnd, queryRadius));
+    }
+
+    private bool TryRouteClusterCarrier(Vector3 branchEndPosition, TreeRoutingOptions options,
+        RouteState state, out SupportNode branchEnd, out RoutingFailureReason reason)
+    {
+        branchEnd = null!;
+        reason = RoutingFailureReason.NoClearStep;
+        if (branchEndPosition.Z <= options.PlateZ + Epsilon)
+        {
+            reason = RoutingFailureReason.BelowPlate;
+            return false;
+        }
+
+        if (options.PreferExistingTrunks &&
+            TryAttachClusterEndToTrunk(branchEndPosition, options, state, out branchEnd))
+            return true;
+
+        if ((!options.UseBaseGrid || IsOnBaseGrid(branchEndPosition, options)) &&
+            TrunkIsClear(branchEndPosition, options, state))
+        {
+            branchEnd = EmitClusterCarrier(branchEndPosition, null, options, state);
+            return true;
+        }
+
+        var trunkTops = TrunkTopCandidates(branchEndPosition, options, state.AngleOffset).ToList();
+        foreach (var candidate in trunkTops)
+        {
+            if (Vector2.DistanceSquared(new(branchEndPosition.X, branchEndPosition.Y),
+                    new(candidate.Top.X, candidate.Top.Y)) <= Epsilon * Epsilon) continue;
+            if (!BranchIsClear(branchEndPosition, candidate.Top, options, state) ||
+                !TrunkIsClear(candidate.Top, options, state)) continue;
+            branchEnd = EmitClusterCarrier(branchEndPosition, candidate.Top, options, state);
+            return true;
+        }
+
+        if (!options.PreferExistingTrunks &&
+            TryAttachClusterEndToTrunk(branchEndPosition, options, state, out branchEnd))
+            return true;
+        if (options.UseBaseGrid && trunkTops.Count == 0)
+            reason = RoutingFailureReason.NoReachableGridPoint;
+        return false;
+    }
+
+    private bool TryAttachClusterEndToTrunk(Vector3 position, TreeRoutingOptions options,
+        RouteState state, out SupportNode branchEnd)
+    {
+        branchEnd = null!;
+        var branchRule = _rules.Find<BranchGrowthRule>();
+        var maxBranches = branchRule is { Enabled: true }
+            ? branchRule.MaxBranchesPerTrunk
+            : int.MaxValue;
+        var maxAngle = options.MaxMemberAngleDegrees * MathF.PI / 180f;
+        var tanAngle = MathF.Tan(maxAngle);
+        var candidates = new List<ExistingTrunkCandidate>();
+        foreach (var trunk in state.Trunks)
+        {
+            if (trunk.BranchCount >= maxBranches) continue;
+            var horizontal = Vector2.Distance(new(position.X, position.Y), trunk.Xy);
+            if (horizontal <= Epsilon) continue;
+            var attachZ = MathF.Min(position.Z - horizontal / tanAngle - 1e-3f, trunk.TopZ);
+            if (attachZ < options.PlateZ + options.BaseHeight + Epsilon) continue;
+            var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
+            var length = Vector3.Distance(position, attach);
+            if (length > options.ExistingTrunkBranchRange + Epsilon) continue;
+            candidates.Add(new ExistingTrunkCandidate(trunk, attach, length, length));
+        }
+
+        foreach (var candidate in candidates.OrderBy(item => item.Score)
+                     .ThenBy(item => item.Trunk.BaseNodeId))
+        {
+            var trunk = candidate.Trunk;
+            var radius = options.BranchDiameter * 0.5f;
+            if (!state.Clearance.PillarIsClear(_obstacles, position, candidate.Attach, radius,
+                    Excluding(trunk.SegmentIds.Concat(trunk.BranchSegmentIds)))) continue;
+            if (state.HitsGeneratedForTrunkAttachment(position, candidate.Attach,
+                    radius + state.Clearance.ModelDistance, trunk,
+                    SiblingBranchFusionDistance,
+                    options.BranchDiameter * ProjectedBranchClearanceDiameters)) continue;
+
+            var attachNode = MathF.Abs(candidate.Attach.Z - trunk.TopZ) <= 1e-3f
+                ? state.Graph.GetNode(trunk.TopNodeId)
+                : SplitTrunk(trunk, candidate.Attach.Z, state);
+            branchEnd = state.NewNode(SupportNodeType.Junction, position, options.Origin);
+            state.Graph.AddNode(branchEnd);
+            var branch = state.AddSegment(SupportSegmentType.Branch, branchEnd, attachNode,
+                options.BranchDiameter, options.Origin);
+            state.RegisterBranchEnd(branchEnd);
+            trunk.BranchSegmentIds.Add(branch.Id);
+            trunk.BranchCount++;
+            return true;
+        }
+        return false;
+    }
+
+    private static SupportNode EmitClusterCarrier(Vector3 branchEndPosition, Vector3? trunkTop,
+        TreeRoutingOptions options, RouteState state)
+    {
+        var branchEnd = state.NewNode(SupportNodeType.Junction, branchEndPosition, options.Origin);
+        state.Graph.AddNode(branchEnd);
+        var top = branchEnd;
+        Guid? branchSegmentId = null;
+        if (trunkTop is { } topPosition)
+        {
+            top = state.NewNode(SupportNodeType.Junction, topPosition, options.Origin);
+            state.Graph.AddNode(top);
+            branchSegmentId = state.AddSegment(SupportSegmentType.Branch, branchEnd, top,
+                options.BranchDiameter, options.Origin).Id;
+        }
+
+        var basePosition = new Vector3(top.Position.X, top.Position.Y, options.PlateZ);
+        var baseNode = state.NewNode(SupportNodeType.Base, basePosition, options.Origin);
+        baseNode.BaseShape = options.BaseShape;
+        baseNode.BaseDiameter = options.BaseDiameter;
+        baseNode.BaseHeight = options.BaseHeight;
+        baseNode.BaseConeHeight = options.BaseConeHeight;
+        state.Graph.AddNode(baseNode);
+        var trunk = state.AddSegment(SupportSegmentType.Trunk, top, baseNode,
+            options.TrunkDiameter, options.Origin);
+        state.Trunks.Add(new TrunkRecord(new Vector2(top.Position.X, top.Position.Y), top.Position.Z,
+            top.Id, baseNode.Id, trunk.Id, branchSegmentId, state));
+        state.RegisterBranchEnd(branchEnd);
+        return branchEnd;
     }
 
     private bool RouteOne(RoutingTip tip, TreeRoutingOptions options, RouteState state,

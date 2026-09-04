@@ -49,6 +49,44 @@ public class TipPlacementTests
     }
 
     [Fact]
+    public void CrowdedRegularContactsFormDeterministicBoundedMiniClusters()
+    {
+        var contacts = Enumerable.Range(0, 6).Select(index => new TipCandidate(
+            new Vector3(index * 0.2f, 0, 10), Vector3.UnitZ, 0.4f, index + 1,
+            TipStrategy.Island, index)).ToList();
+        contacts.Add(new TipCandidate(new Vector3(20, 0, 10), Vector3.UnitZ, 0.4f, 1,
+            TipStrategy.Island, 99));
+        var parameters = TipPlacementParameters.Default with
+        {
+            EnableMiniTipClusters = true,
+            MiniSupportClusterDistanceMm = 1.25f,
+            MiniSupportMaxTipsPerCluster = 4,
+            MiniSupportTipDiameterMm = 0.23f,
+            MiniSupportConeLengthMm = 0.9f,
+        };
+
+        var forward = MiniTipClusterer.Apply(contacts, parameters)
+            .OrderBy(candidate => candidate.Point.X).ToList();
+        var reverse = MiniTipClusterer.Apply(contacts.AsEnumerable().Reverse().ToList(), parameters)
+            .OrderBy(candidate => candidate.Point.X).ToList();
+
+        Assert.Equal(forward, reverse);
+        var clustered = forward.Where(candidate => candidate.MiniClusterId is not null).ToList();
+        Assert.Equal(6, clustered.Count);
+        Assert.Equal([2, 4], clustered.GroupBy(candidate => candidate.MiniClusterId)
+            .Select(group => group.Count()).Order().ToArray());
+        Assert.All(clustered, candidate =>
+        {
+            Assert.Equal(TipStrategy.MiniCluster, candidate.Strategy);
+            Assert.Equal(0.23f, candidate.TipDiameter);
+            Assert.Equal(SupportTipShape.Cone, candidate.TipShape);
+            Assert.Equal(0.9f, candidate.ConeLength);
+            Assert.NotNull(candidate.MiniClusterCenter);
+        });
+        Assert.Null(forward[^1].MiniClusterId);
+    }
+
+    [Fact]
     public void AdjacentIslandsEachKeepTheirOwnTip()
     {
         // Two floating teeth 2 mm apart: separate newborn islands closer than MinSpacingMm.

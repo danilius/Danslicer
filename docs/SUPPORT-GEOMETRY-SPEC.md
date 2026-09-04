@@ -107,6 +107,22 @@ rods spreading to nearby contact points.
 - (Existing knobs map: MiniSupportMaxLength, MiniSupportDiameter/TipDiameter, and
   MiniSupportMaxFanPerBranchEnd becomes the per-cluster cap.)
 
+#### Implemented semantics (job 023 — proposals pending screen test)
+
+- Density clustering is additional to mini-island classification. Regular contacts in a
+  connected group of at least three, each linked within the configurable crowding distance,
+  become mini-tip members instead of adjacent full-size cones. Mini-island contacts keep their
+  existing classification and route pass.
+- The proposed crowding-distance default is **1.25 mm**, derived as half the default 2.5 mm tip
+  spacing. Each cluster location is the score-weighted centre of its member contacts.
+- One purpose-built branch end below the cluster feeds one ascending mini rod per member. The
+  carrier follows the ordinary branch-first policy: attach to a reachable trunk when possible,
+  otherwise create a clear branch/trunk path to the plate.
+- `MiniSupportMaxFanPerBranchEnd` is also the per-cluster cap. Larger connected groups split into
+  deterministic, spatially compact follow-on clusters; no over-cap contact is silently dropped.
+- Maximum mini length, maximum mini lean and ordinary collision clearance remain binding. An
+  unroutable carrier reports its reason against every affected member contact.
+
 ## Island-first generation and island tools (user dictation, 2026-09-04)
 
 - **Auto support order: islands first, then everything else.** Islands are the
