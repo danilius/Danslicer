@@ -109,10 +109,12 @@ rods spreading to nearby contact points.
 
 #### Implemented semantics (job 023 — proposals pending screen test)
 
-- Density clustering is additional to mini-island classification. Regular contacts in a
-  connected group of at least three, each linked within the configurable crowding distance,
-  become mini-tip members instead of adjacent full-size cones. Mini-island contacts keep their
-  existing classification and route pass.
+- Density clustering is additional to mini-island classification. Regular-size contacts,
+  explicitly including required `Island` contacts, in a connected group of at least three each
+  linked within the configurable crowding distance become mini-tip members instead of adjacent
+  full-size cones. Each member retains its source strategy as metadata so island coverage remains
+  auditable after reclassification. Mini-island contacts keep their existing classification and
+  route pass.
 - The proposed crowding-distance default is **1.25 mm**, derived as half the default 2.5 mm tip
   spacing. Each cluster location is the score-weighted centre of its member contacts.
 - One purpose-built branch end below the cluster feeds one ascending mini rod per member. The

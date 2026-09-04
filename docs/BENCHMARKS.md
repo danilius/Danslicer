@@ -495,3 +495,33 @@ continues to a plate base (747 bases).
 4. The required drogon-lo iteration run found 398 clustered members in 123 clusters from 1492
    candidates. Grid-on routed in 1.222 s with 757 refusals; grid-off in 3.637 s with 601 refusals;
    both outputs were collision-free.
+
+---
+
+## 2026-09-04 — island identity in density clusters
+
+- Baseline: current merged `main` at `dac3d7a`; implementation: `f953532` and `08ef893`.
+- Config: Debug, net10.0; same machine and serial execution as the preceding run.
+- Finding: job 023 already clustered `Island` contacts—the original eligibility filter excluded
+  only `MiniIsland` and existing `MiniCluster` members, and its regression used island inputs.
+  This pass makes island eligibility explicit, preserves every member's source strategy, and adds
+  a six-tooth placement regression proving the post-dedup contact count and positions survive
+  clustering. No topology change is expected or observed.
+
+### Results
+
+| Model | Pass | Tips / cluster provenance | Grid on | Grid off |
+| --- | --- | --- | --- | --- |
+| drogon | before | 1961 candidates; Island 190, MiniIsland 492, MiniCluster 449; 132 clusters; source provenance not emitted | 1063 refusals, 144 bases, collision-free | 901 refusals, 228 bases, collision-free |
+| drogon | after | 1961 candidates; Island 190, MiniIsland 492, MiniCluster 449; 132 clusters; **449 island / 0 regular members** | 1063 refusals, 144 bases, collision-free | 901 refusals, 228 bases, collision-free |
+| gripper | before | 482 candidates; Island 82, MiniIsland 22, MiniCluster 9; 3 clusters; source provenance not emitted | 91 refusals, 133 bases, collision-free | 90 refusals, 139 bases, collision-free |
+| gripper | after | 482 candidates; Island 82, MiniIsland 22, MiniCluster 9; 3 clusters; **9 island / 0 regular members** | 91 refusals, 133 bases, collision-free | 90 refusals, 139 bases, collision-free |
+| drogon-lo | before | 1492 candidates; Island 181, MiniIsland 356, MiniCluster 398; 123 clusters; source provenance not emitted | 757 refusals, 130 bases, collision-free | 601 refusals, 210 bases, collision-free |
+| drogon-lo | after | 1492 candidates; Island 181, MiniIsland 356, MiniCluster 398; 123 clusters; **398 island / 0 regular members** | 757 refusals, 130 bases, collision-free | 601 refusals, 210 bases, collision-free |
+
+The before/after candidate, cluster, topology, refusal and base counts are bit-identical. The new
+provenance answers the brief's requested split directly: every density-cluster member in all three
+fixtures originated as an island contact, while `MiniIsland` counts remain unchanged. On drogon-lo,
+the 398 island members provide the headless proof available under the no-app-launch protocol; the
+user should locate them in the head/teeth view after regenerating supports, because an existing
+graph is not retroactively reclassified.
