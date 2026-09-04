@@ -71,6 +71,9 @@ public static class ProjectFile
             Objects = document.Scene.Objects.Select(obj => ObjectDto.From(obj, meshes[obj.Mesh])).ToList(),
             SupportGraph = SupportGraphDto.From(document.Supports),
             PrintSettings = document.PrintSettings,
+            ResinSettings = document.ResinSettings,
+            ResinPresetId = document.ResinPreset.Id,
+            ResinPreset = document.ResinPreset,
             PrinterId = document.Printer.Id,
             Printer = document.Printer,
             ViewState = ViewStateDto.From(viewState),
@@ -145,6 +148,8 @@ public static class ProjectFile
         var document = new Document
         {
             PrintSettings = manifest.PrintSettings ?? PrintSettings.Default,
+            ResinSettings = (manifest.ResinSettings ?? ResinSettings.Default).Normalize(),
+            ResinPreset = ResolveResinPreset(manifest),
             Printer = ResolvePrinter(manifest),
         };
         foreach (var dto in manifest.Objects)
@@ -207,6 +212,9 @@ public static class ProjectFile
         public List<ObjectDto> Objects { get; set; } = [];
         public SupportGraphDto SupportGraph { get; set; } = new();
         public PrintSettings? PrintSettings { get; set; }
+        public ResinSettings? ResinSettings { get; set; }
+        public string? ResinPresetId { get; set; }
+        public ResinPreset? ResinPreset { get; set; }
         public string? PrinterId { get; set; }
         public PrinterDefinition? Printer { get; set; }
         public ViewStateDto? ViewState { get; set; }
@@ -220,6 +228,16 @@ public static class ProjectFile
         return string.Equals(embedded.Id, manifest.PrinterId, StringComparison.OrdinalIgnoreCase)
             ? embedded
             : PrinterDefinition.PhotonMonoX;
+    }
+
+    private static ResinPreset ResolveResinPreset(ManifestDto manifest)
+    {
+        if (manifest.ResinPreset is null || string.IsNullOrWhiteSpace(manifest.ResinPresetId))
+            return ResinPreset.Default;
+        var embedded = manifest.ResinPreset.Normalize();
+        return string.Equals(embedded.Id, manifest.ResinPresetId, StringComparison.OrdinalIgnoreCase)
+            ? embedded
+            : ResinPreset.Default;
     }
 
     private sealed class VersionDto

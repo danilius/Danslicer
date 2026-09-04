@@ -1,5 +1,7 @@
+using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Printers;
+using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
 
 namespace Danslicer.Tests;
@@ -210,6 +212,54 @@ public sealed class UserConfigTests : IDisposable
 
         Assert.Equal(PrinterDefinition.PhotonMonoX,
             loaded.FindPrinter(PrinterDefinition.PhotonMonoXId));
+    }
+
+    [Fact]
+    public void ResinPresetsRoundTripApplyAndLeavePerPrintSettingsAlone()
+    {
+        var config = new UserConfig();
+        var print = PrintSettings.Default with
+            { LayerHeight = 0.025f, AntiAliasing = false, XyCompensation = -0.04f };
+        var resin = ResinSettings.Default with
+        {
+            BottomLayers = 8, BottomExposure = 35, Exposure = 2.7f,
+            LightOffDelay = 1.1f, LiftHeight = 9, LiftSpeed = 88,
+            RetractSpeed = 144, BottomLiftHeight = 11, BottomLiftSpeed = 72,
+        };
+        var saved = config.SaveResinPresetAs("Tough grey", resin);
+        var path = PathFor("resin-presets.json");
+
+        config.Save(path);
+        var loaded = UserConfig.Load(path);
+        var roundTrip = loaded.FindResinPreset(saved!.Id);
+
+        Assert.Equal(ResinPreset.CurrentVersion, roundTrip!.Version);
+        Assert.Equal(resin, roundTrip.Settings);
+        var document = new Document { PrintSettings = print };
+        document.ApplyResinPreset(roundTrip);
+        Assert.Equal(print, document.PrintSettings);
+        Assert.Equal(resin, document.ResinSettings);
+        Assert.NotSame(roundTrip.Settings, document.ResinSettings);
+    }
+
+    [Fact]
+    public void MissingOrModifiedDefaultResinPresetIsRecreatedOnLoad()
+    {
+        var path = PathFor("missing-default-resin.json");
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(path, """
+            {
+              "ResinPresets": [
+                { "Version": 1, "Id": "default-resin", "Name": "Changed", "Settings": { "Exposure": 99 } },
+                { "Version": 1, "Id": "custom", "Name": "Custom", "Settings": { "Exposure": 3.1 } }
+              ]
+            }
+            """);
+
+        var loaded = UserConfig.Load(path);
+
+        Assert.Equal(ResinPreset.Default, loaded.FindResinPreset(ResinPreset.DefaultId));
+        Assert.Equal(3.1f, loaded.FindResinPreset("custom")!.Settings.Exposure);
     }
 
     [Fact]

@@ -21,6 +21,7 @@ public sealed class SliceResult
 {
     public required PrinterDefinition Printer { get; init; }
     public required PrintSettings Settings { get; init; }
+    public required ResinSettings ResinSettings { get; init; }
     public required IReadOnlyList<SlicedLayer> Layers { get; init; }
     public required float VolumeMl { get; init; }
     /// <summary>224 x 168 RGB565 thumbnail for the printer's file browser.</summary>
@@ -32,7 +33,7 @@ public sealed class SliceResult
 
     public int LayerCount => Layers.Count;
     public float PrintHeight => Layers.Count * Settings.LayerHeight;
-    public double EstimatedSeconds => Settings.EstimatePrintTime(Layers.Count);
+    public double EstimatedSeconds => ResinSettings.EstimatePrintTime(Layers.Count);
 }
 
 public static class Slicer
@@ -51,8 +52,10 @@ public static class Slicer
         PrintSettings settings,
         IProgress<double>? progress = null,
         CancellationToken cancellation = default,
-        Supports.SupportGraph? supports = null)
+        Supports.SupportGraph? supports = null,
+        ResinSettings? resinSettings = null)
     {
+        resinSettings = (resinSettings ?? ResinSettings.Default).Normalize();
         var prepared = new List<MeshSlicer.PreparedMesh>();
         foreach (var obj in objects)
         {
@@ -161,6 +164,7 @@ public static class Slicer
         {
             Printer = printer,
             Settings = settings,
+            ResinSettings = resinSettings,
             Layers = layers,
             VolumeMl = (float)(volumeMm3 / 1000.0),
             Preview = RenderPreview(previewHeights, layerCount),
