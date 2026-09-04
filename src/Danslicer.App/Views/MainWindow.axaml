@@ -34,15 +34,15 @@
     <Window.Styles>
         <Style Selector="TextBlock.label">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#9AA0A6" />
+            <Setter Property="Foreground" Value="{DynamicResource DsTextSecondaryBrush}" />
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style Selector="TextBlock.status.warning">
-            <Setter Property="Foreground" Value="#EF5350" />
+            <Setter Property="Foreground" Value="{DynamicResource DsDangerBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="TextBlock.section">
-            <Setter Property="Foreground" Value="#C8CCD0" />
+            <Setter Property="Foreground" Value="{DynamicResource DsTextPrimaryBrush}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,10,0,4" />
@@ -66,7 +66,7 @@
         </Style>
         <Style Selector="TextBlock.headerSep">
             <Setter Property="Text" Value="│" />
-            <Setter Property="Foreground" Value="#444" />
+            <Setter Property="Foreground" Value="{DynamicResource DsBorderStrongBrush}" />
             <Setter Property="Margin" Value="6,0,10,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
@@ -76,9 +76,9 @@
             <Setter Property="Margin" Value="0,0,0,4" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="FontSize" Value="19" />
-            <Setter Property="Foreground" Value="#E0E3E7" />
-            <Setter Property="Background" Value="#D923262A" />
-            <Setter Property="BorderBrush" Value="#7A858F" />
+            <Setter Property="Foreground" Value="{DynamicResource DsTextPrimaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource DsOverlayBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DsBorderStrongBrush}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Button.popupClose">
@@ -190,7 +190,7 @@
             </MenuItem>
         </Menu>
 
-        <Border DockPanel.Dock="Bottom" Background="#1B1D20" Padding="8,3">
+        <Border DockPanel.Dock="Bottom" Classes="statusBar" Background="{DynamicResource DsBackgroundDeepBrush}" Padding="8,3">
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Text="{Binding ViewportStatusDisplay}" Classes="label status"
                            Classes.warning="{Binding HasSliceWarning}" TextTrimming="CharacterEllipsis" />
@@ -200,7 +200,7 @@
             </Grid>
         </Border>
 
-        <Border DockPanel.Dock="Bottom" Background="#23262A" Padding="10,5"
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource DsBackgroundBrush}" Padding="10,5"
                 IsVisible="{Binding IsGeneratingSupports}">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                 <TextBlock Text="Generating supports" Classes="label" VerticalAlignment="Center" />
@@ -218,7 +218,7 @@
                 <ColumnDefinition Width="320" MinWidth="220" />
             </Grid.ColumnDefinitions>
 
-        <Border x:Name="RightPanel" Grid.Column="2" Background="#23262A" BorderBrush="#111"
+        <Border x:Name="RightPanel" Grid.Column="2" Background="{DynamicResource DsBackgroundBrush}" BorderBrush="{DynamicResource DsBorderBrush}"
                 BorderThickness="1,0,0,0" Padding="10,4">
             <Grid>
                 <ScrollViewer IsVisible="{Binding IsLayoutView}">
@@ -262,7 +262,7 @@
                                      PlaceholderText="Preset name" />
                             <TextBlock Text="{Binding SupportSettings.Resins.ValidationMessage}"
                                        IsVisible="{Binding SupportSettings.Resins.HasValidationMessage}"
-                                       Foreground="#FFB35C" FontSize="11" TextWrapping="Wrap" />
+                                       Foreground="{DynamicResource DsWarningBrush}" FontSize="11" TextWrapping="Wrap" />
                             <WrapPanel Margin="0,4,0,0">
                                 <Button Content="{Binding SupportSettings.Resins.NameEditorAction}"
                                         Command="{Binding SupportSettings.Resins.ConfirmNameCommand}" Margin="0,0,4,0" />
@@ -288,11 +288,11 @@
         </Border>
 
         <GridSplitter x:Name="RightPanelSplitter" Grid.Column="1"
-                      ResizeDirection="Columns" Background="#151719" />
+                      ResizeDirection="Columns" Background="{DynamicResource DsBackgroundDeepBrush}" />
 
         <!-- Main area: header strip, then either the 3D model view or the layer view. -->
         <DockPanel Grid.Column="0">
-            <Border DockPanel.Dock="Top" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,0,1" Padding="8,3">
+            <Border DockPanel.Dock="Top" Background="{DynamicResource DsSurfaceBrush}" BorderBrush="{DynamicResource DsBorderBrush}" BorderThickness="0,0,0,1" Padding="8,3">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <StackPanel Orientation="Horizontal" IsVisible="{Binding IsLayoutView}">
                         <TextBlock Text="Gizmo" Classes="label" Margin="0,0,8,0" />
@@ -342,8 +342,8 @@
                 <!-- Support inspection lives on the viewport edge so Support mode can use the
                      full workspace width. Higher Z is at the top, matching the model axis. -->
                 <Border HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="116"
-                        Margin="0,164,12,12" Padding="7,8" Background="#D923262A"
-                        BorderBrush="#7A858F" BorderThickness="1" CornerRadius="3"
+                        Margin="0,164,12,12" Padding="7,8" Background="{DynamicResource DsOverlayBrush}"
+                        BorderBrush="{DynamicResource DsBorderStrongBrush}" BorderThickness="1" CornerRadius="3"
                         IsVisible="{Binding IsSupportView}"
                         ToolTip.Tip="Viewport layer isolation only — slicing and support generation are unaffected">
                     <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto">
@@ -381,7 +381,7 @@
                 </Border>
 
                 <DockPanel IsVisible="{Binding IsLayersView}">
-                    <Border DockPanel.Dock="Bottom" Background="#1F2124" BorderBrush="#111" BorderThickness="0,1,0,0" Padding="10,4">
+                    <Border DockPanel.Dock="Bottom" Background="{DynamicResource DsSurfaceBrush}" BorderBrush="{DynamicResource DsBorderBrush}" BorderThickness="0,1,0,0" Padding="10,4">
                         <Grid ColumnDefinitions="*,Auto">
                             <Slider Minimum="0" Maximum="{Binding PreviewLayerMax}" Value="{Binding PreviewLayer}"
                                     TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
@@ -406,8 +406,8 @@
                            PlacementTarget="{Binding #ObjectsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
-                        <Border x:Name="ObjectsPopupContent" Width="240" MaxHeight="520" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                        <Border x:Name="ObjectsPopupContent" Classes="popout" Width="240" MaxHeight="520" Padding="10"
+                                Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Objects" Classes="section" Margin="0" />
@@ -439,8 +439,8 @@
                            PlacementTarget="{Binding #SupportsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
-                        <Border x:Name="SupportsPopupContent" Width="340" MaxHeight="700" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                        <Border x:Name="SupportsPopupContent" Classes="popout" Width="340" MaxHeight="700" Padding="10"
+                                Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Supports" Classes="section" Margin="0" />
@@ -469,8 +469,8 @@
                            PlacementTarget="{Binding #IslandDetectionToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
-                        <Border x:Name="IslandDetectionPopupContent" Width="360" MaxHeight="700" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                        <Border x:Name="IslandDetectionPopupContent" Classes="popout" Width="360" MaxHeight="700" Padding="10"
+                                Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Island Detection" Classes="section" Margin="0" />
@@ -534,8 +534,8 @@
                            PlacementTarget="{Binding #VisibilityToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
-                        <Border x:Name="VisibilityPopupContent" Width="300" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                        <Border x:Name="VisibilityPopupContent" Classes="popout" Width="300" Padding="10"
+                                Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Visibility" Classes="section" Margin="0" />
@@ -571,8 +571,8 @@
                            PlacementTarget="{Binding #RaftsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
-                        <Border x:Name="RaftsPopupContent" Width="240" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                        <Border x:Name="RaftsPopupContent" Classes="popout" Width="240" Padding="10"
+                                Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Rafts" Classes="section" Margin="0" />
@@ -595,8 +595,8 @@
                            PlacementTarget="{Binding #ViewSettingsButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
-                        <Border x:Name="ViewSettingsPopupContent" Width="235" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                        <Border x:Name="ViewSettingsPopupContent" Classes="popout" Width="235" Padding="10"
+                                Background="{DynamicResource DsOverlayBrush}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="View" Classes="section" Margin="0" />

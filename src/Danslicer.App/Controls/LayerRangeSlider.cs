@@ -25,16 +25,25 @@ public sealed class LayerRangeSlider : Control
         AvaloniaProperty.Register<LayerRangeSlider, bool>(nameof(IsDragging),
             defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
-    private static readonly Pen TrackPen = new(new SolidColorBrush(Color.Parse("#565A60")), 4);
-    private static readonly Pen SelectedPen = new(new SolidColorBrush(Color.Parse("#E39032")), 4);
-    private static readonly IBrush ThumbFill = new SolidColorBrush(Color.Parse("#F2F2F2"));
-    private static readonly Pen ThumbPen = new(new SolidColorBrush(Color.Parse("#25282C")), 1);
+    public static readonly StyledProperty<IBrush> TrackBrushProperty =
+        AvaloniaProperty.Register<LayerRangeSlider, IBrush>(nameof(TrackBrush),
+            new SolidColorBrush(Color.Parse("#565A60")));
+    public static readonly StyledProperty<IBrush> SelectionBrushProperty =
+        AvaloniaProperty.Register<LayerRangeSlider, IBrush>(nameof(SelectionBrush),
+            new SolidColorBrush(Color.Parse("#E39032")));
+    public static readonly StyledProperty<IBrush> ThumbBrushProperty =
+        AvaloniaProperty.Register<LayerRangeSlider, IBrush>(nameof(ThumbBrush),
+            new SolidColorBrush(Color.Parse("#F2F2F2")));
+    public static readonly StyledProperty<IBrush> ThumbBorderBrushProperty =
+        AvaloniaProperty.Register<LayerRangeSlider, IBrush>(nameof(ThumbBorderBrush),
+            new SolidColorBrush(Color.Parse("#25282C")));
     private const double ThumbRadius = 7;
     private LayerRangeSliderThumb _dragging;
 
     static LayerRangeSlider() => AffectsRender<LayerRangeSlider>(
         MinimumProperty, MaximumProperty, LowerValueProperty, UpperValueProperty,
-        OrientationProperty);
+        OrientationProperty, TrackBrushProperty, SelectionBrushProperty,
+        ThumbBrushProperty, ThumbBorderBrushProperty);
 
     public LayerRangeSlider()
     {
@@ -49,10 +58,17 @@ public sealed class LayerRangeSlider : Control
     public double UpperValue { get => GetValue(UpperValueProperty); set => SetValue(UpperValueProperty, value); }
     public Orientation Orientation { get => GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
     public bool IsDragging { get => GetValue(IsDraggingProperty); set => SetValue(IsDraggingProperty, value); }
+    public IBrush TrackBrush { get => GetValue(TrackBrushProperty); set => SetValue(TrackBrushProperty, value); }
+    public IBrush SelectionBrush { get => GetValue(SelectionBrushProperty); set => SetValue(SelectionBrushProperty, value); }
+    public IBrush ThumbBrush { get => GetValue(ThumbBrushProperty); set => SetValue(ThumbBrushProperty, value); }
+    public IBrush ThumbBorderBrush { get => GetValue(ThumbBorderBrushProperty); set => SetValue(ThumbBorderBrushProperty, value); }
 
     public override void Render(DrawingContext context)
     {
         base.Render(context);
+        var trackPen = new Pen(TrackBrush, 4);
+        var selectedPen = new Pen(SelectionBrush, 4);
+        var thumbPen = new Pen(ThumbBorderBrush, 1);
         if (Orientation == Orientation.Vertical)
         {
             var x = Bounds.Width * 0.5;
@@ -62,10 +78,10 @@ public sealed class LayerRangeSlider : Control
                 LowerValue, Minimum, Maximum, top, bottom, descending: true);
             var upperY = LayerRangeSliderGeometry.ValueToAxis(
                 UpperValue, Minimum, Maximum, top, bottom, descending: true);
-            context.DrawLine(TrackPen, new Point(x, top), new Point(x, bottom));
-            context.DrawLine(SelectedPen, new Point(x, upperY), new Point(x, lowerY));
-            context.DrawEllipse(ThumbFill, ThumbPen, new Point(x, lowerY), ThumbRadius, ThumbRadius);
-            context.DrawEllipse(ThumbFill, ThumbPen, new Point(x, upperY), ThumbRadius, ThumbRadius);
+            context.DrawLine(trackPen, new Point(x, top), new Point(x, bottom));
+            context.DrawLine(selectedPen, new Point(x, upperY), new Point(x, lowerY));
+            context.DrawEllipse(ThumbBrush, thumbPen, new Point(x, lowerY), ThumbRadius, ThumbRadius);
+            context.DrawEllipse(ThumbBrush, thumbPen, new Point(x, upperY), ThumbRadius, ThumbRadius);
             return;
         }
 
@@ -76,10 +92,10 @@ public sealed class LayerRangeSlider : Control
             LowerValue, Minimum, Maximum, left, right, descending: false);
         var upperX = LayerRangeSliderGeometry.ValueToAxis(
             UpperValue, Minimum, Maximum, left, right, descending: false);
-        context.DrawLine(TrackPen, new Point(left, y), new Point(right, y));
-        context.DrawLine(SelectedPen, new Point(lowerX, y), new Point(upperX, y));
-        context.DrawEllipse(ThumbFill, ThumbPen, new Point(lowerX, y), ThumbRadius, ThumbRadius);
-        context.DrawEllipse(ThumbFill, ThumbPen, new Point(upperX, y), ThumbRadius, ThumbRadius);
+        context.DrawLine(trackPen, new Point(left, y), new Point(right, y));
+        context.DrawLine(selectedPen, new Point(lowerX, y), new Point(upperX, y));
+        context.DrawEllipse(ThumbBrush, thumbPen, new Point(lowerX, y), ThumbRadius, ThumbRadius);
+        context.DrawEllipse(ThumbBrush, thumbPen, new Point(upperX, y), ThumbRadius, ThumbRadius);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)

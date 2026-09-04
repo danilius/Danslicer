@@ -7,7 +7,7 @@
         x:DataType="vm:ConfigViewModel"
         Width="760" Height="540" MinWidth="560" MinHeight="360"
         WindowStartupLocation="CenterOwner"
-        Background="#23262A"
+        Background="{DynamicResource DsBackgroundBrush}"
         Title="Preferences">
 
     <Window.Resources>
@@ -23,18 +23,18 @@
     <Window.Styles>
         <Style Selector="TextBlock.label">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#9AA0A6" />
+            <Setter Property="Foreground" Value="{DynamicResource DsTextSecondaryBrush}" />
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style Selector="TextBlock.section">
-            <Setter Property="Foreground" Value="#C8CCD0" />
+            <Setter Property="Foreground" Value="{DynamicResource DsTextPrimaryBrush}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,14,0,6" />
         </Style>
         <Style Selector="TextBlock.value">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#C8CCD0" />
+            <Setter Property="Foreground" Value="{DynamicResource DsTextPrimaryBrush}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="TextAlignment" Value="Right" />
         </Style>
@@ -60,7 +60,7 @@
     </Window.Styles>
 
     <DockPanel>
-        <Border DockPanel.Dock="Left" Width="190" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,1,0">
+        <Border DockPanel.Dock="Left" Width="190" Background="{DynamicResource DsSurfaceBrush}" BorderBrush="{DynamicResource DsBorderBrush}" BorderThickness="0,0,1,0">
             <DockPanel>
                 <TextBox x:Name="SearchBox" DockPanel.Dock="Top" PlaceholderText="Search"
                          Margin="8,8,8,4" FontSize="12" TextChanged="OnSearchChanged" />
@@ -135,14 +135,14 @@
                     <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,0,0,8"
                                Text="Window-level shortcuts only. Viewport G/R/S/T/H/F keys and axis constraints remain fixed." />
                     <TextBlock Text="{Binding Keymap.ValidationMessage}" IsVisible="{Binding Keymap.HasValidationMessage}"
-                               Foreground="#FFB35C" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" />
+                               Foreground="{DynamicResource DsWarningBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" />
                     <ItemsControl ItemsSource="{Binding Keymap.Bindings}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:KeymapBindingViewModel">
                                 <Grid IsVisible="{Binding IsVisible}" ColumnDefinitions="*,150,70" ColumnSpacing="8" Margin="0,2">
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding ActionName}" Classes="label" />
-                                        <TextBlock Text="{Binding ActionId}" Foreground="#666C72" FontSize="10" />
+                                        <TextBlock Text="{Binding ActionId}" Foreground="{DynamicResource DsTextMutedBrush}" FontSize="10" />
                                     </StackPanel>
                                     <Button Grid.Column="1" Content="{Binding CaptureButtonText}"
                                             Command="{Binding BeginCaptureCommand}" MinHeight="28"
@@ -205,7 +205,7 @@
                             </WrapPanel>
                             <TextBlock Text="{Binding Printers.ValidationMessage}"
                                        IsVisible="{Binding Printers.HasValidationMessage}"
-                                       Foreground="#FFB35C" FontSize="12" Margin="0,6,0,0" />
+                                       Foreground="{DynamicResource DsWarningBrush}" FontSize="12" Margin="0,6,0,0" />
                         </StackPanel>
                     </Grid>
                 </StackPanel>
@@ -229,7 +229,7 @@
                                          PlaceholderText="Preset name" />
                                 <TextBlock Text="{Binding Resins.ValidationMessage}"
                                            IsVisible="{Binding Resins.HasValidationMessage}"
-                                           Foreground="#FFB35C" FontSize="12" TextWrapping="Wrap" />
+                                           Foreground="{DynamicResource DsWarningBrush}" FontSize="12" TextWrapping="Wrap" />
                                 <WrapPanel Margin="0,4,0,0">
                                     <Button Content="{Binding Resins.NameEditorAction}"
                                             Command="{Binding Resins.ConfirmNameCommand}" Margin="0,0,4,0" />
@@ -262,10 +262,10 @@
                         <Button Grid.Column="2" Content="Browse…" Click="OnBrowseUvtoolsClick" />
                     </Grid>
                     <TextBlock Text="{Binding UvtoolsExecutablePathValidationMessage}"
-                               Foreground="#FFB35C" FontSize="12" Margin="190,4,0,0"
+                               Foreground="{DynamicResource DsWarningBrush}" FontSize="12" Margin="190,4,0,0"
                                IsVisible="{Binding !IsUvtoolsExecutablePathValid}" />
                     <TextBlock Text="{Binding UvtoolsExecutablePathValidationMessage}"
-                               Foreground="#78C68A" FontSize="12" Margin="190,4,0,0"
+                               Foreground="{DynamicResource DsSuccessBrush}" FontSize="12" Margin="190,4,0,0"
                                IsVisible="{Binding IsUvtoolsExecutablePathValid}" />
                     <TextBlock Classes="label" TextWrapping="Wrap" Margin="190,4,0,0"
                                Text="Danslicer opens exported files in your installed copy; UVtools is not bundled." />

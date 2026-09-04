@@ -6,7 +6,7 @@
     <UserControl.Styles>
         <Style Selector="TextBlock.label">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#9AA0A6" />
+            <Setter Property="Foreground" Value="{DynamicResource DsTextSecondaryBrush}" />
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style Selector="NumericUpDown">
@@ -45,7 +45,7 @@
                          PlaceholderText="Preset name" />
                 <TextBlock Text="{Binding SupportPresetValidationMessage}"
                            IsVisible="{Binding HasSupportPresetValidationMessage}"
-                           Foreground="#EF5350" FontSize="11" Margin="0,2,0,0" />
+                           Foreground="{DynamicResource DsDangerBrush}" FontSize="11" Margin="0,2,0,0" />
                 <WrapPanel Margin="0,4,0,0">
                     <Button Content="{Binding SupportPresetNameEditorAction}"
                             Command="{Binding ConfirmSupportPresetNameCommand}" Margin="0,0,4,0" />
