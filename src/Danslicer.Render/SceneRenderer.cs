@@ -92,6 +92,7 @@ public sealed partial class SceneRenderer : IDisposable
     {
         // The deferred path lives in SceneRenderer.Deferred.cs and is opt-in per frame; any GL
         // failure there logs, latches off and falls back so a frame is always produced.
+        _pickTargetsValid = false; // only a completed deferred frame re-arms ID picking
         if (frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame)) return;
         RenderClassic(frame);
     }
