@@ -129,10 +129,13 @@ public sealed class ManualSupportRoutingTests
         Assert.Equal(2.4f, supportBase.BaseConeHeight);
     }
 
-    [Fact]
-    public void TopSurfaceSupportIsRefusedInsteadOfPiercingTheModel()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TopSurfaceSupportIsRefusedInsteadOfPiercingTheModel(bool independent)
     {
         var (document, box) = FloatingBoxDocument();
+        document.SupportSettings.IndependentManualSupports = independent;
 
         // On top of the box the only way down is through the solid: refuse, add nothing.
         var added = document.AddManualSupport(box, new Vector3(0, 0, 14), Vector3.UnitZ,
@@ -187,7 +190,11 @@ public sealed class ManualSupportRoutingTests
     public void InRangeManualSupportBranchesOntoTheExistingTrunk()
     {
         var (document, box) = FloatingBoxDocument();
-        document.SupportSettings = new SupportConfig { UseBaseGrid = false };
+        document.SupportSettings = new SupportConfig
+        {
+            UseBaseGrid = false,
+            IndependentManualSupports = false,
+        };
         Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
         var originalNodes = document.Supports.Nodes.OrderBy(node => node.Id)
             .Select(node => (node.Id, node.Type, node.Position)).ToList();
@@ -207,6 +214,45 @@ public sealed class ManualSupportRoutingTests
             .Select(node => (node.Id, node.Type, node.Position)));
         Assert.Equal(originalSegments, document.Supports.Segments.OrderBy(segment => segment.Id)
             .Select(segment => (segment.Id, segment.Type, segment.NodeA, segment.NodeB)));
+    }
+
+    [Fact]
+    public void IndependentManualSupportMayOverlapWithoutReusingExistingGraph()
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig
+        {
+            UseBaseGrid = false,
+            PreferExistingTrunks = true,
+            MinMemberSeparationMm = 5f,
+            IndependentManualSupports = true,
+        };
+        var contact = new Vector3(0, 0, 8);
+
+        Assert.True(document.AddManualSupport(box, contact, -Vector3.UnitZ));
+        var firstSegmentIds = document.Supports.Segments.Select(segment => segment.Id).ToHashSet();
+
+        Assert.True(document.AddManualSupport(box, contact, -Vector3.UnitZ));
+
+        Assert.Equal(2, document.Supports.Nodes.Count(node => node.Type == SupportNodeType.Base));
+        Assert.Equal(2, document.Supports.Supports().Count());
+        Assert.DoesNotContain(document.Supports.Segments,
+            segment => segment.Type == SupportSegmentType.Branch);
+
+        var firstSegments = document.Supports.Segments
+            .Where(segment => firstSegmentIds.Contains(segment.Id)).ToList();
+        var secondSegments = document.Supports.Segments
+            .Where(segment => !firstSegmentIds.Contains(segment.Id)).ToList();
+        Assert.Contains(firstSegments, first => secondSegments.Any(second =>
+        {
+            var firstA = document.Supports.GetNode(first.NodeA).Position;
+            var firstB = document.Supports.GetNode(first.NodeB).Position;
+            var secondA = document.Supports.GetNode(second.NodeA).Position;
+            var secondB = document.Supports.GetNode(second.NodeB).Position;
+            var combinedRadius = (first.Diameter + second.Diameter) * 0.5f;
+            return GeometryDistance.SegmentSegmentSquared(
+                firstA, firstB, secondA, secondB) < combinedRadius * combinedRadius;
+        }));
     }
 
     [Fact]

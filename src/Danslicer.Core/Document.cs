@@ -571,8 +571,9 @@ public sealed class Document
 
     /// <summary>
     /// Adds a manual support at a picked surface point, routed by the tree router into the spec
-    /// anatomy (cone tip, optional branch, vertical trunk, disc base) against every object and
-    /// existing support; returns false when no clear path to the plate exists, adding nothing.
+    /// anatomy (cone tip, optional branch, vertical trunk, disc base) against every object and,
+    /// unless independent-manual mode is enabled, existing supports; returns false when no clear
+    /// path to the plate exists, adding nothing.
     /// One undo step. (The old Shift+T blind straight drop was removed 2026-09-03 at the user's
     /// request — it had no practical use.)
     /// </summary>
@@ -583,7 +584,10 @@ public sealed class Document
         out RoutingFailureReason? failureReason)
     {
         var settings = SupportSettings with { };
-        var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
+        var independent = settings.IndependentManualSupports;
+        ICollisionScene obstacles = independent
+            ? MeshObstacles()
+            : new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
         var rules = GrowthRuleSet.FromConfig(settings);
         var router = new TreeSupportRouter(obstacles, rules);
         var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
@@ -599,9 +603,10 @@ public sealed class Document
             MaxMemberAngleDegrees = settings.MemberAngleDegrees,
             TipMemberLength = settings.TipMemberLength,
             MaxBranchLength = settings.MaxBranchLength,
-            PreferExistingTrunks = settings.PreferExistingTrunks,
+            PreferExistingTrunks = !independent && settings.PreferExistingTrunks,
             ExistingTrunkBranchRange = settings.ExistingTrunkBranchRange,
-            MinMemberSeparationMm = settings.MinMemberSeparationMm,
+            IgnoreExistingSupports = independent,
+            MinMemberSeparationMm = independent ? 0 : settings.MinMemberSeparationMm,
             MiniSupportDiameter = settings.MiniSupportDiameter,
             MiniSupportTipDiameter = settings.MiniSupportTipDiameter,
             MiniSupportConeLength = settings.MiniSupportConeLength,

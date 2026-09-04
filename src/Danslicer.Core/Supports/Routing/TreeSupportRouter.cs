@@ -21,6 +21,11 @@ public sealed record TreeRoutingOptions
     public bool PreferExistingTrunks { get; init; } = true;
     /// <summary>Maximum actual branch length when attaching to an existing trunk.</summary>
     public float ExistingTrunkBranchRange { get; init; } = 8f;
+    /// <summary>
+    /// Keeps an existing graph as the edit target while excluding its members, trunks and branch
+    /// ends from routing context. Members created by this route still avoid one another.
+    /// </summary>
+    public bool IgnoreExistingSupports { get; init; }
     public float MiniSupportDiameter { get; init; } = 0.6f;
     public float MiniSupportTipDiameter { get; init; } = 0.25f;
     public float MiniSupportConeLength { get; init; } = 1f;
@@ -114,7 +119,8 @@ public sealed class TreeSupportRouter
         var angleOffset = new Random(options.Seed).NextSingle() * MathF.Tau;
         var state = new RouteState(graph, ids, clearance, angleOffset,
             options.MinMemberSeparationMm);
-        if (existingGraph is not null) state.SeedExistingContext();
+        if (existingGraph is not null && !options.IgnoreExistingSupports)
+            state.SeedExistingContext();
         var unrouted = new List<RoutingTip>();
         var failures = new List<RoutingFailure>();
 
