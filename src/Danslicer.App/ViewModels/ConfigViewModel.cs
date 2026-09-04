@@ -4,6 +4,7 @@ using Danslicer.App.Configuration;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.App.ViewModels;
 
@@ -81,6 +82,9 @@ public sealed class ConfigViewModel : ViewModelBase
 
     public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
         Enum.GetValues<SupportBaseShape>();
+
+    public IReadOnlyList<ReinforceSeedSelector> ReinforceSeedSelectors { get; } =
+        Enum.GetValues<ReinforceSeedSelector>();
 
     public IRelayCommand SaveSupportPresetCommand { get; }
     public IRelayCommand BeginSaveSupportPresetAsCommand { get; }
@@ -529,6 +533,38 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.UseBaseGrid;
         set => Update(() => Supports.UseBaseGrid = value);
+    }
+
+    public bool SupportReinforceEnabled
+    {
+        get => Supports.ReinforceEnabled;
+        set => Update(() => Supports.ReinforceEnabled = value);
+    }
+
+    public ReinforceSeedSelector SupportReinforceSeedSelector
+    {
+        get => Supports.ReinforceSeedSelector;
+        set => Update(() => Supports.ReinforceSeedSelector = Enum.IsDefined(value)
+            ? value : ReinforceSeedSelector.LowestPointOfObject);
+    }
+
+    public int SupportReinforceCount
+    {
+        get => Supports.ReinforceCount;
+        set => Update(() => Supports.ReinforceCount = Math.Clamp(value, 1, 100));
+    }
+
+    public float SupportReinforceRingRadius
+    {
+        get => Supports.ReinforceRingRadius;
+        set => Update(() => Supports.ReinforceRingRadius = Clamp(value, 0.01f, 1000f, 2f));
+    }
+
+    public float SupportReinforceRingDiameterMultiplier
+    {
+        get => Supports.ReinforceRingDiameterMultiplier;
+        set => Update(() => Supports.ReinforceRingDiameterMultiplier =
+            Clamp(value, 0.01f, 100f, 1.25f));
     }
 
     public SupportBaseShape SupportBaseShapeValue
