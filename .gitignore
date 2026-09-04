@@ -5,6 +5,7 @@ obj/
 *.user
 *.suo
 TestResults/
+artifacts/
 *.swp
 .DS_Store
 launchSettings.json
