@@ -48,6 +48,14 @@ public sealed class RenderFrame
     public ViewportClipRange ClipRange { get; init; }
     /// <summary>Hovered model-surface world Z, or null when the Support waterline is inactive.</summary>
     public float? WaterlineZ { get; init; }
+    /// <summary>Wireframe overlay on visible objects; identical on both paths.</summary>
+    public bool WireframeEnabled { get; init; }
+    /// <summary>Corner view cube (design 6.2); drawn over the finished frame on both paths.</summary>
+    public bool ShowViewCube { get; init; } = true;
+    /// <summary>Hovered view-cube region from <see cref="ViewCube.HitRegion"/>, or -1.</summary>
+    public int ViewCubeHover { get; init; } = -1;
+    /// <summary>Host DPI scale, so fixed-pixel overlays keep their physical size.</summary>
+    public double RenderScaling { get; init; } = 1.0;
 }
 
 /// <summary>
@@ -63,6 +71,7 @@ public sealed partial class SceneRenderer : IDisposable
     private readonly GL _gl;
     private readonly ShaderProgram _meshShader;
     private readonly ShaderProgram _lineShader;
+    private readonly ShaderProgram _wireShader;
     private readonly LineBatch _depthLines;
     private readonly LineBatch _overlayLines;
     private readonly Dictionary<Mesh, GpuMesh> _meshes = new();
@@ -84,6 +93,7 @@ public sealed partial class SceneRenderer : IDisposable
         var preamble = Shaders.Preamble(IsGles);
         _meshShader = new ShaderProgram(_gl, preamble + Shaders.MeshVertex, preamble + Shaders.MeshFragment);
         _lineShader = new ShaderProgram(_gl, preamble + Shaders.LineVertex, preamble + Shaders.LineFragment);
+        _wireShader = new ShaderProgram(_gl, preamble + Shaders.WireVertex, preamble + Shaders.WireFragment);
         _depthLines = new LineBatch(_gl);
         _overlayLines = new LineBatch(_gl);
     }
@@ -93,8 +103,17 @@ public sealed partial class SceneRenderer : IDisposable
         // The deferred path lives in SceneRenderer.Deferred.cs and is opt-in per frame; any GL
         // failure there logs, latches off and falls back so a frame is always produced.
         _pickTargetsValid = false; // only a completed deferred frame re-arms ID picking
-        if (frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame)) return;
-        RenderClassic(frame);
+        var deferredDrawn = frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame);
+        if (!deferredDrawn) RenderClassic(frame);
+
+        if (frame.ShowViewCube)
+        {
+            // Last over the finished frame, whichever path drew it.
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)frame.Framebuffer);
+            _viewCube ??= new ViewCube(_gl, IsGles);
+            _viewCube.Draw(frame.Width, frame.Height, frame.RenderScaling, frame.Camera.View,
+                frame.ViewCubeHover);
+        }
     }
 
     private void RenderClassic(RenderFrame frame)
@@ -123,6 +142,7 @@ public sealed partial class SceneRenderer : IDisposable
         var plateFaded = frame.Camera.Eye.Z < 0f && frame.PlateOpacityFromBelow < 1f;
         if (!plateFaded) DrawPlate(frame.Printer, view, projection, 1f);
         DrawObjects(frame, view, projection, ghosted: false);
+        DrawWireframe(frame, view, projection);
         DrawAuxMeshes(frame, view, projection);
         if (plateFaded && frame.PlateOpacityFromBelow > 0.001f)
             DrawPlate(frame.Printer, view, projection, frame.PlateOpacityFromBelow);
@@ -267,6 +287,29 @@ public sealed partial class SceneRenderer : IDisposable
         _meshShader.Set("uWaterlineZ", waterlineZ.GetValueOrDefault());
     }
 
+    /// <summary>
+    /// Wireframe overlay: the triangulation's edges over every visible (non-ghosted) object,
+    /// clip-aware like the surfaces they sit on. Shared by both paths — classic calls it after
+    /// the opaque objects, deferred at the start of its forward stage, where the depth buffer
+    /// holds the same opaque scene.
+    /// </summary>
+    private void DrawWireframe(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection)
+    {
+        if (!frame.WireframeEnabled) return;
+        _wireShader.Use();
+        _wireShader.Set("uView", view);
+        _wireShader.Set("uProjection", projection);
+        _wireShader.Set("uColor", new Vector3(0.05f, 0.06f, 0.08f));
+        BindClip(_wireShader, frame.ClipRange);
+        foreach (var obj in frame.Scene.Objects)
+        {
+            if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+            if (!_meshes.TryGetValue(obj.Mesh, out var gpu)) continue;
+            _wireShader.Set("uModel", obj.Transform.ToMatrix());
+            gpu.DrawEdges();
+        }
+    }
+
     private void DrawLines(RenderFrame frame, in Matrix4x4 viewProjection)
     {
         var gl = _gl;
@@ -360,6 +403,7 @@ public sealed partial class SceneRenderer : IDisposable
 
     public void Dispose()
     {
+        _viewCube?.Dispose();
         _deferred?.Dispose();
         foreach (var gpu in _meshes.Values) gpu.Dispose();
         _meshes.Clear();
@@ -368,5 +412,6 @@ public sealed partial class SceneRenderer : IDisposable
         _overlayLines.Dispose();
         _meshShader.Dispose();
         _lineShader.Dispose();
+        _wireShader.Dispose();
     }
 }

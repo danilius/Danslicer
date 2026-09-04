@@ -21,6 +21,7 @@ public sealed partial class SceneRenderer
 
     private DeferredPipeline? _deferred;
     private bool _deferredFailed;
+    private ViewCube? _viewCube;
     // Index = the draw ID written to the G-buffer this frame; the entry is the scene object a
     // pick of that ID selects (null for background, plate and aux geometry). Rebuilt every
     // deferred frame so ids and targets cannot drift apart.
@@ -258,6 +259,7 @@ public sealed partial class SceneRenderer
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, _deferred!.ForwardFbo);
         gl.DepthFunc(DepthFunction.Lequal);
 
+        DrawWireframe(frame, view, projection);
         DrawTransparentAuxMeshes(frame, view, projection);
         if (plateFaded && frame.PlateOpacityFromBelow > 0.001f)
             DrawPlate(frame.Printer, view, projection, frame.PlateOpacityFromBelow);
