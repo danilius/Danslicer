@@ -253,6 +253,15 @@
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportMinIslandAreaMm2, Mode=TwoWay}" />
                 </Grid>
+                <Grid Tag="supports placement contact face maximum angle from straight down degrees eligible"
+                      ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max angle from down °" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="90" Increment="1" FormatString="0"
+                                   Value="{Binding SupportMaxContactFaceAngleDegrees, Mode=TwoWay}" />
+                </Grid>
+                <CheckBox Tag="supports placement require contact sees plate line of sight unobstructed"
+                          Content="Require line of sight to plate"
+                          IsChecked="{Binding SupportRequireContactSeesPlate, Mode=TwoWay}" Margin="0,4" />
             </StackPanel>
         </Expander>
     </StackPanel>
