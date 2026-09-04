@@ -55,6 +55,8 @@ internal static class Shaders
         uniform float uClipEnabled;
         uniform float uClipLowerZ;
         uniform float uClipUpperZ;
+        uniform float uWaterlineEnabled;
+        uniform float uWaterlineZ;
 
         out vec4 fragColor;
 
@@ -118,6 +120,16 @@ internal static class Shaders
             }
 
             vec3 lit = color * (diffuse + 0.08) + vec3(spec) + vec3(edge);
+
+            // A derivative-sized band stays approximately constant in screen pixels as the
+            // camera moves. Tight world-space clamps keep grazing and nearly-horizontal faces
+            // useful without turning the contour into a broad wash.
+            if (uWaterlineEnabled > 0.5)
+            {
+                float band = clamp(fwidth(vWorldPosition.z) * 1.75, 0.008, 0.25);
+                float contour = 1.0 - smoothstep(band * 0.35, band, abs(vWorldPosition.z - uWaterlineZ));
+                lit = mix(lit, vec3(0.04, 0.96, 0.92), contour * 0.96);
+            }
             fragColor = vec4(lit, uOpacity);
         }
         """;

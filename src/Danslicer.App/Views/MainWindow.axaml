@@ -206,6 +206,9 @@
                 <ScrollViewer IsVisible="{Binding IsSupportView}">
                     <StackPanel>
                         <TextBlock Text="Support" Classes="section" />
+                        <CheckBox Content="Hover waterline" IsChecked="{Binding SupportWaterline.Enabled}"
+                                  Margin="0,0,0,6"
+                                  ToolTip.Tip="Show a live model contour at the hovered surface height" />
                         <TextBlock Text="Layer range" Classes="label"
                                    ToolTip.Tip="Viewport isolation only — slicing and support generation are unaffected" />
                         <controls:LayerRangeSlider Minimum="{Binding SupportClip.MinimumZ}"
@@ -334,6 +337,7 @@
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
                                           SupportDisplay="{Binding SupportSettings.SupportDisplay}"
                                           ClipRange="{Binding ViewportClipRange}"
+                                          SupportWaterline="{Binding SupportWaterline}"
                                           ShowMoveGizmo="{Binding ShowMoveGizmo}"
                                           ShowRotateGizmo="{Binding ShowRotateGizmo}"
                                           ShowScaleGizmo="{Binding ShowScaleGizmo}"
