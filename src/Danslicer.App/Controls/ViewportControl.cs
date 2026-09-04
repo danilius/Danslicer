@@ -77,6 +77,15 @@ public sealed class ViewportControl : OpenGlControlBase
     private HoverWaterlineViewModel? _subscribedWaterline;
     // A Layout-mode click awaiting ID-buffer resolution on the next rendered frame (design 6.5).
     private (Vector2 Mouse, bool Additive)? _pendingGpuPick;
+    private int _viewCubeHover = -1;
+
+    private int HitViewCube(Point pos)
+    {
+        if (!Configuration.AppConfig.Current.Viewport.ViewCubeEnabled) return -1;
+        var scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+        return ViewCube.HitRegion((float)(pos.X * scaling), (float)(pos.Y * scaling),
+            (int)(Bounds.Width * scaling), (int)(Bounds.Height * scaling), scaling, Camera.View);
+    }
     private readonly Gizmo _gizmo = new();
     private Point _lastPointer;
     private bool _orbiting;
@@ -331,6 +340,10 @@ public sealed class ViewportControl : OpenGlControlBase
             Deferred = DeferredEffects.FromConfig(Configuration.AppConfig.Current.Viewport),
             ClipRange = ClipRange,
             WaterlineZ = SupportWaterline?.WorldZ,
+            WireframeEnabled = Configuration.AppConfig.Current.Viewport.WireframeEnabled,
+            ShowViewCube = Configuration.AppConfig.Current.Viewport.ViewCubeEnabled,
+            ViewCubeHover = _viewCubeHover,
+            RenderScaling = scaling,
         });
 
         if (_pendingGpuPick is { } pick)
@@ -457,6 +470,16 @@ public sealed class ViewportControl : OpenGlControlBase
         if (props.IsLeftButtonPressed && Document is not null && _modal is not null)
         {
             var m = MouseVector(e);
+
+            // The view cube floats over everything, so it wins the click.
+            if (HitViewCube(_lastPointer) is var cubeRegion && cubeRegion >= 0)
+            {
+                var (yaw, pitch) = ViewCube.ViewAngles(cubeRegion, Camera.Yaw * 180f / MathF.PI);
+                Camera.SetView(yaw, pitch);
+                Redraw();
+                e.Handled = true;
+                return;
+            }
 
             if (!SupportSelectionMode && _layFlatPick)
             {
@@ -600,6 +623,17 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             _gizmo.Hovered = GizmoHandle.None;
             Cursor = Cursor.Default;
+        }
+
+        if (!_orbiting && !_panning && _marqueeStart is null && _tipDrag is null &&
+            _modal is not { IsActive: true })
+        {
+            var cubeHover = HitViewCube(pos);
+            if (cubeHover != _viewCubeHover)
+            {
+                _viewCubeHover = cubeHover;
+                Redraw();
+            }
         }
 
         UpdateWaterline(MouseVector(e));

@@ -40,8 +40,9 @@ supervisor session) · D2 flip: **Deferred is the default render path**.
 
 | Item | Status |
 |------|--------|
-| W2 ID-buffer picking (deferred) | IN PROGRESS — queued-pick design |
-| W3 View cube + settings icon + display-toggles panel (incl. wireframe overlay, D2) | after W2 |
+| W2 ID-buffer picking (deferred) | MERGED (`c7b4a53`) |
+| W3 View cube + View pop-out + wireframe overlay | MERGED (`cca84f7`, user-approved) — screen checklist in `Danslicer-claude\CLAUDE-LANE.md`; deferrals flagged: cube face labels, cube drag-orbit. 023d unblocked |
+| Stylesheet proposal (user directive, both lanes) | PARKED on branch `theme-claude` (`5be68c8`): shared icon set committed, full plan in `src/Danslicer.App/Themes/PLAN.md` — successor session continues |
 | Painted (screen-space) cap style for the deferred path | after job 025 defines config keys |
 | D5 island-search tweaks (approved) | brief after job 024 lands (extends its tuning pop-out) |
 | W9 recipes/regions design pass | with user, when they want it |
@@ -50,3 +51,13 @@ supervisor session) · D2 flip: **Deferred is the default render path**.
 
 SpaceMouse HID fallback + unbound buttons; Grok worktree reference-only; W6 deep
 branch-shaping tuning gated on U6.
+
+## Claude-lane handover note (2026-09-04, session end)
+
+Fable worker session closed with the lane clean: W0/W0b fixes, W1, W2, W3 all merged
+and user-verified where screen time allowed. Open on the lane: theme proposal (branch
+`theme-claude`, plan committed), Painted cap style (after job 025 defines config
+keys), D5 island-tweaks brief (after job 024 lands), W9 recipes design pass with the
+user. Governance in force at handover: all user-facing comms via the supervisor
+session; merges single-executor per proposal; standing grant to kill the app for
+build locks.
