@@ -108,47 +108,73 @@ public sealed class TreeSupportRouter
         var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, _obstacles, options.Seed)
             .ToList();
         var indexedTips = expandedTips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
-        foreach (var islandPhase in new[] { true, false })
+        var pendingMini = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
+        var deferredIslandRetries = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
+        foreach (var item in indexedTips
+                     .OrderByDescending(item => item.Tip.IsIslandPriority)
+                     .ThenByDescending(item => item.Tip.SurfacePoint.Z)
+                     .ThenBy(item => item.Index))
         {
-            var pendingMini = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
-            foreach (var item in indexedTips
-                         .Where(item => item.Tip.IsIslandPriority == islandPhase)
-                         .OrderByDescending(item => item.Tip.SurfacePoint.Z)
-                         .ThenBy(item => item.Index))
+            if (item.Tip.MiniClusterId is not null) continue;
+            var reason = RoutingFailureReason.NoClearStep;
+            if (!item.Tip.MiniSupportOnly && RouteOne(item.Tip, options, state, out reason))
+                continue;
+            if (item.Tip.IsIslandPriority && !item.Tip.MiniSupportOnly)
             {
-                if (item.Tip.MiniClusterId is not null) continue;
-                var reason = RoutingFailureReason.NoClearStep;
-                if (!item.Tip.MiniSupportOnly && RouteOne(item.Tip, options, state, out reason))
-                    continue;
-                if (item.Tip.MiniSupportOnly || options.RefusedTipsFallBackToMini)
-                    pendingMini.Add((item.Tip, item.Index, reason));
-                else
-                {
-                    unrouted.Add(item.Tip);
-                    failures.Add(new RoutingFailure(item.Tip, reason));
-                }
+                deferredIslandRetries.Add((item.Tip, item.Index, reason));
+                continue;
             }
-            foreach (var cluster in indexedTips
-                         .Where(item => item.Tip.IsIslandPriority == islandPhase &&
-                                        item.Tip.MiniClusterId is not null)
-                         .GroupBy(item => item.Tip.MiniClusterId!.Value)
-                         .OrderBy(group => group.Key))
+            if (item.Tip.MiniSupportOnly || options.RefusedTipsFallBackToMini)
+                pendingMini.Add((item.Tip, item.Index, reason));
+            else
             {
-                foreach (var failure in RouteMiniCluster(cluster.OrderBy(item => item.Index)
-                             .Select(item => item.Tip).ToList(), options, state))
+                unrouted.Add(item.Tip);
+                failures.Add(new RoutingFailure(item.Tip, reason));
+            }
+        }
+        // An island gets first use of existing capacity, then one deterministic retry after
+        // ordinary structural routes have created additional trunks it may safely share.
+        foreach (var retry in deferredIslandRetries.OrderByDescending(item => item.Tip.SurfacePoint.Z)
+                     .ThenBy(item => item.Index))
+        {
+            if (RouteOne(retry.Tip, options, state, out var reason)) continue;
+            if (options.RefusedTipsFallBackToMini)
+                pendingMini.Add((retry.Tip, retry.Index, reason));
+            else
+            {
+                unrouted.Add(retry.Tip);
+                failures.Add(new RoutingFailure(retry.Tip, reason));
+            }
+        }
+        foreach (var cluster in indexedTips
+                     .Where(item => item.Tip.MiniClusterId is not null)
+                     .GroupBy(item => item.Tip.MiniClusterId!.Value)
+                     .OrderBy(group => group.Key))
+        {
+            foreach (var failure in RouteMiniCluster(cluster.OrderBy(item => item.Index)
+                         .Select(item => item.Tip).ToList(), options, state))
+            {
+                if (failure.Tip.IsIslandPriority)
+                {
+                    var index = indexedTips.FindIndex(item => item.Tip.Equals(failure.Tip));
+                    pendingMini.Add((failure.Tip, index < 0 ? int.MaxValue : index,
+                        failure.Reason));
+                }
+                else
                 {
                     unrouted.Add(failure.Tip);
                     failures.Add(failure);
                 }
             }
-            foreach (var pending in pendingMini.OrderByDescending(item => item.Tip.SurfacePoint.Z)
-                         .ThenBy(item => item.Index))
-            {
-                if (TryRouteMiniSupport(pending.Tip, options, state, out var miniReason)) continue;
-                unrouted.Add(pending.Tip);
-                failures.Add(new RoutingFailure(pending.Tip,
-                    pending.Tip.MiniSupportOnly ? miniReason : pending.Reason));
-            }
+        }
+        foreach (var pending in pendingMini
+                     .OrderByDescending(item => item.Tip.SurfacePoint.Z)
+                     .ThenBy(item => item.Index))
+        {
+            if (TryRouteMiniSupport(pending.Tip, options, state, out var miniReason)) continue;
+            unrouted.Add(pending.Tip);
+            failures.Add(new RoutingFailure(pending.Tip,
+                pending.Tip.MiniSupportOnly ? miniReason : pending.Reason));
         }
 
         var addedNodes = graph.Nodes.Where(node => !originalNodeIds.Contains(node.Id)).ToList();

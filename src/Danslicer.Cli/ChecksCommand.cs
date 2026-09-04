@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.IO;
+using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Checks;
 
 namespace Danslicer.Cli;
@@ -16,6 +17,7 @@ internal static class ChecksCommand
         var inputs = new List<string>();
         var json = false;
         var seat = false;
+        var islandsAfterSupports = false;
         var parameters = PrintCheckParameters.Default;
         for (int i = 0; i < args.Length; i++)
         {
@@ -23,6 +25,7 @@ internal static class ChecksCommand
             {
                 case "--json": json = true; break;
                 case "--seat": seat = true; break;
+                case "--islands-after-supports": islandsAfterSupports = true; break;
                 case "--layer": parameters = parameters with { LayerHeightMm = F(args[++i]) }; break;
                 case "--min-island": parameters = parameters with { MinIslandAreaMm2 = F(args[++i]) }; break;
                 case "--overhang": parameters = parameters with { OverhangAngleDegrees = F(args[++i]) }; break;
@@ -48,8 +51,12 @@ internal static class ChecksCommand
             Console.Error.WriteLine("  danslicer checks <file.stl|file.obj>... [--json] [--seat] [--layer 0.05] [--min-island 0.5]");
             Console.Error.WriteLine("                   [--overhang 45] [--min-suction 5] [--drain 0.8]");
             Console.Error.WriteLine("                   [--support-spacing 1] [--model-clearance 0.5] [--object-spacing 1]");
+            Console.Error.WriteLine("  danslicer checks <file.danslicer> --islands-after-supports [--json]");
             return 1;
         }
+
+        if (islandsAfterSupports)
+            return RunIslandsAfterSupports(inputs, json, parameters);
 
         var meshes = new List<Danslicer.Core.Geometry.Mesh>();
         var seatOffsets = new List<float[]?>();
@@ -139,4 +146,59 @@ internal static class ChecksCommand
     private static string Fmt(float v) => v.ToString("0.###", Ci);
     private static float[]? Xyz(System.Numerics.Vector3? p) =>
         p is { } v ? [v.X, v.Y, v.Z] : null;
+
+    private static int RunIslandsAfterSupports(IReadOnlyList<string> inputs, bool json,
+        PrintCheckParameters parameters)
+    {
+        if (inputs.Count != 1 || !ProjectFile.IsProjectPath(inputs[0]))
+        {
+            Console.Error.WriteLine("--islands-after-supports requires exactly one .danslicer project.");
+            return 1;
+        }
+
+        var document = ProjectFile.Load(inputs[0]).Document;
+        var findings = new List<(int ObjectIndex, DetectedIsland Island)>();
+        var objects = document.Scene.Objects
+            .Where(obj => obj.RenderState != Danslicer.Core.Scene.RenderState.Hidden).ToList();
+        for (var i = 0; i < objects.Count; i++)
+        {
+            var obj = objects[i];
+            var matrix = obj.Transform.ToMatrix();
+            var mesh = new Danslicer.Core.Geometry.Mesh(
+                obj.Mesh.Positions.Select(point => System.Numerics.Vector3.Transform(point, matrix)).ToArray(),
+                (int[])obj.Mesh.Indices.Clone());
+            foreach (var island in IslandDetection.FindUnsupported(mesh, document.Supports,
+                         parameters.LayerHeightMm, parameters.MinIslandAreaMm2,
+                         parameters.PlateZ, parameters.OverhangAngleDegrees))
+                findings.Add((i, island));
+        }
+
+        if (json)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                file = inputs[0],
+                count = findings.Count,
+                islands = findings.Select(item => new
+                {
+                    objectIndex = item.ObjectIndex,
+                    layerIndex = item.Island.LayerIndex,
+                    point = Xyz(item.Island.Position),
+                    areaMm2 = item.Island.AreaMm2,
+                }),
+            }, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            }));
+            return 0;
+        }
+
+        Console.WriteLine($"Unsupported islands: {findings.Count}");
+        foreach (var item in findings)
+            Console.WriteLine($"  object {item.ObjectIndex} layer {item.Island.LayerIndex} " +
+                              $"z {Fmt(item.Island.Z)} x {Fmt(item.Island.X)} y {Fmt(item.Island.Y)} " +
+                              $"area {Fmt(item.Island.AreaMm2)} mm2");
+        return 0;
+    }
 }

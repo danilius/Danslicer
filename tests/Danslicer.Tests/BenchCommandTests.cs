@@ -61,6 +61,7 @@ public class BenchCommandTests
                                 ["ContactBlocked"] = 1,
                                 ["NoClearStep"] = 8,
                             },
+                            IslandRefusals = 3,
                             Bases = 1,
                             MaxLeanAngleDegrees = 44.56f,
                             CollisionFree = true,
@@ -81,7 +82,7 @@ public class BenchCommandTests
         Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);
         Assert.Contains("**unrouted 9 / 12**, bases **1**, max lean 44.6°, " +
                         "collisionFree **true**", markdown);
-        Assert.Contains("Refusals: ContactBlocked 1, NoClearStep 8.", markdown);
+        Assert.Contains("Refusals: ContactBlocked 1, NoClearStep 8; island-origin **3**.", markdown);
         Assert.DoesNotContain("MiniIsland 0", markdown);
         Assert.DoesNotContain("brace 0", markdown);
     }

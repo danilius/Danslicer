@@ -26,6 +26,7 @@ internal static class RouteCommand
             var seat = false;
             var useBaseGrid = true;
             var reinforce = false;
+            var islandFirst = true;
             for (var i = 1; i < args.Length; i++)
             {
                 options = args[i] switch
@@ -44,6 +45,7 @@ internal static class RouteCommand
                     "--seat" => SetSeat(options, out seat),
                     "--base-grid" => SetUseBaseGrid(options, args[++i], out useBaseGrid),
                     "--reinforce" => SetReinforce(options, args[++i], out reinforce),
+                    "--island-first" => SetIslandFirst(options, args[++i], out islandFirst),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
                 };
             }
@@ -59,7 +61,7 @@ internal static class RouteCommand
             }
             var obstacles = new BvhCollisionScene();
             obstacles.AddMesh(mesh, Matrix4x4.Identity, Path.GetFileName(meshPath));
-            var tips = ReadTips(tipsPath);
+            var tips = ReadTips(tipsPath, islandFirst);
             var rules = GrowthRuleSet.FromConfig(new SupportConfig { ReinforceEnabled = reinforce });
             RoutingResult result;
             if (strategy == "topdown")
@@ -146,6 +148,18 @@ internal static class RouteCommand
         return options;
     }
 
+    private static GridRoutingOptions SetIslandFirst(GridRoutingOptions options, string value,
+        out bool islandFirst)
+    {
+        islandFirst = value.ToLowerInvariant() switch
+        {
+            "on" or "true" => true,
+            "off" or "false" => false,
+            _ => throw new ArgumentException("island-first must be 'on' or 'off'"),
+        };
+        return options;
+    }
+
     private static GridRoutingOptions SetStrategy(GridRoutingOptions options, string value,
         out string strategy)
     {
@@ -162,7 +176,7 @@ internal static class RouteCommand
         return options;
     }
 
-    private static List<RoutingTip> ReadTips(string path)
+    private static List<RoutingTip> ReadTips(string path, bool islandFirst)
     {
         var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         var text = File.ReadAllText(path);
@@ -183,6 +197,7 @@ internal static class RouteCommand
                 throw new JsonException($"tip {index}: inwardSurfaceNormal/inwardNormal must contain three numbers");
             if (diameter <= 0)
                 throw new JsonException($"tip {index}: tipDiameter/diameter must be positive");
+            var islandOrigin = IsIsland(tip.Strategy) || IsIsland(tip.MiniClusterSourceStrategy);
             return new RoutingTip(ToVector(point), ToVector(normal), diameter, tip.ContactObjectId,
                 TipShape: ParseShape(tip.TipShape),
                 ConeLength: tip.ConeLength > 0 ? tip.ConeLength : 2f,
@@ -195,9 +210,15 @@ internal static class RouteCommand
                 MiniClusterId: tip.MiniClusterId,
                 MiniClusterCenter: tip.MiniClusterCenter is { Length: 3 }
                     ? ToVector(tip.MiniClusterCenter)
-                    : null);
+                    : null,
+                IsIslandOrigin: islandOrigin,
+                IsIslandPriority: islandFirst && islandOrigin);
         }).ToList();
     }
+
+    private static bool IsIsland(string? strategy) =>
+        string.Equals(strategy, nameof(TipStrategy.Island), StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(strategy, nameof(TipStrategy.MiniIsland), StringComparison.OrdinalIgnoreCase);
 
     private static bool IsCollisionFree(SupportGraph graph, ICollisionScene obstacles)
     {
@@ -266,6 +287,7 @@ internal static class RouteCommand
                 point = new[] { failure.Tip.SurfacePoint.X, failure.Tip.SurfacePoint.Y,
                     failure.Tip.SurfacePoint.Z },
                 reason = failure.Reason.ToString(),
+                isIslandOrigin = failure.Tip.IsIslandOrigin,
             }).ToList(),
             ["bases"] = result.BasePositions.Select(p => new[] { p.X, p.Y, p.Z }).ToList(),
             ["maxLeanAngleDegrees"] = result.MaxLeanAngleDegrees,
@@ -300,7 +322,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 
@@ -323,6 +345,7 @@ internal static class RouteCommand
         public float BallDiameter { get; set; }
         public float PenetrationDepth { get; set; }
         public string? Strategy { get; set; }
+        public string? MiniClusterSourceStrategy { get; set; }
         public int? MiniClusterId { get; set; }
         public float[]? MiniClusterCenter { get; set; }
     }

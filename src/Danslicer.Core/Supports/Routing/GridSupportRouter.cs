@@ -9,6 +9,8 @@ public readonly record struct RoutingTip(Vector3 SurfacePoint, Vector3 InwardSur
     float ConeLength = 2f, float BallDiameter = 0f, float PenetrationDepth = 0f,
     bool MiniSupportOnly = false, int? MiniClusterId = null,
     Vector3? MiniClusterCenter = null,
+    /// <summary>Preserves island provenance for diagnostics even when priority is benchmark-disabled.</summary>
+    bool IsIslandOrigin = false,
     /// <summary>Routes print-critical island contacts before all ordinary strategies.</summary>
     bool IsIslandPriority = false);
 

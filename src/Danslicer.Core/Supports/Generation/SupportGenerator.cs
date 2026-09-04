@@ -102,6 +102,7 @@ public static class SupportGenerator
             PenetrationDepth: c.PenetrationDepth,
             MiniSupportOnly: c.Strategy is TipStrategy.MiniIsland or TipStrategy.MiniCluster,
             MiniClusterId: c.MiniClusterId, MiniClusterCenter: c.MiniClusterCenter,
+            IsIslandOrigin: IsIslandCandidate(c),
             IsIslandPriority: IsIslandCandidate(c)));
 
         var router = new TreeSupportRouter(obstacles, rules);

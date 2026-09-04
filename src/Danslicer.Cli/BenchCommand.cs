@@ -31,12 +31,13 @@ internal static class BenchCommand
             {
                 GeneratedAtUtc = DateTimeOffset.UtcNow,
                 FineFeatureMaxAreaMm2 = options.FineFeatureMaxAreaMm2,
+                IslandFirst = options.IslandFirst,
                 Models =
                 [
                     RunModel("drogon", options.DrogonPath, options.Reinforce,
-                        options.FineFeatureMaxAreaMm2),
+                        options.FineFeatureMaxAreaMm2, options.IslandFirst),
                     RunModel("gripper", options.GripperPath, options.Reinforce,
-                        options.FineFeatureMaxAreaMm2),
+                        options.FineFeatureMaxAreaMm2, options.IslandFirst),
                 ],
             };
             report.Markdown = BuildMarkdown(report);
@@ -113,14 +114,15 @@ internal static class BenchCommand
                     $"{route.UnroutedTips} / {tips.Candidates}**, bases **{route.Bases}**, " +
                     $"max lean {F1(route.MaxLeanAngleDegrees)}°, collisionFree " +
                     $"**{route.CollisionFree.ToString().ToLowerInvariant()}** | " +
-                    $"Refusals: {(refusals.Length == 0 ? "none" : refusals)}. |");
+                    $"Refusals: {(refusals.Length == 0 ? "none" : refusals)}; " +
+                    $"island-origin **{route.IslandRefusals}**. |");
             }
         }
         return text.ToString().TrimEnd();
     }
 
     private static ModelBenchmark RunModel(string key, string path, bool reinforce,
-        float? fineFeatureMaxAreaMm2)
+        float? fineFeatureMaxAreaMm2, bool islandFirst)
     {
         if (!File.Exists(path)) throw new IOException($"model not found: {path}");
 
@@ -142,9 +144,13 @@ internal static class BenchCommand
             var routes = new List<RouteBenchmark>();
             foreach (var mode in new[] { "on", "off" })
             {
-                var routeRun = Capture(() => RouteCommand.Run(
-                    [path, "--tips", tipsPath, "--seat", "--strategy", "tree",
-                        "--base-grid", mode, "--reinforce", reinforce ? "on" : "off", "--json"]));
+                var routeArgs = new List<string>
+                {
+                    path, "--tips", tipsPath, "--seat", "--strategy", "tree",
+                    "--base-grid", mode, "--reinforce", reinforce ? "on" : "off", "--json",
+                };
+                if (!islandFirst) routeArgs.AddRange(["--island-first", "off"]);
+                var routeRun = Capture(() => RouteCommand.Run([.. routeArgs]));
                 routes.Add(ParseRoute(mode, reinforce, routeRun));
             }
             return new ModelBenchmark { Key = key, Path = path, Tips = tips, Routes = routes };
@@ -202,6 +208,8 @@ internal static class BenchCommand
             SegmentCounts = ReadIntDictionary(root.GetProperty("segmentCounts")),
             UnroutedTips = root.GetProperty("unroutedTips").GetInt32(),
             RefusalCounts = ReadIntDictionary(root.GetProperty("refusalCounts")),
+            IslandRefusals = root.GetProperty("refusals").EnumerateArray().Count(item =>
+                item.TryGetProperty("isIslandOrigin", out var island) && island.GetBoolean()),
             Bases = root.GetProperty("bases").GetArrayLength(),
             MaxLeanAngleDegrees = root.GetProperty("maxLeanAngleDegrees").GetSingle(),
             CollisionFree = root.GetProperty("collisionFree").GetBoolean(),
@@ -243,6 +251,7 @@ internal static class BenchCommand
         string? output = null;
         var reinforce = false;
         float? fineFeatureMaxAreaMm2 = null;
+        var islandFirst = true;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -254,10 +263,12 @@ internal static class BenchCommand
                 case "--fine-feature-max":
                     fineFeatureMaxAreaMm2 = float.Parse(args[++i], CultureInfo.InvariantCulture);
                     break;
+                case "--island-first": islandFirst = ParseToggle(args[++i], "island-first"); break;
                 default: throw new ArgumentException($"unknown option '{args[i]}'");
             }
         }
-        return new BenchOptions(drogon, gripper, output, reinforce, fineFeatureMaxAreaMm2);
+        return new BenchOptions(drogon, gripper, output, reinforce, fineFeatureMaxAreaMm2,
+            islandFirst);
     }
 
     private static bool ParseToggle(string value, string name) => value.ToLowerInvariant() switch
@@ -290,10 +301,10 @@ internal static class BenchCommand
     private static string F1(float value) => value.ToString("0.0", CultureInfo.InvariantCulture);
 
     private static void Usage() => Console.Error.WriteLine(
-        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--output <summary.json>]");
+        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--island-first on|off] [--output <summary.json>]");
 
     private sealed record BenchOptions(string DrogonPath, string GripperPath, string? OutputPath,
-        bool Reinforce, float? FineFeatureMaxAreaMm2);
+        bool Reinforce, float? FineFeatureMaxAreaMm2, bool IslandFirst);
     private sealed record CapturedRun(int ExitCode, double WallSeconds, string Stdout, string Stderr);
 }
 
@@ -301,6 +312,7 @@ internal sealed class BenchmarkReport
 {
     public DateTimeOffset GeneratedAtUtc { get; init; }
     public float? FineFeatureMaxAreaMm2 { get; init; }
+    public bool IslandFirst { get; init; } = true;
     public required List<ModelBenchmark> Models { get; init; }
     public string Markdown { get; set; } = string.Empty;
 }
@@ -343,6 +355,7 @@ internal sealed class RouteBenchmark
     public required Dictionary<string, int> SegmentCounts { get; init; }
     public int UnroutedTips { get; init; }
     public required Dictionary<string, int> RefusalCounts { get; init; }
+    public int IslandRefusals { get; init; }
     public int Bases { get; init; }
     public float MaxLeanAngleDegrees { get; init; }
     public bool CollisionFree { get; init; }
