@@ -287,6 +287,8 @@ public sealed class ViewportControl : OpenGlControlBase
             OverhangColorB = Configuration.AppConfig.ParseColor(
                 Configuration.AppConfig.Current.Viewport.OverhangColorB, new Vector3(0.90f, 0.12f, 0.10f)),
             OverhangCheckerSizeMm = Configuration.AppConfig.Current.Viewport.OverhangCheckerSizeMm,
+            RenderPath = Configuration.AppConfig.Current.Viewport.RenderPath,
+            Deferred = DeferredEffects.FromConfig(Configuration.AppConfig.Current.Viewport),
         });
     }
 
