@@ -1,4 +1,13 @@
-# Stylesheet proposal WIP — branch `theme-claude` (parked 2026-09-04, session handover)
+# Stylesheet proposal — branch `theme-claude`
+
+**STATUS: DONE (2026-09-04).** ClassicTheme.axaml, CarbideTheme.axaml and (bonus) SlateTheme.axaml
+are built and wired through ThemeCatalog/UserConfig.Theme/Preferences → Appearance, MainWindow's
+viewport toolbar and popup-close glyphs are now IconSet PathIcons, and ThemeTests.cs covers token
+parity, catalog listing and config round-trip. See CarbideTheme.rationale.md for the design writeup
+and CLAUDE-LANE.md for the screen-test checklist. The plan below is kept as the as-designed record;
+see the worker's final report for any place the built version diverged from it.
+
+Original WIP note (parked 2026-09-04, session handover):
 
 User directive: one or more complete app stylesheet proposals — dark, clear icons,
 coherent, Blender-leaning; viewport + layout grid OUT of scope. Deliverable shape
