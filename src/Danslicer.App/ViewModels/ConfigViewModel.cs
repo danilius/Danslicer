@@ -4,6 +4,7 @@ using Danslicer.App.Configuration;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.App.ViewModels;
@@ -684,6 +685,18 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.MinIslandAreaMm2;
         set => Update(() => Supports.MinIslandAreaMm2 = Clamp(value, 0f, 1_000_000f, 0.1f));
+    }
+
+    public float SupportMaxContactFaceAngleDegrees
+    {
+        get => Supports.MaxContactFaceAngleDegrees;
+        set => Update(() => Supports.MaxContactFaceAngleDegrees = Clamp(value, 0f, 90f, 90f));
+    }
+
+    public bool SupportRequireContactSeesPlate
+    {
+        get => Supports.RequireContactSeesPlate;
+        set => Update(() => Supports.RequireContactSeesPlate = value);
     }
 
     private static float Clamp(float value, float minimum, float maximum, float fallback) =>

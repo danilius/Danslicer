@@ -1,63 +1,69 @@
-# Outstanding work worksheet — 2026-09-04 (rev 3, queue reprioritized support-first)
+# Outstanding work worksheet — 2026-09-04 (rev 4, after the ten-job merge)
 
 User's working goal: **push auto + manual supports on drogon-lo until it is
-well-supported** — support-quality jobs now lead the queue. All D1–D7 decisions are in
-(rev 2 of this file recorded them; unchanged).
+well-supported** — support-quality jobs lead the queue. D1–D7 decisions are all in (rev 2).
+
+## Merged today — main `642e17e`, 573 green, pushed
+
+**ChatGPT lane (ten jobs, `9e351b9`):** 023d support-panel removal + vertical clip slider ·
+023e island identity in clusters · 023f isolated fine-feature minis · 023g pop-outs survive
+mode changes · 024 island-first routing + Island Support/Detection tools · 024b fine-feature
+minis fall back to regular cones · 025 clip caps (`Viewport.CapInterior`, `CapStyle`
+Sliced|Painted) · 026 duplicate + mirror · 027 all-side build-volume warnings + permissive
+slicing.
+
+**Claude lane (`642e17e`):** contact-face filter — `MaxContactFaceAngleDegrees` (default 90)
+and `RequireContactSeesPlate` (default false), both inert by default.
+
+**Support-quality arc on drogon-lo** (refusals, grid on / off): 757/601 before the
+fine-feature pass → 777/627 after 023f → 723/576 after 024 → **702/549** after 024b. Net
+**55 / 52 better than baseline** while keeping 023f's recovered contacts.
+
+## User decisions taken 2026-09-04 PM
+
+| # | Decision |
+|---|----------|
+| D8 | Overhang default **stays 45°** despite 40° testing better on gripper. Defaults are a docs matter, to be flagged to users in the docs pass. Record: the comparison is a strict `>`, so a face at exactly 45° is NOT an overhang. |
+| D9 | Contact-face filter: **keep as built, stop tuning.** Support painting / regions (W9) is the right mechanism for the "no side supports" problem, not geometric filters. |
+| D10 | Internal void supports: **simple struts first**, one per contact, no branching. Niche; scheduled last. |
+| D11 | Export orientation **verified against Lychee in UVtools** — U3 closed without a physical print. Treat orientation changes as regressions from here. |
 
 ## User-only / screen tasks
 
 | # | Task | Status |
 |---|------|--------|
-| U1 | Screen-test overnight batch checklists | in progress (several finds fixed same-day) |
-| U3 | Mirror-X physical test print | open |
+| U1 | Screen-test merged batch (ten jobs) | open — checklists in the result files |
+| U3 | Mirror-X test print | **CLOSED** (D11) |
 | U4 | Restart Unsloth for the Qwen lane | open |
 | U5 | Re-run `/auto-mode-setup` | open |
-| U6 | Branch X-crossing gone? (Lychee target) | open — gates deep quality tuning (W6) |
-| U7 | Regenerate drogon-head supports: no downward tips | **CONFIRMED** (user, 2026-09-04 PM) |
-| U8 | Job 019 on screen: 6 mm grid pitch on regeneration | **CONFIRMED — 6 mm is a good default**; follow-ups queued: grid changes auto-save into active preset (023c), pop-outs stay open with title+X header (023b) |
+| U6 | Branch X-crossing | **briefed as job 028c** — user confirmed it on screen |
+| U7 | Drogon-head supports: no downward tips | CONFIRMED |
+| U8 | 6 mm grid pitch | CONFIRMED |
 
-## Merged today (all pushed, 481 green at `ef5b582`)
-
-Preset feedback-loop crash fix · mini-support descent fix · W1 deferred clip+waterline
-(user-verified) · support panel polish (scrollbar/-0) · job 019 grid 6 mm (by
-supervisor session) · D2 flip: **Deferred is the default render path**.
-
-## ChatGPT queue (renumbered 2026-09-04 PM, support work first)
+## ChatGPT queue
 
 | Job | Work item | Status |
 |-----|-----------|--------|
-| 020 | Reinforce visuals | completed, awaiting supervisor review/merge proposal |
-| 021 | Cross-platform builds | completed, awaiting supervisor review/merge proposal |
-| 022 | Floating context-sensitive viewport toolbar | IN FLIGHT (its "job 023" dup/mirror reference now means 026) |
-| 023 | Mini-tip clusters (spec dictated today; user wants a review flag when testable) | queued next |
-| 024 | Island-first generation + Island Support + Island Detection (red spheres, list, tuning pop-out) | queued |
-| 025 | Cap clipped interiors (sliced caps incl. supports, style switch) | queued |
-| 026 | Duplicate + Mirror commands | queued |
-| 027 | Out-of-plate red warning all sides + slice-with-warning | queued |
-| 028 | UVtools check button + configurable path | queued |
+| 028 | UVtools check button + configurable path | completed, reviewed green, awaiting merge |
+| 028b | Tip contact defects: leaning tips + duckbill pairs | queued (user screen findings) |
+| 028c | Branch X-crossing constraint (U6) | queued — highest-value support-quality item |
+| 029 | Multi-model hiding | queued |
+| 030 | Support-target selection | queued |
+| 031 | Stylesheet proposal (ChatGPT half of the bake-off) | queued |
 
 ## Claude lane
 
 | Item | Status |
 |------|--------|
-| W2 ID-buffer picking (deferred) | MERGED (`c7b4a53`) |
-| W3 View cube + View pop-out + wireframe overlay | MERGED (`cca84f7`, user-approved) — screen checklist in `Danslicer-claude\CLAUDE-LANE.md`; deferrals flagged: cube face labels, cube drag-orbit. 023d unblocked |
-| Stylesheet proposal (user directive, both lanes) | PARKED on branch `theme-claude` (`5be68c8`): shared icon set committed, full plan in `src/Danslicer.App/Themes/PLAN.md` — successor session continues |
-| Painted (screen-space) cap style for the deferred path | after job 025 defines config keys |
-| D5 island-search tweaks (approved) | brief after job 024 lands (extends its tuning pop-out) |
-| W9 recipes/regions design pass | with user, when they want it |
+| Stylesheet proposal | BUILT on `theme-claude` (`dfafd0c`, 524 green): Classic/Carbide/Slate, runtime-switchable, Classic default. **Held unmerged** pending job 031 so the bake-off stays like-for-like |
+| Painted cap style (deferred path) | UNBLOCKED — 025 defined `Viewport.CapStyle = Painted`, wired but producing no cap |
+| View cube face labels + configurable size | backlog (user request; labels were a W3 deferral) |
+| pwmx preview image | backlog — currently a flat top-down height map from `Slicer.cs`; wants a 3D render like Lychee's |
+| Internal void supports (sealed cavities) | last, simple struts only (D10) |
+| D5 island-search tweaks | brief when wanted — 024 has landed |
+| W9 recipes/regions (support painting) | **promoted by D9** — now the answer to the side-support problem; design pass with the user when they want it |
 
 ## Dormant
 
 SpaceMouse HID fallback + unbound buttons; Grok worktree reference-only; W6 deep
-branch-shaping tuning gated on U6.
-
-## Claude-lane handover note (2026-09-04, session end)
-
-Fable worker session closed with the lane clean: W0/W0b fixes, W1, W2, W3 all merged
-and user-verified where screen time allowed. Open on the lane: theme proposal (branch
-`theme-claude`, plan committed), Painted cap style (after job 025 defines config
-keys), D5 island-tweaks brief (after job 024 lands), W9 recipes design pass with the
-user. Governance in force at handover: all user-facing comms via the supervisor
-session; merges single-executor per proposal; standing grant to kill the app for
-build locks.
+branch-shaping tuning, still gated on U6 (028c) landing and being judged on screen.
