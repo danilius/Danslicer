@@ -80,6 +80,7 @@ public sealed partial class SceneRenderer : IDisposable
     private Vector3 _overhangColorA;
     private Vector3 _overhangColorB;
     private float _overhangCell = 2f;
+    private Vector3 _buildVolume;
 
     public string GlVersion { get; }
     public bool IsGles { get; }
@@ -135,6 +136,7 @@ public sealed partial class SceneRenderer : IDisposable
         _overhangColorA = frame.OverhangColorA;
         _overhangColorB = frame.OverhangColorB;
         _overhangCell = frame.OverhangCheckerSizeMm;
+        _buildVolume = frame.Printer.BuildVolume;
 
         PruneMeshCache(frame);
         // Looking up from under the plate, the plate fades to the configured opacity so the
@@ -173,7 +175,7 @@ public sealed partial class SceneRenderer : IDisposable
         // Sit just under Z = 0 so grid lines on the plane do not fight it.
         var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
         BindMeshShader(model, view, projection, PlateColor, opacity, backfaceTint: 0f,
-            warnBelowPlate: false, overhangCos: 2f, clip: default);
+            warnOutsideBuildVolume: false, overhangCos: 2f, clip: default);
         _plate.Draw();
         if (faded)
         {
@@ -213,7 +215,7 @@ public sealed partial class SceneRenderer : IDisposable
                 ? MathF.Sin(Math.Clamp(frame.OverhangAngleDegrees, 1f, 89f) * MathF.PI / 180f)
                 : 2f;
             BindMeshShader(obj.Transform.ToMatrix(), view, projection, color,
-                ghosted ? 0.25f : 1f, backfaceTint: 1f, warnBelowPlate: true,
+                ghosted ? 0.25f : 1f, backfaceTint: 1f, warnOutsideBuildVolume: true,
                 overhangCos, frame.ClipRange, frame.WaterlineZ);
             gpu.Draw();
         }
@@ -246,7 +248,7 @@ public sealed partial class SceneRenderer : IDisposable
             }
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Lequal);
             BindMeshShader(Matrix4x4.Identity, view, projection, draw.Color, draw.Opacity,
-                backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f,
+                backfaceTint: 0f, warnOutsideBuildVolume: false, overhangCos: 2f,
                 clip: frame.ClipRange);
             gpu.Draw();
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Less);
@@ -260,7 +262,7 @@ public sealed partial class SceneRenderer : IDisposable
 
     private void BindMeshShader(in Matrix4x4 model, in Matrix4x4 view,
         in Matrix4x4 projection, Vector3 color, float opacity, float backfaceTint,
-        bool warnBelowPlate, float overhangCos, ViewportClipRange clip,
+        bool warnOutsideBuildVolume, float overhangCos, ViewportClipRange clip,
         float? waterlineZ = null)
     {
         Matrix4x4.Invert(model * view, out var inverse);
@@ -277,7 +279,8 @@ public sealed partial class SceneRenderer : IDisposable
         _meshShader.Set("uColor", color);
         _meshShader.Set("uOpacity", opacity);
         _meshShader.Set("uBackfaceTint", backfaceTint);
-        _meshShader.Set("uWarnBelowPlate", warnBelowPlate ? 1f : 0f);
+        _meshShader.Set("uWarnOutsideBuildVolume", warnOutsideBuildVolume ? 1f : 0f);
+        _meshShader.Set("uBuildVolume", _buildVolume);
         _meshShader.Set("uOverhangCos", overhangCos);
         _meshShader.Set("uOverhangColorA", _overhangColorA);
         _meshShader.Set("uOverhangColorB", _overhangColorB);

@@ -88,6 +88,7 @@ public sealed partial class SceneRenderer
         _overhangColorA = frame.OverhangColorA;
         _overhangColorB = frame.OverhangColorB;
         _overhangCell = frame.OverhangCheckerSizeMm;
+        _buildVolume = frame.Printer.BuildVolume;
 
         PruneMeshCache(frame);
         var plateFaded = frame.Camera.Eye.Z < 0f && frame.PlateOpacityFromBelow < 1f;
@@ -128,7 +129,7 @@ public sealed partial class SceneRenderer
             EnsurePlateMesh(frame.Printer);
             var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
             BindGBufferShader(model, view, projection, PlateColor, backfaceTint: 0f,
-                warnBelowPlate: false, overhangCos: 2f, plateId, selected: false, clip: default);
+                warnOutsideBuildVolume: false, overhangCos: 2f, plateId, selected: false, clip: default);
             _plate!.Draw();
         }
 
@@ -152,7 +153,7 @@ public sealed partial class SceneRenderer
                 ? MathF.Sin(Math.Clamp(frame.OverhangAngleDegrees, 1f, 89f) * MathF.PI / 180f)
                 : 2f;
             BindGBufferShader(obj.Transform.ToMatrix(), view, projection, color, backfaceTint: 1f,
-                warnBelowPlate: true, overhangCos, id, selected, frame.ClipRange);
+                warnOutsideBuildVolume: true, overhangCos, id, selected, frame.ClipRange);
             gpu.Draw();
         }
 
@@ -169,14 +170,14 @@ public sealed partial class SceneRenderer
             // A DepthOverlay draw (the selection highlight twin) wins EQUAL depth under Lequal,
             // which is already this pass's depth func; it flags selected for the outline colour.
             BindGBufferShader(Matrix4x4.Identity, view, projection, draw.Color, backfaceTint: 0f,
-                warnBelowPlate: false, overhangCos: 2f, id, selected: draw.DepthOverlay,
+                warnOutsideBuildVolume: false, overhangCos: 2f, id, selected: draw.DepthOverlay,
                 frame.ClipRange);
             gpu.Draw();
         }
     }
 
     private void BindGBufferShader(in Matrix4x4 model, in Matrix4x4 view, in Matrix4x4 projection,
-        Vector3 color, float backfaceTint, bool warnBelowPlate, float overhangCos, int id, bool selected,
+        Vector3 color, float backfaceTint, bool warnOutsideBuildVolume, float overhangCos, int id, bool selected,
         ViewportClipRange clip)
     {
         Matrix4x4.Invert(model * view, out var inverse);
@@ -193,7 +194,8 @@ public sealed partial class SceneRenderer
         shader.Set("uModelNormalMatrix", modelNormalMatrix);
         shader.Set("uColor", color);
         shader.Set("uBackfaceTint", backfaceTint);
-        shader.Set("uWarnBelowPlate", warnBelowPlate ? 1f : 0f);
+        shader.Set("uWarnOutsideBuildVolume", warnOutsideBuildVolume ? 1f : 0f);
+        shader.Set("uBuildVolume", _buildVolume);
         shader.Set("uOverhangCos", overhangCos);
         shader.Set("uOverhangColorA", _overhangColorA);
         shader.Set("uOverhangColorB", _overhangColorB);
@@ -286,7 +288,7 @@ public sealed partial class SceneRenderer
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Lequal);
             // Clip but no waterline, matching the classic DrawAuxMeshes pass exactly.
             BindMeshShader(Matrix4x4.Identity, view, projection, draw.Color, draw.Opacity,
-                backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f,
+                backfaceTint: 0f, warnOutsideBuildVolume: false, overhangCos: 2f,
                 frame.ClipRange);
             gpu.Draw();
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Less);
