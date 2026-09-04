@@ -139,7 +139,7 @@ public sealed class ManualSupportRoutingTests
             out var failureReason);
 
         Assert.False(added);
-        Assert.Equal(RoutingFailureReason.NoClearStep, failureReason);
+        Assert.Equal(RoutingFailureReason.ContactBlocked, failureReason);
         Assert.Equal(0, document.Supports.NodeCount);
         Assert.Equal(0, document.Supports.SegmentCount);
     }

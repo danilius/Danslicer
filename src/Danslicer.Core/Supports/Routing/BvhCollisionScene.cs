@@ -59,8 +59,22 @@ public sealed class BvhCollisionScene : ICollisionScene
     public void AddSupportGraph(SupportGraph graph)
     {
         foreach (var segment in graph.Segments.Where(segment => !segment.Disabled))
-            AddCapsule(graph.GetNode(segment.NodeA).Position, graph.GetNode(segment.NodeB).Position,
-                segment.Diameter * 0.5f, segment.Id);
+        {
+            var a = graph.GetNode(segment.NodeA);
+            var b = graph.GetNode(segment.NodeB);
+            if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other) &&
+                tip.TipNormalLeadIn > 0)
+            {
+                foreach (var section in TipBodyGeometry.Sections(tip, other,
+                             segment.Diameter * 0.5f,
+                             SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f,
+                             embedContact: false))
+                    AddCapsule(section.Start, section.End,
+                        MathF.Max(section.StartRadius, section.EndRadius), segment.Id);
+            }
+            else
+                AddCapsule(a.Position, b.Position, segment.Diameter * 0.5f, segment.Id);
+        }
         foreach (var (centre, radius, id) in graph.ContactBallsExceedingNeck())
             AddSphere(centre, radius, id);
     }

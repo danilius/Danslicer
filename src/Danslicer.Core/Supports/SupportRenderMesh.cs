@@ -166,6 +166,25 @@ public static class SupportRenderMesh
         var direction = axis / length;
         var coneBase = tip.Position + direction * coneLength;
         var hasRemainder = length - coneLength > 1e-4f;
+        if (tip.TipNormalLeadIn > 0)
+        {
+            var sections = TipBodyGeometry.Sections(tip, other, neckRadius, junctionRadius,
+                embedContact: false);
+            if (sections.Count == 0)
+            {
+                AppendCapsule(builder, tip.Position, other.Position, neckRadius);
+                return;
+            }
+            foreach (var section in sections)
+                AppendFrustum(builder, section.Start, section.End,
+                    section.StartRadius, section.EndRadius);
+            if (tip.BallDiameter > 0)
+                AppendSphere(builder, tip.ContactBallCenter, tip.BallDiameter * 0.5f);
+            else if (contactRadius > 0)
+                AppendSphere(builder, tip.Position, contactRadius);
+            return;
+        }
+
         AppendTipBody(builder, tip.Position, coneBase, other.Position, contactRadius,
             neckRadius, junctionRadius, hasRemainder);
         if (tip.BallDiameter > 0)

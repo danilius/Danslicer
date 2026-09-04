@@ -263,14 +263,9 @@ public sealed class TreeSupportRouter
             var queryRadius = bodyRadius + state.Clearance.ModelDistance;
             var contactAllowance = MathF.Max(options.MiniSupportTipDiameter * 0.5f,
                 queryRadius) * 2 + 0.01f;
-            var clearEnd = length > contactAllowance
-                ? tip.SurfacePoint - delta / length * contactAllowance
-                : branchEnd.Position;
             var incident = state.Graph.SegmentsAt(branchEnd.Id).Select(segment => segment.Id).ToList();
-            if (clearEnd != branchEnd.Position &&
-                _obstacles.IntersectsCapsule(branchEnd.Position, clearEnd, queryRadius,
-                    Excluding(incident))) continue;
-            if (state.HitsGenerated(branchEnd.Position, clearEnd, queryRadius, incident)) continue;
+            if (!ContactMemberIsClear(tip, branchEnd.Position, queryRadius,
+                    state, queryRadius, incident, contactAllowance)) continue;
 
             var miniTip = state.NewNode(SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
             RoutingUtilities.ApplyContact(miniTip, tip with
@@ -371,12 +366,8 @@ public sealed class TreeSupportRouter
         var queryRadius = options.MiniSupportDiameter * 0.5f + state.Clearance.ModelDistance;
         var contactAllowance = MathF.Max(options.MiniSupportTipDiameter * 0.5f,
             queryRadius) * 2 + 0.01f;
-        var clearEnd = length > contactAllowance
-            ? tip.SurfacePoint - delta / length * contactAllowance
-            : branchEnd;
-        return clearEnd == branchEnd ||
-               (!_obstacles.IntersectsCapsule(branchEnd, clearEnd, queryRadius) &&
-                !state.HitsGenerated(branchEnd, clearEnd, queryRadius));
+        return ContactMemberIsClear(tip, branchEnd, queryRadius,
+            state, queryRadius, contactAllowance: contactAllowance);
     }
 
     private bool TryRouteClusterCarrier(Vector3 branchEndPosition, TreeRoutingOptions options,
@@ -643,8 +634,7 @@ public sealed class TreeSupportRouter
             var candidate = new Vector3(xy, options.PlateZ);
             var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) +
                                 state.Clearance.ModelDistance;
-            if (!ContactMemberIsClear(tip.SurfacePoint, candidate, contactRadius)) continue;
-            if (state.HitsGenerated(tip.SurfacePoint, candidate,
+            if (!ContactMemberIsClear(tip, candidate, contactRadius, state,
                     tipMemberDiameter * 0.5f + state.Clearance.ModelDistance)) continue;
             if (BaseIsClear(candidate, options, state)) return candidate;
         }
@@ -671,8 +661,7 @@ public sealed class TreeSupportRouter
                     ? MathF.Min(candidateLength, (tip.SurfacePoint.Z - options.PlateZ) / -direction.Z)
                     : candidateLength;
                 var end = tip.SurfacePoint + direction * length;
-                if (!ContactMemberIsClear(tip.SurfacePoint, end, contactRadius)) continue;
-                if (state.HitsGenerated(tip.SurfacePoint, end, memberRadius)) continue;
+                if (!ContactMemberIsClear(tip, end, contactRadius, state, memberRadius)) continue;
                 yield return end;
             }
         }
@@ -940,14 +929,40 @@ public sealed class TreeSupportRouter
                <= clearance * clearance;
     }
 
-    /// <summary>Clear check for the tip member, ignoring its own contact end like the other routers.</summary>
-    private bool ContactMemberIsClear(Vector3 contact, Vector3 end, float radius)
+    /// <summary>
+    /// Clear check for the actual bent tip centreline, ignoring its own contact end like the
+    /// other routers. Zero lead-in yields the historical single straight query.
+    /// </summary>
+    private bool ContactMemberIsClear(RoutingTip tip, Vector3 end, float obstacleRadius,
+        RouteState? state = null, float generatedRadius = 0,
+        IReadOnlyCollection<Guid>? incident = null, float? contactAllowance = null)
     {
-        var delta = contact - end;
-        var length = delta.Length();
-        if (length <= radius * 2 + 0.01f) return true;
-        var clearEnd = contact - delta / length * (radius * 2 + 0.01f);
-        return !_obstacles.IntersectsCapsule(end, clearEnd, radius);
+        var outward = -RoutingUtilities.SafeInwardNormal(tip.InwardSurfaceNormal);
+        var points = TipBodyGeometry.Centerline(tip.SurfacePoint, outward, end,
+            tip.TipNormalLeadIn);
+        var obstacleFilter = incident is null ? null : Excluding(incident);
+        var remainingTrim = contactAllowance ?? obstacleRadius * 2 + 0.01f;
+        for (var i = 1; i < points.Count; i++)
+        {
+            var start = points[i - 1];
+            var finish = points[i];
+            var length = Vector3.Distance(start, finish);
+            if (remainingTrim >= length)
+            {
+                remainingTrim -= length;
+                continue;
+            }
+            if (remainingTrim > 0)
+            {
+                start = Vector3.Lerp(start, finish, remainingTrim / length);
+                remainingTrim = 0;
+            }
+            if (_obstacles.IntersectsCapsule(start, finish, obstacleRadius,
+                    obstacleFilter)) return false;
+            if (state is not null && state.HitsGenerated(start, finish,
+                    generatedRadius, incident)) return false;
+        }
+        return true;
     }
 
     private (SupportNode Contact, SupportNode Junction) EmitTipMember(RoutingTip tip, Vector3 j1,

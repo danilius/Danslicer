@@ -146,6 +146,17 @@ public static class SupportSliceGeometry
             return;
         }
 
+        if (tip.TipNormalLeadIn > 0)
+        {
+            foreach (var section in TipBodyGeometry.Sections(tip, other,
+                         (float)neckRadius, (float)junctionRadius, embedContact: true))
+                ConeSection(section.Start, section.End, section.StartRadius,
+                    section.EndRadius, z, output);
+            if (tip.BallDiameter <= 0 && rContact > 0)
+                SphereSection(tip.Position, rContact, z, output);
+            return;
+        }
+
         var dir = axis / segLen;
         var coneBase = tip.Position + dir * coneLen;
         // Move the narrow end past the surface while leaving the base fixed. The original

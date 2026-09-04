@@ -679,7 +679,8 @@ public sealed class RoutingTreeTests
         var result = Route(new[]
         {
             new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.5f,
-                TipShape: SupportTipShape.Cone, ConeLength: 1.5f, BallDiameter: 0.7f),
+                TipShape: SupportTipShape.Cone, ConeLength: 1.5f, BallDiameter: 0.7f,
+                TipNormalLeadIn: 0.3f),
         });
 
         var tipNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Tip);
@@ -687,6 +688,7 @@ public sealed class RoutingTreeTests
         Assert.Equal(1.5f, tipNode.ConeLength);
         Assert.Equal(0.7f, tipNode.BallDiameter);
         Assert.Equal(0.5f, tipNode.TipDiameter);
+        Assert.Equal(0.3f, tipNode.TipNormalLeadIn);
     }
 
     [Fact]

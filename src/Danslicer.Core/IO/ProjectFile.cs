@@ -353,6 +353,7 @@ public static class ProjectFile
         public bool Disabled { get; set; }
         public Vector3Dto SurfaceNormal { get; set; } = new() { Z = 1 };
         public float TipDiameter { get; set; }
+        public float TipNormalLeadIn { get; set; }
         public float PenetrationDepth { get; set; }
         public Guid? ContactObjectId { get; set; }
         public SupportTipShape TipShape { get; set; }
@@ -368,7 +369,8 @@ public static class ProjectFile
             Id = node.Id, Type = node.Type, Position = Vector3Dto.From(node.Position),
             Origin = OriginDto.From(node.Origin), Pinned = node.Pinned, Hidden = node.Hidden,
             Disabled = node.Disabled, SurfaceNormal = Vector3Dto.From(node.SurfaceNormal),
-            TipDiameter = node.TipDiameter, PenetrationDepth = node.PenetrationDepth,
+            TipDiameter = node.TipDiameter, TipNormalLeadIn = node.TipNormalLeadIn,
+            PenetrationDepth = node.PenetrationDepth,
             ContactObjectId = node.ContactObjectId, TipShape = node.TipShape,
             ConeLength = node.ConeLength, BallDiameter = node.BallDiameter,
             BaseShape = node.BaseShape, BaseDiameter = node.BaseDiameter,
@@ -380,6 +382,7 @@ public static class ProjectFile
             Id = Id, Type = Type, Position = Position.ToVector3(), Origin = Origin.ToOrigin(),
             Pinned = Pinned, Hidden = Hidden, Disabled = Disabled,
             SurfaceNormal = SurfaceNormal.ToVector3(), TipDiameter = TipDiameter,
+            TipNormalLeadIn = TipNormalLeadIn,
             PenetrationDepth = PenetrationDepth, ContactObjectId = ContactObjectId,
             TipShape = TipShape, ConeLength = ConeLength, BallDiameter = BallDiameter,
             BaseShape = BaseShape, BaseDiameter = BaseDiameter, BaseHeight = BaseHeight,

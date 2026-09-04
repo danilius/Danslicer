@@ -233,7 +233,8 @@ internal static class RouteCommand
                 FallbackTipDiameter: tip.FallbackTipDiameter,
                 FallbackTipShape: ParseOptionalShape(tip.FallbackTipShape),
                 FallbackConeLength: tip.FallbackConeLength,
-                FallbackBallDiameter: tip.FallbackBallDiameter);
+                FallbackBallDiameter: tip.FallbackBallDiameter,
+                TipNormalLeadIn: Math.Max(tip.TipNormalLeadIn, 0f));
         }).ToList();
     }
 
@@ -254,19 +255,42 @@ internal static class RouteCommand
                 var nodeB = graph.GetNode(segment.NodeB);
                 var tipAtA = nodeA.Type == SupportNodeType.Tip;
                 var tipNode = tipAtA ? nodeA : nodeB;
-                var tip = tipNode.Position;
                 var other = tipAtA ? end : start;
-                var delta = tip - other;
-                var length = delta.Length();
                 radius = MathF.Max(0.025f, tipNode.TipDiameter * 0.5f);
                 var contactAllowance = (radius + 0.25f) * 2 + 0.01f;
-                if (length <= contactAllowance) continue;
-                tip -= delta / length * contactAllowance;
-                if (tipAtA) start = tip; else end = tip;
+                if (TipPathIntersects(obstacles, tipNode, other, radius, contactAllowance))
+                    return false;
+                continue;
             }
             if (obstacles.IntersectsCapsule(start, end, radius)) return false;
         }
         return true;
+    }
+
+    private static bool TipPathIntersects(ICollisionScene obstacles, SupportNode tip,
+        Vector3 other, float radius, float contactAllowance)
+    {
+        var points = TipBodyGeometry.Centerline(tip.Position, tip.SurfaceNormal, other,
+            tip.TipNormalLeadIn);
+        var remainingTrim = contactAllowance;
+        for (var i = 1; i < points.Count; i++)
+        {
+            var start = points[i - 1];
+            var end = points[i];
+            var length = Vector3.Distance(start, end);
+            if (remainingTrim >= length)
+            {
+                remainingTrim -= length;
+                continue;
+            }
+            if (remainingTrim > 0)
+            {
+                start = Vector3.Lerp(start, end, remainingTrim / length);
+                remainingTrim = 0;
+            }
+            if (obstacles.IntersectsCapsule(start, end, radius)) return true;
+        }
+        return false;
     }
 
     private static void WriteText(string meshPath, int tipCount, RoutingResult result, bool collisionFree,
@@ -368,6 +392,7 @@ internal static class RouteCommand
         public float ConeLength { get; set; }
         public float BallDiameter { get; set; }
         public float PenetrationDepth { get; set; }
+        public float TipNormalLeadIn { get; set; }
         public string? Strategy { get; set; }
         public string? MiniClusterSourceStrategy { get; set; }
         public int? MiniClusterId { get; set; }
