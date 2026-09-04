@@ -107,41 +107,48 @@ public sealed class TreeSupportRouter
 
         var expandedTips = RoutingUtilities.AddReinforcementTips(tips, _rules, _obstacles, options.Seed)
             .ToList();
-        var pendingMini = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
-        foreach (var item in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
-                     .OrderByDescending(item => item.Tip.SurfacePoint.Z).ThenBy(item => item.Index))
+        var indexedTips = expandedTips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
+        foreach (var islandPhase in new[] { true, false })
         {
-            if (item.Tip.MiniClusterId is not null) continue;
-            var reason = RoutingFailureReason.NoClearStep;
-            if (!item.Tip.MiniSupportOnly && RouteOne(item.Tip, options, state, out reason))
-                continue;
-            if (item.Tip.MiniSupportOnly || options.RefusedTipsFallBackToMini)
-                pendingMini.Add((item.Tip, item.Index, reason));
-            else
+            var pendingMini = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
+            foreach (var item in indexedTips
+                         .Where(item => item.Tip.IsIslandPriority == islandPhase)
+                         .OrderByDescending(item => item.Tip.SurfacePoint.Z)
+                         .ThenBy(item => item.Index))
             {
-                unrouted.Add(item.Tip);
-                failures.Add(new RoutingFailure(item.Tip, reason));
+                if (item.Tip.MiniClusterId is not null) continue;
+                var reason = RoutingFailureReason.NoClearStep;
+                if (!item.Tip.MiniSupportOnly && RouteOne(item.Tip, options, state, out reason))
+                    continue;
+                if (item.Tip.MiniSupportOnly || options.RefusedTipsFallBackToMini)
+                    pendingMini.Add((item.Tip, item.Index, reason));
+                else
+                {
+                    unrouted.Add(item.Tip);
+                    failures.Add(new RoutingFailure(item.Tip, reason));
+                }
             }
-        }
-        foreach (var cluster in expandedTips.Select((tip, index) => (Tip: tip, Index: index))
-                     .Where(item => item.Tip.MiniClusterId is not null)
-                     .GroupBy(item => item.Tip.MiniClusterId!.Value)
-                     .OrderBy(group => group.Key))
-        {
-            foreach (var failure in RouteMiniCluster(cluster.OrderBy(item => item.Index)
-                         .Select(item => item.Tip).ToList(), options, state))
+            foreach (var cluster in indexedTips
+                         .Where(item => item.Tip.IsIslandPriority == islandPhase &&
+                                        item.Tip.MiniClusterId is not null)
+                         .GroupBy(item => item.Tip.MiniClusterId!.Value)
+                         .OrderBy(group => group.Key))
             {
-                unrouted.Add(failure.Tip);
-                failures.Add(failure);
+                foreach (var failure in RouteMiniCluster(cluster.OrderBy(item => item.Index)
+                             .Select(item => item.Tip).ToList(), options, state))
+                {
+                    unrouted.Add(failure.Tip);
+                    failures.Add(failure);
+                }
             }
-        }
-        foreach (var pending in pendingMini.OrderByDescending(item => item.Tip.SurfacePoint.Z)
-                     .ThenBy(item => item.Index))
-        {
-            if (TryRouteMiniSupport(pending.Tip, options, state, out var miniReason)) continue;
-            unrouted.Add(pending.Tip);
-            failures.Add(new RoutingFailure(pending.Tip,
-                pending.Tip.MiniSupportOnly ? miniReason : pending.Reason));
+            foreach (var pending in pendingMini.OrderByDescending(item => item.Tip.SurfacePoint.Z)
+                         .ThenBy(item => item.Index))
+            {
+                if (TryRouteMiniSupport(pending.Tip, options, state, out var miniReason)) continue;
+                unrouted.Add(pending.Tip);
+                failures.Add(new RoutingFailure(pending.Tip,
+                    pending.Tip.MiniSupportOnly ? miniReason : pending.Reason));
+            }
         }
 
         var addedNodes = graph.Nodes.Where(node => !originalNodeIds.Contains(node.Id)).ToList();

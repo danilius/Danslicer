@@ -23,7 +23,10 @@ public readonly record struct SupportPositionSnapshot(Vector3 Position, Vector3 
 public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
 public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot Target,
     IReadOnlyList<SceneMeshSnapshot> SceneMeshes, SupportGraph ExistingSupports, int Seed,
-    SupportConfig Settings);
+    SupportConfig Settings, SupportGenerationScope Scope = SupportGenerationScope.Full);
+
+public sealed record IslandDetectionRequest(SceneMeshSnapshot Target,
+    SupportGraph ExistingSupports, float LayerHeightMm, SupportConfig Settings);
 
 /// <summary>
 /// The single model behind the application: scene, selection, printer and undo history.
@@ -547,12 +550,29 @@ public sealed class Document
     }
 
     /// <summary>Captures the mutable document state needed by background generation.</summary>
-    public SupportGenerationRequest CaptureSupportGeneration(SceneObject obj, int seed = 0)
+    public SupportGenerationRequest CaptureSupportGeneration(SceneObject obj, int seed = 0,
+        SupportGenerationScope scope = SupportGenerationScope.Full)
     {
         var scene = Scene.Objects.Select(o => new SceneMeshSnapshot(o.Mesh, o.Transform.ToMatrix())).ToList();
         return new SupportGenerationRequest(obj.Id,
             new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), scene, CloneGraph(Supports), seed,
-            SupportSettings with { });
+            SupportSettings with { }, scope);
+    }
+
+    public IslandDetectionRequest CaptureIslandDetection(SceneObject obj) => new(
+        new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), CloneGraph(Supports),
+        PrintSettings.LayerHeight, SupportSettings with { });
+
+    public static IReadOnlyList<DetectedIsland> ComputeIslandDetection(
+        IslandDetectionRequest request, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = IslandDetection.FindUnsupported(TransformMesh(request.Target),
+            request.ExistingSupports, request.LayerHeightMm,
+            request.Settings.MinIslandAreaMm2, plateZ: 0,
+            request.Settings.OverhangAngleDegrees);
+        cancellationToken.ThrowIfCancellationRequested();
+        return result;
     }
 
     /// <summary>Runs generation using only a captured snapshot; safe to call off the UI thread.</summary>
@@ -621,7 +641,8 @@ public sealed class Document
                 Seed = request.Seed,
                 Origin = origin,
             }, rules,
-            obstacles, request.ExistingSupports, seed: request.Seed, progress: progress);
+            obstacles, request.ExistingSupports, seed: request.Seed, progress: progress,
+            scope: request.Scope);
         cancellationToken.ThrowIfCancellationRequested();
 
         // Routing ids are deterministic from the seed. Fresh graph ids allow repeated generation
@@ -639,7 +660,9 @@ public sealed class Document
                 .GroupBy(failure => failure.Reason)
                 .ToDictionary(group => group.Key, group => group.Count()),
         };
-        return new PreparedSupportGeneration(nodes, segments, summary);
+        return new PreparedSupportGeneration(nodes, segments, summary,
+            request.Scope == SupportGenerationScope.IslandsOnly
+                ? "Generate island supports" : "Generate supports");
     }
 
     private static Mesh TransformMesh(SceneMeshSnapshot snapshot) => new(

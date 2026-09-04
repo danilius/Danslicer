@@ -11,6 +11,24 @@ public sealed class RoutingTreeTests
         => new TreeSupportRouter(scene ?? new LinearCollisionScene(), GrowthRuleSet.Default)
             .Route(tips, options ?? new TreeRoutingOptions());
 
+    [Fact]
+    public void IslandPriorityIsDeterministicAndPrecedesHigherOrdinaryTips()
+    {
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(5, 0, 10), Vector3.UnitZ, 0.4f, IsIslandPriority: true),
+        };
+
+        var first = Route(tips, new TreeRoutingOptions { UseBaseGrid = false });
+        var second = Route(tips, new TreeRoutingOptions { UseBaseGrid = false });
+
+        var firstTip = first.Graph.Nodes.First(node => node.Type == SupportNodeType.Tip);
+        Assert.Equal(new Vector3(5, 0, 10), firstTip.Position);
+        Assert.Equal(first.Graph.Nodes.Select(node => (node.Id, node.Type, node.Position)),
+            second.Graph.Nodes.Select(node => (node.Id, node.Type, node.Position)));
+    }
+
     [Theory]
     [InlineData(true, 0f, 1)]
     [InlineData(false, 4f, 0)]

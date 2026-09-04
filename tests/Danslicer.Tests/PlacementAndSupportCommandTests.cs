@@ -295,6 +295,24 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void IslandSupportGenerationUsesOneNamedUndoStep()
+    {
+        var doc = new Document();
+        var obj = new SceneObject("floating", Box(new(-5, -5, 5), new(5, 5, 15)));
+        doc.AddObject(obj);
+        var request = doc.CaptureSupportGeneration(obj, scope: SupportGenerationScope.IslandsOnly);
+        var prepared = Document.ComputeSupportGeneration(request);
+        var batch = new SupportGenerationBatch(doc.Supports, doc.History, prepared, int.MaxValue);
+
+        batch.CommitNextBatch();
+        batch.Complete();
+
+        Assert.Equal("Generate island supports", doc.History.UndoName);
+        doc.Undo();
+        Assert.Equal(0, doc.Supports.NodeCount);
+    }
+
+    [Fact]
     public void GenerationRequestSnapshotsSupportSettings()
     {
         var doc = new Document

@@ -6,7 +6,8 @@ namespace Danslicer.Core.Supports.Generation;
 public sealed record PreparedSupportGeneration(
     IReadOnlyList<SupportNode> Nodes,
     IReadOnlyList<SupportSegment> Segments,
-    SupportGenerationSummary Summary);
+    SupportGenerationSummary Summary,
+    string UndoName = "Generate supports");
 
 /// <summary>
 /// UI-thread batching state machine. It applies a prepared deterministic result incrementally,
@@ -58,7 +59,7 @@ public sealed class SupportGenerationBatch
         if (!IsFinished) throw new InvalidOperationException("Every batch must be committed before completion.");
         if (TotalElements == 0) return;
         _history.RecordExecuted(new AddSupportElementsCommand(_graph, _prepared.Nodes,
-            _prepared.Segments, "Generate supports"));
+            _prepared.Segments, _prepared.UndoName));
     }
 
     public void Cancel()
