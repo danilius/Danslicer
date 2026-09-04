@@ -94,6 +94,23 @@ public sealed class ConfigViewModel : ViewModelBase
     public IReadOnlyList<string> SupportDisplayModes { get; } =
         ["Full", "Contact points", "Lines", "Tips", "Transparent"];
 
+    public IReadOnlyList<AppTheme> AppearanceThemes { get; } = Enum.GetValues<AppTheme>();
+
+    public AppTheme AppearanceTheme
+    {
+        get => _config.AppearanceTheme;
+        set
+        {
+            var normalized = ThemeManager.Normalize(value);
+            if (normalized == _config.AppearanceTheme) return;
+            _config.AppearanceTheme = normalized;
+            _saveConfig();
+            ThemeManager.Apply(normalized);
+            OnPropertyChanged();
+            Saved?.Invoke();
+        }
+    }
+
     public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
         Enum.GetValues<SupportBaseShape>();
 

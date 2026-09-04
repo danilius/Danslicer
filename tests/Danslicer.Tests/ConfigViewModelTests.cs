@@ -6,6 +6,21 @@ namespace Danslicer.Tests;
 public sealed class ConfigViewModelTests
 {
     [Fact]
+    public void AppearanceThemePersistsImmediately()
+    {
+        var config = new UserConfig();
+        var saves = 0;
+        var viewModel = new ConfigViewModel(config, () => saves++);
+
+        viewModel.AppearanceTheme = AppTheme.Forge;
+
+        Assert.Equal(AppTheme.Forge, config.AppearanceTheme);
+        Assert.Equal(1, saves);
+        Assert.Contains(AppTheme.Classic, viewModel.AppearanceThemes);
+        Assert.Contains(AppTheme.Forge, viewModel.AppearanceThemes);
+    }
+
+    [Fact]
     public void GridEditsPersistAcrossPresetSwitchesWithoutSavingOtherFields()
     {
         var config = new UserConfig();

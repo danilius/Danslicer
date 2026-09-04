@@ -66,6 +66,7 @@
                          Margin="8,8,8,4" FontSize="12" TextChanged="OnSearchChanged" />
                 <ListBox x:Name="SectionList" Background="Transparent" Margin="4,0"
                          SelectionChanged="OnSectionSelected">
+                    <ListBoxItem Content="Appearance" />
                     <ListBoxItem Content="Viewport" />
                     <ListBoxItem Content="Keymap" />
                     <ListBoxItem Content="Printers" />
@@ -81,6 +82,18 @@
              the search box hides rows that do not match. -->
         <ScrollViewer x:Name="Scroll" Padding="16,4,16,16">
             <StackPanel x:Name="Sections">
+
+                <StackPanel x:Name="AppearanceSection">
+                    <TextBlock Text="Appearance" Classes="section" />
+                    <Grid Tag="appearance theme classic forge dark interface style"
+                          ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Theme" Classes="label" />
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding AppearanceThemes}"
+                                  SelectedItem="{Binding AppearanceTheme, Mode=TwoWay}" />
+                    </Grid>
+                    <TextBlock Classes="label" TextWrapping="Wrap" Margin="190,4,0,4"
+                               Text="Classic preserves the original interface. Forge is the compact graphite proposal with amber state emphasis and vector tool icons." />
+                </StackPanel>
 
                 <StackPanel x:Name="ViewportSection">
                     <TextBlock Text="Viewport" Classes="section" />
