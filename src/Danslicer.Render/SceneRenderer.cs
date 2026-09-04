@@ -41,6 +41,8 @@ public sealed class RenderFrame
     public float OverhangCheckerSizeMm { get; init; } = 2f;
     /// <summary>Support-mode world-Z isolation. Full/inactive ranges leave output bit-identical.</summary>
     public ViewportClipRange ClipRange { get; init; }
+    /// <summary>Hovered model-surface world Z, or null when the Support waterline is inactive.</summary>
+    public float? WaterlineZ { get; init; }
 }
 
 /// <summary>
@@ -178,7 +180,7 @@ public sealed class SceneRenderer : IDisposable
                 : 2f;
             BindMeshShader(obj.Transform.ToMatrix(), view, projection, color,
                 ghosted ? 0.25f : 1f, backfaceTint: 1f, warnBelowPlate: true,
-                overhangCos, frame.ClipRange);
+                overhangCos, frame.ClipRange, frame.WaterlineZ);
             gpu.Draw();
         }
 
@@ -224,7 +226,8 @@ public sealed class SceneRenderer : IDisposable
 
     private void BindMeshShader(in Matrix4x4 model, in Matrix4x4 view,
         in Matrix4x4 projection, Vector3 color, float opacity, float backfaceTint,
-        bool warnBelowPlate, float overhangCos, ViewportClipRange clip)
+        bool warnBelowPlate, float overhangCos, ViewportClipRange clip,
+        float? waterlineZ = null)
     {
         Matrix4x4.Invert(model * view, out var inverse);
         var normalMatrix = Matrix4x4.Transpose(inverse);
@@ -246,6 +249,8 @@ public sealed class SceneRenderer : IDisposable
         _meshShader.Set("uOverhangColorB", _overhangColorB);
         _meshShader.Set("uOverhangCell", _overhangCell);
         BindClip(_meshShader, clip);
+        _meshShader.Set("uWaterlineEnabled", waterlineZ.HasValue ? 1f : 0f);
+        _meshShader.Set("uWaterlineZ", waterlineZ.GetValueOrDefault());
     }
 
     private void DrawLines(RenderFrame frame, in Matrix4x4 viewProjection)

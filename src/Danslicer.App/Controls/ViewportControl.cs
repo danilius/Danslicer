@@ -9,6 +9,7 @@ using Avalonia.OpenGL.Controls;
 using Avalonia.Threading;
 using Danslicer.App.Editing;
 using Danslicer.App.Input;
+using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Commands;
 using Danslicer.Core.Config;
@@ -59,6 +60,9 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<ViewportClipRange> ClipRangeProperty =
         AvaloniaProperty.Register<ViewportControl, ViewportClipRange>(nameof(ClipRange));
 
+    public static readonly StyledProperty<HoverWaterlineViewModel?> SupportWaterlineProperty =
+        AvaloniaProperty.Register<ViewportControl, HoverWaterlineViewModel?>(nameof(SupportWaterline));
+
     /// <summary>The live marquee rectangle in viewport coordinates; null when no drag is active.
     /// Drawn by a sibling overlay control, above the GL composition surface.</summary>
     public static readonly StyledProperty<Rect?> MarqueeRectProperty =
@@ -70,6 +74,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private SceneRenderer? _renderer;
     private ModalTransform? _modal;
     private Document? _subscribed;
+    private HoverWaterlineViewModel? _subscribedWaterline;
     private readonly Gizmo _gizmo = new();
     private Point _lastPointer;
     private bool _orbiting;
@@ -126,6 +131,7 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool SelectThroughSupports { get => GetValue(SelectThroughSupportsProperty); set => SetValue(SelectThroughSupportsProperty, value); }
     public SupportDisplayConfig SupportDisplay { get => GetValue(SupportDisplayProperty); set => SetValue(SupportDisplayProperty, value); }
     public ViewportClipRange ClipRange { get => GetValue(ClipRangeProperty); set => SetValue(ClipRangeProperty, value); }
+    public HoverWaterlineViewModel? SupportWaterline { get => GetValue(SupportWaterlineProperty); set => SetValue(SupportWaterlineProperty, value); }
     public Rect? MarqueeRect { get => GetValue(MarqueeRectProperty); private set => SetValue(MarqueeRectProperty, value); }
 
     public ViewportControl()
@@ -196,7 +202,22 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         else if (change.Property == SupportSelectionModeProperty)
         {
+            if (SupportWaterline is { } waterline)
+                waterline.SupportModeActive = SupportSelectionMode;
             _supportMeshesDirty = true;
+            UpdateStatus();
+            Redraw();
+        }
+        else if (change.Property == SupportWaterlineProperty)
+        {
+            if (_subscribedWaterline is not null)
+                _subscribedWaterline.Changed -= OnWaterlineChanged;
+            _subscribedWaterline = SupportWaterline;
+            if (_subscribedWaterline is not null)
+            {
+                _subscribedWaterline.SupportModeActive = SupportSelectionMode;
+                _subscribedWaterline.Changed += OnWaterlineChanged;
+            }
             UpdateStatus();
             Redraw();
         }
@@ -305,7 +326,14 @@ public sealed class ViewportControl : OpenGlControlBase
                 Configuration.AppConfig.Current.Viewport.OverhangColorB, new Vector3(0.90f, 0.12f, 0.10f)),
             OverhangCheckerSizeMm = Configuration.AppConfig.Current.Viewport.OverhangCheckerSizeMm,
             ClipRange = ClipRange,
+            WaterlineZ = SupportWaterline?.WorldZ,
         });
+    }
+
+    private void OnWaterlineChanged()
+    {
+        UpdateStatus();
+        Redraw();
     }
 
     private void UpdateGizmo()
@@ -366,6 +394,12 @@ public sealed class ViewportControl : OpenGlControlBase
         base.OnPointerEntered(e);
         Log("pointer entered");
         Focus();
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        SupportWaterline?.Clear();
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -535,6 +569,8 @@ public sealed class ViewportControl : OpenGlControlBase
             _gizmo.Hovered = GizmoHandle.None;
             Cursor = Cursor.Default;
         }
+
+        UpdateWaterline(MouseVector(e));
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -613,6 +649,18 @@ public sealed class ViewportControl : OpenGlControlBase
     private SceneObject? PickObject(Vector2 mouse) => PickFace(mouse, out _);
 
     private SceneObject? PickFace(Vector2 mouse, out int triangle) => PickSurface(mouse, out triangle, out _, out _);
+
+    private void UpdateWaterline(Vector2 mouse)
+    {
+        if (SupportWaterline is not { Enabled: true, SupportModeActive: true } waterline)
+        {
+            SupportWaterline?.Clear();
+            return;
+        }
+
+        var hit = PickSurface(mouse, out _, out var worldPoint, out _);
+        waterline.UpdateHover(hit is null ? null : worldPoint.Z);
+    }
 
     private SceneObject? PickSurface(Vector2 mouse, out int triangle, out Vector3 worldPoint, out Vector3 worldNormal)
     {
@@ -1196,6 +1244,11 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_layFlatPick)
         {
             StatusText = "Lay flat: click a face to rest it on the plate · Esc cancel";
+            return;
+        }
+        if (SupportWaterline?.StatusText is { } waterlineStatus)
+        {
+            StatusText = waterlineStatus;
             return;
         }
         var projection = Camera.Orthographic ? "Ortho" : "Persp";
