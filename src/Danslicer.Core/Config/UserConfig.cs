@@ -92,7 +92,12 @@ public sealed class ViewportConfig
     /// <summary>Close visible horizontal clip cuts with viewport-only faces.</summary>
     public bool CapInterior { get; set; } = true;
 
-    /// <summary>Sliced is exact geometry; Painted is reserved for the deferred screen-space path.</summary>
+    /// <summary>
+    /// Sliced builds exact CPU cap geometry (<see cref="Danslicer.Core.Slicing.ClipCapBuilder"/>).
+    /// Painted is a deferred-only screen-space technique that skips that CPU work entirely; on the
+    /// Classic render path it has no screen-space equivalent, so it falls back to Sliced there
+    /// (see <see cref="ClipCapPolicy"/>) rather than leaving the model uncapped.
+    /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ClipCapStyle CapStyle { get; set; } = ClipCapStyle.Sliced;
 
