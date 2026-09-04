@@ -215,6 +215,26 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void MiniSupportNeverDescendsToItsContact()
+    {
+        // Regression (screen find 2026-09-04): the only branch end in range sits above the
+        // contact. A rod descending from it would print its cone in mid-air, so the router
+        // must refuse rather than emit a downward-pointing tip.
+        var tips = new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(4, 0, 12), Vector3.UnitZ, 0.4f), // branch end at (4, 0, 10)
+            new RoutingTip(new(5, 0, 7), Vector3.UnitZ, 0.4f, MiniSupportOnly: true),
+        };
+
+        var result = Route(tips);
+
+        Assert.Single(result.Failures);
+        Assert.DoesNotContain(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.MiniSupport);
+    }
+
+    [Fact]
     public void MiniSupportAngleLimitRejectsANearHorizontalRod()
     {
         var tips = new[]

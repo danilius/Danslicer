@@ -63,9 +63,10 @@ Default angle for all angled elements: **45°**. Everything above is configurabl
 
 ## Bases and structure (user decisions, 2026-09-03 late night screen test)
 
-- **Bases sit on an imaginary grid** with a configurable pitch: at 20 mm, every base
-  centre is 20 mm from the next. This resolves the earlier "still open" question — it IS
-  a bases-on-grid-points rule, not merely a recipe parameter.
+- **Bases sit on an imaginary grid** with a configurable pitch. This resolves the
+  earlier "still open" question — it IS a bases-on-grid-points rule, not merely a
+  recipe parameter. *Default pitch: 6 mm (user decision D1, 2026-09-04, after the
+  20 mm A/B showed the coarse lattice strangled coverage; grid stays ON by default.)*
   - *Amended (user decision, 2026-09-03 evening, after the seated benchmark A/B):* the
     grid is now **optional** — `UseBaseGrid` on/off joins the pitch as configuration,
     default ON (the dictated rule stands until the user chooses otherwise). Grid-off

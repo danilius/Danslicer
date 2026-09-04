@@ -225,7 +225,8 @@
                 </ScrollViewer>
 
                 <ScrollViewer IsVisible="{Binding IsSupportView}">
-                    <StackPanel>
+                    <!-- Right padding keeps the overlay scrollbar off the slider's upper handle. -->
+                    <StackPanel Margin="0,0,14,0">
                         <TextBlock Text="Support" Classes="section" />
                         <CheckBox Content="Hover waterline" IsChecked="{Binding SupportWaterline.Enabled}"
                                   Margin="0,0,0,6"

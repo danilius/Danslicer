@@ -169,7 +169,9 @@ public sealed class TreeSupportRouter
             if (length > options.MiniSupportMaxLength + Epsilon || length <= Epsilon) continue;
             hasBranchEndInRange = true;
             var delta = tip.SurfacePoint - branchEnd.Position;
-            var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z)) *
+            // The rod must ascend to its contact: a tip fed from above prints in mid-air.
+            if (delta.Z <= Epsilon) continue;
+            var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), delta.Z) *
                        180 / MathF.PI;
             if (lean > options.MiniSupportMaxAngleDegrees + Epsilon) continue;
             if (state.MiniFanCount(branchEnd.Id) >= options.MiniSupportMaxFanPerBranchEnd) continue;

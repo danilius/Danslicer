@@ -96,6 +96,9 @@ public sealed class LayerRangeClipViewModel : ObservableObject
 
     private void SetRange(double lower, double upper, bool forceNotify = false)
     {
+        // Slider maths can land a hair under zero, which the fields then show as "-0".
+        if (Math.Abs(lower) < Epsilon) lower = 0;
+        if (Math.Abs(upper) < Epsilon) upper = 0;
         var lowerChanged = Math.Abs(_lowerZ - lower) > Epsilon;
         var upperChanged = Math.Abs(_upperZ - upper) > Epsilon;
         if (!lowerChanged && !upperChanged && !forceNotify)

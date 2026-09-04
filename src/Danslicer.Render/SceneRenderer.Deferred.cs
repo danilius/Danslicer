@@ -1,4 +1,5 @@
 using System.Numerics;
+using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
@@ -60,7 +61,7 @@ public sealed partial class SceneRenderer
         var plateFaded = frame.Camera.Eye.Z < 0f && frame.PlateOpacityFromBelow < 1f;
 
         DrawGeometryPass(frame, view, projection, plateFaded);
-        DrawCompositePass(frame, projection);
+        DrawCompositePass(frame, view, projection);
         DrawForwardPasses(frame, view, projection, plateFaded);
         ResolveToHost(frame);
 
@@ -91,7 +92,7 @@ public sealed partial class SceneRenderer
             EnsurePlateMesh(frame.Printer);
             var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
             BindGBufferShader(model, view, projection, PlateColor, backfaceTint: 0f,
-                warnBelowPlate: false, overhangCos: 2f, id, selected: false);
+                warnBelowPlate: false, overhangCos: 2f, id, selected: false, clip: default);
             _plate!.Draw();
         }
         id++;
@@ -115,7 +116,7 @@ public sealed partial class SceneRenderer
                 ? MathF.Sin(Math.Clamp(frame.OverhangAngleDegrees, 1f, 89f) * MathF.PI / 180f)
                 : 2f;
             BindGBufferShader(obj.Transform.ToMatrix(), view, projection, color, backfaceTint: 1f,
-                warnBelowPlate: true, overhangCos, id, selected);
+                warnBelowPlate: true, overhangCos, id, selected, frame.ClipRange);
             gpu.Draw();
         }
 
@@ -132,13 +133,15 @@ public sealed partial class SceneRenderer
             // A DepthOverlay draw (the selection highlight twin) wins EQUAL depth under Lequal,
             // which is already this pass's depth func; it flags selected for the outline colour.
             BindGBufferShader(Matrix4x4.Identity, view, projection, draw.Color, backfaceTint: 0f,
-                warnBelowPlate: false, overhangCos: 2f, id, selected: draw.DepthOverlay);
+                warnBelowPlate: false, overhangCos: 2f, id, selected: draw.DepthOverlay,
+                frame.ClipRange);
             gpu.Draw();
         }
     }
 
     private void BindGBufferShader(in Matrix4x4 model, in Matrix4x4 view, in Matrix4x4 projection,
-        Vector3 color, float backfaceTint, bool warnBelowPlate, float overhangCos, int id, bool selected)
+        Vector3 color, float backfaceTint, bool warnBelowPlate, float overhangCos, int id, bool selected,
+        ViewportClipRange clip)
     {
         Matrix4x4.Invert(model * view, out var inverse);
         var normalMatrix = Matrix4x4.Transpose(inverse);
@@ -161,10 +164,11 @@ public sealed partial class SceneRenderer
         shader.Set("uOverhangCell", _overhangCell);
         shader.Set("uId", DeferredIds.Pack(id));
         shader.Set("uSelected", selected ? 1f : 0f);
+        BindClip(shader, clip);
     }
 
     /// <summary>Fullscreen lighting (studio or MatCap), cavity and outlines into the scene target.</summary>
-    private void DrawCompositePass(RenderFrame frame, in Matrix4x4 projection)
+    private void DrawCompositePass(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection)
     {
         var gl = _gl;
         var pipeline = _deferred!;
@@ -185,9 +189,13 @@ public sealed partial class SceneRenderer
         }));
 
         Matrix4x4.Invert(projection, out var invProjection);
+        Matrix4x4.Invert(view, out var invView);
         var shader = pipeline.CompositeShader;
         shader.Use();
         shader.Set("uInvProjection", invProjection);
+        shader.Set("uInvView", invView);
+        shader.Set("uWaterlineEnabled", frame.WaterlineZ.HasValue ? 1f : 0f);
+        shader.Set("uWaterlineZ", frame.WaterlineZ.GetValueOrDefault());
         shader.Set("uTexel", TexelSize(frame));
         shader.Set("uShadingMode", effects.Shading == ViewportShadingMode.Studio ? 0 : 1);
         shader.Set("uCavityRidge", effects.CavityEnabled ? effects.CavityRidgeStrength : 0f);
@@ -239,9 +247,10 @@ public sealed partial class SceneRenderer
             gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             gl.DepthMask(false);
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Lequal);
+            // Clip but no waterline, matching the classic DrawAuxMeshes pass exactly.
             BindMeshShader(Matrix4x4.Identity, view, projection, draw.Color, draw.Opacity,
                 backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f,
-                frame.ClipRange, frame.WaterlineZ);
+                frame.ClipRange);
             gpu.Draw();
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Less);
             gl.Disable(EnableCap.Blend);

@@ -28,7 +28,7 @@ public sealed class SpaceMouseConfig
 /// <summary>Which viewport render pipeline draws the scene.</summary>
 public enum RenderPathMode
 {
-    /// <summary>The original forward renderer. Default until the deferred path is approved.</summary>
+    /// <summary>The original forward renderer, kept as the fallback and user option.</summary>
     Classic,
     /// <summary>G-buffer pipeline with composite lighting, cavity, outlines and FXAA.</summary>
     Deferred,
@@ -50,7 +50,9 @@ public sealed class ViewportConfig
     public float OverhangAngleDegrees { get; set; } = 45f;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public RenderPathMode RenderPath { get; set; } = RenderPathMode.Classic;
+    // Deferred by user decision D2 (2026-09-04) after on-screen verification; the renderer
+    // still latches back to Classic for the session if the pipeline fails on a machine.
+    public RenderPathMode RenderPath { get; set; } = RenderPathMode.Deferred;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ViewportShadingMode Shading { get; set; } = ViewportShadingMode.Studio;
@@ -96,7 +98,7 @@ public sealed class ViewportConfig
 
     internal void Normalize()
     {
-        if (!Enum.IsDefined(RenderPath)) RenderPath = RenderPathMode.Classic;
+        if (!Enum.IsDefined(RenderPath)) RenderPath = RenderPathMode.Deferred;
         if (!Enum.IsDefined(Shading)) Shading = ViewportShadingMode.Studio;
         CavityRidgeStrength = Clamp(CavityRidgeStrength, 0f, 4f, 0.35f);
         CavityValleyStrength = Clamp(CavityValleyStrength, 0f, 4f, 0.7f);
