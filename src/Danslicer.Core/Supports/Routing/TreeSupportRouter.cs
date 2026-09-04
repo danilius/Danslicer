@@ -38,6 +38,11 @@ public sealed record TreeRoutingOptions
     /// was converted from, instead of being refused.
     /// </summary>
     public bool FineFeatureMinisFallBackToRegular { get; init; } = true;
+    /// <summary>
+    /// Minimum surface-to-surface clearance between non-incident support members. Zero disables
+    /// the additional constraint and preserves legacy routing exactly.
+    /// </summary>
+    public float MinMemberSeparationMm { get; init; }
     /// <summary>When true, new bases are constrained to the plate-origin square grid.</summary>
     public bool UseBaseGrid { get; init; } = true;
     /// <summary>Pitch of the plate-origin-aligned square base grid.</summary>
@@ -96,6 +101,8 @@ public sealed class TreeSupportRouter
             options.MiniSupportMaxAngleDegrees <= 0 || options.MiniSupportMaxAngleDegrees >= 90)
             throw new ArgumentOutOfRangeException(nameof(options.MiniSupportMaxAngleDegrees));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MiniSupportMaxFanPerBranchEnd);
+        if (!float.IsFinite(options.MinMemberSeparationMm) || options.MinMemberSeparationMm < 0)
+            throw new ArgumentOutOfRangeException(nameof(options.MinMemberSeparationMm));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchDirections);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BranchLengthSteps);
 
@@ -105,7 +112,8 @@ public sealed class TreeSupportRouter
         var ids = new DeterministicIds(options.Seed);
         var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
         var angleOffset = new Random(options.Seed).NextSingle() * MathF.Tau;
-        var state = new RouteState(graph, ids, clearance, angleOffset);
+        var state = new RouteState(graph, ids, clearance, angleOffset,
+            options.MinMemberSeparationMm);
         if (existingGraph is not null) state.SeedExistingContext();
         var unrouted = new List<RoutingTip>();
         var failures = new List<RoutingFailure>();
@@ -237,6 +245,7 @@ public sealed class TreeSupportRouter
     private bool TryRouteMiniSupport(RoutingTip tip, TreeRoutingOptions options, RouteState state,
         out RoutingFailureReason reason, Guid? requiredBranchEndId = null)
     {
+        var separationRejections = state.SeparationRejections;
         reason = RoutingFailureReason.NoClearStep;
         if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
         {
@@ -271,6 +280,8 @@ public sealed class TreeSupportRouter
                 _obstacles.IntersectsCapsule(branchEnd.Position, clearEnd, queryRadius,
                     Excluding(incident))) continue;
             if (state.HitsGenerated(branchEnd.Position, clearEnd, queryRadius, incident)) continue;
+            if (state.ViolatesMemberSeparation(branchEnd.Position, tip.SurfacePoint, bodyRadius,
+                    branchEnd.Id, null, incident)) continue;
 
             var miniTip = state.NewNode(SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
             RoutingUtilities.ApplyContact(miniTip, tip with
@@ -287,7 +298,10 @@ public sealed class TreeSupportRouter
             state.IncrementMiniFan(branchEnd.Id);
             return true;
         }
-        if (!hasBranchEndInRange) reason = RoutingFailureReason.NoBranchEndInRange;
+        if (state.SeparationRejections > separationRejections)
+            reason = RoutingFailureReason.MemberCrossing;
+        else if (!hasBranchEndInRange)
+            reason = RoutingFailureReason.NoBranchEndInRange;
         return false;
     }
 
@@ -295,6 +309,7 @@ public sealed class TreeSupportRouter
         TreeRoutingOptions options, RouteState state)
     {
         if (members.Count == 0) return [];
+        var separationRejections = state.SeparationRejections;
         var center = members[0].MiniClusterCenter ??
                      members.Select(member => member.SurfacePoint).Aggregate(Vector3.Zero,
                          (sum, point) => sum + point) / members.Count;
@@ -320,7 +335,9 @@ public sealed class TreeSupportRouter
             return failures;
         }
 
-        var clusterReason = hadCandidate ? lastCarrierReason : RoutingFailureReason.NoBranchEndInRange;
+        var clusterReason = state.SeparationRejections > separationRejections
+            ? RoutingFailureReason.MemberCrossing
+            : hadCandidate ? lastCarrierReason : RoutingFailureReason.NoBranchEndInRange;
         return members.Select(member => new RoutingFailure(member, clusterReason)).ToList();
     }
 
@@ -377,12 +394,15 @@ public sealed class TreeSupportRouter
             : branchEnd;
         return clearEnd == branchEnd ||
                (!_obstacles.IntersectsCapsule(branchEnd, clearEnd, queryRadius) &&
-                !state.HitsGenerated(branchEnd, clearEnd, queryRadius));
+                !state.HitsGenerated(branchEnd, clearEnd, queryRadius) &&
+                !state.ViolatesMemberSeparation(branchEnd, tip.SurfacePoint,
+                    options.MiniSupportDiameter * 0.5f));
     }
 
     private bool TryRouteClusterCarrier(Vector3 branchEndPosition, TreeRoutingOptions options,
         RouteState state, out SupportNode branchEnd, out RoutingFailureReason reason)
     {
+        var separationRejections = state.SeparationRejections;
         branchEnd = null!;
         reason = RoutingFailureReason.NoClearStep;
         if (branchEndPosition.Z <= options.PlateZ + Epsilon)
@@ -418,6 +438,8 @@ public sealed class TreeSupportRouter
             return true;
         if (options.UseBaseGrid && trunkTops.Count == 0)
             reason = RoutingFailureReason.NoReachableGridPoint;
+        if (state.SeparationRejections > separationRejections)
+            reason = RoutingFailureReason.MemberCrossing;
         return false;
     }
 
@@ -456,6 +478,12 @@ public sealed class TreeSupportRouter
                     radius + state.Clearance.ModelDistance, trunk,
                     SiblingBranchFusionDistance,
                     options.BranchDiameter * ProjectedBranchClearanceDiameters)) continue;
+            var targetSegment = trunk.SegmentCovering(candidate.Attach.Z, state.Graph).Segment;
+            var sharedNode = MathF.Abs(candidate.Attach.Z - trunk.TopZ) <= 1e-3f
+                ? trunk.TopNodeId
+                : (Guid?)null;
+            if (state.ViolatesMemberSeparation(position, candidate.Attach, radius,
+                    null, sharedNode, [targetSegment.Id])) continue;
 
             var attachNode = MathF.Abs(candidate.Attach.Z - trunk.TopZ) <= 1e-3f
                 ? state.Graph.GetNode(trunk.TopNodeId)
@@ -505,6 +533,7 @@ public sealed class TreeSupportRouter
     private bool RouteOne(RoutingTip tip, TreeRoutingOptions options, RouteState state,
         out RoutingFailureReason reason)
     {
+        var separationRejections = state.SeparationRejections;
         reason = RoutingFailureReason.NoClearStep;
         if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
         {
@@ -555,7 +584,9 @@ public sealed class TreeSupportRouter
 
         if (branchJunction is null)
         {
-            reason = RoutingFailureReason.ContactBlocked;
+            reason = state.SeparationRejections > separationRejections
+                ? RoutingFailureReason.MemberCrossing
+                : RoutingFailureReason.ContactBlocked;
             return false;
         }
 
@@ -584,6 +615,8 @@ public sealed class TreeSupportRouter
                                               IsOnBaseGrid(straightJunction, options);
         if (options.UseBaseGrid && !straightGridCandidateWasBlocked && trunkTops.Count == 0)
             reason = RoutingFailureReason.NoReachableGridPoint;
+        if (state.SeparationRejections > separationRejections)
+            reason = RoutingFailureReason.MemberCrossing;
         return false;
     }
 
@@ -647,6 +680,8 @@ public sealed class TreeSupportRouter
             if (!ContactMemberIsClear(tip.SurfacePoint, candidate, contactRadius)) continue;
             if (state.HitsGenerated(tip.SurfacePoint, candidate,
                     tipMemberDiameter * 0.5f + state.Clearance.ModelDistance)) continue;
+            if (state.ViolatesMemberSeparation(tip.SurfacePoint, candidate,
+                    tipMemberDiameter * 0.5f)) continue;
             if (BaseIsClear(candidate, options, state)) return candidate;
         }
         return null;
@@ -674,6 +709,8 @@ public sealed class TreeSupportRouter
                 var end = tip.SurfacePoint + direction * length;
                 if (!ContactMemberIsClear(tip.SurfacePoint, end, contactRadius)) continue;
                 if (state.HitsGenerated(tip.SurfacePoint, end, memberRadius)) continue;
+                if (state.ViolatesMemberSeparation(tip.SurfacePoint, end,
+                        tipMemberDiameter * 0.5f)) continue;
                 yield return end;
             }
         }
@@ -799,6 +836,12 @@ public sealed class TreeSupportRouter
                     branchRadius + state.Clearance.ModelDistance, trunk,
                     SiblingBranchFusionDistance,
                     options.BranchDiameter * ProjectedBranchClearanceDiameters)) continue;
+            var targetSegment = trunk.SegmentCovering(attachZ, state.Graph).Segment;
+            var sharedNode = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
+                ? trunk.TopNodeId
+                : (Guid?)null;
+            if (state.ViolatesMemberSeparation(j1, attach, branchRadius,
+                    null, sharedNode, [targetSegment.Id])) continue;
 
             var attachNode = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
                 ? state.Graph.GetNode(trunk.TopNodeId)
@@ -918,7 +961,9 @@ public sealed class TreeSupportRouter
     {
         if (!state.Clearance.PillarIsClear(_obstacles, start, end, physicalRadius)) return false;
         return !state.HitsGenerated(start, end,
-            physicalRadius + state.Clearance.ModelDistance, excludeSegments);
+                   physicalRadius + state.Clearance.ModelDistance, excludeSegments) &&
+               !state.ViolatesMemberSeparation(start, end, physicalRadius,
+                   null, null, excludeSegments);
     }
 
     private bool BranchIsClear(Vector3 start, Vector3 end, TreeRoutingOptions options,
@@ -1144,14 +1189,17 @@ public sealed class TreeSupportRouter
         private readonly List<GeneratedCapsule> _capsules = new();
         private readonly HashSet<Guid> _branchEndIds = new();
         private readonly Dictionary<Guid, int> _miniFanCounts = new();
+        private readonly float _minimumMemberSeparation;
+        public int SeparationRejections { get; private set; }
 
         public RouteState(SupportGraph graph, DeterministicIds ids, RoutingClearance clearance,
-            float angleOffset)
+            float angleOffset, float minimumMemberSeparation)
         {
             Graph = graph;
             _ids = ids;
             Clearance = clearance;
             AngleOffset = angleOffset;
+            _minimumMemberSeparation = minimumMemberSeparation;
         }
 
         /// <summary>
@@ -1166,7 +1214,8 @@ public sealed class TreeSupportRouter
                 var b = Graph.GetNode(segment.NodeB);
                 if (a.Disabled || b.Disabled) continue;
                 _capsules.Add(new GeneratedCapsule(a.Position, b.Position,
-                    segment.Diameter * 0.5f, segment.Id, segment.Type));
+                    segment.Diameter * 0.5f, segment.Id, segment.Type,
+                    segment.NodeA, segment.NodeB));
             }
 
             var trunkNodes = new HashSet<Guid>();
@@ -1239,7 +1288,7 @@ public sealed class TreeSupportRouter
             };
             Graph.AddSegment(segment);
             _capsules.Add(new GeneratedCapsule(a.Position, b.Position,
-                diameter * 0.5f, segment.Id, type));
+                diameter * 0.5f, segment.Id, type, a.Id, b.Id));
             var delta = b.Position - a.Position;
             var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
                 * 180 / MathF.PI;
@@ -1265,6 +1314,24 @@ public sealed class TreeSupportRouter
                 var sum = radius + capsule.Radius;
                 if (GeometryDistance.SegmentSegmentSquared(start, end, capsule.Start, capsule.End)
                     <= sum * sum) return true;
+            }
+            return false;
+        }
+
+        public bool ViolatesMemberSeparation(Vector3 start, Vector3 end, float radius,
+            Guid? nodeA = null, Guid? nodeB = null,
+            IReadOnlyCollection<Guid>? excludeSegments = null)
+        {
+            if (_minimumMemberSeparation <= 0) return false;
+            foreach (var member in _capsules.OrderBy(item => item.SegmentId))
+            {
+                if (excludeSegments is not null && excludeSegments.Contains(member.SegmentId))
+                    continue;
+                if (!MemberSeparation.AreTooClose(start, end, radius, nodeA, nodeB,
+                        member.Start, member.End, member.Radius, member.NodeA, member.NodeB,
+                        _minimumMemberSeparation)) continue;
+                SeparationRejections++;
+                return true;
             }
             return false;
         }
@@ -1351,6 +1418,6 @@ public sealed class TreeSupportRouter
             => _capsules.RemoveAll(capsule => capsule.SegmentId == segmentId);
 
         private readonly record struct GeneratedCapsule(Vector3 Start, Vector3 End, float Radius,
-            Guid SegmentId, SupportSegmentType Type);
+            Guid SegmentId, SupportSegmentType Type, Guid NodeA, Guid NodeB);
     }
 }

@@ -49,6 +49,7 @@ public sealed record GridRoutingOptions
 public enum RoutingFailureReason
 {
     ContactBlocked,
+    MemberCrossing,
     NoClearStep,
     NoReachableGridPoint,
     NoBranchEndInRange,
