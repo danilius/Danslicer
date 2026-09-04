@@ -17,9 +17,12 @@ Use `-Configuration Debug` or `-OutputRoot <path>` to override the defaults.
 The equivalent individual command is:
 
 ```powershell
-dotnet publish src/Danslicer.App/Danslicer.App.csproj -c Release -r <rid> --self-contained true -o artifacts/publish/<rid>/app -p:PublishSingleFile=false -p:DebugSymbols=false -p:DebugType=None
-dotnet publish src/Danslicer.Cli/Danslicer.Cli.csproj -c Release -r <rid> --self-contained true -o artifacts/publish/<rid>/cli -p:PublishSingleFile=false -p:DebugSymbols=false -p:DebugType=None
+dotnet publish src/Danslicer.App/Danslicer.App.csproj -c Release -r <rid> --self-contained true --artifacts-path artifacts/build -o artifacts/publish/<rid>/app -p:PublishSingleFile=false -p:DebugSymbols=false -p:DebugType=None
+dotnet publish src/Danslicer.Cli/Danslicer.Cli.csproj -c Release -r <rid> --self-contained true --artifacts-path artifacts/build -o artifacts/publish/<rid>/cli -p:PublishSingleFile=false -p:DebugSymbols=false -p:DebugType=None
 ```
+
+The separate `artifacts/build` intermediate tree prevents Release publishing from replacing the
+restore assets used by the normal Debug `dotnet build` and `dotnet test` workflow.
 
 These commands cross-publish on Windows, but that proves only that assets resolve and compile for
 each target. Run the Linux and macOS bundles on real target hardware before calling those runtime

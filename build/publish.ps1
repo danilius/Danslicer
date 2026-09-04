@@ -11,6 +11,7 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $outputRootPath = [System.IO.Path]::GetFullPath($OutputRoot)
+$buildArtifactsPath = Join-Path $repositoryRoot 'artifacts\build'
 $runtimeIdentifiers = @('win-x64', 'linux-x64', 'osx-arm64')
 $projects = @(
     @{ Name = 'app'; Path = 'src\Danslicer.App\Danslicer.App.csproj' },
@@ -31,6 +32,7 @@ foreach ($runtimeIdentifier in $runtimeIdentifiers) {
             --configuration $Configuration `
             --runtime $runtimeIdentifier `
             --self-contained true `
+            --artifacts-path $buildArtifactsPath `
             --output $publishDirectory `
             -p:PublishSingleFile=false `
             -p:DebugSymbols=false `
