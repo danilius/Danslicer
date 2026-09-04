@@ -16,6 +16,7 @@ using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Generation;
 using Danslicer.Render;
 
 namespace Danslicer.App.Controls;
@@ -63,6 +64,10 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<HoverWaterlineViewModel?> SupportWaterlineProperty =
         AvaloniaProperty.Register<ViewportControl, HoverWaterlineViewModel?>(nameof(SupportWaterline));
 
+    public static readonly StyledProperty<IReadOnlyList<DetectedIsland>> IslandMarkersProperty =
+        AvaloniaProperty.Register<ViewportControl, IReadOnlyList<DetectedIsland>>(
+            nameof(IslandMarkers), Array.Empty<DetectedIsland>());
+
     /// <summary>The live marquee rectangle in viewport coordinates; null when no drag is active.
     /// Drawn by a sibling overlay control, above the GL composition surface.</summary>
     public static readonly StyledProperty<Rect?> MarqueeRectProperty =
@@ -109,6 +114,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private bool _selectionMeshDirty = true;
     private readonly List<AuxMeshDraw> _combinedAuxMeshes = new();
     private Mesh? _selectedSupportMesh;
+    private Mesh? _islandMarkerMesh;
     private const float MarqueeClickThresholdPixels = 3f;
     private readonly record struct SupportMeshBatch(AuxMeshDraw Draw, Vector3 SortOrigin);
 
@@ -143,6 +149,7 @@ public sealed class ViewportControl : OpenGlControlBase
     public SupportDisplayConfig SupportDisplay { get => GetValue(SupportDisplayProperty); set => SetValue(SupportDisplayProperty, value); }
     public ViewportClipRange ClipRange { get => GetValue(ClipRangeProperty); set => SetValue(ClipRangeProperty, value); }
     public HoverWaterlineViewModel? SupportWaterline { get => GetValue(SupportWaterlineProperty); set => SetValue(SupportWaterlineProperty, value); }
+    public IReadOnlyList<DetectedIsland> IslandMarkers { get => GetValue(IslandMarkersProperty); set => SetValue(IslandMarkersProperty, value); }
     public Rect? MarqueeRect { get => GetValue(MarqueeRectProperty); private set => SetValue(MarqueeRectProperty, value); }
 
     public ViewportControl()
@@ -232,6 +239,14 @@ public sealed class ViewportControl : OpenGlControlBase
             UpdateStatus();
             Redraw();
         }
+        else if (change.Property == IslandMarkersProperty)
+        {
+            var builder = new MeshBuilder();
+            foreach (var marker in IslandMarkers)
+                SupportRenderMesh.AppendSphere(builder, marker.Position, marker.MarkerRadiusMm);
+            _islandMarkerMesh = IslandMarkers.Count == 0 ? null : builder.ToMesh();
+            Redraw();
+        }
         else if (change.Property == SupportDisplayProperty)
         {
             _supportMeshesDirty = true;
@@ -305,6 +320,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 Vector3.DistanceSquared(Camera.Eye, batch.SortOrigin))
             : _supportMeshes;
         foreach (var batch in supportBatches) _combinedAuxMeshes.Add(batch.Draw);
+        if (_islandMarkerMesh is { } markers)
+            _combinedAuxMeshes.Add(new AuxMeshDraw(markers, new Vector3(1f, 0.03f, 0.03f), 1f));
         if (_selectedSupportMesh is { } selected)
             _combinedAuxMeshes.Add(new AuxMeshDraw(selected,
                 new Vector3(SupportSelectedColor.X, SupportSelectedColor.Y, SupportSelectedColor.Z),
@@ -402,6 +419,13 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         view(Camera);
         Redraw();
+    }
+
+    public void FocusPoint(Vector3 point)
+    {
+        Camera.Target = point;
+        Redraw();
+        Focus();
     }
 
     public void ToggleProjection()

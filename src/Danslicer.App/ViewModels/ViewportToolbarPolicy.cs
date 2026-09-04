@@ -6,6 +6,8 @@ public enum ViewportTool
 {
     Objects,
     Supports,
+    IslandSupport,
+    IslandDetection,
     Visibility,
     Rafts,
 }
@@ -28,6 +30,8 @@ public static class ViewportToolbarPolicy
     [
         ViewportTool.Objects,
         ViewportTool.Supports,
+        ViewportTool.IslandSupport,
+        ViewportTool.IslandDetection,
         ViewportTool.Visibility,
         ViewportTool.Rafts,
     ];

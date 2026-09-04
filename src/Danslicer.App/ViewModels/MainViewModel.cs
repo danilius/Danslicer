@@ -67,6 +67,8 @@ public partial class MainViewModel : ViewModelBase
     public ModeScopedCommand UnhideAllScopedCommand { get; }
     public ModeScopedCommand HideUnselectedSupportsScopedCommand { get; }
     public ModeScopedCommand GenerateSupportsScopedCommand { get; }
+    public ModeScopedCommand GenerateIslandSupportsScopedCommand { get; }
+    public ModeScopedCommand DetectIslandsScopedCommand { get; }
     public ModeScopedCommand SliceScopedCommand { get; }
 
     private readonly List<ModeScopedCommand> _modeScopedCommands;
@@ -96,13 +98,16 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayoutView), nameof(IsSupportView), nameof(IsLayersView),
         nameof(ViewportTools), nameof(IsObjectListSelectionEnabled), nameof(IsObjectsToolVisible),
-        nameof(IsSupportsToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible))]
+        nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
+        nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
 
     public bool IsObjectsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Objects, ViewMode);
     public bool IsSupportsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Supports, ViewMode);
+    public bool IsIslandSupportToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.IslandSupport, ViewMode);
+    public bool IsIslandDetectionToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.IslandDetection, ViewMode);
     public bool IsVisibilityToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Visibility, ViewMode);
     public bool IsRaftsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Rafts, ViewMode);
 
@@ -199,6 +204,15 @@ public partial class MainViewModel : ViewModelBase
     public partial double GenerationProgress { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDetectedIslands))]
+    public partial IReadOnlyList<DetectedIsland> DetectedIslands { get; set; } = [];
+
+    [ObservableProperty]
+    public partial bool IsDetectingIslands { get; set; }
+
+    public bool HasDetectedIslands => DetectedIslands.Count > 0;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSlice))]
     public partial SliceResult? LastSlice { get; set; }
 
@@ -250,6 +264,10 @@ public partial class MainViewModel : ViewModelBase
             HideUnselectedSupportsCommand, () => ViewMode, WorkspaceMode.Support);
         GenerateSupportsScopedCommand = new ModeScopedCommand(
             GenerateSupportsCommand, () => ViewMode, WorkspaceMode.Support);
+        GenerateIslandSupportsScopedCommand = new ModeScopedCommand(
+            GenerateIslandSupportsCommand, () => ViewMode, WorkspaceMode.Support);
+        DetectIslandsScopedCommand = new ModeScopedCommand(
+            DetectIslandsCommand, () => ViewMode, WorkspaceMode.Support);
         SliceScopedCommand = new ModeScopedCommand(
             SliceCommand, () => ViewMode, WorkspaceMode.Slicing);
         _modeScopedCommands =
@@ -259,6 +277,8 @@ public partial class MainViewModel : ViewModelBase
             UnhideAllScopedCommand,
             HideUnselectedSupportsScopedCommand,
             GenerateSupportsScopedCommand,
+            GenerateIslandSupportsScopedCommand,
+            DetectIslandsScopedCommand,
             SliceScopedCommand,
         ];
         Position = MakeAxisFields(UnitKind.Length, "0.###", (t, axis, v) => t with { Translation = SetAxis(t.Translation, axis, (float)v) });
@@ -343,6 +363,8 @@ public partial class MainViewModel : ViewModelBase
         DropToPlateCommand.NotifyCanExecuteChanged();
         HideCommand.NotifyCanExecuteChanged();
         GenerateSupportsCommand.NotifyCanExecuteChanged();
+        GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
+        DetectIslandsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedObjectChanged(SceneObject? value)
@@ -363,6 +385,8 @@ public partial class MainViewModel : ViewModelBase
         }
         RefreshFields();
         GenerateSupportsCommand.NotifyCanExecuteChanged();
+        GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
+        DetectIslandsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnAutoDropEnabledChanged(bool value)
@@ -386,6 +410,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (IsGeneratingSupports && !_applyingGenerationBatch)
             _generationCancellation?.Cancel();
+        if (DetectedIslands.Count > 0) DetectedIslands = [];
         RefreshFields();
         var undo = Document.History.UndoName;
         var redo = Document.History.RedoName;
@@ -541,19 +566,26 @@ public partial class MainViewModel : ViewModelBase
     private bool HasSupportSelection() => Document.SupportSelection.Count > 0;
 
     [RelayCommand(CanExecute = nameof(CanGenerateSupports))]
-    private async Task GenerateSupports()
+    private Task GenerateSupports() => GenerateSupportsCore(SupportGenerationScope.Full);
+
+    [RelayCommand(CanExecute = nameof(CanGenerateSupports))]
+    private Task GenerateIslandSupports() => GenerateSupportsCore(SupportGenerationScope.IslandsOnly);
+
+    private async Task GenerateSupportsCore(SupportGenerationScope scope)
     {
         if (IsGeneratingSupports) return;
         var obj = SelectedObject;
         if (obj is null) return;
-        var request = Document.CaptureSupportGeneration(obj, seed: 0);
+        var request = Document.CaptureSupportGeneration(obj, seed: 0, scope);
         _generationCancellation = new CancellationTokenSource();
         var token = _generationCancellation.Token;
         SupportGenerationBatch? batch = null;
         IsGeneratingSupports = true;
         GenerationProgress = 0;
         GenerateSupportsCommand.NotifyCanExecuteChanged();
-        ViewportStatus = "Generating supports…";
+        GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
+        var label = scope == SupportGenerationScope.IslandsOnly ? "island supports" : "supports";
+        ViewportStatus = $"Generating {label}…";
         try
         {
             var generationProgress = new Progress<SupportGenerationProgress>(p =>
@@ -580,8 +612,8 @@ public partial class MainViewModel : ViewModelBase
             finally { _applyingGenerationBatch = false; }
             var result = prepared.Summary;
             ViewportStatus = result.CandidateCount == 0
-                ? "Generate supports: no support tips were needed."
-                : $"Generate supports: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
+                ? $"Generate {label}: no support tips were needed."
+                : $"Generate {label}: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
         }
         catch (OperationCanceledException)
         {
@@ -609,10 +641,47 @@ public partial class MainViewModel : ViewModelBase
             _generationCancellation?.Dispose();
             _generationCancellation = null;
             GenerateSupportsCommand.NotifyCanExecuteChanged();
+            GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
         }
     }
 
     private bool CanGenerateSupports() => SelectedObject is not null && !IsGeneratingSupports;
+
+    [RelayCommand(CanExecute = nameof(CanDetectIslands))]
+    private async Task DetectIslands()
+    {
+        if (IsDetectingIslands || SelectedObject is not { } obj) return;
+        IsDetectingIslands = true;
+        DetectIslandsCommand.NotifyCanExecuteChanged();
+        ViewportStatus = "Detecting islands…";
+        try
+        {
+            var request = Document.CaptureIslandDetection(obj);
+            DetectedIslands = await Task.Run(() => Document.ComputeIslandDetection(request));
+            ViewportStatus = DetectedIslands.Count == 0
+                ? "Island detection: no unsupported islands."
+                : $"Island detection: {DetectedIslands.Count} unsupported islands.";
+        }
+        catch (Exception ex)
+        {
+            DetectedIslands = [];
+            ViewportStatus = $"Island detection failed: {ex.Message}";
+        }
+        finally
+        {
+            IsDetectingIslands = false;
+            DetectIslandsCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private bool CanDetectIslands() => SelectedObject is not null && !IsDetectingIslands;
+
+    [RelayCommand]
+    private void ClearIslandDetection()
+    {
+        DetectedIslands = [];
+        ViewportStatus = "Island markers cleared.";
+    }
 
     [RelayCommand]
     private void CancelSupportGeneration()

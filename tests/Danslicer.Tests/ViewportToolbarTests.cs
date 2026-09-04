@@ -3,6 +3,7 @@ using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
+using Danslicer.Core.Supports.Generation;
 
 namespace Danslicer.Tests;
 
@@ -20,7 +21,8 @@ public sealed class ViewportToolbarTests
     public void SupportModeShowsTheCompleteContextualToolSet()
     {
         Assert.Equal(
-            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.Visibility, ViewportTool.Rafts],
+            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.IslandSupport,
+                ViewportTool.IslandDetection, ViewportTool.Visibility, ViewportTool.Rafts],
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Support));
     }
 
@@ -97,6 +99,19 @@ public sealed class ViewportToolbarTests
 
         viewModel.Document.DeleteSelection();
         Assert.Equal([second], viewModel.Objects);
+    }
+
+    [Fact]
+    public void GeometryChangesInvalidateIslandMarkers()
+    {
+        var viewModel = new MainViewModel
+        {
+            DetectedIslands = [new DetectedIsland(new Vector3(1, 2, 3), 0.8f, 4)],
+        };
+
+        viewModel.Document.NotifyTransientChange();
+
+        Assert.Empty(viewModel.DetectedIslands);
     }
 
     private static Mesh Triangle() => new(

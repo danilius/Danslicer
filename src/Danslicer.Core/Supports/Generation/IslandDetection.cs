@@ -6,6 +6,10 @@ namespace Danslicer.Core.Supports.Generation;
 /// <summary>An island that remains unsupported at the time of analysis.</summary>
 public readonly record struct DetectedIsland(Vector3 Position, float AreaMm2, int LayerIndex)
 {
+    public float X => Position.X;
+    public float Y => Position.Y;
+    public float Z => Position.Z;
+
     /// <summary>Viewport marker radius: area-relative, clamped to remain usable.</summary>
     public float MarkerRadiusMm => Math.Clamp(MathF.Sqrt(AreaMm2 / MathF.PI) * 0.35f, 0.35f, 2f);
 }

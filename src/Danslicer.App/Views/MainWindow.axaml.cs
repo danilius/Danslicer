@@ -12,6 +12,7 @@ using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.IO;
+using Danslicer.Core.Supports.Generation;
 
 namespace Danslicer.App.Views;
 
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
     private GridLength _expandedRightPanelWidth = new(320);
     private readonly ViewportPopupState _objectsPopupState = new(ViewportTool.Objects);
     private readonly ViewportPopupState _supportsPopupState = new(ViewportTool.Supports);
+    private readonly ViewportPopupState _islandDetectionPopupState = new(ViewportTool.IslandDetection);
     private readonly ViewportPopupState _visibilityPopupState = new(ViewportTool.Visibility);
     private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
 
@@ -136,6 +138,13 @@ public partial class MainWindow : Window
     private void OnSupportsToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_supportsPopupState, SupportsToolPopup);
 
+    private void OnIslandDetectionToolClick(object? sender, RoutedEventArgs e)
+    {
+        ToggleViewportPopup(_islandDetectionPopupState, IslandDetectionToolPopup);
+        if (_islandDetectionPopupState.IsOpen && ViewModel?.DetectIslandsCommand.CanExecute(null) == true)
+            ViewModel.DetectIslandsCommand.Execute(null);
+    }
+
     private void OnVisibilityToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_visibilityPopupState, VisibilityToolPopup);
 
@@ -163,6 +172,7 @@ public partial class MainWindow : Window
     {
         ApplyViewportPopupState(_objectsPopupState, ObjectsToolPopup);
         ApplyViewportPopupState(_supportsPopupState, SupportsToolPopup);
+        ApplyViewportPopupState(_islandDetectionPopupState, IslandDetectionToolPopup);
         ApplyViewportPopupState(_visibilityPopupState, VisibilityToolPopup);
         ApplyViewportPopupState(_raftsPopupState, RaftsToolPopup);
     }
@@ -176,6 +186,7 @@ public partial class MainWindow : Window
         {
             _ when ReferenceEquals(sender, ObjectsToolPopup) => ObjectsPopupContent,
             _ when ReferenceEquals(sender, SupportsToolPopup) => SupportsPopupContent,
+            _ when ReferenceEquals(sender, IslandDetectionToolPopup) => IslandDetectionPopupContent,
             _ when ReferenceEquals(sender, VisibilityToolPopup) => VisibilityPopupContent,
             _ when ReferenceEquals(sender, RaftsToolPopup) => RaftsPopupContent,
             _ when ReferenceEquals(sender, ViewSettingsPopup) => ViewSettingsPopupContent,
@@ -193,6 +204,7 @@ public partial class MainWindow : Window
         {
             _ when ReferenceEquals(sender, ObjectsPopupContent) => ObjectsToolPopup,
             _ when ReferenceEquals(sender, SupportsPopupContent) => SupportsToolPopup,
+            _ when ReferenceEquals(sender, IslandDetectionPopupContent) => IslandDetectionToolPopup,
             _ when ReferenceEquals(sender, VisibilityPopupContent) => VisibilityToolPopup,
             _ when ReferenceEquals(sender, RaftsPopupContent) => RaftsToolPopup,
             _ when ReferenceEquals(sender, ViewSettingsPopupContent) => ViewSettingsPopup,
@@ -208,6 +220,16 @@ public partial class MainWindow : Window
 
     private void OnSupportsPopupCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(_supportsPopupState, SupportsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnIslandDetectionPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_islandDetectionPopupState, IslandDetectionToolPopup,
+            ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnIslandFindingClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: DetectedIsland island })
+            Viewport.FocusPoint(island.Position);
+    }
 
     private void OnVisibilityPopupCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(_visibilityPopupState, VisibilityToolPopup, ViewportPopupCloseTrigger.HeaderButton);
@@ -228,6 +250,7 @@ public partial class MainWindow : Window
         {
             _ when ReferenceEquals(popup, ObjectsToolPopup) => _objectsPopupState,
             _ when ReferenceEquals(popup, SupportsToolPopup) => _supportsPopupState,
+            _ when ReferenceEquals(popup, IslandDetectionToolPopup) => _islandDetectionPopupState,
             _ when ReferenceEquals(popup, VisibilityToolPopup) => _visibilityPopupState,
             _ when ReferenceEquals(popup, RaftsToolPopup) => _raftsPopupState,
             _ => null,
