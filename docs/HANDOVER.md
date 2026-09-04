@@ -1,5 +1,84 @@
 # Danslicer handover
 
+## SUPERVISOR HANDOVER 2026-09-04 ~afternoon — READ FIRST (supersedes everything below)
+
+**You are the new supervisor session (non-Fable model; the user ran out of weekly
+Fable budget mid-day).** Your job: (1) spawn ONE worker session (the Claude
+implementation lane — predecessor was `danslicer-75`, now stopped; it worked in
+`F:\Git Repos\Danslicer-claude`, branch `viewport-quality`, all merged) and manage it;
+(2) keep supervising ChatGPT's autonomous queue; (3) ALL user-facing messages go
+through YOUR chat only — workers hand you content to relay; inter-session traffic
+minimal (see memory `danslicer-session-comms`).
+
+**State at handover:** main was `dac3d7a` + the W3 merge (view cube + View pop-out,
+`2b2ba66` on viewport-quality — user approved; the outgoing worker was executing the
+merge+push as this was written: VERIFY `origin/main` contains `2b2ba66` before
+anything else; if not, that merge is the first thing to complete). ~513 green tests.
+Deferred rendering is the default path. ChatGPT's scheduled queue RUNS UNATTENDED
+(Codex task polls `Danslicer-chatgpt\ChatGPT\inbox\` every ~5 min; protocol in
+`ChatGPT\PROTOCOL.md`): job **023e (clusters on island contacts) is IN FLIGHT** —
+commits f953532/08ef893 reviewed green (508/508); review it on completion, propose
+its merge to the user. Then: 023f fine-feature minis, 023g pop-out mode visibility,
+024 island workflow (user's stated FOCUS: drogon-lo pushed to well-supported), 025
+clip caps (worker owns a Painted-shader follow-up keyed to 025's result file), 026
+duplicate/mirror, 027 out-of-plate, 028 UVtools, 029 multi-model hiding, 030
+support-target selection, 031 stylesheet proposal. The WORKER's first task: its own
+stylesheet proposal(s) (user directive: both lanes propose complete dark
+Blender-leaning Avalonia themes, runtime-selectable, inline vector icons — see job
+031's brief in the inbox for the agreed deliverable shape). The outgoing worker
+PARKED its stylesheet WIP on branch `theme-claude` (`5be68c8`, in Danslicer-claude):
+shared icon set plus an execution plan at `src/Danslicer.App/Themes/PLAN.md` — the
+new worker continues from there. W3's screen checklist for the user's next testing
+batch is in `Danslicer-claude\CLAUDE-LANE.md` (untracked). WORKSHEET.md `11ecaee`
+carries the outgoing worker's final lane state. Also owed: a REVIEW.md go-note for 023d
+(support-panel removal) once W3 is confirmed on main.
+
+**Governance (hard rules):** merging to main is the USER's call, per-merge, proposed
+in your chat — the overnight autonomy grant is DEAD; do not resurrect it from old
+text. Single-executor per merge (you execute ChatGPT-queue merges; the worker
+executes its own lane's). Verify EVERYTHING with process exit codes — a `--no-build`
+test run after a silently failed build reports stale green (this bit us once).
+Review flow: every commit verified detached in the scratch worktree
+`F:\Git Repos\.danslicer-review5` (fetch from the agent worktree, build+test with
+exit checks); reviews to `ChatGPT\REVIEW.md` newest-at-top; merge-test against main
+before proposing. Re-arm on start: the queue monitor (folders/QUESTIONS-hash/branch
+head each minute) and the hourly heartbeat with stale-claim detection — both died
+with the old session.
+
+**Running ChatGPT (exact operating manual, as run today):** ChatGPT is a Codex
+scheduled task on the user's desktop app (their machine must stay on, app running —
+if the queue goes silent past ~15 min with jobs eligible, tell the user; you cannot
+restart it). Every ~5 min it starts a FRESH chat that: reads
+`F:\Git Repos\Danslicer-chatgpt\ChatGPT\PROTOCOL.md` and the top of `REVIEW.md`,
+claims the lowest-numbered ELIGIBLE `NNN[letter]-slug.md` in `inbox\` (eligible =
+its `Requires:` jobs sit in `completed\`; letters order between numbers, e.g. 023b <
+023c < 024), moves it to `working\`, implements on branch `grid-routing-prototype`
+in `F:\Git Repos\Danslicer-chatgpt` (merges main first when REVIEW.md notes a new
+head), commits granularly, never pushes, then writes `completed\NNN-slug.result.md`
+and archives the job (failures go to `failed\` — none ever has). You SUPERVISE by:
+(1) monitoring the mailbox (folder listings + QUESTIONS.md content hash + branch
+head, each minute) and reviewing EVERY commit detached in the scratch worktree —
+build+test with exit-code checks; (2) writing reviews/corrections/answers into
+`REVIEW.md` newest-at-top (it reads them at each run start — red commits get a "fix
+before completing" note there); (3) writing new briefs into `inbox\` — SELF-CONTAINED
+(fresh chat each run: exact file paths, exact API signatures pasted in, reference
+test files named for patterns, NEVER "derive it from the code" clauses — those caused
+every failure), benchmarks via `danslicer bench` when routing changes, "full suite
+green + result file" always; (4) on completion, merge-testing against main in the
+scratch worktree and PROPOSING the merge to the user; after approval you merge/push
+and note the new head in REVIEW.md; (5) triaging stale claims (`working\` untouched
+>2h with no commits → move to `failed\`, requeue split). QUESTIONS.md is its
+question channel (answer in REVIEW.md); its mtime churns every run — compare content,
+not timestamps. The mailbox is git-excluded; never commit it.
+
+**Read next:** `docs/WORKSHEET.md` (live board, user decisions D1-D7),
+`ChatGPT\PROTOCOL.md`, memory files (`danslicer-multi-agent-workflow`,
+`danslicer-session-comms`, `danslicer-ui-testing`,
+`no-screen-testing-while-user-present`), then the addenda below for deeper history.
+The user runs all screen tests; batch checklists for them. Canonical models incl.
+`test files\drogon collapse.stl` (drogon-lo, the current tuning subject) and
+`drogon_collapse with Lychee supports.stl` (shape reference) are on disk, not in git.
+
 ## MORNING SUMMARY 2026-09-04 (~03:30) — READ FIRST
 
 **The entire overnight queue is DONE. main `dd93834`, 478 green tests, pushed, app
