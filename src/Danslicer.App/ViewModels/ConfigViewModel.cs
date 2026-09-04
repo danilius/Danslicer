@@ -541,6 +541,12 @@ public sealed class ConfigViewModel : ViewModelBase
             Clamp(value, 0f, 1_000_000f, 1f));
     }
 
+    public bool SupportFineFeatureMinisFallBackToRegular
+    {
+        get => Supports.FineFeatureMinisFallBackToRegular;
+        set => Update(() => Supports.FineFeatureMinisFallBackToRegular = value);
+    }
+
     public bool SupportRefusedTipsFallBackToMini
     {
         get => Supports.RefusedTipsFallBackToMini;

@@ -327,6 +327,7 @@ public sealed class PlacementAndSupportCommandTests
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
                 MiniSupportClusterDistance = 1.4f, FineFeatureMaxAreaMm2 = 1.8f,
+                FineFeatureMinisFallBackToRegular = false,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 ReinforceEnabled = true,
@@ -363,6 +364,7 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(5, request.Settings.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.4f, request.Settings.MiniSupportClusterDistance);
         Assert.Equal(1.8f, request.Settings.FineFeatureMaxAreaMm2);
+        Assert.False(request.Settings.FineFeatureMinisFallBackToRegular);
         Assert.True(request.Settings.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, request.Settings.MiniIslandMaxAreaMm2);
         Assert.False(request.Settings.UseBaseGrid);

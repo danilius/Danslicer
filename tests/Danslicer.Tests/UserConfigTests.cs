@@ -277,6 +277,7 @@ public sealed class UserConfigTests : IDisposable
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
                 MiniSupportClusterDistance = 1.4f, FineFeatureMaxAreaMm2 = 1.8f,
+                FineFeatureMinisFallBackToRegular = false,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 ReinforceEnabled = true,
@@ -312,6 +313,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.4f, supports.MiniSupportClusterDistance);
         Assert.Equal(1.8f, supports.FineFeatureMaxAreaMm2);
+        Assert.False(supports.FineFeatureMinisFallBackToRegular);
         Assert.True(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
         Assert.False(supports.UseBaseGrid);
@@ -339,6 +341,7 @@ public sealed class UserConfigTests : IDisposable
         config.Supports.UseBaseGrid = false;
         config.Supports.MiniSupportMaxFanPerBranchEnd = 7;
         config.Supports.FineFeatureMaxAreaMm2 = 1.7f;
+        config.Supports.FineFeatureMinisFallBackToRegular = false;
         Assert.True(config.SaveSupportPresetAs("Delicate teeth"));
         var path = PathFor("support-presets.json");
 
@@ -352,6 +355,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.False(preset.Settings.UseBaseGrid);
         Assert.Equal(7, preset.Settings.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.7f, preset.Settings.FineFeatureMaxAreaMm2);
+        Assert.False(preset.Settings.FineFeatureMinisFallBackToRegular);
         Assert.Equal("Delicate teeth", loaded.ActiveSupportPresetName);
         Assert.NotSame(loaded.Supports, preset.Settings);
     }
@@ -446,6 +450,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(75f, supports.MiniSupportMaxAngleDegrees);
         Assert.Equal(4, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1f, supports.FineFeatureMaxAreaMm2);
+        Assert.True(supports.FineFeatureMinisFallBackToRegular);
         Assert.False(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
         Assert.True(supports.UseBaseGrid);

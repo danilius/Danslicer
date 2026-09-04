@@ -189,6 +189,7 @@ public sealed record SupportConfig
     public float MiniSupportClusterDistance { get; set; } = 1.25f;
     /// <summary>Maximum local cross-section for an isolated one-member mini cluster.</summary>
     public float FineFeatureMaxAreaMm2 { get; set; } = 1f;
+    public bool FineFeatureMinisFallBackToRegular { get; set; } = true;
     public bool RefusedTipsFallBackToMini { get; set; }
     public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
     public bool UseBaseGrid { get; set; } = true;

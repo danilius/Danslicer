@@ -481,6 +481,7 @@ public sealed class Document
             MiniSupportMaxLength = settings.MiniSupportMaxLength,
             MiniSupportMaxAngleDegrees = settings.MiniSupportMaxAngleDegrees,
             MiniSupportMaxFanPerBranchEnd = settings.MiniSupportMaxFanPerBranchEnd,
+            FineFeatureMinisFallBackToRegular = settings.FineFeatureMinisFallBackToRegular,
             RefusedTipsFallBackToMini = settings.RefusedTipsFallBackToMini,
             UseBaseGrid = settings.UseBaseGrid,
             BaseGridPitch = settings.BaseGridPitch,
@@ -631,6 +632,8 @@ public sealed class Document
                 MiniSupportMaxLength = request.Settings.MiniSupportMaxLength,
                 MiniSupportMaxAngleDegrees = request.Settings.MiniSupportMaxAngleDegrees,
                 MiniSupportMaxFanPerBranchEnd = request.Settings.MiniSupportMaxFanPerBranchEnd,
+                FineFeatureMinisFallBackToRegular =
+                    request.Settings.FineFeatureMinisFallBackToRegular,
                 RefusedTipsFallBackToMini = request.Settings.RefusedTipsFallBackToMini,
                 UseBaseGrid = request.Settings.UseBaseGrid,
                 BaseGridPitch = request.Settings.BaseGridPitch,
