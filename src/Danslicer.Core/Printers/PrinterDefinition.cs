@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json.Serialization;
 
 namespace Danslicer.Core.Printers;
 
@@ -20,8 +21,11 @@ public sealed record PrinterDefinition(
 {
     public const string PhotonMonoXId = "anycubic-photon-mono-x";
 
+    [JsonIgnore]
     public Vector3 BuildVolume => new(DisplayWidthMm, DisplayHeightMm, ZTravelMm);
+    [JsonIgnore]
     public float PixelPitchX => DisplayWidthMm / ResolutionX;
+    [JsonIgnore]
     public float PixelPitchY => DisplayHeightMm / ResolutionY;
 
     /// <summary>

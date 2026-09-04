@@ -174,6 +174,9 @@ public sealed class UserConfigTests : IDisposable
 
         Assert.Equal(custom, loaded.FindPrinter(custom.Id));
         Assert.True(loaded.FindPrinter(PrinterDefinition.PhotonMonoXId)!.IsBuiltIn);
+        var json = File.ReadAllText(path);
+        Assert.DoesNotContain("BuildVolume", json);
+        Assert.DoesNotContain("PixelPitch", json);
     }
 
     [Fact]
