@@ -4,7 +4,7 @@ using Danslicer.Core.Slicing;
 namespace Danslicer.Core.IO;
 
 /// <summary>
-/// Writes Anycubic Photon Workshop files (.pwmx for the Photon Mono X), format version 516.
+/// Writes Anycubic Photon Workshop files using the selected printer's compatible format version.
 /// Layout: file mark, HEADER, PREVIEW, grey table, LAYERDEF table, EXTRA, MACHINE, then the
 /// run-length encoded layer images. Addresses in the file mark are absolute byte offsets.
 /// Written from the published structure description; contains no third-party code.
@@ -115,7 +115,7 @@ public static class PhotonWorkshopWriter
         w.Write(p.BuildVolume.X);
         w.Write(p.BuildVolume.Y);
         w.Write(p.BuildVolume.Z);
-        w.Write(Version);                               // max file version
+        w.Write(p.FormatVersion);                       // max file version
         w.Write(6506241u);                              // machine background colour
 
         // Layer images
@@ -149,7 +149,7 @@ public static class PhotonWorkshopWriter
         // File mark
         stream.Position = 0;
         WriteFixedString(w, "ANYCUBIC", MarkSize);
-        w.Write(Version);
+        w.Write(p.FormatVersion);
         w.Write(8u);                                    // number of tables
         w.Write(headerAddress);
         w.Write(0u);                                    // software table (not written for 516)

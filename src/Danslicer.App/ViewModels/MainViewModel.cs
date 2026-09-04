@@ -9,6 +9,7 @@ using Danslicer.App.Configuration;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.IO;
+using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
@@ -31,6 +32,29 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<SceneObject> Objects { get; } = new();
 
     public PrintSettingsViewModel PrintSettings { get; }
+
+    private IReadOnlyList<PrinterDefinition> _printerOptions = [];
+    private IReadOnlyList<string> _printerDisplayNames = [];
+    private int _selectedPrinterIndex = -1;
+
+    public IReadOnlyList<string> PrinterDisplayNames => _printerDisplayNames;
+
+    public int SelectedPrinterIndex
+    {
+        get => _selectedPrinterIndex;
+        set
+        {
+            if (value == _selectedPrinterIndex || value < 0 || value >= _printerOptions.Count) return;
+            _selectedPrinterIndex = value;
+            Document.Printer = _printerOptions[value];
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedPrinterName));
+            Document.NotifyTransientChange();
+            ViewportStatus = $"Printer: {Document.Printer.Name}.";
+        }
+    }
+
+    public string SelectedPrinterName => Document.Printer.Name;
 
     /// <summary>The one live support-settings model shared by Preferences and the Support panel.</summary>
     public ConfigViewModel SupportSettings { get; }
@@ -187,7 +211,11 @@ public partial class MainViewModel : ViewModelBase
         Document.SupportSettings = AppConfig.Current.Supports;
         PrintSettings = new PrintSettingsViewModel(Document);
         SupportSettings = new ConfigViewModel();
-        SupportSettings.Saved += () => Document.SupportSettings = AppConfig.Current.Supports;
+        SupportSettings.Saved += () =>
+        {
+            Document.SupportSettings = AppConfig.Current.Supports;
+            RefreshPrinterOptions();
+        };
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
         HideScopedCommand = new ModeScopedCommand(
@@ -242,6 +270,7 @@ public partial class MainViewModel : ViewModelBase
             HideCommand.NotifyCanExecuteChanged();
         };
         Document.Changed += OnDocumentChanged;
+        RefreshPrinterOptions(notifyDocument: false);
         OnDocumentChanged();
     }
 
@@ -393,6 +422,7 @@ public partial class MainViewModel : ViewModelBase
         var loaded = ProjectFile.Load(path);
         Document.ReplaceWith(loaded.Document);
         PrintSettings.Refresh();
+        RefreshPrinterOptions(notifyDocument: false);
         SelectedObject = null;
         LastSlice = null;
         PreviewImage = null;
@@ -403,6 +433,36 @@ public partial class MainViewModel : ViewModelBase
         Title = $"{System.IO.Path.GetFileNameWithoutExtension(ProjectPath)} — Danslicer";
         ViewportStatus = $"Opened {System.IO.Path.GetFileName(ProjectPath)}.";
         return loaded.ViewState;
+    }
+
+    /// <summary>
+    /// Rebuilds the slicing choices after Preferences changes. A project-embedded definition is
+    /// kept as a document-only option when its id is absent from this machine's user config.
+    /// </summary>
+    public void RefreshPrinterOptions(bool notifyDocument = true)
+    {
+        var current = Document.Printer;
+        var options = AppConfig.Current.Printers.ToList();
+        var index = options.FindIndex(printer =>
+            string.Equals(printer.Id, current.Id, StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+        {
+            options.Add(current);
+            index = options.Count - 1;
+        }
+        else if (options[index] != current)
+        {
+            Document.Printer = options[index];
+        }
+
+        _printerOptions = options;
+        _printerDisplayNames = options.Select(printer =>
+            printer.Name + (AppConfig.Current.FindPrinter(printer.Id) is null ? " (project)" : "")).ToArray();
+        _selectedPrinterIndex = index;
+        OnPropertyChanged(nameof(PrinterDisplayNames));
+        OnPropertyChanged(nameof(SelectedPrinterIndex));
+        OnPropertyChanged(nameof(SelectedPrinterName));
+        if (notifyDocument && Document.Printer != current) Document.NotifyTransientChange();
     }
 
     [RelayCommand(CanExecute = nameof(CanUndo))]

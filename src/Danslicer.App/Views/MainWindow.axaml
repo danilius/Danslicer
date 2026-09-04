@@ -258,7 +258,10 @@
 
                 <ScrollViewer IsVisible="{Binding IsLayersView}">
                     <StackPanel>
-                        <TextBlock Text="{Binding Document.Printer.Name}" Classes="section" />
+                        <TextBlock Text="Printer" Classes="section" />
+                        <ComboBox ItemsSource="{Binding PrinterDisplayNames}"
+                                  SelectedIndex="{Binding SelectedPrinterIndex, Mode=TwoWay}"
+                                  Margin="0,0,0,4" />
                         <ItemsControl ItemsSource="{Binding PrintSettings.Fields}" ItemTemplate="{StaticResource WideFieldTemplate}" />
                         <CheckBox Content="Anti-aliasing (16 levels)" IsChecked="{Binding PrintSettings.AntiAliasing}" Margin="0,6,0,0" FontSize="12" />
 
