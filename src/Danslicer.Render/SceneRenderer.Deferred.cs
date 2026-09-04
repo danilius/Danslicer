@@ -21,6 +21,37 @@ public sealed partial class SceneRenderer
 
     private DeferredPipeline? _deferred;
     private bool _deferredFailed;
+    // Index = the draw ID written to the G-buffer this frame; the entry is the scene object a
+    // pick of that ID selects (null for background, plate and aux geometry). Rebuilt every
+    // deferred frame so ids and targets cannot drift apart.
+    private readonly List<SceneObject?> _pickTargets = [];
+    private bool _pickTargetsValid;
+
+    /// <summary>True when the last frame drew deferred, so <see cref="TryPickObject"/> can run.</summary>
+    public bool CanPickDeferred => _pickTargetsValid && _deferred is not null;
+
+    /// <summary>
+    /// Design 6.5: resolves the object under a framebuffer pixel (origin bottom-left) from the
+    /// last deferred frame's ID buffer. False when that frame is not available (classic path or
+    /// pipeline failure) — the caller falls back to CPU ray picking. A true result with a null
+    /// hit means background, plate or support/aux geometry. GL context must be current.
+    /// </summary>
+    public bool TryPickObject(int x, int y, out SceneObject? hit)
+    {
+        hit = null;
+        if (!CanPickDeferred) return false;
+        var pipeline = _deferred!;
+        if (x < 0 || y < 0 || x >= pipeline.Width || y >= pipeline.Height) return false;
+        var id = pipeline.ReadId(x, y);
+        if (id >= 0 && id < _pickTargets.Count) hit = _pickTargets[id];
+        return true;
+    }
+
+    private int RegisterPick(SceneObject? target)
+    {
+        _pickTargets.Add(target);
+        return _pickTargets.Count - 1;
+    }
 
     /// <summary>True when the frame was drawn deferred; false latches Classic for the session.</summary>
     private bool TryRenderDeferred(RenderFrame frame)
@@ -67,6 +98,7 @@ public sealed partial class SceneRenderer
 
         gl.BindVertexArray(0);
         gl.UseProgram(0);
+        _pickTargetsValid = true; // full frame drawn; the ID buffer and registry now agree
     }
 
     /// <summary>All opaque geometry into the G-buffer: plate, normal objects, opaque aux meshes.</summary>
@@ -85,22 +117,25 @@ public sealed partial class SceneRenderer
         pipeline.ClearGBuffer(BackgroundColor);
 
         // IDs are frame-local; they only need to differ between adjacent draws for the outline
-        // and picking passes. 1 = plate, then objects, then aux meshes. 0 stays background.
-        var id = 1;
+        // and picking passes. The registry records what each ID selects: 0 stays background,
+        // then plate, objects and aux meshes in draw order.
+        _pickTargets.Clear();
+        _pickTargets.Add(null); // 0 = background
+        var plateId = RegisterPick(null);
         if (!plateFaded)
         {
             EnsurePlateMesh(frame.Printer);
             var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
             BindGBufferShader(model, view, projection, PlateColor, backfaceTint: 0f,
-                warnBelowPlate: false, overhangCos: 2f, id, selected: false, clip: default);
+                warnBelowPlate: false, overhangCos: 2f, plateId, selected: false, clip: default);
             _plate!.Draw();
         }
-        id++;
 
         foreach (var obj in frame.Scene.Objects)
         {
-            id++;
-            if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+            var skip = obj.RenderState is RenderState.Hidden or RenderState.Ghosted;
+            var id = RegisterPick(skip ? null : obj);
+            if (skip) continue;
 
             if (!_meshes.TryGetValue(obj.Mesh, out var gpu))
             {
@@ -122,7 +157,7 @@ public sealed partial class SceneRenderer
 
         foreach (var draw in frame.AuxMeshes)
         {
-            id++;
+            var id = RegisterPick(null);
             if (draw.Opacity < 1f) continue; // transparent aux meshes blend in the forward stage
 
             if (!_meshes.TryGetValue(draw.Mesh, out var gpu))

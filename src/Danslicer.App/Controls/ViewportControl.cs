@@ -75,6 +75,8 @@ public sealed class ViewportControl : OpenGlControlBase
     private ModalTransform? _modal;
     private Document? _subscribed;
     private HoverWaterlineViewModel? _subscribedWaterline;
+    // A Layout-mode click awaiting ID-buffer resolution on the next rendered frame (design 6.5).
+    private (Vector2 Mouse, bool Additive)? _pendingGpuPick;
     private readonly Gizmo _gizmo = new();
     private Point _lastPointer;
     private bool _orbiting;
@@ -330,6 +332,19 @@ public sealed class ViewportControl : OpenGlControlBase
             ClipRange = ClipRange,
             WaterlineZ = SupportWaterline?.WorldZ,
         });
+
+        if (_pendingGpuPick is { } pick)
+        {
+            _pendingGpuPick = null;
+            // Control DIPs to framebuffer pixels; the ID buffer's origin is bottom-left.
+            var px = (int)(pick.Mouse.X * scaling);
+            var py = height - 1 - (int)(pick.Mouse.Y * scaling);
+            if (_renderer.TryPickObject(px, py, out var hit))
+                ApplyObjectClick(hit, pick.Additive);
+            else
+                // The frame fell back to the classic path; pick the CPU way instead.
+                ApplyObjectClick(PickObject(pick.Mouse), pick.Additive);
+        }
     }
 
     private void OnWaterlineChanged()
@@ -483,9 +498,19 @@ public sealed class ViewportControl : OpenGlControlBase
                 }
             }
 
+            var additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            if (!SupportSelectionMode && _renderer?.CanPickDeferred == true)
+            {
+                // Design 6.5: the ID buffer picks. GL readback needs the context, which is only
+                // current during a render pass, so the click resolves on the next frame.
+                _pendingGpuPick = (m, additive);
+                Redraw();
+                e.Handled = true;
+                return;
+            }
+
             var hitObj = PickSurface(m, out _, out var surfacePoint, out _);
             var objDistance = hitObj is null ? float.PositiveInfinity : Vector3.Distance(Camera.Eye, surfacePoint);
-            var additive = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
             if (SupportSelectionMode)
             {
                 // Every LMB press arms a marquee, wherever it starts (Blender box select);
@@ -503,22 +528,27 @@ public sealed class ViewportControl : OpenGlControlBase
                 e.Handled = true;
                 return;
             }
-            if (hitObj is null)
-            {
-                if (!additive)
-                {
-                    Document.ClearSelection();
-                    Document.ClearSupportSelection();
-                }
-            }
-            else
-            {
-                if (!additive) Document.ClearSupportSelection();
-                if (additive) Document.ToggleSelection(hitObj);
-                else Document.Select(hitObj);
-            }
+            ApplyObjectClick(hitObj, additive);
             e.Handled = true;
         }
+    }
+
+    /// <summary>Object click-selection semantics, shared by the CPU and ID-buffer pick paths.</summary>
+    private void ApplyObjectClick(SceneObject? hitObj, bool additive)
+    {
+        if (Document is null) return;
+        if (hitObj is null)
+        {
+            if (!additive)
+            {
+                Document.ClearSelection();
+                Document.ClearSupportSelection();
+            }
+            return;
+        }
+        if (!additive) Document.ClearSupportSelection();
+        if (additive) Document.ToggleSelection(hitObj);
+        else Document.Select(hitObj);
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)

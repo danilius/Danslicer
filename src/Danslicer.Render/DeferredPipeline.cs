@@ -76,6 +76,22 @@ internal sealed unsafe class DeferredPipeline : IDisposable
 
     public uint MatCap(MatCapStyle style) => _matCaps[(int)style];
 
+    /// <summary>
+    /// Reads the draw ID under one G-buffer pixel (origin bottom-left, framebuffer pixels).
+    /// Only meaningful after a deferred frame has rendered and while the GL context is current.
+    /// Leaves the read-framebuffer binding cleared; the draw binding is untouched.
+    /// </summary>
+    public int ReadId(int x, int y)
+    {
+        var gl = _gl;
+        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, GBufferFbo);
+        gl.ReadBuffer(ReadBufferMode.ColorAttachment2);
+        var px = stackalloc byte[4];
+        gl.ReadPixels(x, y, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, px);
+        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+        return DeferredIds.Unpack(px[0], px[1], px[2]);
+    }
+
     private void CreateMatCaps()
     {
         var gl = _gl;
