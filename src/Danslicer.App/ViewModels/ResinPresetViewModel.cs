@@ -53,8 +53,8 @@ public sealed class ResinPresetViewModel : ViewModelBase
 
         SaveCommand = new RelayCommand(Save, HasSelection);
         BeginSaveAsCommand = new RelayCommand(BeginSaveAs);
-        BeginRenameCommand = new RelayCommand(BeginRename, HasSelection);
-        DeleteCommand = new RelayCommand(Delete, () => HasSelection() && _options.Count > 1);
+        BeginRenameCommand = new RelayCommand(BeginRename, CanEditSelection);
+        DeleteCommand = new RelayCommand(Delete, () => CanEditSelection() && _options.Count > 1);
         ConfirmNameCommand = new RelayCommand(ConfirmName);
         CancelNameCommand = new RelayCommand(CancelName);
         Refresh();
@@ -148,7 +148,8 @@ public sealed class ResinPresetViewModel : ViewModelBase
         DisplayNames = options.Select(preset =>
         {
             var projectOnly = _config.FindResinPreset(preset.Id) is null ? " (project)" : "";
-            var modified = preset.Id == _document.ResinPreset.Id &&
+            var modified = string.Equals(preset.Id, _document.ResinPreset.Id,
+                               StringComparison.OrdinalIgnoreCase) &&
                            preset.Settings != _document.ResinSettings ? " *" : "";
             return preset.Name + projectOnly + modified;
         }).ToArray();
@@ -187,6 +188,9 @@ public sealed class ResinPresetViewModel : ViewModelBase
     }
 
     private bool HasSelection() => _selectedIndex >= 0 && _selectedIndex < _options.Count;
+
+    private bool CanEditSelection() => HasSelection() &&
+        _config.FindResinPreset(_options[_selectedIndex].Id) is not null;
 
     private void Save()
     {

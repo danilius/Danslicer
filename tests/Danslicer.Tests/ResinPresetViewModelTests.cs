@@ -50,6 +50,8 @@ public sealed class ResinPresetViewModelTests
         var editor = new ResinPresetViewModel(config, document, () => { });
 
         Assert.Contains("Embedded (project)", editor.DisplayNames);
+        Assert.False(editor.BeginRenameCommand.CanExecute(null));
+        Assert.False(editor.DeleteCommand.CanExecute(null));
         editor.SelectedIndex = config.ResinPresets.IndexOf(local);
         Assert.Equal(2.8f, document.ResinSettings.Exposure);
 

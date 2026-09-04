@@ -462,7 +462,8 @@ public sealed class UserConfig
             if (!ids.Add(preset.Id) || !names.Add(preset.Name)) continue;
             normalized.Add(preset);
         }
-        var defaultIndex = normalized.FindIndex(preset => preset.Id == ResinPreset.DefaultId);
+        var defaultIndex = normalized.FindIndex(preset =>
+            string.Equals(preset.Id, ResinPreset.DefaultId, StringComparison.OrdinalIgnoreCase));
         if (defaultIndex < 0)
         {
             normalized.Insert(0, ResinPreset.Default);
