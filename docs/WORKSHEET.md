@@ -27,6 +27,9 @@ fine-feature pass → 777/627 after 023f → 723/576 after 024 → **702/549** a
 | D9 | Contact-face filter: **keep as built, stop tuning.** Support painting / regions (W9) is the right mechanism for the "no side supports" problem, not geometric filters. |
 | D10 | Internal void supports: **simple struts first**, one per contact, no branching. Niche; scheduled last. |
 | D11 | Export orientation **verified against Lychee in UVtools** — U3 closed without a physical print. Treat orientation changes as regressions from here. |
+| D12 | **Stop pushing automatic generation.** W6 deep branch shaping toward the Lychee reference is DROPPED, not deferred. Support-quality work continues only where it also benefits manually placed supports (tip geometry, junctions, member separation, mini shape). Manual/UX work and W9 support painting are promoted. |
+| D13 | Layout: rotating or scaling a supported model **silently discards** its supports (no dialog); one undo restores transform and supports together. Mirror keeps them, since a reflection maps contacts exactly. |
+| D14 | Mini tips become **configurable as rods** (`Capsule`), defaulting to `Cone`. A correction — the spec already called minis "very fine rods". |
 
 ## User-only / screen tasks
 
@@ -36,7 +39,7 @@ fine-feature pass → 777/627 after 023f → 723/576 after 024 → **702/549** a
 | U3 | Mirror-X test print | **CLOSED** (D11) |
 | U4 | Restart Unsloth for the Qwen lane | open |
 | U5 | Re-run `/auto-mode-setup` | open |
-| U6 | Branch X-crossing | **briefed as job 028c** — user confirmed it on screen |
+| U6 | Branch X-crossing | 028c COMPLETE; awaiting 028c2 then a screen verdict on the separation default |
 | U7 | Drogon-head supports: no downward tips | CONFIRMED |
 | U8 | 6 mm grid pitch | CONFIRMED |
 
@@ -44,26 +47,32 @@ fine-feature pass → 777/627 after 023f → 723/576 after 024 → **702/549** a
 
 | Job | Work item | Status |
 |-----|-----------|--------|
-| 028 | UVtools check button + configurable path | completed, reviewed green, awaiting merge |
-| 028b | Tip contact defects: leaning tips + duckbill pairs | queued (user screen findings) |
-| 028c | Branch X-crossing constraint (U6) | queued — highest-value support-quality item |
+| 028 | UVtools check button + configurable path | COMPLETE, reviewed green, awaiting merge |
+| 028b | Tip contact defects | **COMPLETE**; leaning fixed, duckbill proved not a defect. Regression found on screen -> 028b2 |
+| 028c | Branch X-crossing constraint (U6) | **COMPLETE**, reviewed green; refusal figures superseded by 028c2 |
+| 028b2 | Tip cone truncation regression (found on screen) | queued — blocks merging 028b |
+| 028c2 | Member separation must measure the SURFACE gap | queued — blocks merging 028c |
+| 028c3 | Mini tips configurable as rods (D14) | queued |
+| 028d | Stylesheet proposal (was 031, moved up for the bake-off) | queued |
+| 028e | Layout support lifecycle (D13) | queued |
 | 029 | Multi-model hiding | queued |
 | 030 | Support-target selection | queued |
-| 031 | Stylesheet proposal (ChatGPT half of the bake-off) | queued |
 
 ## Claude lane
 
 | Item | Status |
 |------|--------|
 | Stylesheet proposal | BUILT on `theme-claude` (`dfafd0c`, 524 green): Classic/Carbide/Slate, runtime-switchable, Classic default. **Held unmerged** pending job 031 so the bake-off stays like-for-like |
-| Painted cap style (deferred path) | UNBLOCKED — 025 defined `Viewport.CapStyle = Painted`, wired but producing no cap |
+| Painted cap style (deferred path) | **BUILT** on `painted-clip-caps` (`df5d60c`, 585 green): stencil cross-section in the deferred pass, Classic falls back to Sliced. Needs a GPU screen check — the stencil path has never run against a real driver |
 | View cube face labels + configurable size | backlog (user request; labels were a W3 deferral) |
 | pwmx preview image | backlog — currently a flat top-down height map from `Slicer.cs`; wants a 3D render like Lychee's |
 | Internal void supports (sealed cavities) | last, simple struts only (D10) |
 | D5 island-search tweaks | brief when wanted — 024 has landed |
-| W9 recipes/regions (support painting) | **promoted by D9** — now the answer to the side-support problem; design pass with the user when they want it |
+| W9 recipes/regions (support painting) | **PROMOTED by D9 and D12** — the main remaining direction. Needs a design pass with the user before it can be briefed |
 
 ## Dormant
 
-SpaceMouse HID fallback + unbound buttons; Grok worktree reference-only; W6 deep
-branch-shaping tuning, still gated on U6 (028c) landing and being judged on screen.
+SpaceMouse HID fallback + unbound buttons; Grok worktree reference-only.
+
+**W6 deep branch-shaping tuning is DROPPED** by D12 — not dormant, not deferred. Do not
+revive it from older notes without the user saying so.
