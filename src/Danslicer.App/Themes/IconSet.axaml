@@ -1,0 +1,24 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Shared icon set on a 16x16 grid, drawn as filled StreamGeometry so PathIcon renders
+         them crisply at any DPI. Themes merge this dictionary and may override individual
+         icons; every key here must exist in every theme (guarded by a test). -->
+
+    <!-- Objects: three stacked cubes (isometric hint of a scene). -->
+    <StreamGeometry x:Key="IconObjects">M2,5 L8,2 L14,5 L8,8 Z M2,6.5 L7.25,9.1 L7.25,14 L2,11.4 Z M14,6.5 L8.75,9.1 L8.75,14 L14,11.4 Z</StreamGeometry>
+
+    <!-- Supports: a Y-shaped tree on a base. -->
+    <StreamGeometry x:Key="IconSupports">M7.25,8.5 L4,3.5 L5.3,2.8 L8,7 L10.7,2.8 L12,3.5 L8.75,8.5 L8.75,12 L7.25,12 Z M3,13 L13,13 L13,14.4 L3,14.4 Z</StreamGeometry>
+
+    <!-- Visibility: an eye. -->
+    <StreamGeometry x:Key="IconVisibility">M8,4 C11.6,4 14.1,6.6 15,8 C14.1,9.4 11.6,12 8,12 C4.4,12 1.9,9.4 1,8 C1.9,6.6 4.4,4 8,4 Z M8,5.8 A2.2,2.2 0 1 0 8,10.2 A2.2,2.2 0 1 0 8,5.8 Z</StreamGeometry>
+
+    <!-- Rafts: a slab with posts. -->
+    <StreamGeometry x:Key="IconRafts">M2,11 L14,11 L14,13 L2,13 Z M4,7 L5.5,7 L5.5,10 L4,10 Z M7.25,5 L8.75,5 L8.75,10 L7.25,10 Z M10.5,7 L12,7 L12,10 L10.5,10 Z</StreamGeometry>
+
+    <!-- View settings: a gear. -->
+    <StreamGeometry x:Key="IconViewSettings">M8,1.5 L9.2,1.5 L9.6,3.3 A4.9,4.9 0 0 1 11.2,4.2 L12.9,3.5 L13.8,4.9 L12.5,6.2 A4.9,4.9 0 0 1 12.8,8 A4.9,4.9 0 0 1 12.5,9.8 L13.8,11.1 L12.9,12.5 L11.2,11.8 A4.9,4.9 0 0 1 9.6,12.7 L9.2,14.5 L6.8,14.5 L6.4,12.7 A4.9,4.9 0 0 1 4.8,11.8 L3.1,12.5 L2.2,11.1 L3.5,9.8 A4.9,4.9 0 0 1 3.2,8 A4.9,4.9 0 0 1 3.5,6.2 L2.2,4.9 L3.1,3.5 L4.8,4.2 A4.9,4.9 0 0 1 6.4,3.3 L6.8,1.5 Z M8,5.8 A2.2,2.2 0 1 0 8,10.2 A2.2,2.2 0 1 0 8,5.8 Z</StreamGeometry>
+
+    <!-- Close: a diagonal cross. -->
+    <StreamGeometry x:Key="IconClose">M3.4,2.3 L8,6.9 L12.6,2.3 L13.7,3.4 L9.1,8 L13.7,12.6 L12.6,13.7 L8,9.1 L3.4,13.7 L2.3,12.6 L6.9,8 L2.3,3.4 Z</StreamGeometry>
+</ResourceDictionary>
