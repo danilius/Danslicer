@@ -75,9 +75,10 @@ public static class TipPlacer
         var regularIslandMin = parameters.EnableMiniSupports
             ? miniIslandMax
             : parameters.MinIslandAreaMm2;
+        var layers = LayerStack.Slice(mesh, parameters.LayerHeightMm);
         var islands = IslandFinder.Find(
-                     mesh, parameters.LayerHeightMm, islandFloor, parameters.PlateZ,
-                     parameters.OverhangAngleDegrees)
+                     layers, mesh.Bounds.Min.Z, parameters.LayerHeightMm, islandFloor,
+                     parameters.PlateZ, parameters.OverhangAngleDegrees)
                      .OrderByDescending(i => i.AreaMm2)
                      .ThenBy(i => i.Z)
                      .ThenBy(i => i.Centroid.X)
@@ -91,7 +92,7 @@ public static class TipPlacer
             TryAcceptRequired(
                 keepClean, keepCleanBvh, keepCleanDistance,
                 graphGrid, placedGrid, accepted, minSpacing, parameters,
-                point, outward, face, score, TipStrategy.Island);
+                point, outward, face, score, TipStrategy.Island, island.AreaMm2);
         }
 
         foreach (var (vertex, position, outward, face) in features.LocalMinima(region, parameters.PlateZ, parameters.LayerHeightMm))
@@ -148,20 +149,22 @@ public static class TipPlacer
                     {
                         accepted[existingIndex] = Candidate(point, Inward(outward),
                             parameters.MiniSupportTipDiameterMm, score,
-                            TipStrategy.MiniIsland, face, parameters);
+                            TipStrategy.MiniIsland, face, parameters, island.AreaMm2);
                     }
                     continue;
                 }
                 TryAcceptRequired(
                     keepClean, keepCleanBvh, keepCleanDistance,
                     graphGrid, placedGrid, accepted, minSpacing, parameters,
-                    point, outward, face, score, TipStrategy.MiniIsland);
+                    point, outward, face, score, TipStrategy.MiniIsland, island.AreaMm2);
             }
         }
 
-        return parameters.EnableMiniTipClusters
-            ? MiniTipClusterer.Apply(accepted, parameters)
-            : accepted;
+        var measured = FineFeatureMiniClassifier.Measure(accepted, layers, parameters);
+        var clustered = parameters.EnableMiniTipClusters
+            ? MiniTipClusterer.Apply(measured, parameters)
+            : measured;
+        return FineFeatureMiniClassifier.Apply(clustered, parameters);
     }
 
     private static void TryAcceptRequired(
@@ -177,7 +180,8 @@ public static class TipPlacer
         Vector3 outward,
         int face,
         float score,
-        TipStrategy strategy)
+        TipStrategy strategy,
+        float? fineFeatureAreaMm2 = null)
     {
         if (ViolatesKeepClean(face, point, keepClean, keepCleanBvh, keepCleanDistance)) return;
         if (IsOnPlate(point, parameters)) return;
@@ -194,7 +198,8 @@ public static class TipPlacer
             ? parameters.MiniSupportTipDiameterMm
             : DiameterFor(parameters.TipDiameterMm, strategy);
         placedGrid.Add(point);
-        accepted.Add(Candidate(point, inward, diameter, score, strategy, face, parameters));
+        accepted.Add(Candidate(point, inward, diameter, score, strategy, face, parameters,
+            fineFeatureAreaMm2));
     }
 
     private static List<TipCandidate> CollectOverhangSamples(
@@ -459,12 +464,14 @@ public static class TipPlacer
 
     private static TipCandidate Candidate(
         Vector3 point, Vector3 inward, float diameter, float score, TipStrategy strategy, int face,
-        TipPlacementParameters parameters) =>
+        TipPlacementParameters parameters,
+        float? fineFeatureAreaMm2 = null) =>
         new(point, inward, diameter, score, strategy, face,
             strategy == TipStrategy.MiniIsland ? SupportTipShape.Cone : parameters.TipShape,
             strategy == TipStrategy.MiniIsland ? parameters.MiniSupportConeLengthMm : parameters.ConeLengthMm,
             strategy == TipStrategy.MiniIsland ? 0f : parameters.BallDiameterMm,
-            Math.Max(parameters.PenetrationDepthMm, 0f));
+            Math.Max(parameters.PenetrationDepthMm, 0f),
+            FineFeatureAreaMm2: fineFeatureAreaMm2);
 
     private static float DiameterFor(float baseDiameter, TipStrategy strategy) => strategy switch
     {

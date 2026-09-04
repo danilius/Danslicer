@@ -24,6 +24,7 @@ public class TipPlacementTests
         MinSpacingMm = minSpacing,
         OverhangAngleDegrees = overhang,
         MinIslandAreaMm2 = minIsland,
+        FineFeatureMaxAreaMm2 = 0f,
         LayerHeightMm = layer,
         EdgePreference = edge,
         ForceEdgePlacement = forceEdges,
@@ -112,7 +113,11 @@ public class TipPlacementTests
         var before = Place(mesh, parameters);
         var beforeIslands = before.Where(candidate => candidate.Strategy == TipStrategy.Island)
             .OrderBy(candidate => candidate.Point.X).ToList();
-        var after = Place(mesh, parameters with { EnableMiniTipClusters = true });
+        var after = Place(mesh, parameters with
+        {
+            EnableMiniTipClusters = true,
+            FineFeatureMaxAreaMm2 = 1f,
+        });
         var afterIslands = after.Where(candidate =>
                 candidate.MiniClusterSourceStrategy == TipStrategy.Island)
             .OrderBy(candidate => candidate.Point.X).ToList();
@@ -508,6 +513,62 @@ public class TipPlacementTests
         Assert.InRange(tip.Point.X, -0.3f, 0.3f);
         Assert.InRange(tip.Point.Y, -0.3f, 0.3f);
         Assert.True(tip.Point.Z < 6f, $"spike tip should be near z=5, got {tip.Point.Z}");
+    }
+
+    [Fact]
+    public void FineDownwardSpikeGetsOneMemberMiniCluster()
+    {
+        var mesh = Meshes.DownwardSpike();
+        var parameters = P(spacing: 5f, minSpacing: 1f, overhang: 20f) with
+        {
+            EnableMiniSupports = true,
+            EnableMiniTipClusters = true,
+            FineFeatureMaxAreaMm2 = 1f,
+        };
+
+        var mini = Assert.Single(Place(mesh, parameters), candidate => candidate.IsFineFeatureMini);
+
+        Assert.Equal(TipStrategy.MiniCluster, mini.Strategy);
+        Assert.Equal(TipStrategy.LocalMinimum, mini.MiniClusterSourceStrategy);
+        Assert.Equal(mini.Point, mini.MiniClusterCenter);
+        Assert.InRange(mini.FineFeatureAreaMm2!.Value, 0.5f, 0.8f);
+    }
+
+    [Fact]
+    public void FatIsolatedFeatureKeepsItsRegularCone()
+    {
+        var mesh = Meshes.FloatingBox(2, 2, 3, z: 5);
+        var parameters = P(minIsland: 0.1f) with
+        {
+            EnableMiniSupports = true,
+            EnableMiniTipClusters = true,
+            FineFeatureMaxAreaMm2 = 1f,
+        };
+
+        var island = Assert.Single(Place(mesh, parameters), candidate =>
+            candidate.Strategy == TipStrategy.Island);
+
+        Assert.False(island.IsFineFeatureMini);
+        Assert.InRange(island.FineFeatureAreaMm2!.Value, 3.9f, 4.1f);
+    }
+
+    [Fact]
+    public void FineIslandConversionPreservesRequiredIslandCoverage()
+    {
+        var mesh = Meshes.FloatingBox(0.5f, 0.5f, 3, z: 5);
+        var parameters = P(minIsland: 0.1f) with
+        {
+            EnableMiniSupports = true,
+            EnableMiniTipClusters = true,
+            MiniIslandMaxAreaMm2 = 0.1f,
+            FineFeatureMaxAreaMm2 = 1f,
+        };
+
+        var candidate = Assert.Single(Place(mesh, parameters));
+
+        Assert.True(candidate.IsFineFeatureMini);
+        Assert.Equal(TipStrategy.Island, candidate.MiniClusterSourceStrategy);
+        Assert.NotNull(candidate.MiniClusterId);
     }
 
     private static bool IsRequired(TipCandidate c) =>
