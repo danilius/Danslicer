@@ -28,6 +28,7 @@ internal static class RouteCommand
             var reinforce = false;
             var islandFirst = true;
             var fineFeatureFallback = true;
+            var minMemberSeparation = 0f;
             for (var i = 1; i < args.Length; i++)
             {
                 options = args[i] switch
@@ -49,6 +50,8 @@ internal static class RouteCommand
                     "--island-first" => SetIslandFirst(options, args[++i], out islandFirst),
                     "--fine-feature-fallback" => SetFineFeatureFallback(options, args[++i],
                         out fineFeatureFallback),
+                    "--min-member-separation" => SetMinMemberSeparation(options, args[++i],
+                        out minMemberSeparation),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
                 };
             }
@@ -88,6 +91,7 @@ internal static class RouteCommand
                         BranchDiameter = options.PillarDiameter,
                         UseBaseGrid = useBaseGrid,
                         FineFeatureMinisFallBackToRegular = fineFeatureFallback,
+                        MinMemberSeparationMm = minMemberSeparation,
                         PlateZ = options.PlateZ,
                         Seed = options.Seed,
                         Origin = options.Origin,
@@ -98,8 +102,11 @@ internal static class RouteCommand
                 result = new GridSupportRouter(obstacles, rules).Route(tips, options);
             }
             var collisionFree = IsCollisionFree(result.Graph, obstacles);
-            if (json) WriteJson(result, collisionFree, seatOffset);
-            else WriteText(meshPath, tips.Count, result, collisionFree, seatOffset);
+            var crossingPairs = MemberSeparation.CountPairs(result.Graph, minMemberSeparation);
+            if (json) WriteJson(result, collisionFree, crossingPairs,
+                minMemberSeparation, seatOffset);
+            else WriteText(meshPath, tips.Count, result, collisionFree, crossingPairs,
+                minMemberSeparation, seatOffset);
             return result.UnroutedTips.Count == 0 && collisionFree ? 0 : 2;
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or JsonException
@@ -173,6 +180,15 @@ internal static class RouteCommand
             "off" or "false" => false,
             _ => throw new ArgumentException("fine-feature-fallback must be 'on' or 'off'"),
         };
+        return options;
+    }
+
+    private static GridRoutingOptions SetMinMemberSeparation(GridRoutingOptions options,
+        string value, out float minMemberSeparation)
+    {
+        minMemberSeparation = Parse(value);
+        if (!float.IsFinite(minMemberSeparation) || minMemberSeparation < 0)
+            throw new ArgumentException("min-member-separation must be a non-negative number");
         return options;
     }
 
@@ -293,8 +309,8 @@ internal static class RouteCommand
         return false;
     }
 
-    private static void WriteText(string meshPath, int tipCount, RoutingResult result, bool collisionFree,
-        Vector3? seatOffset)
+    private static void WriteText(string meshPath, int tipCount, RoutingResult result,
+        bool collisionFree, int crossingPairs, float minMemberSeparation, Vector3? seatOffset)
     {
         Console.WriteLine($"Mesh:           {meshPath}");
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
@@ -313,10 +329,12 @@ internal static class RouteCommand
         foreach (var position in result.BasePositions)
             Console.WriteLine($"  {Format(position.X)}, {Format(position.Y)}, {Format(position.Z)}");
         Console.WriteLine($"Max lean:       {Format(result.MaxLeanAngleDegrees)} degrees");
+        Console.WriteLine($"Crossing pairs: {crossingPairs} at {Format(minMemberSeparation)} mm gap");
         Console.WriteLine($"Collision-free: {(collisionFree ? "yes" : "no")}");
     }
 
-    private static void WriteJson(RoutingResult result, bool collisionFree, Vector3? seatOffset)
+    private static void WriteJson(RoutingResult result, bool collisionFree, int crossingPairs,
+        float minMemberSeparation, Vector3? seatOffset)
     {
         var summary = new Dictionary<string, object?>
         {
@@ -336,6 +354,8 @@ internal static class RouteCommand
             }).ToList(),
             ["bases"] = result.BasePositions.Select(p => new[] { p.X, p.Y, p.Z }).ToList(),
             ["maxLeanAngleDegrees"] = result.MaxLeanAngleDegrees,
+            ["minMemberSeparationMm"] = minMemberSeparation,
+            ["crossingPairs"] = crossingPairs,
             ["collisionFree"] = collisionFree,
         };
         if (seatOffset is { } offset) summary["seatOffset"] = MeshSeat.Json(offset);
@@ -370,7 +390,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--fine-feature-fallback on|off] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--fine-feature-fallback on|off] [--min-member-separation <mm>] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 

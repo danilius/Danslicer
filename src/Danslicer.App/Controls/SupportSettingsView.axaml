@@ -118,6 +118,12 @@
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
                                    Value="{Binding SupportExistingTrunkBranchRange, Mode=TwoWay}" />
                 </Grid>
+                <Grid Tag="supports members minimum separation surface gap mm disabled zero"
+                      ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Min member gap" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.1" FormatString="0.##"
+                                   Value="{Binding SupportMinMemberSeparationMm, Mode=TwoWay}" />
+                </Grid>
             </StackPanel>
         </Expander>
 

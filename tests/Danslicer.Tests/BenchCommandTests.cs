@@ -10,6 +10,7 @@ public class BenchCommandTests
         var report = new BenchmarkReport
         {
             FineFeatureMaxAreaMm2 = 1f,
+            MinMemberSeparationMm = 0.5f,
             Models =
             [
                 new ModelBenchmark
@@ -65,6 +66,7 @@ public class BenchCommandTests
                             Bases = 1,
                             MaxLeanAngleDegrees = 44.56f,
                             CollisionFree = true,
+                            CrossingPairs = 4,
                         },
                     ],
                 },
@@ -78,11 +80,11 @@ public class BenchCommandTests
                         "(Island 2, MiniCluster 6, Overhang 10) across **2** mini clusters " +
                         "(**3 island / 3 regular members**), **2 fine-feature singles**", markdown);
         Assert.Contains("`--seat --strategy tree --base-grid on --fine-feature-fallback on " +
-                        "--reinforce on --json` | " +
+                        "--min-member-separation 0.5 --reinforce on --json` | " +
                         "2.346 | 2", markdown);
         Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);
         Assert.Contains("**unrouted 9 / 12**, bases **1**, max lean 44.6°, " +
-                        "collisionFree **true**", markdown);
+                        "collisionFree **true**, crossing pairs **4**", markdown);
         Assert.Contains("Refusals: ContactBlocked 1, NoClearStep 8; island-origin **3**.", markdown);
         Assert.DoesNotContain("MiniIsland 0", markdown);
         Assert.DoesNotContain("brace 0", markdown);

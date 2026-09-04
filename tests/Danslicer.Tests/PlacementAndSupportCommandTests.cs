@@ -324,6 +324,7 @@ public sealed class PlacementAndSupportCommandTests
                 TrunkDiameter = 1.6f, BranchDiameter = 1.3f,
                 MemberAngleDegrees = 37f, TipMemberLength = 2.8f, MaxBranchLength = 12f,
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
+                MinMemberSeparationMm = 0.65f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
@@ -358,6 +359,7 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(12f, request.Settings.MaxBranchLength);
         Assert.False(request.Settings.PreferExistingTrunks);
         Assert.Equal(9f, request.Settings.ExistingTrunkBranchRange);
+        Assert.Equal(0.65f, request.Settings.MinMemberSeparationMm);
         Assert.Equal(0.7f, request.Settings.MiniSupportDiameter);
         Assert.Equal(0.3f, request.Settings.MiniSupportTipDiameter);
         Assert.Equal(1.2f, request.Settings.MiniSupportConeLength);

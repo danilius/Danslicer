@@ -524,6 +524,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.ExistingTrunkBranchRange = Clamp(value, 0.01f, 1000f, 8f));
     }
 
+    public float SupportMinMemberSeparationMm
+    {
+        get => Supports.MinMemberSeparationMm;
+        set => Update(() => Supports.MinMemberSeparationMm = Clamp(value, 0f, 100f, 0f));
+    }
+
     public float SupportMiniSupportDiameter
     {
         get => Supports.MiniSupportDiameter;
