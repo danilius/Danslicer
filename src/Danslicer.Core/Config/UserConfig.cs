@@ -297,6 +297,10 @@ public sealed class UserConfig
     public const string CadCleanSupportPresetName = "CAD clean";
     public const string OrganicDenseSupportPresetName = "Organic dense";
 
+    /// <summary>Chrome palette name, one of Danslicer.App.Themes.ThemeCatalog.Names. Unknown or
+    /// missing values fall back to the Classic default (see Normalize/ThemeCatalog.Apply).</summary>
+    public string Theme { get; set; } = "Classic";
+
     public SpaceMouseConfig SpaceMouse { get; set; } = new();
     public ViewportConfig Viewport { get; set; } = new();
     public PlacementConfig Placement { get; set; } = new();
@@ -335,6 +339,9 @@ public sealed class UserConfig
             var config = JsonSerializer.Deserialize<UserConfig>(File.ReadAllText(path), JsonOptions)
                          ?? new UserConfig();
             // Explicit nulls from hand-edited or older files are treated like missing sections.
+            // An unrecognised name is left as-is here (Core has no theme catalog to validate
+            // against); Danslicer.App.Themes.ThemeCatalog.Apply falls back to Classic for it.
+            if (string.IsNullOrWhiteSpace(config.Theme)) config.Theme = "Classic";
             config.SpaceMouse ??= new SpaceMouseConfig();
             config.Viewport ??= new ViewportConfig();
             config.Viewport.SupportDisplay =
