@@ -117,6 +117,13 @@
                         <NumericUpDown Grid.Column="2" Minimum="0.5" Maximum="20" Increment="0.5" FormatString="0.0"
                                        Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
                     </Grid>
+                    <Grid Tag="viewport view cube corner navigation size pixels" ColumnDefinitions="190,*,110" Margin="0,2">
+                        <TextBlock Text="View cube size" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="48" Maximum="192" TickFrequency="8" IsSnapToTickEnabled="True"
+                                Value="{Binding ViewCubeSizePixels, Mode=TwoWay}" />
+                        <NumericUpDown Grid.Column="2" Minimum="48" Maximum="192" Increment="8" FormatString="0"
+                                       Value="{Binding ViewCubeSizePixels, Mode=TwoWay}" />
+                    </Grid>
                 </StackPanel>
 
                 <StackPanel x:Name="KeymapSection">
