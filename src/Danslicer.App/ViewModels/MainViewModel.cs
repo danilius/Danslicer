@@ -61,6 +61,31 @@ public partial class MainViewModel : ViewModelBase
     public LayerRangeClipViewModel SupportClip { get; } = new();
     public HoverWaterlineViewModel SupportWaterline { get; } = new();
     public ViewportClipRange ViewportClipRange => SupportClip.Range;
+    public IReadOnlyList<ClipCapStyle> ClipCapStyles { get; } = Enum.GetValues<ClipCapStyle>();
+
+    public bool CapInterior
+    {
+        get => AppConfig.Current.Viewport.CapInterior;
+        set
+        {
+            if (value == AppConfig.Current.Viewport.CapInterior) return;
+            AppConfig.Current.Viewport.CapInterior = value;
+            AppConfig.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public ClipCapStyle CapStyle
+    {
+        get => AppConfig.Current.Viewport.CapStyle;
+        set
+        {
+            if (value == AppConfig.Current.Viewport.CapStyle) return;
+            AppConfig.Current.Viewport.CapStyle = value;
+            AppConfig.Save();
+            OnPropertyChanged();
+        }
+    }
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
     public ModeScopedCommand HideScopedCommand { get; }

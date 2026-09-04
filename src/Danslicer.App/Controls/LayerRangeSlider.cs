@@ -21,6 +21,9 @@ public sealed class LayerRangeSlider : Control
             defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
     public static readonly StyledProperty<Orientation> OrientationProperty =
         AvaloniaProperty.Register<LayerRangeSlider, Orientation>(nameof(Orientation));
+    public static readonly StyledProperty<bool> IsDraggingProperty =
+        AvaloniaProperty.Register<LayerRangeSlider, bool>(nameof(IsDragging),
+            defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
     private static readonly Pen TrackPen = new(new SolidColorBrush(Color.Parse("#565A60")), 4);
     private static readonly Pen SelectedPen = new(new SolidColorBrush(Color.Parse("#E39032")), 4);
@@ -47,6 +50,7 @@ public sealed class LayerRangeSlider : Control
     public double LowerValue { get => GetValue(LowerValueProperty); set => SetValue(LowerValueProperty, value); }
     public double UpperValue { get => GetValue(UpperValueProperty); set => SetValue(UpperValueProperty, value); }
     public Orientation Orientation { get => GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
+    public bool IsDragging { get => GetValue(IsDraggingProperty); set => SetValue(IsDraggingProperty, value); }
 
     public override void Render(DrawingContext context)
     {
@@ -97,6 +101,7 @@ public sealed class LayerRangeSlider : Control
             UpperValue, Minimum, Maximum, start, end, descending: vertical);
         _dragging = Math.Abs(axisPosition - lowerPosition) <= Math.Abs(axisPosition - upperPosition)
             ? Thumb.Lower : Thumb.Upper;
+        SetCurrentValue(IsDraggingProperty, true);
         SetFromPoint(point);
         e.Pointer.Capture(this);
         e.Handled = true;
@@ -115,6 +120,7 @@ public sealed class LayerRangeSlider : Control
         base.OnPointerReleased(e);
         if (_dragging == Thumb.None) return;
         _dragging = Thumb.None;
+        SetCurrentValue(IsDraggingProperty, false);
         e.Pointer.Capture(null);
         e.Handled = true;
     }

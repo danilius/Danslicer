@@ -41,6 +41,8 @@ public sealed class UserConfigTests : IDisposable
                 OverhangColorA = "#112233",
                 OverhangColorB = "#445566",
                 OverhangCheckerSizeMm = 5f,
+                CapInterior = false,
+                CapStyle = ClipCapStyle.Painted,
                 SupportDisplay = new SupportDisplayConfig
                 {
                     Mode = SupportDisplayMode.Transparent,
@@ -78,6 +80,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
         Assert.Equal("#445566", loaded.Viewport.OverhangColorB);
         Assert.Equal(5f, loaded.Viewport.OverhangCheckerSizeMm);
+        Assert.False(loaded.Viewport.CapInterior);
+        Assert.Equal(ClipCapStyle.Painted, loaded.Viewport.CapStyle);
         Assert.Equal(SupportDisplayMode.Transparent, loaded.Viewport.SupportDisplay.Mode);
         Assert.False(loaded.Viewport.SupportDisplay.ShowContactPointsInTransparent);
         Assert.False(loaded.Viewport.SupportDisplay.ShowTips);
@@ -123,6 +127,8 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(PlacementMode.AutoDrop, loaded.Placement.Mode);
         Assert.Equal(0f, loaded.Placement.HeightMm);
         Assert.Equal(SupportDisplayMode.Full, loaded.Viewport.SupportDisplay.Mode);
+        Assert.True(loaded.Viewport.CapInterior);
+        Assert.Equal(ClipCapStyle.Sliced, loaded.Viewport.CapStyle);
         Assert.True(loaded.Viewport.SupportDisplay.ShowTips);
         Assert.True(loaded.Viewport.SupportDisplay.ShowMiniSupports);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBranches);

@@ -43,6 +43,13 @@ public enum ViewportShadingMode
     MatCapPearl,
 }
 
+/// <summary>Viewport-only rendering method for horizontal clip cross-sections.</summary>
+public enum ClipCapStyle
+{
+    Sliced,
+    Painted,
+}
+
 /// <summary>Viewport display tuning.</summary>
 public sealed class ViewportConfig
 {
@@ -81,6 +88,13 @@ public sealed class ViewportConfig
     /// <summary>Wireframe overlay on visible objects (works on both render paths).</summary>
     public bool WireframeEnabled { get; set; }
 
+    /// <summary>Close visible horizontal clip cuts with viewport-only faces.</summary>
+    public bool CapInterior { get; set; } = true;
+
+    /// <summary>Sliced is exact geometry; Painted is reserved for the deferred screen-space path.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ClipCapStyle CapStyle { get; set; } = ClipCapStyle.Sliced;
+
     /// <summary>The corner view cube (design 6.2).</summary>
     public bool ViewCubeEnabled { get; set; } = true;
 
@@ -106,6 +120,7 @@ public sealed class ViewportConfig
     {
         if (!Enum.IsDefined(RenderPath)) RenderPath = RenderPathMode.Deferred;
         if (!Enum.IsDefined(Shading)) Shading = ViewportShadingMode.Studio;
+        if (!Enum.IsDefined(CapStyle)) CapStyle = ClipCapStyle.Sliced;
         CavityRidgeStrength = Clamp(CavityRidgeStrength, 0f, 4f, 0.35f);
         CavityValleyStrength = Clamp(CavityValleyStrength, 0f, 4f, 0.7f);
         CavityRadiusPixels = Clamp(CavityRadiusPixels, 0.5f, 8f, 1.5f);

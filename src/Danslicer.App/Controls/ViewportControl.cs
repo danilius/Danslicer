@@ -15,6 +15,7 @@ using Danslicer.Core.Commands;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
+using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Render;
@@ -60,6 +61,15 @@ public sealed class ViewportControl : OpenGlControlBase
 
     public static readonly StyledProperty<ViewportClipRange> ClipRangeProperty =
         AvaloniaProperty.Register<ViewportControl, ViewportClipRange>(nameof(ClipRange));
+
+    public static readonly StyledProperty<bool> CapInteriorProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(CapInterior), true);
+
+    public static readonly StyledProperty<ClipCapStyle> CapStyleProperty =
+        AvaloniaProperty.Register<ViewportControl, ClipCapStyle>(nameof(CapStyle), ClipCapStyle.Sliced);
+
+    public static readonly StyledProperty<bool> ClipDraggingProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(ClipDragging));
 
     public static readonly StyledProperty<HoverWaterlineViewModel?> SupportWaterlineProperty =
         AvaloniaProperty.Register<ViewportControl, HoverWaterlineViewModel?>(nameof(SupportWaterline));
@@ -113,6 +123,10 @@ public sealed class ViewportControl : OpenGlControlBase
     private int _pendingClickCount;
     private bool _selectionMeshDirty = true;
     private readonly List<AuxMeshDraw> _combinedAuxMeshes = new();
+    private readonly List<AuxMeshDraw> _clipCaps = new();
+    private readonly Dictionary<SceneObject, (Matrix4x4 World, MeshSlicer.PreparedMesh Mesh)>
+        _preparedClipMeshes = new();
+    private bool _clipCapsDirty = true;
     private Mesh? _selectedSupportMesh;
     private Mesh? _islandMarkerMesh;
     private const float MarqueeClickThresholdPixels = 3f;
@@ -148,6 +162,9 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool SelectThroughSupports { get => GetValue(SelectThroughSupportsProperty); set => SetValue(SelectThroughSupportsProperty, value); }
     public SupportDisplayConfig SupportDisplay { get => GetValue(SupportDisplayProperty); set => SetValue(SupportDisplayProperty, value); }
     public ViewportClipRange ClipRange { get => GetValue(ClipRangeProperty); set => SetValue(ClipRangeProperty, value); }
+    public bool CapInterior { get => GetValue(CapInteriorProperty); set => SetValue(CapInteriorProperty, value); }
+    public ClipCapStyle CapStyle { get => GetValue(CapStyleProperty); set => SetValue(CapStyleProperty, value); }
+    public bool ClipDragging { get => GetValue(ClipDraggingProperty); set => SetValue(ClipDraggingProperty, value); }
     public HoverWaterlineViewModel? SupportWaterline { get => GetValue(SupportWaterlineProperty); set => SetValue(SupportWaterlineProperty, value); }
     public IReadOnlyList<DetectedIsland> IslandMarkers { get => GetValue(IslandMarkersProperty); set => SetValue(IslandMarkersProperty, value); }
     public Rect? MarqueeRect { get => GetValue(MarqueeRectProperty); private set => SetValue(MarqueeRectProperty, value); }
@@ -182,7 +199,9 @@ public sealed class ViewportControl : OpenGlControlBase
             if (_subscribed is not null)
             {
                 _subscribed.Changed -= Redraw;
+                _subscribed.Changed -= MarkClipCapsDirty;
                 _subscribed.SelectionChanged -= Redraw;
+                _subscribed.SelectionChanged -= MarkClipCapsDirty;
                 _subscribed.SupportSelectionChanged -= Redraw;
                 _subscribed.SupportSelectionChanged -= MarkSelectionMeshDirty;
                 _subscribed.Supports.Changed -= MarkSupportMeshesDirty;
@@ -192,7 +211,9 @@ public sealed class ViewportControl : OpenGlControlBase
             if (_subscribed is not null)
             {
                 _subscribed.Changed += Redraw;
+                _subscribed.Changed += MarkClipCapsDirty;
                 _subscribed.SelectionChanged += Redraw;
+                _subscribed.SelectionChanged += MarkClipCapsDirty;
                 _subscribed.SupportSelectionChanged += Redraw;
                 // Selection changes rebuild only the small selected-elements overlay; the full
                 // graph mesh rebuilds only when the graph itself changes (a full rebuild froze
@@ -203,6 +224,8 @@ public sealed class ViewportControl : OpenGlControlBase
             }
             _supportMeshesDirty = true;
             _selectionMeshDirty = true;
+            _preparedClipMeshes.Clear();
+            MarkClipCapsDirty();
             Redraw();
         }
         else if (change.Property == ShowMoveGizmoProperty || change.Property == ShowRotateGizmoProperty ||
@@ -251,6 +274,7 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             _supportMeshesDirty = true;
             _selectionMeshDirty = true;
+            MarkClipCapsDirty();
             if (Document is { } document)
             {
                 var retained = document.SupportSelection
@@ -271,7 +295,23 @@ public sealed class ViewportControl : OpenGlControlBase
                 if (retained.Count != document.SupportSelection.Count)
                     document.SelectSupportElements(retained);
             }
-            // Rendering is shader-only: do not rebuild support meshes while either thumb moves.
+            // Main/support meshes remain shader-only. Exact slice caps are throttled separately.
+            QueueClipCapRangeRebuild();
+            Redraw();
+        }
+        else if (change.Property == CapInteriorProperty || change.Property == CapStyleProperty)
+        {
+            _clipCapsDirty = true;
+            RebuildClipCaps();
+            Redraw();
+        }
+        else if (change.Property == ClipDraggingProperty && !ClipDragging)
+        {
+            // Pointer release always gets one exact final rebuild. Full-resolution Drogon caps
+            // measured 22.9-27.3 ms at dense sections, so drag-time rebuilds are intentionally
+            // release-only rather than taking longer than a 60 Hz frame.
+            _clipCapsDirty = true;
+            RebuildClipCaps();
             Redraw();
         }
         else if (change.Property == ShowOverhangsProperty)
@@ -287,6 +327,116 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         if (Dispatcher.UIThread.CheckAccess()) RequestNextFrameRendering();
         else Dispatcher.UIThread.Post(RequestNextFrameRendering);
+    }
+
+    private void MarkClipCapsDirty() => _clipCapsDirty = true;
+
+    private bool ShouldBuildSlicedCaps => Document is not null && CapInterior &&
+        CapStyle == ClipCapStyle.Sliced && ClipRange.IsClipping;
+
+    private void QueueClipCapRangeRebuild()
+    {
+        _clipCapsDirty = true;
+        if (!ShouldBuildSlicedCaps)
+        {
+            _clipCaps.Clear();
+            _clipCapsDirty = false;
+            return;
+        }
+        // Exact mesh slicing is deliberately release-only on slider drags (see timing above).
+        // Numeric-field edits are not drags and therefore rebuild immediately.
+        if (!ClipDragging) RebuildClipCaps();
+    }
+
+    private void RebuildClipCaps()
+    {
+        _clipCaps.Clear();
+        _clipCapsDirty = false;
+        if (!ShouldBuildSlicedCaps || Document is not { } document) return;
+
+        var planes = ActiveClipPlanes().ToArray();
+        var liveObjects = document.Scene.Objects.ToHashSet();
+        foreach (var stale in _preparedClipMeshes.Keys.Where(obj => !liveObjects.Contains(obj)).ToList())
+            _preparedClipMeshes.Remove(stale);
+
+        var objectColor = new Vector3(0.70f, 0.71f, 0.74f);
+        var selectedColor = new Vector3(0.96f, 0.60f, 0.18f);
+        foreach (var obj in document.Scene.Objects)
+        {
+            if (obj.RenderState == RenderState.Hidden) continue;
+            var world = obj.Transform.ToMatrix();
+            if (!_preparedClipMeshes.TryGetValue(obj, out var cached) || cached.World != world)
+            {
+                cached = (world, new MeshSlicer.PreparedMesh(obj.Mesh, world));
+                _preparedClipMeshes[obj] = cached;
+            }
+            var color = document.IsSelected(obj) ? selectedColor
+                : obj.RenderState == RenderState.Highlighted
+                    ? Vector3.Lerp(objectColor, selectedColor, 0.4f)
+                    : objectColor;
+            var opacity = obj.RenderState == RenderState.Ghosted ? 0.25f : 1f;
+            foreach (var (z, face) in planes)
+                AddCap(ClipCapBuilder.Build(cached.Mesh, z, face), color, opacity);
+        }
+
+        if (!SupportDisplayPolicy.ShowsMeshes(SupportDisplay)) return;
+        foreach (var (z, face) in planes) AddSupportCaps(document.Supports, z, face);
+    }
+
+    private IEnumerable<(double Z, ClipCapFace Face)> ActiveClipPlanes()
+    {
+        const float epsilon = 1e-5f;
+        if (ClipRange.LowerZ > ClipRange.MinimumZ + epsilon)
+            yield return (ClipRange.LowerZ, ClipCapFace.Lower);
+        if (ClipRange.UpperZ < ClipRange.MaximumZ - epsilon)
+            yield return (ClipRange.UpperZ, ClipCapFace.Upper);
+    }
+
+    private void AddSupportCaps(SupportGraph graph, double z, ClipCapFace face)
+    {
+        var opacity = SupportDisplay.Mode == SupportDisplayMode.Transparent
+            ? TransparentSupportOpacity
+            : 1f;
+        AddCategory(SupportSegmentType.Tip, TipColor, SupportNodeType.Tip);
+        AddCategory(SupportSegmentType.MiniSupport, MiniSupportColor, SupportNodeType.Tip);
+        AddCategory(SupportSegmentType.Branch, BranchColor);
+        AddCategory(SupportSegmentType.Trunk, TrunkColor);
+        AddCategory(SupportSegmentType.Bracing, BracingColor);
+        AddCategory(null, BaseColor, SupportNodeType.Base);
+        return;
+
+        void AddCategory(SupportSegmentType? segmentType, Vector4 rgba,
+            SupportNodeType? nodeType = null)
+        {
+            var sections = SupportSliceGeometry.SectionsAt(graph, z,
+                includeSegment: segment => segmentType == segment.Type && !segment.Hidden &&
+                    !graph.GetNode(segment.NodeA).Hidden && !graph.GetNode(segment.NodeB).Hidden &&
+                    SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, SupportDisplay),
+                includeNode: node => nodeType == node.Type && !node.Hidden &&
+                    NodeBelongsToCategory(node, segmentType));
+            AddCap(ClipCapBuilder.Build(sections, z, face),
+                new Vector3(rgba.X, rgba.Y, rgba.Z), opacity);
+        }
+
+        bool NodeBelongsToCategory(SupportNode node, SupportSegmentType? segmentType)
+        {
+            if (node.Type == SupportNodeType.Base)
+                return SupportDisplay.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent &&
+                    SupportDisplay.ShowBases;
+            if (node.Type != SupportNodeType.Tip || segmentType is null) return false;
+            var incident = graph.SegmentsAt(node.Id);
+            return segmentType == SupportSegmentType.Tip
+                ? (incident.Count == 0 && SupportDisplay.ShowTips ||
+                   incident.Any(s => s.Type == SupportSegmentType.Tip &&
+                       SupportDisplayPolicy.IsSegmentDisplayed(s.Type, SupportDisplay)))
+                : incident.Any(s => s.Type == segmentType &&
+                    SupportDisplayPolicy.IsSegmentDisplayed(s.Type, SupportDisplay));
+        }
+    }
+
+    private void AddCap(Mesh? mesh, Vector3 color, float opacity)
+    {
+        if (mesh is not null) _clipCaps.Add(new AuxMeshDraw(mesh, color, opacity));
     }
 
     // ----- OpenGL lifecycle -----
@@ -314,12 +464,14 @@ public sealed class ViewportControl : OpenGlControlBase
         _depthOverlay.Clear();
         if (_supportMeshesDirty) RebuildSupportMeshes();
         if (_selectionMeshDirty) RebuildSelectionMesh();
+        if (_clipCapsDirty && !ClipDragging) RebuildClipCaps();
         _combinedAuxMeshes.Clear();
         IEnumerable<SupportMeshBatch> supportBatches = SupportDisplay.Mode == SupportDisplayMode.Transparent
             ? _supportMeshes.OrderByDescending(batch =>
                 Vector3.DistanceSquared(Camera.Eye, batch.SortOrigin))
             : _supportMeshes;
         foreach (var batch in supportBatches) _combinedAuxMeshes.Add(batch.Draw);
+        _combinedAuxMeshes.AddRange(_clipCaps);
         if (_islandMarkerMesh is { } markers)
             _combinedAuxMeshes.Add(new AuxMeshDraw(markers, new Vector3(1f, 0.03f, 0.03f), 1f));
         if (_selectedSupportMesh is { } selected)
