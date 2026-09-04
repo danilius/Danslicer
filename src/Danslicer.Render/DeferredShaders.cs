@@ -24,6 +24,9 @@ internal static class DeferredShaders
         uniform float uOverhangCell;   // checker cell edge, mm
         uniform vec3 uId;              // 24-bit draw id packed into RGB
         uniform float uSelected;       // 1 = selection outline colour applies at this draw's edges
+        uniform float uClipEnabled;
+        uniform float uClipLowerZ;
+        uniform float uClipUpperZ;
 
         layout(location = 0) out vec4 gAlbedo; // rgb base colour, a = 1 marks lit geometry
         layout(location = 1) out vec4 gNormal; // view-space normal * 0.5 + 0.5
@@ -31,6 +34,9 @@ internal static class DeferredShaders
 
         void main()
         {
+            if (uClipEnabled > 0.5 &&
+                (vWorldPosition.z < uClipLowerZ || vWorldPosition.z > uClipUpperZ)) discard;
+
             vec3 n = normalize(vViewNormal);
             bool back = !gl_FrontFacing;
             if (back) n = -n;
@@ -52,6 +58,17 @@ internal static class DeferredShaders
             }
 
             if (uWarnBelowPlate > 0.5 && vWorldPosition.z < -0.001) color = mix(color, vec3(0.95, 0.15, 0.10), 0.6);
+
+            // Clip cut-edge highlight, identical to the classic shader: baked into albedo so the
+            // composite lights it like any other surface colour.
+            if (uClipEnabled > 0.5)
+            {
+                float distanceToCut = min(abs(vWorldPosition.z - uClipLowerZ),
+                                          abs(vWorldPosition.z - uClipUpperZ));
+                float cutBand = max(fwidth(vWorldPosition.z) * 1.5, 0.002);
+                float cut = 1.0 - smoothstep(0.0, cutBand, distanceToCut);
+                color = mix(color, vec3(1.0, 0.55, 0.16), cut * 0.8);
+            }
 
             gAlbedo = vec4(color, 1.0);
             gNormal = vec4(n * 0.5 + 0.5, 1.0);
@@ -85,7 +102,10 @@ internal static class DeferredShaders
         uniform highp sampler2D uDepthTex;
         uniform highp sampler2D uMatCap;
         uniform mat4 uInvProjection;
+        uniform mat4 uInvView;         // world-Z reconstruction for the waterline contour
         uniform vec2 uTexel;           // 1 / render target size
+        uniform float uWaterlineEnabled;
+        uniform float uWaterlineZ;
         uniform int uShadingMode;      // 0 = studio lighting, 1 = MatCap lookup
         uniform float uCavityRidge;    // 0 disables ridges
         uniform float uCavityValley;   // 0 disables valleys
@@ -195,6 +215,17 @@ internal static class DeferredShaders
                 }
                 if (edge > 0.0 && albedo.a > 0.5)
                     color = mix(color, selected > 0.5 ? uSelectColor : uOutlineColor, uOutlineStrength);
+            }
+
+            // Hover waterline, last so it stays visible over every other effect, as in the classic
+            // shader. World Z is reconstructed from depth; the derivative-sized band keeps the
+            // contour approximately constant in screen pixels (classic constants).
+            if (uWaterlineEnabled > 0.5 && albedo.a > 0.5)
+            {
+                float worldZ = (uInvView * vec4(viewPos(vUv, depth), 1.0)).z;
+                float band = clamp(fwidth(worldZ) * 1.75, 0.008, 0.25);
+                float contour = 1.0 - smoothstep(band * 0.35, band, abs(worldZ - uWaterlineZ));
+                color = mix(color, vec3(0.04, 0.96, 0.92), contour * 0.96);
             }
 
             fragColor = vec4(color, 1.0);
