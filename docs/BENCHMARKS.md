@@ -496,7 +496,6 @@ continues to a plate base (747 bases).
    candidates. Grid-on routed in 1.222 s with 757 refusals; grid-off in 3.637 s with 601 refusals;
    both outputs were collision-free.
 
-<<<<<<< HEAD
 ---
 
 ## 2026-09-04 — island identity in density clusters
@@ -624,7 +623,8 @@ fall in every case; max lean remains within the configured 75° mini limit.
    retry), not a one-way classification artefact.
 4. All twelve route outputs are collision-free. Maximum lean remains at or below 75°; enabling
    the fallback does not change candidate classification or density-cluster behavior.
-=======
+---
+
 ## 2026-09-04 — contact-face filter (angle limit + sees-plate), gripper A/B
 
 - Commit under test: worktree `support-face-filter` branch off `9a8abe6`.
@@ -673,4 +673,34 @@ fall in every case; max lean remains within the configured 75° mini limit.
    since a contact whose own face is downward-facing enough to pass both settings can still route
    through geometry that reads as a "side" support once trunks/branches are drawn. All three route
    passes stayed collision-free with the same 45° maximum lean.
->>>>>>> 561ad78917d12801c80af692153b7e0a1c92a396
+
+---
+
+## 2026-09-04 — normal-aligned tip contact lead-ins
+
+- Baseline: merged main plus job 028 at `aeb916e`; implementation through `d788e93`.
+- Config: Debug, net10.0; fresh seated candidates in every pass, default 0.3 mm normal lead-in,
+  grid on and off, fine-feature fallback on, reinforcement off.
+- Candidate placement and routing decisions are unchanged. The lead-in is derived after routing:
+  each cone leaves its contact along the stored outward surface normal, then bends toward the
+  chosen junction. A blocked bend shortens through fixed 75/50/25% steps, with zero restoring the
+  exact legacy centreline for that contact.
+
+### Results
+
+| Model | Pass | Candidates | Grid on | Grid off |
+| --- | --- | ---: | --- | --- |
+| drogon | before | 1961 | **994** refusals: ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165; 140 bases; collision-free | **850** refusals: ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142; 227 bases; collision-free |
+| drogon | after | 1961 | **994** refusals: ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165; 140 bases; collision-free | **850** refusals: ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142; 227 bases; collision-free |
+| gripper | before | 482 | **63** refusals: NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; 136 bases; collision-free | **60** refusals: ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3; 145 bases; collision-free |
+| gripper | after | 482 | **63** refusals: NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; 136 bases; collision-free | **60** refusals: ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3; 145 bases; collision-free |
+| drogon-lo | before | 1492 | **702** refusals: ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135; 129 bases; collision-free | **549** refusals: ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135; 216 bases; collision-free |
+| drogon-lo | after | 1492 | **702** refusals: ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135; 129 bases; collision-free | **549** refusals: ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135; 216 bases; collision-free |
+
+Candidate, node, segment, refusal and base counts are bit-identical before and after in all six
+routes. The gripper's three density clusters are the photographed duckbill mechanism: multiple
+intentional mini members share one carrier. The placement passes did not duplicate a contact;
+normal-aligning each member's contact-side cone separates that visual fan without discarding a
+required island contact or changing topology. An initial un-clamped geometry pass exposed one
+Drogon grid-off model collision; the deterministic per-contact shortening removed it, and the
+final six outputs are collision-free.
