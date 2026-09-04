@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Core.Config;
@@ -211,6 +212,19 @@ public sealed record SupportConfig
     public float OverhangAngleDegrees { get; set; } = 45f;
     public float MinIslandAreaMm2 { get; set; } = 0.1f;
 
+    /// <summary>
+    /// Maximum angle from straight down for a contact to remain eligible (see
+    /// <see cref="ContactFaceFilter"/>). 0° = only perfectly horizontal undersides; 90° (default)
+    /// = every downward-facing face, i.e. today's behaviour.
+    /// </summary>
+    public float MaxContactFaceAngleDegrees { get; set; } = 90f;
+
+    /// <summary>
+    /// When true, additionally requires an unobstructed straight-down line of sight from the
+    /// contact to the plate (see <see cref="ContactFaceFilter"/>). Off by default.
+    /// </summary>
+    public bool RequireContactSeesPlate { get; set; }
+
     internal void Normalize()
     {
         TipDiameter = Positive(TipDiameter, 0.4f);
@@ -247,6 +261,8 @@ public sealed record SupportConfig
         OverhangAngleDegrees = float.IsFinite(OverhangAngleDegrees)
             ? Math.Clamp(OverhangAngleDegrees, 0f, 90f) : 45f;
         MinIslandAreaMm2 = NonNegative(MinIslandAreaMm2);
+        MaxContactFaceAngleDegrees = float.IsFinite(MaxContactFaceAngleDegrees)
+            ? Math.Clamp(MaxContactFaceAngleDegrees, 0f, 90f) : 90f;
         var miniContactRadius = MiniSupportTipDiameter * 0.5f;
         var miniContactArea = MathF.PI * miniContactRadius * miniContactRadius;
         MiniIslandMaxAreaMm2 = MathF.Min(MinIslandAreaMm2,
