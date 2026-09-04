@@ -153,6 +153,36 @@
             </StackPanel>
         </Expander>
 
+        <Expander Header="Reinforce" IsExpanded="True">
+            <StackPanel Margin="8,2,0,6">
+                <CheckBox Tag="supports reinforce growth rule enable disable ring contacts"
+                          Content="Enable reinforcement"
+                          IsChecked="{Binding SupportReinforceEnabled, Mode=TwoWay}" Margin="0,4" />
+                <Grid Tag="supports reinforce seed selection object region critical tips"
+                      ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Seed selector" Classes="label" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding ReinforceSeedSelectors}"
+                              SelectedItem="{Binding SupportReinforceSeedSelector, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports reinforce ring contact count" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Ring tip count" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="100" Increment="1" FormatString="0"
+                                   Value="{Binding SupportReinforceCount, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports reinforce ring radius mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Ring radius" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
+                                   Value="{Binding SupportReinforceRingRadius, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports reinforce ring tip diameter multiplier"
+                      ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Tip diameter multiplier" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
+                                   Value="{Binding SupportReinforceRingDiameterMultiplier, Mode=TwoWay}" />
+                </Grid>
+            </StackPanel>
+        </Expander>
+
         <Expander Header="Mini" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports mini rod diameter mm" ColumnDefinitions="170,*" Margin="0,2">

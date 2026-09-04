@@ -43,7 +43,7 @@ void Usage()
     Console.Error.WriteLine("  danslicer info <file.stl|file.obj|file.danslicer>");
     Console.Error.WriteLine("  danslicer slice <file.stl|file.obj>... | <file.danslicer> -o <out.pwmx> [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
     Console.Error.WriteLine("  danslicer inspect <file.pwmx>");
-    Console.Error.WriteLine("  danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+    Console.Error.WriteLine("  danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
     Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--seat] [--spacing 2.5] [--min-spacing 2.5]");
     Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--layer 0.05] [--tip 0.4]");
     Console.Error.WriteLine("                 [--tip-shape capsule|cone] [--cone-length 2] [--ball-diameter 0] [--penetration-depth 0]");
@@ -55,7 +55,7 @@ void Usage()
     Console.Error.WriteLine("                   [--support-spacing 1] [--model-clearance 0.5] [--object-spacing 1]");
     Console.Error.WriteLine("  danslicer areas <file.stl|file.obj> [--json] [--seat] [--overhang 45] [--min-area 0.5]");
     Console.Error.WriteLine("                  [--layer 0.05] [--min-island 0.5] [--sharp-edge 30]");
-    Console.Error.WriteLine("  danslicer bench [--drogon <path>] [--gripper <path>] [--output <summary.json>]");
+    Console.Error.WriteLine("  danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--output <summary.json>]");
 }
 
 int Info(string[] a)

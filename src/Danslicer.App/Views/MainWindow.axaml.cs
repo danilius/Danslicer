@@ -33,7 +33,7 @@ public partial class MainWindow : Window
             WorkspaceMode.Slicing);
         InitializeComponent();
         Configuration.WindowStatePersistence.Track(this, "main",
-            WorkspaceGrid.ColumnDefinitions[0], WorkspaceGrid.ColumnDefinitions[4]);
+            rightPanel: WorkspaceGrid.ColumnDefinitions[2]);
         RefreshWindowKeymap();
         SyncRenderPathMenu();
         Viewport.PropertyChanged += (_, e) =>
@@ -62,6 +62,18 @@ public partial class MainWindow : Window
     private ConfigWindow? _configWindow;
     private SupportPresetEditorWindow? _presetEditorWindow;
     private readonly List<KeyBinding> _windowKeyBindings = [];
+
+    private void OnViewportFlyoutClosed(object? sender, EventArgs e) => Viewport.Focus();
+
+    private void OnViewportObjectSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ViewModel?.IsObjectListSelectionEnabled == true &&
+            ViewportObjectList.IsKeyboardFocusWithin)
+            ObjectsToolButton.Flyout?.Hide();
+    }
+
+    private void OnGenerateSupportsFlyoutClick(object? sender, RoutedEventArgs e) =>
+        SupportsToolButton.Flyout?.Hide();
 
     private void OpenSupportPresetEditor()
     {

@@ -61,4 +61,30 @@ public sealed class SupportPreviewShapesTests
         Assert.Equal(prepared.Summary.UnroutedTipCount,
             prepared.Summary.RefusalReasons.Values.Sum());
     }
+
+    [Theory]
+    [InlineData("Overhang table / bridge")]
+    [InlineData("Sphere")]
+    [InlineData("Dome underside")]
+    public void PreviewSampleShowsReinforcementWhenEnabled(string sampleName)
+    {
+        var disabled = GeneratePreview(sampleName, reinforce: false);
+        var enabled = GeneratePreview(sampleName, reinforce: true);
+
+        Assert.True(enabled.Segments.Count > disabled.Segments.Count,
+            $"The live-preview sample should visibly gain routed reinforcement geometry; " +
+            $"disabled={disabled.Segments.Count}/{disabled.Summary.UnroutedTipCount}, " +
+            $"enabled={enabled.Segments.Count}/{enabled.Summary.UnroutedTipCount}.");
+    }
+
+    private static PreparedSupportGeneration GeneratePreview(string name, bool reinforce)
+    {
+        var document = new Document
+        {
+            SupportSettings = new SupportConfig { ReinforceEnabled = reinforce },
+        };
+        var preview = new SceneObject(name, SupportPreviewShapes.Create(name));
+        document.AddObject(preview);
+        return Document.ComputeSupportGeneration(document.CaptureSupportGeneration(preview));
+    }
 }

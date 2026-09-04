@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Core.Config;
 
@@ -180,6 +181,14 @@ public sealed record SupportConfig
     public bool UseBaseGrid { get; set; } = true;
     public float BaseGridPitch { get; set; } = 6f;
 
+    public bool ReinforceEnabled { get; set; }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ReinforceSeedSelector ReinforceSeedSelector { get; set; } =
+        ReinforceSeedSelector.LowestPointOfObject;
+    public int ReinforceCount { get; set; } = 3;
+    public float ReinforceRingRadius { get; set; } = 2f;
+    public float ReinforceRingDiameterMultiplier { get; set; } = 1.25f;
+
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public SupportBaseShape BaseShape { get; set; } = SupportBaseShape.Disc;
     public float BaseDiameter { get; set; } = 4f;
@@ -212,6 +221,11 @@ public sealed record SupportConfig
             ? Math.Clamp(MiniSupportMaxAngleDegrees, 1f, 89f) : 75f;
         MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
+        if (!Enum.IsDefined(ReinforceSeedSelector))
+            ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;
+        ReinforceCount = Math.Max(1, ReinforceCount);
+        ReinforceRingRadius = Positive(ReinforceRingRadius, 2f);
+        ReinforceRingDiameterMultiplier = Positive(ReinforceRingDiameterMultiplier, 1.25f);
         if (!Enum.IsDefined(BaseShape)) BaseShape = SupportBaseShape.Disc;
         BaseDiameter = Positive(BaseDiameter, 4f);
         BaseHeight = NonNegative(BaseHeight);

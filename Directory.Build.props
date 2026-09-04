@@ -7,4 +7,12 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+
+  <!-- Keep platform-specific APIs behind explicit guards in every shipping assembly. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Danslicer.Core'
+                            Or '$(MSBuildProjectName)' == 'Danslicer.Render'
+                            Or '$(MSBuildProjectName)' == 'Danslicer.Cli'
+                            Or '$(MSBuildProjectName)' == 'Danslicer.App'">
+    <WarningsAsErrors>$(WarningsAsErrors);CA1416</WarningsAsErrors>
+  </PropertyGroup>
 </Project>

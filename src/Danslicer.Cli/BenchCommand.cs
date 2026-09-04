@@ -32,8 +32,8 @@ internal static class BenchCommand
                 GeneratedAtUtc = DateTimeOffset.UtcNow,
                 Models =
                 [
-                    RunModel("drogon", options.DrogonPath),
-                    RunModel("gripper", options.GripperPath),
+                    RunModel("drogon", options.DrogonPath, options.Reinforce),
+                    RunModel("gripper", options.GripperPath, options.Reinforce),
                 ],
             };
             report.Markdown = BuildMarkdown(report);
@@ -90,7 +90,8 @@ internal static class BenchCommand
                     "ContactBlocked", "NoClearStep", "NoReachableGridPoint",
                     "NoBranchEndInRange", "NoLanding", "BelowPlate");
                 text.AppendLine($"| {Escape(model.Key)} | `route` | " +
-                    $"`--seat --strategy tree --base-grid {route.BaseGrid} --json` | " +
+                    $"`--seat --strategy tree --base-grid {route.BaseGrid} " +
+                    $"--reinforce {(route.Reinforce ? "on" : "off")} --json` | " +
                     $"{route.WallSeconds:0.000} | {route.ExitCode} | nodes {route.Nodes}, " +
                     $"segs {route.Segments}{Parenthesize(segments)}, **unrouted " +
                     $"{route.UnroutedTips} / {tips.Candidates}**, bases **{route.Bases}**, " +
@@ -102,7 +103,7 @@ internal static class BenchCommand
         return text.ToString().TrimEnd();
     }
 
-    private static ModelBenchmark RunModel(string key, string path)
+    private static ModelBenchmark RunModel(string key, string path, bool reinforce)
     {
         if (!File.Exists(path)) throw new IOException($"model not found: {path}");
 
@@ -120,8 +121,8 @@ internal static class BenchCommand
             {
                 var routeRun = Capture(() => RouteCommand.Run(
                     [path, "--tips", tipsPath, "--seat", "--strategy", "tree",
-                        "--base-grid", mode, "--json"]));
-                routes.Add(ParseRoute(mode, routeRun));
+                        "--base-grid", mode, "--reinforce", reinforce ? "on" : "off", "--json"]));
+                routes.Add(ParseRoute(mode, reinforce, routeRun));
             }
             return new ModelBenchmark { Key = key, Path = path, Tips = tips, Routes = routes };
         }
@@ -153,13 +154,14 @@ internal static class BenchCommand
         };
     }
 
-    private static RouteBenchmark ParseRoute(string mode, CapturedRun run)
+    private static RouteBenchmark ParseRoute(string mode, bool reinforce, CapturedRun run)
     {
         using var document = JsonDocument.Parse(run.Stdout);
         var root = document.RootElement;
         return new RouteBenchmark
         {
             BaseGrid = mode,
+            Reinforce = reinforce,
             WallSeconds = run.WallSeconds,
             ExitCode = run.ExitCode,
             Nodes = root.GetProperty("nodes").GetInt32(),
@@ -206,6 +208,7 @@ internal static class BenchCommand
         var drogon = DefaultDrogonPath;
         var gripper = DefaultGripperPath;
         string? output = null;
+        var reinforce = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -213,11 +216,19 @@ internal static class BenchCommand
                 case "--drogon": drogon = args[++i]; break;
                 case "--gripper": gripper = args[++i]; break;
                 case "--output": output = args[++i]; break;
+                case "--reinforce": reinforce = ParseToggle(args[++i], "reinforce"); break;
                 default: throw new ArgumentException($"unknown option '{args[i]}'");
             }
         }
-        return new BenchOptions(drogon, gripper, output);
+        return new BenchOptions(drogon, gripper, output, reinforce);
     }
+
+    private static bool ParseToggle(string value, string name) => value.ToLowerInvariant() switch
+    {
+        "on" or "true" => true,
+        "off" or "false" => false,
+        _ => throw new ArgumentException($"{name} must be 'on' or 'off'"),
+    };
 
     private static string OrderedValues(IReadOnlyDictionary<string, int> values,
         params string[] order) => OrderedValues(values, order, valueName: null);
@@ -242,9 +253,10 @@ internal static class BenchCommand
     private static string F1(float value) => value.ToString("0.0", CultureInfo.InvariantCulture);
 
     private static void Usage() => Console.Error.WriteLine(
-        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--output <summary.json>]");
+        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--output <summary.json>]");
 
-    private sealed record BenchOptions(string DrogonPath, string GripperPath, string? OutputPath);
+    private sealed record BenchOptions(string DrogonPath, string GripperPath, string? OutputPath,
+        bool Reinforce);
     private sealed record CapturedRun(int ExitCode, double WallSeconds, string Stdout, string Stderr);
 }
 
@@ -282,6 +294,7 @@ internal sealed class SpacingBenchmark
 internal sealed class RouteBenchmark
 {
     public required string BaseGrid { get; init; }
+    public bool Reinforce { get; init; }
     public double WallSeconds { get; init; }
     public int ExitCode { get; init; }
     public int Nodes { get; init; }

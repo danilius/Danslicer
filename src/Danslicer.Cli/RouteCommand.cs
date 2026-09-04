@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
+using Danslicer.Core.Config;
 using Danslicer.Core.IO;
 using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Generation;
@@ -24,6 +25,7 @@ internal static class RouteCommand
             var json = false;
             var seat = false;
             var useBaseGrid = true;
+            var reinforce = false;
             for (var i = 1; i < args.Length; i++)
             {
                 options = args[i] switch
@@ -41,6 +43,7 @@ internal static class RouteCommand
                     "--json" => SetJson(options, out json),
                     "--seat" => SetSeat(options, out seat),
                     "--base-grid" => SetUseBaseGrid(options, args[++i], out useBaseGrid),
+                    "--reinforce" => SetReinforce(options, args[++i], out reinforce),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
                 };
             }
@@ -57,10 +60,10 @@ internal static class RouteCommand
             var obstacles = new BvhCollisionScene();
             obstacles.AddMesh(mesh, Matrix4x4.Identity, Path.GetFileName(meshPath));
             var tips = ReadTips(tipsPath);
+            var rules = GrowthRuleSet.FromConfig(new SupportConfig { ReinforceEnabled = reinforce });
             RoutingResult result;
             if (strategy == "topdown")
             {
-                var rules = GrowthRuleSet.Default;
                 result = new TopDownSupportRouter(obstacles, rules).Route(tips,
                     new TopDownRoutingOptions
                     {
@@ -73,7 +76,7 @@ internal static class RouteCommand
             }
             else if (strategy == "tree")
             {
-                result = new TreeSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips,
+                result = new TreeSupportRouter(obstacles, rules).Route(tips,
                     new TreeRoutingOptions
                     {
                         TrunkDiameter = options.PillarDiameter,
@@ -86,7 +89,7 @@ internal static class RouteCommand
             }
             else
             {
-                result = new GridSupportRouter(obstacles, GrowthRuleSet.Default).Route(tips, options);
+                result = new GridSupportRouter(obstacles, rules).Route(tips, options);
             }
             var collisionFree = IsCollisionFree(result.Graph, obstacles);
             if (json) WriteJson(result, collisionFree, seatOffset);
@@ -127,6 +130,18 @@ internal static class RouteCommand
             "on" or "true" => true,
             "off" or "false" => false,
             _ => throw new ArgumentException("base-grid must be 'on' or 'off'"),
+        };
+        return options;
+    }
+
+    private static GridRoutingOptions SetReinforce(GridRoutingOptions options, string value,
+        out bool reinforce)
+    {
+        reinforce = value.ToLowerInvariant() switch
+        {
+            "on" or "true" => true,
+            "off" or "false" => false,
+            _ => throw new ArgumentException("reinforce must be 'on' or 'off'"),
         };
         return options;
     }
@@ -279,7 +294,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 

@@ -31,6 +31,7 @@ internal static class RoutingUtilities
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rule.RingDiameterMultiplier);
 
         var selected = SelectSeeds(result, rule.SeedSelector);
+        var reinforced = new List<RoutingTip>();
         var random = new Random(seed);
         foreach (var routingSeed in selected)
         {
@@ -45,7 +46,7 @@ internal static class RoutingUtilities
                 if (hit is null) continue;
                 var projectedInward = -hit.Value.SurfaceNormal;
                 if (Vector3.Dot(projectedInward, inward) < 0) projectedInward = -projectedInward;
-                result.Add(routingSeed with
+                reinforced.Add(routingSeed with
                 {
                     SurfacePoint = hit.Value.Point,
                     InwardSurfaceNormal = projectedInward,
@@ -56,7 +57,10 @@ internal static class RoutingUtilities
                 });
             }
         }
-        return result;
+        if (reinforced.Count == 0) return result;
+        var seedSet = selected.ToHashSet();
+        return selected.Concat(reinforced).Concat(result.Where(tip => !seedSet.Contains(tip)))
+            .ToList();
     }
 
     /// <summary>
@@ -85,15 +89,34 @@ internal static class RoutingUtilities
         var marked = selector == ReinforceSeedSelector.LowestPointOfObject
             ? tips.Where(tip => tip.IsObjectLowest).ToList()
             : tips.Where(tip => tip.IsRegionLowest).ToList();
-        if (marked.Count > 0) return new[] { Lowest(marked) };
+        if (marked.Count > 0)
+        {
+            // A flat underside can have many equally-low contacts while generation marks one
+            // deterministic extreme. Choose the contact nearest the tied layer's centroid so the
+            // ring stays on the surface instead of falling mostly beyond an outside edge.
+            var markedZ = marked.Min(tip => tip.SurfacePoint.Z);
+            var tied = tips.Where(tip =>
+                MathF.Abs(tip.SurfacePoint.Z - markedZ) <= 1e-4f).ToList();
+            return new[] { Lowest(tied) };
+        }
         return new[] { Lowest(tips) };
     }
 
-    private static RoutingTip Lowest(IEnumerable<RoutingTip> tips) => tips
-        .OrderBy(tip => tip.SurfacePoint.Z)
-        .ThenBy(tip => tip.SurfacePoint.X)
-        .ThenBy(tip => tip.SurfacePoint.Y)
-        .First();
+    private static RoutingTip Lowest(IEnumerable<RoutingTip> tips)
+    {
+        var ordered = tips.OrderBy(tip => tip.SurfacePoint.Z)
+            .ThenBy(tip => tip.SurfacePoint.X)
+            .ThenBy(tip => tip.SurfacePoint.Y).ToList();
+        var minZ = ordered[0].SurfacePoint.Z;
+        var tied = ordered.Where(tip => MathF.Abs(tip.SurfacePoint.Z - minZ) <= 1e-4f).ToList();
+        var centroid = tied.Aggregate(Vector2.Zero,
+            (sum, tip) => sum + new Vector2(tip.SurfacePoint.X, tip.SurfacePoint.Y)) / tied.Count;
+        return tied.OrderBy(tip => Vector2.DistanceSquared(
+                new Vector2(tip.SurfacePoint.X, tip.SurfacePoint.Y), centroid))
+            .ThenBy(tip => tip.SurfacePoint.X)
+            .ThenBy(tip => tip.SurfacePoint.Y)
+            .First();
+    }
 }
 
 internal sealed class DeterministicIds

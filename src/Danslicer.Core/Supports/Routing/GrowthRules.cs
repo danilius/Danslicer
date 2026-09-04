@@ -1,4 +1,5 @@
 using System.Numerics;
+using Danslicer.Core.Config;
 
 namespace Danslicer.Core.Supports.Routing;
 
@@ -59,6 +60,21 @@ public sealed class GrowthRuleSet
     }
 
     public T? Find<T>() where T : class, IGrowthRule => _rules.OfType<T>().FirstOrDefault();
+
+    /// <summary>Builds the rule policy consumed by support generation from its saved settings.</summary>
+    public static GrowthRuleSet FromConfig(SupportConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var rules = Default;
+        rules.Find<TaperGrowthRule>()!.TipLength = config.TipMemberLength;
+        var reinforce = rules.Find<ReinforceGrowthRule>()!;
+        reinforce.Enabled = config.ReinforceEnabled;
+        reinforce.SeedSelector = config.ReinforceSeedSelector;
+        reinforce.Count = config.ReinforceCount;
+        reinforce.RingRadius = config.ReinforceRingRadius;
+        reinforce.RingDiameterMultiplier = config.ReinforceRingDiameterMultiplier;
+        return rules;
+    }
 
     public static GrowthRuleSet Default => new(new IGrowthRule[]
     {
