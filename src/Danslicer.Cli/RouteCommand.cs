@@ -31,6 +31,7 @@ internal static class RouteCommand
             var islandFirst = true;
             var fineFeatureFallback = true;
             var minMemberSeparation = 0f;
+            var miniTipShape = SupportTipShape.Cone;
             for (var i = 1; i < args.Length; i++)
             {
                 options = args[i] switch
@@ -54,6 +55,7 @@ internal static class RouteCommand
                         out fineFeatureFallback),
                     "--min-member-separation" => SetMinMemberSeparation(options, args[++i],
                         out minMemberSeparation),
+                    "--mini-tip-shape" => SetMiniTipShape(options, args[++i], out miniTipShape),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
                 };
             }
@@ -94,6 +96,7 @@ internal static class RouteCommand
                         UseBaseGrid = useBaseGrid,
                         FineFeatureMinisFallBackToRegular = fineFeatureFallback,
                         MinMemberSeparationMm = minMemberSeparation,
+                        MiniTipShape = miniTipShape,
                         PlateZ = options.PlateZ,
                         Seed = options.Seed,
                         Origin = options.Origin,
@@ -198,6 +201,18 @@ internal static class RouteCommand
         minMemberSeparation = Parse(value);
         if (!float.IsFinite(minMemberSeparation) || minMemberSeparation < 0)
             throw new ArgumentException("min-member-separation must be a non-negative number");
+        return options;
+    }
+
+    private static GridRoutingOptions SetMiniTipShape(GridRoutingOptions options, string value,
+        out SupportTipShape miniTipShape)
+    {
+        miniTipShape = value.ToLowerInvariant() switch
+        {
+            "cone" => SupportTipShape.Cone,
+            "capsule" => SupportTipShape.Capsule,
+            _ => throw new ArgumentException("mini-tip-shape must be 'cone' or 'capsule'"),
+        };
         return options;
     }
 
@@ -407,7 +422,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--fine-feature-fallback on|off] [--min-member-separation <mm>] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--fine-feature-fallback on|off] [--mini-tip-shape cone|capsule] [--min-member-separation <mm>] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 

@@ -78,11 +78,11 @@ public class BenchCommandTests
         var markdown = BenchCommand.BuildMarkdown(report);
 
         Assert.Contains("| Model | Command | Flags | Wall s | Exit | Counts | Notes |", markdown);
-        Assert.Contains("| model | `tips` | `--seat --json --fine-feature-max 1` | 1.235 | 0 | **12** candidates " +
+        Assert.Contains("| model | `tips` | `--seat --json --mini-tip-shape cone --fine-feature-max 1` | 1.235 | 0 | **12** candidates " +
                         "(Island 2, MiniCluster 6, Overhang 10) across **2** mini clusters " +
                         "(**3 island / 3 regular members**), **2 fine-feature singles**", markdown);
         Assert.Contains("`--seat --strategy tree --base-grid on --fine-feature-fallback on " +
-                        "--min-member-separation 0.5 --reinforce on --json` | " +
+                        "--mini-tip-shape cone --min-member-separation 0.5 --reinforce on --json` | " +
                         "2.346 | 2", markdown);
         Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);
         Assert.Contains("**unrouted 9 / 12**, bases **1**, max lean 44.6°, " +

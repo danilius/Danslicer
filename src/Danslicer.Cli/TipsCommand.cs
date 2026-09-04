@@ -57,6 +57,18 @@ internal static class TipsCommand
                     }
                     break;
                 }
+                case "--mini-tip-shape":
+                {
+                    var name = args[++i].ToLowerInvariant();
+                    if (name == "capsule") parameters = parameters with { MiniTipShape = SupportTipShape.Capsule };
+                    else if (name == "cone") parameters = parameters with { MiniTipShape = SupportTipShape.Cone };
+                    else
+                    {
+                        Console.Error.WriteLine("mini-tip-shape must be 'capsule' or 'cone'");
+                        return 1;
+                    }
+                    break;
+                }
                 case "--cone-length": parameters = parameters with { ConeLengthMm = F(args[++i]) }; break;
                 case "--ball-diameter": parameters = parameters with { BallDiameterMm = F(args[++i]) }; break;
                 case "--penetration-depth": parameters = parameters with { PenetrationDepthMm = Math.Max(F(args[++i]), 0f) }; break;
@@ -100,6 +112,7 @@ internal static class TipsCommand
             Console.Error.WriteLine("  danslicer tips <file.stl|file.obj> [--json] [--seat] [--spacing 2.5] [--min-spacing 2.5]");
             Console.Error.WriteLine("                 [--overhang 45] [--min-island 0.5] [--fine-feature-max 1] [--layer 0.05] [--tip 0.4]");
             Console.Error.WriteLine("                 [--tip-shape capsule|cone] [--cone-length 2] [--ball-diameter 0] [--penetration-depth 0]");
+            Console.Error.WriteLine("                 [--mini-tip-shape cone|capsule]");
             Console.Error.WriteLine("                 [--edge 0] [--force-edges] [--sharp-edge 30] [--seed 0]");
             Console.Error.WriteLine("                 [--grid square|hex] [--grid-spacing 5] [--grid-offset-x 0] [--grid-offset-y 0]");
             Console.Error.WriteLine("                 [--grid-rotation 0] [--keep-clean-distance 0]");
@@ -159,6 +172,7 @@ internal static class TipsCommand
                 Spacing = spacing,
                 SeatOffset = seatOffset is { } o ? MeshSeat.Json(o) : null,
                 TipShape = parameters.TipShape.ToString(),
+                MiniTipShape = parameters.MiniTipShape.ToString(),
                 ConeLength = parameters.ConeLengthMm,
                 BallDiameter = parameters.BallDiameterMm,
                 PenetrationDepth = parameters.PenetrationDepthMm,
@@ -198,6 +212,7 @@ internal static class TipsCommand
         Console.WriteLine($"Triangles:   {mesh.TriangleCount.ToString("N0", Ci)}");
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
         Console.WriteLine($"Tip shape:   {parameters.TipShape}  cone {Fmt(parameters.ConeLengthMm)}  ball {Fmt(parameters.BallDiameterMm)}  penetration {Fmt(parameters.PenetrationDepthMm)}");
+        Console.WriteLine($"Mini shape:  {parameters.MiniTipShape}");
         Console.WriteLine($"Candidates:  {tips.Count}");
         Console.WriteLine($"Mini clusters: {miniClusterCount}");
         Console.WriteLine($"Fine-feature minis: {fineFeatureMiniCount}");
@@ -266,6 +281,7 @@ internal static class TipsCommand
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public float[]? SeatOffset { get; init; }
         public required string TipShape { get; init; }
+        public required string MiniTipShape { get; init; }
         public required float ConeLength { get; init; }
         public required float BallDiameter { get; init; }
         public required float PenetrationDepth { get; init; }

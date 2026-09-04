@@ -287,6 +287,7 @@ public sealed class UserConfigTests : IDisposable
                 IndependentManualSupports = true,
                 MinMemberSeparationMm = 0.75f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
+                MiniTipShape = SupportTipShape.Capsule,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
                 MiniSupportClusterDistance = 1.4f, FineFeatureMaxAreaMm2 = 1.8f,
@@ -323,6 +324,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.True(supports.IndependentManualSupports);
         Assert.Equal(0.7f, supports.MiniSupportDiameter);
         Assert.Equal(0.3f, supports.MiniSupportTipDiameter);
+        Assert.Equal(SupportTipShape.Capsule, supports.MiniTipShape);
         Assert.Equal(1.2f, supports.MiniSupportConeLength);
         Assert.Equal(6f, supports.MiniSupportMaxLength);
         Assert.Equal(72f, supports.MiniSupportMaxAngleDegrees);
@@ -350,6 +352,29 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.9f, supports.MinIslandAreaMm2);
         Assert.Equal(33f, supports.MaxContactFaceAngleDegrees);
         Assert.True(supports.RequireContactSeesPlate);
+    }
+
+    [Fact]
+    public void UnknownMiniTipShapeStringNormalizesToCone()
+    {
+        var path = PathFor("unknown-mini-tip-shape.json");
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(path, """
+            {
+              "Supports": { "MiniTipShape": "futureRodShape" },
+              "SupportPresets": [
+                { "Version": 1, "Name": "Future", "Settings": {
+                    "MiniTipShape": "futureRodShape"
+                } }
+              ]
+            }
+            """);
+
+        var loaded = UserConfig.Load(path);
+
+        Assert.Equal(SupportTipShape.Cone, loaded.Supports.MiniTipShape);
+        Assert.Equal(SupportTipShape.Cone,
+            loaded.FindSupportPreset("Future")!.Settings.MiniTipShape);
     }
 
     [Fact]
@@ -383,6 +408,7 @@ public sealed class UserConfigTests : IDisposable
         config.Supports.TipNormalLeadInMm = 0.55f;
         config.Supports.UseBaseGrid = false;
         config.Supports.MiniSupportMaxFanPerBranchEnd = 7;
+        config.Supports.MiniTipShape = SupportTipShape.Capsule;
         config.Supports.FineFeatureMaxAreaMm2 = 1.7f;
         config.Supports.FineFeatureMinisFallBackToRegular = false;
         config.Supports.MinMemberSeparationMm = 0.8f;
@@ -400,6 +426,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.55f, preset.Settings.TipNormalLeadInMm);
         Assert.False(preset.Settings.UseBaseGrid);
         Assert.Equal(7, preset.Settings.MiniSupportMaxFanPerBranchEnd);
+        Assert.Equal(SupportTipShape.Capsule, preset.Settings.MiniTipShape);
         Assert.Equal(1.7f, preset.Settings.FineFeatureMaxAreaMm2);
         Assert.False(preset.Settings.FineFeatureMinisFallBackToRegular);
         Assert.Equal(0.8f, preset.Settings.MinMemberSeparationMm);
@@ -495,6 +522,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0f, supports.MinMemberSeparationMm);
         Assert.Equal(0.6f, supports.MiniSupportDiameter);
         Assert.Equal(0.25f, supports.MiniSupportTipDiameter);
+        Assert.Equal(SupportTipShape.Cone, supports.MiniTipShape);
         Assert.Equal(1f, supports.MiniSupportConeLength);
         Assert.Equal(5f, supports.MiniSupportMaxLength);
         Assert.Equal(75f, supports.MiniSupportMaxAngleDegrees);

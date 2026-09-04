@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Danslicer.Core.Supports;
 
 namespace Danslicer.Cli;
 
@@ -34,14 +35,17 @@ internal static class BenchCommand
                 FineFeatureFallback = options.FineFeatureFallback,
                 IslandFirst = options.IslandFirst,
                 MinMemberSeparationMm = options.MinMemberSeparationMm,
+                MiniTipShape = options.MiniTipShape.ToString(),
                 Models =
                 [
                     RunModel("drogon", options.DrogonPath, options.Reinforce,
                         options.FineFeatureMaxAreaMm2, options.IslandFirst,
-                        options.FineFeatureFallback, options.MinMemberSeparationMm),
+                        options.FineFeatureFallback, options.MinMemberSeparationMm,
+                        options.MiniTipShape),
                     RunModel("gripper", options.GripperPath, options.Reinforce,
                         options.FineFeatureMaxAreaMm2, options.IslandFirst,
-                        options.FineFeatureFallback, options.MinMemberSeparationMm),
+                        options.FineFeatureFallback, options.MinMemberSeparationMm,
+                        options.MiniTipShape),
                 ],
             };
             report.Markdown = BuildMarkdown(report);
@@ -99,7 +103,9 @@ internal static class BenchCommand
             var fineFeatureFlag = report.FineFeatureMaxAreaMm2 is { } fineFeatureMax
                 ? $" --fine-feature-max {F(fineFeatureMax)}"
                 : string.Empty;
-            text.AppendLine($"| {Escape(model.Key)} | `tips` | `--seat --json{fineFeatureFlag}` | " +
+            var miniTipShape = report.MiniTipShape.ToLowerInvariant();
+            text.AppendLine($"| {Escape(model.Key)} | `tips` | `--seat --json " +
+                $"--mini-tip-shape {miniTipShape}{fineFeatureFlag}` | " +
                 $"{tips.WallSeconds:0.000} | {tips.ExitCode} | **{tips.Candidates}** candidates" +
                 $"{Parenthesize(strategies)}{clusters} | {spacing} |");
 
@@ -113,6 +119,7 @@ internal static class BenchCommand
                 text.AppendLine($"| {Escape(model.Key)} | `route` | " +
                     $"`--seat --strategy tree --base-grid {route.BaseGrid} " +
                     $"--fine-feature-fallback {(report.FineFeatureFallback ? "on" : "off")} " +
+                    $"--mini-tip-shape {miniTipShape} " +
                     $"--min-member-separation {F(report.MinMemberSeparationMm)} " +
                     $"--reinforce {(route.Reinforce ? "on" : "off")} --json` | " +
                     $"{route.WallSeconds:0.000} | {route.ExitCode} | nodes {route.Nodes}, " +
@@ -131,11 +138,13 @@ internal static class BenchCommand
 
     private static ModelBenchmark RunModel(string key, string path, bool reinforce,
         float? fineFeatureMaxAreaMm2, bool islandFirst, bool fineFeatureFallback,
-        float minMemberSeparationMm)
+        float minMemberSeparationMm, SupportTipShape miniTipShape)
     {
         if (!File.Exists(path)) throw new IOException($"model not found: {path}");
 
-        var tipsArgs = new List<string> { path, "--seat", "--json" };
+        var miniTipShapeName = miniTipShape.ToString().ToLowerInvariant();
+        var tipsArgs = new List<string>
+            { path, "--seat", "--json", "--mini-tip-shape", miniTipShapeName };
         if (fineFeatureMaxAreaMm2 is { } fineFeatureMax)
         {
             tipsArgs.Add("--fine-feature-max");
@@ -158,6 +167,7 @@ internal static class BenchCommand
                     path, "--tips", tipsPath, "--seat", "--strategy", "tree",
                     "--base-grid", mode, "--fine-feature-fallback",
                     fineFeatureFallback ? "on" : "off",
+                    "--mini-tip-shape", miniTipShapeName,
                     "--min-member-separation", F(minMemberSeparationMm),
                     "--reinforce", reinforce ? "on" : "off", "--json",
                 };
@@ -270,6 +280,7 @@ internal static class BenchCommand
         var islandFirst = true;
         var fineFeatureFallback = true;
         var minMemberSeparationMm = 0f;
+        var miniTipShape = SupportTipShape.Cone;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -291,12 +302,22 @@ internal static class BenchCommand
                         throw new ArgumentException(
                             "min-member-separation must be a non-negative number");
                     break;
+                case "--mini-tip-shape":
+                    miniTipShape = ParseTipShape(args[++i]);
+                    break;
                 default: throw new ArgumentException($"unknown option '{args[i]}'");
             }
         }
         return new BenchOptions(drogon, gripper, output, reinforce, fineFeatureMaxAreaMm2,
-            islandFirst, fineFeatureFallback, minMemberSeparationMm);
+            islandFirst, fineFeatureFallback, minMemberSeparationMm, miniTipShape);
     }
+
+    private static SupportTipShape ParseTipShape(string value) => value.ToLowerInvariant() switch
+    {
+        "cone" => SupportTipShape.Cone,
+        "capsule" => SupportTipShape.Capsule,
+        _ => throw new ArgumentException("mini-tip-shape must be 'cone' or 'capsule'"),
+    };
 
     private static bool ParseToggle(string value, string name) => value.ToLowerInvariant() switch
     {
@@ -328,11 +349,11 @@ internal static class BenchCommand
     private static string F1(float value) => value.ToString("0.0", CultureInfo.InvariantCulture);
 
     private static void Usage() => Console.Error.WriteLine(
-        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--island-first on|off] [--fine-feature-fallback on|off] [--min-member-separation <mm>] [--output <summary.json>]");
+        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--mini-tip-shape cone|capsule] [--reinforce on|off] [--fine-feature-max <mm2>] [--island-first on|off] [--fine-feature-fallback on|off] [--min-member-separation <mm>] [--output <summary.json>]");
 
     private sealed record BenchOptions(string DrogonPath, string GripperPath, string? OutputPath,
         bool Reinforce, float? FineFeatureMaxAreaMm2, bool IslandFirst,
-        bool FineFeatureFallback, float MinMemberSeparationMm);
+        bool FineFeatureFallback, float MinMemberSeparationMm, SupportTipShape MiniTipShape);
     private sealed record CapturedRun(int ExitCode, double WallSeconds, string Stdout, string Stderr);
 }
 
@@ -343,6 +364,7 @@ internal sealed class BenchmarkReport
     public bool FineFeatureFallback { get; init; } = true;
     public bool IslandFirst { get; init; } = true;
     public float MinMemberSeparationMm { get; init; }
+    public string MiniTipShape { get; init; } = nameof(SupportTipShape.Cone);
     public required List<ModelBenchmark> Models { get; init; }
     public string Markdown { get; set; } = string.Empty;
 }

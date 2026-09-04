@@ -215,6 +215,8 @@ public sealed record SupportConfig
     public float MinMemberSeparationMm { get; set; }
     public float MiniSupportDiameter { get; set; } = 0.6f;
     public float MiniSupportTipDiameter { get; set; } = 0.25f;
+    [JsonConverter(typeof(SupportTipShapeJsonConverter))]
+    public SupportTipShape MiniTipShape { get; set; } = SupportTipShape.Cone;
     public float MiniSupportConeLength { get; set; } = 1f;
     public float MiniSupportMaxLength { get; set; } = 5f;
     public float MiniSupportMaxAngleDegrees { get; set; } = 75f;
@@ -281,6 +283,7 @@ public sealed record SupportConfig
         MinMemberSeparationMm = NonNegative(MinMemberSeparationMm);
         MiniSupportDiameter = Positive(MiniSupportDiameter, 0.6f);
         MiniSupportTipDiameter = Positive(MiniSupportTipDiameter, 0.25f);
+        if (!Enum.IsDefined(MiniTipShape)) MiniTipShape = SupportTipShape.Cone;
         MiniSupportConeLength = Positive(MiniSupportConeLength, 1f);
         MiniSupportMaxLength = Positive(MiniSupportMaxLength, 5f);
         MiniSupportMaxAngleDegrees = float.IsFinite(MiniSupportMaxAngleDegrees)
@@ -319,6 +322,33 @@ public sealed record SupportConfig
 
     private static float NonNegativeOrFallback(float value, float fallback) =>
         float.IsFinite(value) ? MathF.Max(0, value) : fallback;
+}
+
+/// <summary>
+/// String enum persistence matching <see cref="JsonStringEnumConverter"/>, with forward-compatible
+/// reads: a future shape name becomes an undefined value which <see cref="SupportConfig.Normalize"/>
+/// restores to Cone instead of invalidating the entire user-config file.
+/// </summary>
+internal sealed class SupportTipShapeJsonConverter : JsonConverter<SupportTipShape>
+{
+    public override SupportTipShape Read(ref Utf8JsonReader reader, Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var text = reader.GetString();
+            return Enum.TryParse<SupportTipShape>(text, ignoreCase: true, out var shape) &&
+                   Enum.IsDefined(shape)
+                ? shape
+                : (SupportTipShape)(-1);
+        }
+        if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out var number))
+            return (SupportTipShape)number;
+        throw new JsonException("mini tip shape must be a string or integer");
+    }
+
+    public override void Write(Utf8JsonWriter writer, SupportTipShape value,
+        JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
 }
 
 /// <summary>

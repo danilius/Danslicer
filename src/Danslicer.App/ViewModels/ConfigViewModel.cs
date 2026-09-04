@@ -97,6 +97,9 @@ public sealed class ConfigViewModel : ViewModelBase
     public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
         Enum.GetValues<SupportBaseShape>();
 
+    public IReadOnlyList<SupportTipShape> SupportTipShapes { get; } =
+        Enum.GetValues<SupportTipShape>();
+
     public IReadOnlyList<ReinforceSeedSelector> ReinforceSeedSelectors { get; } =
         Enum.GetValues<ReinforceSeedSelector>();
 
@@ -554,6 +557,13 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.MiniSupportTipDiameter;
         set => Update(() => Supports.MiniSupportTipDiameter = Clamp(value, 0.01f, 100f, 0.25f));
+    }
+
+    public SupportTipShape SupportMiniTipShape
+    {
+        get => Supports.MiniTipShape;
+        set => Update(() => Supports.MiniTipShape = Enum.IsDefined(value)
+            ? value : SupportTipShape.Cone);
     }
 
     public float SupportMiniSupportConeLength

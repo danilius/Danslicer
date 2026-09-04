@@ -210,6 +210,11 @@
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportMiniSupportTipDiameter, Mode=TwoWay}" />
                 </Grid>
+                <Grid Tag="supports mini contact tip shape cone capsule rod" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Contact shape" Classes="label" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding SupportTipShapes}"
+                              SelectedItem="{Binding SupportMiniTipShape, Mode=TwoWay}" />
+                </Grid>
                 <Grid Tag="supports mini cone length mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Cone length" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
