@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using CommunityToolkit.Mvvm.Input;
@@ -34,7 +35,11 @@ public partial class MainWindow : Window
             WorkspaceMode.Slicing);
         InitializeComponent();
         Configuration.WindowStatePersistence.Track(this, "main",
-            rightPanel: WorkspaceGrid.ColumnDefinitions[2]);
+            rightPanel: WorkspaceGrid.ColumnDefinitions[2],
+            rightPanelWidthProvider: PersistedRightPanelWidth);
+        _expandedRightPanelWidth = WorkspaceGrid.ColumnDefinitions[2].Width;
+        DataContextChanged += OnMainDataContextChanged;
+        AttachPanelLayoutViewModel();
         RefreshWindowKeymap();
         SyncRenderPathMenu();
         Viewport.PropertyChanged += (_, e) =>
@@ -63,6 +68,60 @@ public partial class MainWindow : Window
     private ConfigWindow? _configWindow;
     private SupportPresetEditorWindow? _presetEditorWindow;
     private readonly List<KeyBinding> _windowKeyBindings = [];
+    private MainViewModel? _panelLayoutViewModel;
+    private GridLength _expandedRightPanelWidth = new(320);
+
+    private void OnMainDataContextChanged(object? sender, EventArgs e) =>
+        AttachPanelLayoutViewModel();
+
+    private void AttachPanelLayoutViewModel()
+    {
+        if (_panelLayoutViewModel is not null)
+            _panelLayoutViewModel.PropertyChanged -= OnPanelLayoutPropertyChanged;
+        _panelLayoutViewModel = ViewModel;
+        if (_panelLayoutViewModel is not null)
+            _panelLayoutViewModel.PropertyChanged += OnPanelLayoutPropertyChanged;
+        ApplyRightPanelMode();
+    }
+
+    private void OnPanelLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.ViewMode)) ApplyRightPanelMode();
+    }
+
+    private void ApplyRightPanelMode()
+    {
+        var splitterColumn = WorkspaceGrid.ColumnDefinitions[1];
+        var rightPanelColumn = WorkspaceGrid.ColumnDefinitions[2];
+        var showRightPanel = ViewModel?.ViewMode != WorkspaceMode.Support;
+        if (!showRightPanel)
+        {
+            var currentWidth = rightPanelColumn.ActualWidth >= 220
+                ? rightPanelColumn.ActualWidth
+                : rightPanelColumn.Width.Value;
+            if (currentWidth >= 220) _expandedRightPanelWidth = new GridLength(currentWidth);
+            RightPanel.IsVisible = false;
+            RightPanelSplitter.IsVisible = false;
+            splitterColumn.Width = new GridLength(0);
+            rightPanelColumn.MinWidth = 0;
+            rightPanelColumn.Width = new GridLength(0);
+            return;
+        }
+
+        RightPanel.IsVisible = true;
+        RightPanelSplitter.IsVisible = true;
+        splitterColumn.Width = new GridLength(5);
+        rightPanelColumn.MinWidth = 220;
+        if (rightPanelColumn.Width.Value <= 0)
+            rightPanelColumn.Width = _expandedRightPanelWidth;
+    }
+
+    private double PersistedRightPanelWidth()
+    {
+        if (!RightPanel.IsVisible) return _expandedRightPanelWidth.Value;
+        var currentWidth = WorkspaceGrid.ColumnDefinitions[2].ActualWidth;
+        return currentWidth >= 220 ? currentWidth : _expandedRightPanelWidth.Value;
+    }
 
     private void OnObjectsToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(ObjectsToolPopup);

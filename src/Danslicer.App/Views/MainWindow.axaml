@@ -205,7 +205,8 @@
                 <ColumnDefinition Width="320" MinWidth="220" />
             </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="2" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0" Padding="10,4">
+        <Border x:Name="RightPanel" Grid.Column="2" Background="#23262A" BorderBrush="#111"
+                BorderThickness="1,0,0,0" Padding="10,4">
             <Grid>
                 <ScrollViewer IsVisible="{Binding IsLayoutView}">
                     <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -223,36 +224,6 @@
                         <TextBlock Text="Scale" Classes="section" />
                         <ItemsControl ItemsSource="{Binding Scale}" ItemTemplate="{StaticResource FieldTemplate}" />
 
-                    </StackPanel>
-                </ScrollViewer>
-
-                <ScrollViewer IsVisible="{Binding IsSupportView}">
-                    <!-- Right padding keeps the overlay scrollbar off the slider's upper handle. -->
-                    <StackPanel Margin="0,0,14,0">
-                        <TextBlock Text="Support inspection" Classes="section" />
-                        <CheckBox Content="Hover waterline" IsChecked="{Binding SupportWaterline.Enabled}"
-                                  Margin="0,0,0,6"
-                                  ToolTip.Tip="Show a live model contour at the hovered surface height" />
-                        <TextBlock Text="Layer range" Classes="label"
-                                   ToolTip.Tip="Viewport isolation only — slicing and support generation are unaffected" />
-                        <controls:LayerRangeSlider Minimum="{Binding SupportClip.MinimumZ}"
-                                                   Maximum="{Binding SupportClip.MaximumZ}"
-                                                   LowerValue="{Binding SupportClip.LowerZ, Mode=TwoWay}"
-                                                   UpperValue="{Binding SupportClip.UpperZ, Mode=TwoWay}"
-                                                   ToolTip.Tip="Drag either end to clip the Support viewport from below or above" />
-                        <Grid ColumnDefinitions="Auto,58,Auto,Auto,58,Auto,*" Margin="0,0,0,6">
-                            <TextBlock Text="Low" Classes="label" Margin="0,0,4,0" />
-                            <controls:ExpressionBox Grid.Column="1" Text="{Binding SupportClip.LowerField.Text, Mode=TwoWay}" />
-                            <TextBlock Grid.Column="2" Text="mm" Classes="label" Margin="4,0,10,0" />
-                            <TextBlock Grid.Column="3" Text="High" Classes="label" Margin="0,0,4,0" />
-                            <controls:ExpressionBox Grid.Column="4" Text="{Binding SupportClip.UpperField.Text, Mode=TwoWay}" />
-                            <TextBlock Grid.Column="5" Text="mm" Classes="label" Margin="4,0,0,0" />
-                            <Button Grid.Column="6" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
-                                    HorizontalAlignment="Right" Padding="8,2" />
-                        </Grid>
-                        <ToggleButton Content="Select Through" IsChecked="{Binding SelectThroughSupports}"
-                                      HorizontalAlignment="Stretch"
-                                      ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
                     </StackPanel>
                 </ScrollViewer>
 
@@ -303,7 +274,8 @@
             </Grid>
         </Border>
 
-        <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="#151719" />
+        <GridSplitter x:Name="RightPanelSplitter" Grid.Column="1"
+                      ResizeDirection="Columns" Background="#151719" />
 
         <!-- Main area: header strip, then either the 3D model view or the layer view. -->
         <DockPanel Grid.Column="0">
@@ -349,6 +321,40 @@
                      viewport's own 2D layer, so a rectangle drawn there is invisible. -->
                 <controls:SelectionRectOverlay IsVisible="{Binding IsModelView}"
                                                Rect="{Binding #Viewport.MarqueeRect}" />
+
+                <!-- Support inspection lives on the viewport edge so Support mode can use the
+                     full workspace width. Higher Z is at the top, matching the model axis. -->
+                <Border HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="78"
+                        Margin="0,164,12,12" Padding="7,8" Background="#D923262A"
+                        BorderBrush="#7A858F" BorderThickness="1" CornerRadius="3"
+                        IsVisible="{Binding IsSupportView}"
+                        ToolTip.Tip="Viewport layer isolation only — slicing and support generation are unaffected">
+                    <Grid RowDefinitions="Auto,*,Auto,Auto">
+                        <StackPanel>
+                            <TextBlock Text="High" Classes="label" HorizontalAlignment="Center" />
+                            <controls:ExpressionBox Width="60"
+                                Text="{Binding SupportClip.UpperField.Text, Mode=TwoWay}"
+                                ToolTip.Tip="Upper visible height (expressions accepted)" />
+                        </StackPanel>
+                        <controls:LayerRangeSlider Grid.Row="1" Orientation="Vertical"
+                                                   HorizontalAlignment="Stretch"
+                                                   Margin="0,6"
+                                                   Minimum="{Binding SupportClip.MinimumZ}"
+                                                   Maximum="{Binding SupportClip.MaximumZ}"
+                                                   LowerValue="{Binding SupportClip.LowerZ, Mode=TwoWay}"
+                                                   UpperValue="{Binding SupportClip.UpperZ, Mode=TwoWay}"
+                                                   ToolTip.Tip="Drag either end to clip the Support viewport from below or above" />
+                        <StackPanel Grid.Row="2">
+                            <TextBlock Text="Low" Classes="label" HorizontalAlignment="Center" />
+                            <controls:ExpressionBox Width="60"
+                                Text="{Binding SupportClip.LowerField.Text, Mode=TwoWay}"
+                                ToolTip.Tip="Lower visible height (expressions accepted)" />
+                        </StackPanel>
+                        <Button Grid.Row="3" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
+                                Margin="0,7,0,0" Padding="6,2"
+                                ToolTip.Tip="Show the full model height" />
+                    </Grid>
+                </Border>
 
                 <DockPanel IsVisible="{Binding IsLayersView}">
                     <Border DockPanel.Dock="Bottom" Background="#1F2124" BorderBrush="#111" BorderThickness="0,1,0,0" Padding="10,4">
