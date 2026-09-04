@@ -41,8 +41,10 @@ public static class SupportGenerator
         var effectivePlacement = placement.Grid is null
             ? placement with { Grid = routing }
             : placement;
-        var candidates = ScopeCandidates(TipPlacer.Place(mesh, regionFaces, effectivePlacement,
-            existingGraph, keepCleanFaces, seed), scope);
+        var candidates = ContactFaceFilter.Apply(
+            ScopeCandidates(TipPlacer.Place(mesh, regionFaces, effectivePlacement,
+                existingGraph, keepCleanFaces, seed), scope),
+            mesh, effectivePlacement);
         progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         // Both sides of this mapping speak the inward (penetration) normal, so it passes through;
@@ -87,8 +89,10 @@ public static class SupportGenerator
             EnableMiniTipClusters = true,
             MiniSupportMaxTipsPerCluster = routing.MiniSupportMaxFanPerBranchEnd,
         };
-        var candidates = ScopeCandidates(TipPlacer.Place(mesh, regionFaces, effectivePlacement,
-            existingGraph, keepCleanFaces, seed), scope);
+        var candidates = ContactFaceFilter.Apply(
+            ScopeCandidates(TipPlacer.Place(mesh, regionFaces, effectivePlacement,
+                existingGraph, keepCleanFaces, seed), scope),
+            mesh, effectivePlacement);
         progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         var lowestRegion = candidates.OrderBy(candidate => candidate.Point.Z)

@@ -735,6 +735,8 @@ public sealed class Document
                 IslandSpacingMm = request.Settings.IslandSpacingMm,
                 OverhangAngleDegrees = request.Settings.OverhangAngleDegrees,
                 MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
+                MaxContactFaceAngleDegrees = request.Settings.MaxContactFaceAngleDegrees,
+                RequireContactSeesPlate = request.Settings.RequireContactSeesPlate,
                 EnableMiniSupports = true,
                 MiniIslandMaxAreaMm2 = request.Settings.MiniIslandMaxAreaMm2,
                 MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
