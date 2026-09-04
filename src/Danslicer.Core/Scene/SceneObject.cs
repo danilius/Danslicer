@@ -15,7 +15,7 @@ public sealed class SceneObject
 {
     public Guid Id { get; }
     public string Name { get; set; }
-    public Mesh Mesh { get; }
+    public Mesh Mesh { get; internal set; }
     public Transform Transform { get; set; } = Transform.Identity;
     public RenderState RenderState { get; set; } = RenderState.Normal;
 
