@@ -1,11 +1,13 @@
 using System.Windows.Input;
 using System.ComponentModel;
+using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Danslicer.App.Controls;
 using Danslicer.App.Configuration;
 using Danslicer.App.ViewModels;
@@ -51,14 +53,18 @@ public partial class MainWindow : Window
         Viewport.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
         LayerView.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
         LayerView.LayerStepRequested += delta => ViewModel?.StepLayer(delta);
+        _uvtoolsAvailabilityTimer.Tick += (_, _) => ViewModel?.RefreshUvtoolsAvailability();
         Opened += (_, _) =>
         {
             Viewport.FrameAll();
+            ViewModel?.RefreshUvtoolsAvailability();
+            _uvtoolsAvailabilityTimer.Start();
             if (ViewModel is { } vm)
                 vm.SupportSettings.EditSupportPresetRequested += OpenSupportPresetEditor;
         };
         Closed += (_, _) =>
         {
+            _uvtoolsAvailabilityTimer.Stop();
             if (ViewModel is { } vm)
                 vm.SupportSettings.EditSupportPresetRequested -= OpenSupportPresetEditor;
             _presetEditorWindow?.Close();
@@ -76,6 +82,8 @@ public partial class MainWindow : Window
     private readonly ViewportPopupState _islandDetectionPopupState = new(ViewportTool.IslandDetection);
     private readonly ViewportPopupState _visibilityPopupState = new(ViewportTool.Visibility);
     private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
+    private readonly DispatcherTimer _uvtoolsAvailabilityTimer = new()
+        { Interval = TimeSpan.FromSeconds(1) };
 
     private void OnMainDataContextChanged(object? sender, EventArgs e) =>
         AttachPanelLayoutViewModel();
@@ -683,6 +691,44 @@ public partial class MainWindow : Window
         var path = file?.TryGetLocalPath();
         if (path is null) return;
         await ViewModel.ExportAsync(path);
+    }
+
+    private void OnUvtoolsCheckClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel) return;
+        viewModel.RefreshUvtoolsAvailability();
+        if (!viewModel.CanCheckWithUvtools)
+        {
+            viewModel.ViewportStatus = viewModel.UvtoolsCheckTooltip;
+            return;
+        }
+
+        var executablePath = AppConfig.Current.UvtoolsExecutablePath.Trim();
+        if (executablePath.Length == 0)
+        {
+            viewModel.ViewportStatus =
+                "Set the UVtools executable path in Preferences before running the check.";
+            return;
+        }
+        if (!File.Exists(executablePath))
+        {
+            viewModel.ViewportStatus =
+                "The configured UVtools executable was not found. Update it in Preferences.";
+            return;
+        }
+
+        try
+        {
+            var process = Process.Start(UvtoolsLauncher.CreateStartInfo(
+                executablePath, viewModel.LastExportPath!));
+            viewModel.ViewportStatus = process is null
+                ? "UVtools could not be started. Check its path in Preferences."
+                : $"Opened {Path.GetFileName(viewModel.LastExportPath)} in UVtools.";
+        }
+        catch (Exception ex)
+        {
+            viewModel.ViewportStatus = $"UVtools failed to start: {ex.Message}";
+        }
     }
 
     private void OnLayFlatClick(object? sender, RoutedEventArgs e)

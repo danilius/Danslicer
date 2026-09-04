@@ -33,14 +33,15 @@ internal static class BenchCommand
                 FineFeatureMaxAreaMm2 = options.FineFeatureMaxAreaMm2,
                 FineFeatureFallback = options.FineFeatureFallback,
                 IslandFirst = options.IslandFirst,
+                MinMemberSeparationMm = options.MinMemberSeparationMm,
                 Models =
                 [
                     RunModel("drogon", options.DrogonPath, options.Reinforce,
                         options.FineFeatureMaxAreaMm2, options.IslandFirst,
-                        options.FineFeatureFallback),
+                        options.FineFeatureFallback, options.MinMemberSeparationMm),
                     RunModel("gripper", options.GripperPath, options.Reinforce,
                         options.FineFeatureMaxAreaMm2, options.IslandFirst,
-                        options.FineFeatureFallback),
+                        options.FineFeatureFallback, options.MinMemberSeparationMm),
                 ],
             };
             report.Markdown = BuildMarkdown(report);
@@ -107,17 +108,19 @@ internal static class BenchCommand
                 var segments = OrderedValues(route.SegmentCounts,
                     ["Tip", "MiniSupport", "Branch", "Trunk", "Bracing"], SegmentName);
                 var refusals = OrderedValues(route.RefusalCounts,
-                    "ContactBlocked", "NoClearStep", "NoReachableGridPoint",
+                    "ContactBlocked", "MemberCrossing", "NoClearStep", "NoReachableGridPoint",
                     "NoBranchEndInRange", "NoLanding", "BelowPlate");
                 text.AppendLine($"| {Escape(model.Key)} | `route` | " +
                     $"`--seat --strategy tree --base-grid {route.BaseGrid} " +
                     $"--fine-feature-fallback {(report.FineFeatureFallback ? "on" : "off")} " +
+                    $"--min-member-separation {F(report.MinMemberSeparationMm)} " +
                     $"--reinforce {(route.Reinforce ? "on" : "off")} --json` | " +
                     $"{route.WallSeconds:0.000} | {route.ExitCode} | nodes {route.Nodes}, " +
                     $"segs {route.Segments}{Parenthesize(segments)}, **unrouted " +
                     $"{route.UnroutedTips} / {tips.Candidates}**, bases **{route.Bases}**, " +
                     $"max lean {F1(route.MaxLeanAngleDegrees)}°, collisionFree " +
-                    $"**{route.CollisionFree.ToString().ToLowerInvariant()}** | " +
+                    $"**{route.CollisionFree.ToString().ToLowerInvariant()}**, crossing pairs " +
+                    $"<0.5 / <1 mm **{route.CrossingPairsBelowHalfMm} / {route.CrossingPairs}** | " +
                     $"Refusals: {(refusals.Length == 0 ? "none" : refusals)}; " +
                     $"island-origin **{route.IslandRefusals}**. |");
             }
@@ -126,7 +129,8 @@ internal static class BenchCommand
     }
 
     private static ModelBenchmark RunModel(string key, string path, bool reinforce,
-        float? fineFeatureMaxAreaMm2, bool islandFirst, bool fineFeatureFallback)
+        float? fineFeatureMaxAreaMm2, bool islandFirst, bool fineFeatureFallback,
+        float minMemberSeparationMm)
     {
         if (!File.Exists(path)) throw new IOException($"model not found: {path}");
 
@@ -153,6 +157,7 @@ internal static class BenchCommand
                     path, "--tips", tipsPath, "--seat", "--strategy", "tree",
                     "--base-grid", mode, "--fine-feature-fallback",
                     fineFeatureFallback ? "on" : "off",
+                    "--min-member-separation", F(minMemberSeparationMm),
                     "--reinforce", reinforce ? "on" : "off", "--json",
                 };
                 if (!islandFirst) routeArgs.AddRange(["--island-first", "off"]);
@@ -219,6 +224,9 @@ internal static class BenchCommand
             Bases = root.GetProperty("bases").GetArrayLength(),
             MaxLeanAngleDegrees = root.GetProperty("maxLeanAngleDegrees").GetSingle(),
             CollisionFree = root.GetProperty("collisionFree").GetBoolean(),
+            CrossingPairs = root.GetProperty("crossingPairs").GetInt32(),
+            CrossingPairsBelowHalfMm = root.GetProperty("crossingPairsBelowHalfMm").GetInt32(),
+            CrossingPairCounts = ReadIntDictionary(root.GetProperty("crossingPairCounts")),
         };
     }
 
@@ -259,6 +267,7 @@ internal static class BenchCommand
         float? fineFeatureMaxAreaMm2 = null;
         var islandFirst = true;
         var fineFeatureFallback = true;
+        var minMemberSeparationMm = 0f;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -274,11 +283,17 @@ internal static class BenchCommand
                 case "--fine-feature-fallback":
                     fineFeatureFallback = ParseToggle(args[++i], "fine-feature-fallback");
                     break;
+                case "--min-member-separation":
+                    minMemberSeparationMm = float.Parse(args[++i], CultureInfo.InvariantCulture);
+                    if (!float.IsFinite(minMemberSeparationMm) || minMemberSeparationMm < 0)
+                        throw new ArgumentException(
+                            "min-member-separation must be a non-negative number");
+                    break;
                 default: throw new ArgumentException($"unknown option '{args[i]}'");
             }
         }
         return new BenchOptions(drogon, gripper, output, reinforce, fineFeatureMaxAreaMm2,
-            islandFirst, fineFeatureFallback);
+            islandFirst, fineFeatureFallback, minMemberSeparationMm);
     }
 
     private static bool ParseToggle(string value, string name) => value.ToLowerInvariant() switch
@@ -311,11 +326,11 @@ internal static class BenchCommand
     private static string F1(float value) => value.ToString("0.0", CultureInfo.InvariantCulture);
 
     private static void Usage() => Console.Error.WriteLine(
-        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--island-first on|off] [--fine-feature-fallback on|off] [--output <summary.json>]");
+        "usage: danslicer bench [--drogon <path>] [--gripper <path>] [--reinforce on|off] [--fine-feature-max <mm2>] [--island-first on|off] [--fine-feature-fallback on|off] [--min-member-separation <mm>] [--output <summary.json>]");
 
     private sealed record BenchOptions(string DrogonPath, string GripperPath, string? OutputPath,
         bool Reinforce, float? FineFeatureMaxAreaMm2, bool IslandFirst,
-        bool FineFeatureFallback);
+        bool FineFeatureFallback, float MinMemberSeparationMm);
     private sealed record CapturedRun(int ExitCode, double WallSeconds, string Stdout, string Stderr);
 }
 
@@ -325,6 +340,7 @@ internal sealed class BenchmarkReport
     public float? FineFeatureMaxAreaMm2 { get; init; }
     public bool FineFeatureFallback { get; init; } = true;
     public bool IslandFirst { get; init; } = true;
+    public float MinMemberSeparationMm { get; init; }
     public required List<ModelBenchmark> Models { get; init; }
     public string Markdown { get; set; } = string.Empty;
 }
@@ -371,4 +387,7 @@ internal sealed class RouteBenchmark
     public int Bases { get; init; }
     public float MaxLeanAngleDegrees { get; init; }
     public bool CollisionFree { get; init; }
+    public int CrossingPairs { get; init; }
+    public int CrossingPairsBelowHalfMm { get; init; }
+    public Dictionary<string, int> CrossingPairCounts { get; init; } = [];
 }

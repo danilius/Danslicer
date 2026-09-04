@@ -11,6 +11,8 @@ using Danslicer.Cli;
 internal static class RouteCommand
 {
     private static readonly CultureInfo Ci = CultureInfo.InvariantCulture;
+    private const float HalfMillimetreCrossingThreshold = 0.5f;
+    private const float CrossingReportThresholdMm = 1f;
 
     public static int Run(string[] args)
     {
@@ -28,6 +30,7 @@ internal static class RouteCommand
             var reinforce = false;
             var islandFirst = true;
             var fineFeatureFallback = true;
+            var minMemberSeparation = 0f;
             for (var i = 1; i < args.Length; i++)
             {
                 options = args[i] switch
@@ -49,6 +52,8 @@ internal static class RouteCommand
                     "--island-first" => SetIslandFirst(options, args[++i], out islandFirst),
                     "--fine-feature-fallback" => SetFineFeatureFallback(options, args[++i],
                         out fineFeatureFallback),
+                    "--min-member-separation" => SetMinMemberSeparation(options, args[++i],
+                        out minMemberSeparation),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
                 };
             }
@@ -88,6 +93,7 @@ internal static class RouteCommand
                         BranchDiameter = options.PillarDiameter,
                         UseBaseGrid = useBaseGrid,
                         FineFeatureMinisFallBackToRegular = fineFeatureFallback,
+                        MinMemberSeparationMm = minMemberSeparation,
                         PlateZ = options.PlateZ,
                         Seed = options.Seed,
                         Origin = options.Origin,
@@ -98,8 +104,16 @@ internal static class RouteCommand
                 result = new GridSupportRouter(obstacles, rules).Route(tips, options);
             }
             var collisionFree = IsCollisionFree(result.Graph, obstacles);
-            if (json) WriteJson(result, collisionFree, seatOffset);
-            else WriteText(meshPath, tips.Count, result, collisionFree, seatOffset);
+            var crossingPairs = MemberSeparation.CountPairs(result.Graph,
+                CrossingReportThresholdMm);
+            var crossingPairsBelowHalfMm = MemberSeparation.CountPairs(result.Graph,
+                HalfMillimetreCrossingThreshold);
+            var crossingPairCounts = MemberSeparation.CountPairsByType(result.Graph,
+                CrossingReportThresholdMm);
+            if (json) WriteJson(result, collisionFree, crossingPairs,
+                crossingPairsBelowHalfMm, crossingPairCounts, minMemberSeparation, seatOffset);
+            else WriteText(meshPath, tips.Count, result, collisionFree, crossingPairs,
+                crossingPairsBelowHalfMm, minMemberSeparation, seatOffset);
             return result.UnroutedTips.Count == 0 && collisionFree ? 0 : 2;
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or JsonException
@@ -176,6 +190,15 @@ internal static class RouteCommand
         return options;
     }
 
+    private static GridRoutingOptions SetMinMemberSeparation(GridRoutingOptions options,
+        string value, out float minMemberSeparation)
+    {
+        minMemberSeparation = Parse(value);
+        if (!float.IsFinite(minMemberSeparation) || minMemberSeparation < 0)
+            throw new ArgumentException("min-member-separation must be a non-negative number");
+        return options;
+    }
+
     private static GridRoutingOptions SetStrategy(GridRoutingOptions options, string value,
         out string strategy)
     {
@@ -233,7 +256,8 @@ internal static class RouteCommand
                 FallbackTipDiameter: tip.FallbackTipDiameter,
                 FallbackTipShape: ParseOptionalShape(tip.FallbackTipShape),
                 FallbackConeLength: tip.FallbackConeLength,
-                FallbackBallDiameter: tip.FallbackBallDiameter);
+                FallbackBallDiameter: tip.FallbackBallDiameter,
+                TipNormalLeadIn: Math.Max(tip.TipNormalLeadIn, 0f));
         }).ToList();
     }
 
@@ -254,23 +278,47 @@ internal static class RouteCommand
                 var nodeB = graph.GetNode(segment.NodeB);
                 var tipAtA = nodeA.Type == SupportNodeType.Tip;
                 var tipNode = tipAtA ? nodeA : nodeB;
-                var tip = tipNode.Position;
                 var other = tipAtA ? end : start;
-                var delta = tip - other;
-                var length = delta.Length();
                 radius = MathF.Max(0.025f, tipNode.TipDiameter * 0.5f);
                 var contactAllowance = (radius + 0.25f) * 2 + 0.01f;
-                if (length <= contactAllowance) continue;
-                tip -= delta / length * contactAllowance;
-                if (tipAtA) start = tip; else end = tip;
+                if (TipPathIntersects(obstacles, tipNode, other, radius, contactAllowance))
+                    return false;
+                continue;
             }
             if (obstacles.IntersectsCapsule(start, end, radius)) return false;
         }
         return true;
     }
 
-    private static void WriteText(string meshPath, int tipCount, RoutingResult result, bool collisionFree,
-        Vector3? seatOffset)
+    private static bool TipPathIntersects(ICollisionScene obstacles, SupportNode tip,
+        Vector3 other, float radius, float contactAllowance)
+    {
+        var points = TipBodyGeometry.Centerline(tip.Position, tip.SurfaceNormal, other,
+            tip.TipNormalLeadIn);
+        var remainingTrim = contactAllowance;
+        for (var i = 1; i < points.Count; i++)
+        {
+            var start = points[i - 1];
+            var end = points[i];
+            var length = Vector3.Distance(start, end);
+            if (remainingTrim >= length)
+            {
+                remainingTrim -= length;
+                continue;
+            }
+            if (remainingTrim > 0)
+            {
+                start = Vector3.Lerp(start, end, remainingTrim / length);
+                remainingTrim = 0;
+            }
+            if (obstacles.IntersectsCapsule(start, end, radius)) return true;
+        }
+        return false;
+    }
+
+    private static void WriteText(string meshPath, int tipCount, RoutingResult result,
+        bool collisionFree, int crossingPairs, int crossingPairsBelowHalfMm,
+        float minMemberSeparation, Vector3? seatOffset)
     {
         Console.WriteLine($"Mesh:           {meshPath}");
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
@@ -289,10 +337,14 @@ internal static class RouteCommand
         foreach (var position in result.BasePositions)
             Console.WriteLine($"  {Format(position.X)}, {Format(position.Y)}, {Format(position.Z)}");
         Console.WriteLine($"Max lean:       {Format(result.MaxLeanAngleDegrees)} degrees");
+        Console.WriteLine($"Crossing pairs: {crossingPairsBelowHalfMm} below 0.5 mm; " +
+                          $"{crossingPairs} below {Format(CrossingReportThresholdMm)} mm");
         Console.WriteLine($"Collision-free: {(collisionFree ? "yes" : "no")}");
     }
 
-    private static void WriteJson(RoutingResult result, bool collisionFree, Vector3? seatOffset)
+    private static void WriteJson(RoutingResult result, bool collisionFree, int crossingPairs,
+        int crossingPairsBelowHalfMm, IReadOnlyDictionary<string, int> crossingPairCounts,
+        float minMemberSeparation, Vector3? seatOffset)
     {
         var summary = new Dictionary<string, object?>
         {
@@ -312,6 +364,11 @@ internal static class RouteCommand
             }).ToList(),
             ["bases"] = result.BasePositions.Select(p => new[] { p.X, p.Y, p.Z }).ToList(),
             ["maxLeanAngleDegrees"] = result.MaxLeanAngleDegrees,
+            ["minMemberSeparationMm"] = minMemberSeparation,
+            ["crossingThresholdMm"] = CrossingReportThresholdMm,
+            ["crossingPairsBelowHalfMm"] = crossingPairsBelowHalfMm,
+            ["crossingPairs"] = crossingPairs,
+            ["crossingPairCounts"] = crossingPairCounts,
             ["collisionFree"] = collisionFree,
         };
         if (seatOffset is { } offset) summary["seatOffset"] = MeshSeat.Json(offset);
@@ -346,7 +403,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--fine-feature-fallback on|off] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--fine-feature-fallback on|off] [--min-member-separation <mm>] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 
@@ -368,6 +425,7 @@ internal static class RouteCommand
         public float ConeLength { get; set; }
         public float BallDiameter { get; set; }
         public float PenetrationDepth { get; set; }
+        public float TipNormalLeadIn { get; set; }
         public string? Strategy { get; set; }
         public string? MiniClusterSourceStrategy { get; set; }
         public int? MiniClusterId { get; set; }

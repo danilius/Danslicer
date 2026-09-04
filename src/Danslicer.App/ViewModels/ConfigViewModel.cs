@@ -365,6 +365,31 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
     }
 
+    // External tools
+
+    public string UvtoolsExecutablePath
+    {
+        get => _config.UvtoolsExecutablePath;
+        set
+        {
+            var path = value ?? "";
+            if (path == _config.UvtoolsExecutablePath) return;
+            Update(() => _config.UvtoolsExecutablePath = path);
+            OnPropertyChanged(nameof(IsUvtoolsExecutablePathValid));
+            OnPropertyChanged(nameof(UvtoolsExecutablePathValidationMessage));
+        }
+    }
+
+    public bool IsUvtoolsExecutablePathValid =>
+        !string.IsNullOrWhiteSpace(UvtoolsExecutablePath) && File.Exists(UvtoolsExecutablePath);
+
+    public string UvtoolsExecutablePathValidationMessage =>
+        string.IsNullOrWhiteSpace(UvtoolsExecutablePath)
+            ? "Not configured."
+            : IsUvtoolsExecutablePathValid
+                ? "Executable found."
+                : "File not found.";
+
     public int SupportDisplayModeIndex
     {
         get => (int)SupportDisplay.Mode;
@@ -451,6 +476,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.PenetrationDepth = Clamp(value, 0f, 100f, 0f));
     }
 
+    public float SupportTipNormalLeadInMm
+    {
+        get => Supports.TipNormalLeadInMm;
+        set => Update(() => Supports.TipNormalLeadInMm = Clamp(value, 0f, 100f, 0.3f));
+    }
+
     public float SupportTrunkDiameter
     {
         get => Supports.TrunkDiameter;
@@ -491,6 +522,12 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.ExistingTrunkBranchRange;
         set => Update(() => Supports.ExistingTrunkBranchRange = Clamp(value, 0.01f, 1000f, 8f));
+    }
+
+    public float SupportMinMemberSeparationMm
+    {
+        get => Supports.MinMemberSeparationMm;
+        set => Update(() => Supports.MinMemberSeparationMm = Clamp(value, 0f, 100f, 0f));
     }
 
     public float SupportMiniSupportDiameter

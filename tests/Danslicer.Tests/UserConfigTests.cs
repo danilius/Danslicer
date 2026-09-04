@@ -61,6 +61,7 @@ public sealed class UserConfigTests : IDisposable
                 Mode = PlacementMode.RaiseAbovePlate,
                 HeightMm = 8.5f,
             },
+            UvtoolsExecutablePath = @"C:\Program Files\UVtools\UVtools.exe",
         };
         var path = PathFor("config.json");
 
@@ -76,6 +77,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.True(loaded.SpaceMouse.InvertPanY);
         Assert.True(loaded.SpaceMouse.InvertZoom);
         Assert.Equal(0.02f, loaded.SpaceMouse.Deadzone);
+        Assert.Equal(@"C:\Program Files\UVtools\UVtools.exe", loaded.UvtoolsExecutablePath);
         Assert.Equal(30f, loaded.Viewport.OverhangAngleDegrees);
         Assert.Equal(0.6f, loaded.Viewport.PlateOpacityFromBelow);
         Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
@@ -277,9 +279,11 @@ public sealed class UserConfigTests : IDisposable
             Supports = new SupportConfig
             {
                 TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.3f,
-                PenetrationDepth = 0.15f, TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
+                PenetrationDepth = 0.15f, TipNormalLeadInMm = 0.45f,
+                TrunkDiameter = 1.8f, BranchDiameter = 1.4f,
                 MemberAngleDegrees = 38f, TipMemberLength = 3f, MaxBranchLength = 11f,
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
+                MinMemberSeparationMm = 0.75f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
@@ -306,6 +310,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(2.5f, supports.ConeLength);
         Assert.Equal(0.3f, supports.BallDiameter);
         Assert.Equal(0.15f, supports.PenetrationDepth);
+        Assert.Equal(0.45f, supports.TipNormalLeadInMm);
         Assert.Equal(1.8f, supports.TrunkDiameter);
         Assert.Equal(1.4f, supports.BranchDiameter);
         Assert.Equal(38f, supports.MemberAngleDegrees);
@@ -321,6 +326,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.4f, supports.MiniSupportClusterDistance);
         Assert.Equal(1.8f, supports.FineFeatureMaxAreaMm2);
+        Assert.Equal(0.75f, supports.MinMemberSeparationMm);
         Assert.False(supports.FineFeatureMinisFallBackToRegular);
         Assert.True(supports.RefusedTipsFallBackToMini);
         Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
@@ -371,10 +377,12 @@ public sealed class UserConfigTests : IDisposable
     {
         var config = new UserConfig();
         config.Supports.TipDiameter = 0.23f;
+        config.Supports.TipNormalLeadInMm = 0.55f;
         config.Supports.UseBaseGrid = false;
         config.Supports.MiniSupportMaxFanPerBranchEnd = 7;
         config.Supports.FineFeatureMaxAreaMm2 = 1.7f;
         config.Supports.FineFeatureMinisFallBackToRegular = false;
+        config.Supports.MinMemberSeparationMm = 0.8f;
         Assert.True(config.SaveSupportPresetAs("Delicate teeth"));
         var path = PathFor("support-presets.json");
 
@@ -385,10 +393,12 @@ public sealed class UserConfigTests : IDisposable
             candidate => candidate.Name == "Delicate teeth");
         Assert.Equal(SupportPreset.CurrentVersion, preset.Version);
         Assert.Equal(0.23f, preset.Settings.TipDiameter);
+        Assert.Equal(0.55f, preset.Settings.TipNormalLeadInMm);
         Assert.False(preset.Settings.UseBaseGrid);
         Assert.Equal(7, preset.Settings.MiniSupportMaxFanPerBranchEnd);
         Assert.Equal(1.7f, preset.Settings.FineFeatureMaxAreaMm2);
         Assert.False(preset.Settings.FineFeatureMinisFallBackToRegular);
+        Assert.Equal(0.8f, preset.Settings.MinMemberSeparationMm);
         Assert.Equal("Delicate teeth", loaded.ActiveSupportPresetName);
         Assert.NotSame(loaded.Supports, preset.Settings);
     }
@@ -469,6 +479,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(2f, supports.ConeLength);
         Assert.Equal(0f, supports.BallDiameter);
         Assert.Equal(0f, supports.PenetrationDepth);
+        Assert.Equal(0.3f, supports.TipNormalLeadInMm);
         Assert.Equal(1.2f, supports.TrunkDiameter);
         Assert.Equal(1.2f, supports.BranchDiameter);
         Assert.Equal(45f, supports.MemberAngleDegrees);
@@ -476,6 +487,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(8f, supports.MaxBranchLength);
         Assert.True(supports.PreferExistingTrunks);
         Assert.Equal(8f, supports.ExistingTrunkBranchRange);
+        Assert.Equal(0f, supports.MinMemberSeparationMm);
         Assert.Equal(0.6f, supports.MiniSupportDiameter);
         Assert.Equal(0.25f, supports.MiniSupportTipDiameter);
         Assert.Equal(1f, supports.MiniSupportConeLength);
@@ -494,6 +506,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(2f, supports.ReinforceRingRadius);
         Assert.Equal(1.25f, supports.ReinforceRingDiameterMultiplier);
         Assert.Equal(6f, new TreeRoutingOptions().BaseGridPitch);
+        Assert.Equal(0f, new TreeRoutingOptions().MinMemberSeparationMm);
         Assert.Equal(SupportBaseShape.Disc, supports.BaseShape);
         Assert.Equal(4f, supports.BaseDiameter);
         Assert.Equal(0.8f, supports.BaseHeight);

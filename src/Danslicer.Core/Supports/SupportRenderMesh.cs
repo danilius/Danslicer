@@ -166,6 +166,23 @@ public static class SupportRenderMesh
         var direction = axis / length;
         var coneBase = tip.Position + direction * coneLength;
         var hasRemainder = length - coneLength > 1e-4f;
+        if (tip.TipNormalLeadIn > 0)
+        {
+            var sections = TipBodyGeometry.Sections(tip, other, neckRadius, junctionRadius,
+                embedContact: false);
+            if (sections.Count == 0)
+            {
+                AppendCapsule(builder, tip.Position, other.Position, neckRadius);
+                return;
+            }
+            AppendTipBody(builder, sections);
+            if (tip.BallDiameter > 0)
+                AppendSphere(builder, tip.ContactBallCenter, tip.BallDiameter * 0.5f);
+            else if (contactRadius > 0)
+                AppendSphere(builder, tip.Position, contactRadius);
+            return;
+        }
+
         AppendTipBody(builder, tip.Position, coneBase, other.Position, contactRadius,
             neckRadius, junctionRadius, hasRemainder);
         if (tip.BallDiameter > 0)
@@ -194,6 +211,49 @@ public static class SupportRenderMesh
             };
         var tipPole = builder.AddVertex(tip);
         var junctionPole = builder.AddVertex(junction);
+        StitchShell(builder, rings, tipPole, junctionPole);
+    }
+
+    /// <summary>
+    /// Stitches a bent tip into one closed shell. Adjacent tapered sections are joined through
+    /// their coincident end rings, so only the contact and junction ends are capped; in particular,
+    /// the first ring is closed by the same contact-position pole used by the historical straight
+    /// tip path.
+    /// </summary>
+    private static void AppendTipBody(MeshBuilder builder, IReadOnlyList<TipBodySection> sections)
+    {
+        var rings = new int[sections.Count * 2][];
+        Vector3 u = default;
+        Vector3 v = default;
+        for (var i = 0; i < sections.Count; i++)
+        {
+            var section = sections[i];
+            var tangent = Vector3.Normalize(section.End - section.Start);
+            if (i == 0)
+                (u, v) = OrthonormalFrame(tangent);
+            else
+            {
+                // Keep corresponding vertices aligned around the bend while making each ring
+                // perpendicular to its own analytic frustum axis.
+                var transportedU = u - tangent * Vector3.Dot(u, tangent);
+                if (transportedU.LengthSquared() <= 1e-12f)
+                {
+                    (u, v) = OrthonormalFrame(tangent);
+                }
+                else
+                {
+                    u = Vector3.Normalize(transportedU);
+                    v = Vector3.Cross(tangent, u);
+                }
+            }
+            rings[i * 2] = AddRing(builder, section.Start, u, v,
+                MathF.Max(section.StartRadius, 0f));
+            rings[i * 2 + 1] = AddRing(builder, section.End, u, v,
+                MathF.Max(section.EndRadius, 0f));
+        }
+
+        var tipPole = builder.AddVertex(sections[0].Start);
+        var junctionPole = builder.AddVertex(sections[^1].End);
         StitchShell(builder, rings, tipPole, junctionPole);
     }
 

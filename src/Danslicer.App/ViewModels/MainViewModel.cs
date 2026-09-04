@@ -139,7 +139,8 @@ public partial class MainViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayoutView), nameof(IsSupportView), nameof(IsLayersView),
         nameof(ViewportTools), nameof(IsObjectListSelectionEnabled), nameof(IsObjectsToolVisible),
         nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
-        nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible))]
+        nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible),
+        nameof(IsUvtoolsCheckToolVisible))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
@@ -150,6 +151,8 @@ public partial class MainViewModel : ViewModelBase
     public bool IsIslandDetectionToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.IslandDetection, ViewMode);
     public bool IsVisibilityToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Visibility, ViewMode);
     public bool IsRaftsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Rafts, ViewMode);
+    public bool IsUvtoolsCheckToolVisible =>
+        ViewportToolbarPolicy.IsAvailable(ViewportTool.UvtoolsCheck, ViewMode);
 
     /// <summary>
     /// Object rows remain useful context in Support and Slicing, but only Layout owns object
@@ -257,6 +260,14 @@ public partial class MainViewModel : ViewModelBase
     public partial SliceResult? LastSlice { get; set; }
 
     public bool HasSlice => LastSlice is not null;
+
+    private string? _lastExportPath;
+    private UvtoolsLaunchAvailability _uvtoolsLaunchAvailability =
+        UvtoolsLauncher.GetAvailability(null);
+
+    public string? LastExportPath => _lastExportPath;
+    public bool CanCheckWithUvtools => _uvtoolsLaunchAvailability.IsEnabled;
+    public string UvtoolsCheckTooltip => _uvtoolsLaunchAvailability.Tooltip;
 
     [ObservableProperty]
     public partial string SliceSummary { get; set; } = "Not sliced yet.";
@@ -872,6 +883,8 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             await Task.Run(() => PhotonWorkshopWriter.Write(result, path));
+            _lastExportPath = System.IO.Path.GetFullPath(path);
+            RefreshUvtoolsAvailability();
             ViewportStatus = $"Exported {System.IO.Path.GetFileName(path)}: {result.LayerCount} layers, {result.VolumeMl:0.##} ml.";
             return true;
         }
@@ -880,6 +893,15 @@ public partial class MainViewModel : ViewModelBase
             ViewportStatus = $"Export failed: {ex.Message}";
             return false;
         }
+    }
+
+    public void RefreshUvtoolsAvailability()
+    {
+        var availability = UvtoolsLauncher.GetAvailability(_lastExportPath);
+        if (availability == _uvtoolsLaunchAvailability) return;
+        _uvtoolsLaunchAvailability = availability;
+        OnPropertyChanged(nameof(CanCheckWithUvtools));
+        OnPropertyChanged(nameof(UvtoolsCheckTooltip));
     }
 
     /// <summary>Drops a stale slice and returns to the model view.</summary>

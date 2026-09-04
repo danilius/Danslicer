@@ -320,9 +320,11 @@ public sealed class PlacementAndSupportCommandTests
             SupportSettings = new SupportConfig
             {
                 TipDiameter = 0.55f, ConeLength = 2.5f, BallDiameter = 0.2f,
-                PenetrationDepth = 0.1f, TrunkDiameter = 1.6f, BranchDiameter = 1.3f,
+                PenetrationDepth = 0.1f, TipNormalLeadInMm = 0.45f,
+                TrunkDiameter = 1.6f, BranchDiameter = 1.3f,
                 MemberAngleDegrees = 37f, TipMemberLength = 2.8f, MaxBranchLength = 12f,
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
+                MinMemberSeparationMm = 0.65f,
                 MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
                 MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
@@ -349,6 +351,7 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(2.5f, request.Settings.ConeLength);
         Assert.Equal(0.2f, request.Settings.BallDiameter);
         Assert.Equal(0.1f, request.Settings.PenetrationDepth);
+        Assert.Equal(0.45f, request.Settings.TipNormalLeadInMm);
         Assert.Equal(1.6f, request.Settings.TrunkDiameter);
         Assert.Equal(1.3f, request.Settings.BranchDiameter);
         Assert.Equal(37f, request.Settings.MemberAngleDegrees);
@@ -356,6 +359,7 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(12f, request.Settings.MaxBranchLength);
         Assert.False(request.Settings.PreferExistingTrunks);
         Assert.Equal(9f, request.Settings.ExistingTrunkBranchRange);
+        Assert.Equal(0.65f, request.Settings.MinMemberSeparationMm);
         Assert.Equal(0.7f, request.Settings.MiniSupportDiameter);
         Assert.Equal(0.3f, request.Settings.MiniSupportTipDiameter);
         Assert.Equal(1.2f, request.Settings.MiniSupportConeLength);

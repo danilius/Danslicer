@@ -471,7 +471,8 @@ public static class TipPlacer
             strategy == TipStrategy.MiniIsland ? parameters.MiniSupportConeLengthMm : parameters.ConeLengthMm,
             strategy == TipStrategy.MiniIsland ? 0f : parameters.BallDiameterMm,
             Math.Max(parameters.PenetrationDepthMm, 0f),
-            FineFeatureAreaMm2: fineFeatureAreaMm2);
+            FineFeatureAreaMm2: fineFeatureAreaMm2,
+            TipNormalLeadIn: Math.Max(parameters.TipNormalLeadInMm, 0f));
 
     private static float DiameterFor(float baseDiameter, TipStrategy strategy) => strategy switch
     {

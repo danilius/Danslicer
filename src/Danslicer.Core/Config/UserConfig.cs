@@ -184,6 +184,7 @@ public sealed record SupportConfig
     public float ConeLength { get; set; } = 2f;
     public float BallDiameter { get; set; }
     public float PenetrationDepth { get; set; }
+    public float TipNormalLeadInMm { get; set; } = 0.3f;
 
     public float TrunkDiameter { get; set; } = 1.2f;
     public float BranchDiameter { get; set; } = 1.2f;
@@ -192,6 +193,8 @@ public sealed record SupportConfig
     public float MaxBranchLength { get; set; } = 8f;
     public bool PreferExistingTrunks { get; set; } = true;
     public float ExistingTrunkBranchRange { get; set; } = 8f;
+    /// <summary>Minimum centreline gap between non-incident members; zero disables the constraint.</summary>
+    public float MinMemberSeparationMm { get; set; }
     public float MiniSupportDiameter { get; set; } = 0.6f;
     public float MiniSupportTipDiameter { get; set; } = 0.25f;
     public float MiniSupportConeLength { get; set; } = 1f;
@@ -249,6 +252,7 @@ public sealed record SupportConfig
         ConeLength = Positive(ConeLength, 2f);
         BallDiameter = NonNegative(BallDiameter);
         PenetrationDepth = NonNegative(PenetrationDepth);
+        TipNormalLeadInMm = NonNegativeOrFallback(TipNormalLeadInMm, 0.3f);
         TrunkDiameter = Positive(TrunkDiameter, 1.2f);
         BranchDiameter = Positive(BranchDiameter, 1.2f);
         MemberAngleDegrees = float.IsFinite(MemberAngleDegrees)
@@ -256,6 +260,7 @@ public sealed record SupportConfig
         TipMemberLength = Positive(TipMemberLength, 2f);
         MaxBranchLength = Positive(MaxBranchLength, 8f);
         ExistingTrunkBranchRange = Positive(ExistingTrunkBranchRange, 8f);
+        MinMemberSeparationMm = NonNegative(MinMemberSeparationMm);
         MiniSupportDiameter = Positive(MiniSupportDiameter, 0.6f);
         MiniSupportTipDiameter = Positive(MiniSupportTipDiameter, 0.25f);
         MiniSupportConeLength = Positive(MiniSupportConeLength, 1f);
@@ -293,6 +298,9 @@ public sealed record SupportConfig
 
     private static float NonNegative(float value) =>
         float.IsFinite(value) ? MathF.Max(0, value) : 0;
+
+    private static float NonNegativeOrFallback(float value, float fallback) =>
+        float.IsFinite(value) ? MathF.Max(0, value) : fallback;
 }
 
 /// <summary>
@@ -342,6 +350,12 @@ public sealed class UserConfig
     public string ActiveSupportPresetName { get; set; } = CadCleanSupportPresetName;
 
     /// <summary>
+    /// User-selected UVtools executable. Danslicer launches it as a separate process and never
+    /// links or bundles UVtools.
+    /// </summary>
+    public string UvtoolsExecutablePath { get; set; } = "";
+
+    /// <summary>
     /// Window-level shortcut overrides keyed by stable action id. Defaults live in the App layer;
     /// keeping only differences here makes a fresh keymap empty and lets new defaults flow through.
     /// </summary>
@@ -381,6 +395,7 @@ public sealed class UserConfig
             config.NormalizePrinters();
             config.NormalizeResinPresets();
             config.NormalizeSupportPresets();
+            config.UvtoolsExecutablePath ??= "";
             config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
                 ? MathF.Max(0, config.Placement.HeightMm)
                 : 0;

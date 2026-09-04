@@ -21,7 +21,8 @@ public readonly record struct RoutingTip(Vector3 SurfacePoint, Vector3 InwardSur
     float? FallbackTipDiameter = null,
     SupportTipShape? FallbackTipShape = null,
     float? FallbackConeLength = null,
-    float? FallbackBallDiameter = null);
+    float? FallbackBallDiameter = null,
+    float TipNormalLeadIn = 0f);
 
 public enum BaseLatticeType
 {
@@ -48,6 +49,7 @@ public sealed record GridRoutingOptions
 public enum RoutingFailureReason
 {
     ContactBlocked,
+    MemberCrossing,
     NoClearStep,
     NoReachableGridPoint,
     NoBranchEndInRange,

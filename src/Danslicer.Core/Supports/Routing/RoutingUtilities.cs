@@ -13,6 +13,7 @@ internal static class RoutingUtilities
     {
         node.SurfaceNormal = -SafeInwardNormal(tip.InwardSurfaceNormal);
         node.TipDiameter = tip.TipDiameter;
+        node.TipNormalLeadIn = MathF.Max(0f, tip.TipNormalLeadIn);
         node.ContactObjectId = tip.ContactObjectId;
         node.TipShape = tip.TipShape;
         node.ConeLength = tip.ConeLength;

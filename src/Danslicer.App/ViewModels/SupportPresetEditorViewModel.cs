@@ -249,6 +249,7 @@ public sealed class SupportPresetEditorViewModel : ViewModelBase, IDisposable
     {
         RoutingFailureReason.NoReachableGridPoint => "no grid point",
         RoutingFailureReason.NoBranchEndInRange => "no branch in range",
+        RoutingFailureReason.MemberCrossing => "member crossing",
         RoutingFailureReason.NoClearStep => "no clear step",
         RoutingFailureReason.ContactBlocked => "contact blocked",
         RoutingFailureReason.NoLanding => "no landing",

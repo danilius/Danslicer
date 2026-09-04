@@ -88,6 +88,11 @@ public sealed class SupportNode
     // Tip-only shape parameters; ignored on junctions and bases.
     public Vector3 SurfaceNormal { get; set; } = Vector3.UnitZ;
     public float TipDiameter { get; set; } = 0.4f;
+    /// <summary>
+    /// Distance the cone-tip centreline leaves the contact along <see cref="SurfaceNormal"/>
+    /// before bending toward its junction. Zero preserves the historical straight member.
+    /// </summary>
+    public float TipNormalLeadIn { get; set; }
     private float _penetrationDepth;
     /// <summary>
     /// How far the tip embeds past its surface contact, millimetres. For cone tips this extends
@@ -137,6 +142,7 @@ public sealed class SupportNode
         Id = id ?? Id, Type = Type, Position = Position, Origin = origin ?? Origin,
         Pinned = Pinned, Hidden = Hidden, Disabled = Disabled,
         SurfaceNormal = SurfaceNormal, TipDiameter = TipDiameter,
+        TipNormalLeadIn = TipNormalLeadIn,
         PenetrationDepth = PenetrationDepth, ContactObjectId = ContactObjectId,
         TipShape = TipShape, ConeLength = ConeLength, BallDiameter = BallDiameter,
         BaseShape = BaseShape, BaseDiameter = BaseDiameter, BaseHeight = BaseHeight,

@@ -271,7 +271,8 @@ public sealed class ProjectFileTests
             Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), Type = SupportNodeType.Tip,
             Position = new Vector3(1.5f, 2.5f, 8), Origin = origin, Pinned = true,
             Hidden = true, Disabled = false, SurfaceNormal = Vector3.Normalize(new Vector3(1, 2, 3)),
-            TipDiameter = 0.27f, PenetrationDepth = 0.12f, ContactObjectId = first.Id,
+            TipDiameter = 0.27f, TipNormalLeadIn = 0.3f,
+            PenetrationDepth = 0.12f, ContactObjectId = first.Id,
             TipShape = SupportTipShape.Cone, ConeLength = 1.3f, BallDiameter = 0.42f,
             BaseShape = SupportBaseShape.None, BaseDiameter = 2.2f, BaseHeight = 0.4f,
             BaseConeHeight = 1.1f,
@@ -315,6 +316,7 @@ public sealed class ProjectFileTests
             Assert.Equal(node.Disabled, copy.Disabled);
             Assert.Equal(node.SurfaceNormal, copy.SurfaceNormal);
             Assert.Equal(node.TipDiameter, copy.TipDiameter);
+            Assert.Equal(node.TipNormalLeadIn, copy.TipNormalLeadIn);
             Assert.Equal(node.PenetrationDepth, copy.PenetrationDepth);
             Assert.Equal(node.ContactObjectId, copy.ContactObjectId);
             Assert.Equal(node.TipShape, copy.TipShape);

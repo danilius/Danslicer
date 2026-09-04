@@ -496,7 +496,6 @@ continues to a plate base (747 bases).
    candidates. Grid-on routed in 1.222 s with 757 refusals; grid-off in 3.637 s with 601 refusals;
    both outputs were collision-free.
 
-<<<<<<< HEAD
 ---
 
 ## 2026-09-04 — island identity in density clusters
@@ -624,7 +623,8 @@ fall in every case; max lean remains within the configured 75° mini limit.
    retry), not a one-way classification artefact.
 4. All twelve route outputs are collision-free. Maximum lean remains at or below 75°; enabling
    the fallback does not change candidate classification or density-cluster behavior.
-=======
+---
+
 ## 2026-09-04 — contact-face filter (angle limit + sees-plate), gripper A/B
 
 - Commit under test: worktree `support-face-filter` branch off `9a8abe6`.
@@ -673,4 +673,76 @@ fall in every case; max lean remains within the configured 75° mini limit.
    since a contact whose own face is downward-facing enough to pass both settings can still route
    through geometry that reads as a "side" support once trunks/branches are drawn. All three route
    passes stayed collision-free with the same 45° maximum lean.
->>>>>>> 561ad78917d12801c80af692153b7e0a1c92a396
+
+---
+
+## 2026-09-04 — normal-aligned tip contact lead-ins
+
+- Baseline: merged main plus job 028 at `aeb916e`; implementation through `d788e93`.
+- Config: Debug, net10.0; fresh seated candidates in every pass, default 0.3 mm normal lead-in,
+  grid on and off, fine-feature fallback on, reinforcement off.
+- Candidate placement and routing decisions are unchanged. The lead-in is derived after routing:
+  each cone leaves its contact along the stored outward surface normal, then bends toward the
+  chosen junction. A blocked bend shortens through fixed 75/50/25% steps, with zero restoring the
+  exact legacy centreline for that contact.
+
+### Results
+
+| Model | Pass | Candidates | Grid on | Grid off |
+| --- | --- | ---: | --- | --- |
+| drogon | before | 1961 | **994** refusals: ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165; 140 bases; collision-free | **850** refusals: ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142; 227 bases; collision-free |
+| drogon | after | 1961 | **994** refusals: ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165; 140 bases; collision-free | **850** refusals: ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142; 227 bases; collision-free |
+| gripper | before | 482 | **63** refusals: NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; 136 bases; collision-free | **60** refusals: ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3; 145 bases; collision-free |
+| gripper | after | 482 | **63** refusals: NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2; 136 bases; collision-free | **60** refusals: ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3; 145 bases; collision-free |
+| drogon-lo | before | 1492 | **702** refusals: ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135; 129 bases; collision-free | **549** refusals: ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135; 216 bases; collision-free |
+| drogon-lo | after | 1492 | **702** refusals: ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135; 129 bases; collision-free | **549** refusals: ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135; 216 bases; collision-free |
+
+Candidate, node, segment, refusal and base counts are bit-identical before and after in all six
+routes. The gripper's three density clusters are the photographed duckbill mechanism: multiple
+intentional mini members share one carrier. The placement passes did not duplicate a contact;
+normal-aligning each member's contact-side cone separates that visual fan without discarding a
+required island contact or changing topology. An initial un-clamped geometry pass exposed one
+Drogon grid-off model collision; the deterministic per-contact shortening removed it, and the
+final six outputs are collision-free.
+
+---
+
+## 2026-09-04 — non-incident member separation
+
+- Baseline and enabled passes were run at `eeed56c`, toggling only
+  `--min-member-separation 0|0.5|1`. Candidate generation is identical in every pass.
+- The pure metric counts unordered straight-centreline pairs below 0.5 mm and 1.0 mm; members
+  incident on one shared graph node are intentional joints and excluded. Routing checks existing
+  members in segment-id order and also checks non-incident members emitted by one candidate route.
+- `MinMemberSeparationMm` ships at **0.0 (disabled)** for exact compatibility. The proposed
+  screen-trial value is **0.5 mm**: it removes every measured sub-0.5 mm crossing while avoiding
+  the much steeper organic refusal cost of 1.0 mm.
+
+### Results
+
+| Model | Grid | Minimum | Crossing pairs <0.5 / <1 mm | Refusals by reason | Total | Bases | Collision-free |
+| --- | --- | ---: | ---: | --- | ---: | ---: | --- |
+| drogon | on | 0 | 217 / 565 | ContactBlocked 4, NoClearStep 743, NoReachableGridPoint 82, NoBranchEndInRange 165 | **994** | 140 | true |
+| drogon | on | **0.5** | **0 / 322** | ContactBlocked 5, MemberCrossing 13, NoClearStep 757, NoReachableGridPoint 82, NoBranchEndInRange 161 | **1018** | 144 | true |
+| drogon | on | 1.0 | 0 / 0 | ContactBlocked 7, MemberCrossing 120, NoClearStep 757, NoReachableGridPoint 82, NoBranchEndInRange 165 | **1131** | 145 | true |
+| drogon | off | 0 | 192 / 554 | ContactBlocked 2, NoClearStep 706, NoBranchEndInRange 142 | **850** | 227 | true |
+| drogon | off | **0.5** | **0 / 286** | ContactBlocked 4, MemberCrossing 8, NoClearStep 706, NoBranchEndInRange 139 | **857** | 255 | true |
+| drogon | off | 1.0 | 0 / 0 | ContactBlocked 3, MemberCrossing 120, NoClearStep 697, NoBranchEndInRange 144 | **964** | 265 | true |
+| gripper | on | 0 | 87 / 186 | NoClearStep 53, NoReachableGridPoint 8, NoBranchEndInRange 2 | **63** | 136 | true |
+| gripper | on | **0.5** | **0 / 105** | MemberCrossing 2, NoClearStep 55, NoReachableGridPoint 8, NoBranchEndInRange 2 | **67** | 139 | true |
+| gripper | on | 1.0 | 0 / 0 | MemberCrossing 10, NoClearStep 54, NoReachableGridPoint 8, NoBranchEndInRange 2 | **74** | 140 | true |
+| gripper | off | 0 | 100 / 210 | ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3 | **60** | 145 | true |
+| gripper | off | **0.5** | **0 / 91** | ContactBlocked 1, NoClearStep 56, NoBranchEndInRange 3 | **60** | 157 | true |
+| gripper | off | 1.0 | 0 / 0 | ContactBlocked 1, NoClearStep 58, NoBranchEndInRange 6 | **65** | 169 | true |
+| drogon-lo | on | 0 | 178 / 457 | ContactBlocked 5, NoClearStep 491, NoReachableGridPoint 71, NoBranchEndInRange 135 | **702** | 129 | true |
+| drogon-lo | on | **0.5** | **0 / 253** | ContactBlocked 6, MemberCrossing 14, NoClearStep 489, NoReachableGridPoint 71, NoBranchEndInRange 135 | **715** | 133 | true |
+| drogon-lo | on | 1.0 | 0 / 0 | ContactBlocked 9, MemberCrossing 83, NoClearStep 486, NoReachableGridPoint 71, NoBranchEndInRange 142 | **791** | 135 | true |
+| drogon-lo | off | 0 | 188 / 462 | ContactBlocked 4, NoClearStep 410, NoBranchEndInRange 135 | **549** | 216 | true |
+| drogon-lo | off | **0.5** | **0 / 240** | ContactBlocked 6, MemberCrossing 8, NoClearStep 431, NoBranchEndInRange 137 | **582** | 238 | true |
+| drogon-lo | off | 1.0 | 0 / 0 | ContactBlocked 6, MemberCrossing 84, NoClearStep 427, NoBranchEndInRange 137 | **654** | 243 | true |
+
+At 0.5 mm, total refusals rise by 24 / 7 on Drogon, 4 / 0 on gripper, and 13 / 33 on
+drogon-lo (grid on/off), while all sub-0.5 mm pairs disappear. At 1.0 mm the same deltas are
+137 / 114, 11 / 5, and 89 / 105. The larger setting fully clears the common 1 mm measurement
+band but drops too many organic contacts to recommend without a screen verdict. All eighteen
+outputs remain model-collision-free.

@@ -394,6 +394,11 @@
                 <!-- The GL composition surface covers ViewportControl's own 2D layer. Keep this
                      toolbar here as a sibling, after both viewport surfaces, so it stays visible. -->
                 <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
+                    <Button x:Name="UvtoolsCheckButton" Classes="viewportTool" Content="UV"
+                            IsVisible="{Binding IsUvtoolsCheckToolVisible}"
+                            IsEnabled="{Binding CanCheckWithUvtools}"
+                            ToolTip.Tip="{Binding UvtoolsCheckTooltip}"
+                            Click="OnUvtoolsCheckClick" />
                     <Button x:Name="ObjectsToolButton" Classes="viewportTool" Content="▦"
                             IsVisible="{Binding IsObjectsToolVisible}"
                             ToolTip.Tip="Objects" Click="OnObjectsToolClick" />
