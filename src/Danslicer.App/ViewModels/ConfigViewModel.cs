@@ -364,6 +364,31 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
     }
 
+    // Appearance
+
+    /// <summary>Theme names for the Preferences selector, in display order.</summary>
+    public IReadOnlyList<string> ThemeNames { get; } = Danslicer.App.Themes.ThemeCatalog.Names;
+
+    public int SelectedThemeIndex
+    {
+        get
+        {
+            var index = ThemeNames.ToList().IndexOf(_config.Theme);
+            return index >= 0 ? index : 0;
+        }
+        set
+        {
+            if (value < 0 || value >= ThemeNames.Count) return;
+            var name = ThemeNames[value];
+            if (string.Equals(_config.Theme, name, StringComparison.OrdinalIgnoreCase)) return;
+            Update(() =>
+            {
+                _config.Theme = name;
+                Danslicer.App.Themes.ThemeCatalog.Apply(name);
+            });
+        }
+    }
+
     public int SupportDisplayModeIndex
     {
         get => (int)SupportDisplay.Mode;

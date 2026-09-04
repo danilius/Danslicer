@@ -7,7 +7,7 @@
         x:DataType="vm:ConfigViewModel"
         Width="760" Height="540" MinWidth="560" MinHeight="360"
         WindowStartupLocation="CenterOwner"
-        Background="#23262A"
+        Background="{DynamicResource AppPanel}"
         Title="Preferences">
 
     <Window.Resources>
@@ -23,18 +23,18 @@
     <Window.Styles>
         <Style Selector="TextBlock.label">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#9AA0A6" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style Selector="TextBlock.section">
-            <Setter Property="Foreground" Value="#C8CCD0" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextMuted}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,14,0,6" />
         </Style>
         <Style Selector="TextBlock.value">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#C8CCD0" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextMuted}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="TextAlignment" Value="Right" />
         </Style>
@@ -60,12 +60,13 @@
     </Window.Styles>
 
     <DockPanel>
-        <Border DockPanel.Dock="Left" Width="190" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,1,0">
+        <Border DockPanel.Dock="Left" Width="190" Background="{DynamicResource AppHeader}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,1,0">
             <DockPanel>
                 <TextBox x:Name="SearchBox" DockPanel.Dock="Top" PlaceholderText="Search"
                          Margin="8,8,8,4" FontSize="12" TextChanged="OnSearchChanged" />
                 <ListBox x:Name="SectionList" Background="Transparent" Margin="4,0"
                          SelectionChanged="OnSectionSelected">
+                    <ListBoxItem Content="Appearance" />
                     <ListBoxItem Content="Viewport" />
                     <ListBoxItem Content="Keymap" />
                     <ListBoxItem Content="Printers" />
@@ -80,6 +81,20 @@
              the search box hides rows that do not match. -->
         <ScrollViewer x:Name="Scroll" Padding="16,4,16,16">
             <StackPanel x:Name="Sections">
+
+                <StackPanel x:Name="AppearanceSection">
+                    <TextBlock Text="Appearance" Classes="section" Margin="0,0,0,6" />
+                    <Grid Tag="appearance theme colour color scheme dark blender carbide classic slate palette"
+                          ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Theme" Classes="label" />
+                        <ComboBox Grid.Column="1" HorizontalAlignment="Left" MinWidth="160"
+                                  ItemsSource="{Binding ThemeNames}"
+                                  SelectedIndex="{Binding SelectedThemeIndex, Mode=TwoWay}" />
+                    </Grid>
+                    <TextBlock Tag="appearance theme note restart" Classes="label" TextWrapping="Wrap"
+                               Margin="0,6,0,0"
+                               Text="Applies immediately across every open window." />
+                </StackPanel>
 
                 <StackPanel x:Name="ViewportSection">
                     <TextBlock Text="Viewport" Classes="section" />
@@ -127,7 +142,7 @@
                     <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,0,0,8"
                                Text="Window-level shortcuts only. Viewport G/R/S/T/H/F keys and axis constraints remain fixed." />
                     <TextBlock Text="{Binding Keymap.ValidationMessage}" IsVisible="{Binding Keymap.HasValidationMessage}"
-                               Foreground="#FFB35C" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" />
+                               Foreground="{DynamicResource AppAccent}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" />
                     <ItemsControl ItemsSource="{Binding Keymap.Bindings}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:KeymapBindingViewModel">
@@ -197,7 +212,7 @@
                             </WrapPanel>
                             <TextBlock Text="{Binding Printers.ValidationMessage}"
                                        IsVisible="{Binding Printers.HasValidationMessage}"
-                                       Foreground="#FFB35C" FontSize="12" Margin="0,6,0,0" />
+                                       Foreground="{DynamicResource AppAccent}" FontSize="12" Margin="0,6,0,0" />
                         </StackPanel>
                     </Grid>
                 </StackPanel>
@@ -221,7 +236,7 @@
                                          PlaceholderText="Preset name" />
                                 <TextBlock Text="{Binding Resins.ValidationMessage}"
                                            IsVisible="{Binding Resins.HasValidationMessage}"
-                                           Foreground="#FFB35C" FontSize="12" TextWrapping="Wrap" />
+                                           Foreground="{DynamicResource AppAccent}" FontSize="12" TextWrapping="Wrap" />
                                 <WrapPanel Margin="0,4,0,0">
                                     <Button Content="{Binding Resins.NameEditorAction}"
                                             Command="{Binding Resins.ConfirmNameCommand}" Margin="0,0,4,0" />
