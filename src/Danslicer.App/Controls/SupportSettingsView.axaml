@@ -6,7 +6,7 @@
     <UserControl.Styles>
         <Style Selector="TextBlock.label">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#9AA0A6" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style Selector="NumericUpDown">
