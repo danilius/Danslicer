@@ -1,4 +1,6 @@
 using System.Numerics;
+using Danslicer.Core.Config;
+using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Tests;
@@ -22,6 +24,54 @@ public sealed class RoutingGrowthRuleTests
 
         Assert.Equal(new[] { "first", "last" }, seen);
         Assert.Equal(6, context.Diameter);
+    }
+
+    [Fact]
+    public void RuleSetBuildsReinforcePolicyFromSupportConfig()
+    {
+        var config = new SupportConfig
+        {
+            TipMemberLength = 3.5f,
+            ReinforceEnabled = true,
+            ReinforceSeedSelector = ReinforceSeedSelector.CriticalTips,
+            ReinforceCount = 5,
+            ReinforceRingRadius = 4.25f,
+            ReinforceRingDiameterMultiplier = 1.6f,
+        };
+
+        var rules = GrowthRuleSet.FromConfig(config);
+
+        Assert.Equal(3.5f, rules.Find<TaperGrowthRule>()!.TipLength);
+        var reinforce = rules.Find<ReinforceGrowthRule>()!;
+        Assert.True(reinforce.Enabled);
+        Assert.Equal(ReinforceSeedSelector.CriticalTips, reinforce.SeedSelector);
+        Assert.Equal(5, reinforce.Count);
+        Assert.Equal(4.25f, reinforce.RingRadius);
+        Assert.Equal(1.6f, reinforce.RingDiameterMultiplier);
+        Assert.False(GrowthRuleSet.FromConfig(new SupportConfig())
+            .Find<ReinforceGrowthRule>()!.Enabled);
+    }
+
+    [Fact]
+    public void DefaultSupportConfigRoutesBitIdenticallyToThePreviousDefaultRules()
+    {
+        var tips = new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) };
+        var options = new TreeRoutingOptions { Seed = 19 };
+
+        var before = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default)
+            .Route(tips, options).Graph;
+        var after = new TreeSupportRouter(new LinearCollisionScene(),
+                GrowthRuleSet.FromConfig(new SupportConfig()))
+            .Route(tips, options).Graph;
+
+        Assert.Equal(
+            before.Nodes.Select(node => (node.Id, node.Type, node.Position, node.TipDiameter)),
+            after.Nodes.Select(node => (node.Id, node.Type, node.Position, node.TipDiameter)));
+        Assert.Equal(
+            before.Segments.Select(segment =>
+                (segment.Id, segment.Type, segment.NodeA, segment.NodeB, segment.Diameter)),
+            after.Segments.Select(segment =>
+                (segment.Id, segment.Type, segment.NodeA, segment.NodeB, segment.Diameter)));
     }
 
     [Fact]

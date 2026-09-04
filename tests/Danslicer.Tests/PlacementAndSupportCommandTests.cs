@@ -4,6 +4,8 @@ using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Generation;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Tests;
 
@@ -308,6 +310,10 @@ public sealed class PlacementAndSupportCommandTests
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
+                ReinforceEnabled = true,
+                ReinforceSeedSelector = ReinforceSeedSelector.CriticalTips,
+                ReinforceCount = 5, ReinforceRingRadius = 4.5f,
+                ReinforceRingDiameterMultiplier = 1.6f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 5f, BaseHeight = 1f,
                 BaseConeHeight = 2.3f, Spacing = 3.5f, OverhangAngleDegrees = 52f,
                 MinIslandAreaMm2 = 0.75f,
@@ -340,6 +346,12 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(0.2f, request.Settings.MiniIslandMaxAreaMm2);
         Assert.False(request.Settings.UseBaseGrid);
         Assert.Equal(18f, request.Settings.BaseGridPitch);
+        Assert.True(request.Settings.ReinforceEnabled);
+        Assert.Equal(ReinforceSeedSelector.CriticalTips,
+            request.Settings.ReinforceSeedSelector);
+        Assert.Equal(5, request.Settings.ReinforceCount);
+        Assert.Equal(4.5f, request.Settings.ReinforceRingRadius);
+        Assert.Equal(1.6f, request.Settings.ReinforceRingDiameterMultiplier);
         Assert.Equal(SupportBaseShape.DiscCone, request.Settings.BaseShape);
         Assert.Equal(5f, request.Settings.BaseDiameter);
         Assert.Equal(1f, request.Settings.BaseHeight);
@@ -404,6 +416,57 @@ public sealed class PlacementAndSupportCommandTests
             Assert.Equal(1.1f, supportBase.BaseHeight);
             Assert.Equal(2.4f, supportBase.BaseConeHeight);
         });
+    }
+
+    [Fact]
+    public void ReinforceConfigAddsGeometryToGenerationRenderAndSlicePaths()
+    {
+        var mesh = Box(new(-5, -5, 5), new(5, 5, 15));
+        var disabled = PrepareReinforceCase(mesh, enabled: false);
+        var enabled = PrepareReinforceCase(mesh, enabled: true);
+        var disabledGraph = ToGraph(disabled);
+        var enabledGraph = ToGraph(enabled);
+
+        var disabledTips = disabledGraph.Segments.Count(segment =>
+            segment.Type == SupportSegmentType.Tip);
+        var enabledTips = enabledGraph.Segments.Count(segment =>
+            segment.Type == SupportSegmentType.Tip);
+        Assert.Equal(disabledTips + 3, enabledTips);
+        var disabledTipMesh = Assert.Single(SupportRenderMesh.Build(disabledGraph), part =>
+            part.Kind == SupportRenderKind.Tip).Mesh;
+        var enabledTipMesh = Assert.Single(SupportRenderMesh.Build(enabledGraph), part =>
+            part.Kind == SupportRenderKind.Tip).Mesh;
+        Assert.True(enabledTipMesh.TriangleCount > disabledTipMesh.TriangleCount);
+        Assert.True(SupportSliceGeometry.SectionsAt(enabledGraph, 4.9).Count >
+                    SupportSliceGeometry.SectionsAt(disabledGraph, 4.9).Count);
+    }
+
+    private static PreparedSupportGeneration PrepareReinforceCase(Mesh mesh, bool enabled)
+    {
+        var document = new Document
+        {
+            SupportSettings = new SupportConfig
+            {
+                Spacing = 20f,
+                IslandSpacingMm = 20f,
+                UseBaseGrid = false,
+                ReinforceEnabled = enabled,
+                ReinforceCount = 3,
+                ReinforceRingRadius = 2f,
+                ReinforceRingDiameterMultiplier = 1.5f,
+            },
+        };
+        var obj = new SceneObject("reinforce", mesh);
+        document.AddObject(obj);
+        return Document.ComputeSupportGeneration(document.CaptureSupportGeneration(obj, seed: 17));
+    }
+
+    private static SupportGraph ToGraph(PreparedSupportGeneration prepared)
+    {
+        var graph = new SupportGraph();
+        foreach (var node in prepared.Nodes) graph.AddNode(node.Clone());
+        foreach (var segment in prepared.Segments) graph.AddSegment(segment.Clone());
+        return graph;
     }
 
     private sealed class Vector3Comparer(float tolerance) : IEqualityComparer<Vector3>

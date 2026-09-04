@@ -456,8 +456,7 @@ public sealed class Document
     {
         var settings = SupportSettings with { };
         var obstacles = new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
-        var rules = GrowthRuleSet.Default;
-        rules.Find<TaperGrowthRule>()!.TipLength = settings.TipMemberLength;
+        var rules = GrowthRuleSet.FromConfig(settings);
         var router = new TreeSupportRouter(obstacles, rules);
         var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
             TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
@@ -574,8 +573,7 @@ public sealed class Document
         var supportObstacles = new LinearCollisionScene();
         supportObstacles.AddSupportGraph(request.ExistingSupports);
         var obstacles = new CompositeCollisionScene(meshes, supportObstacles);
-        var rules = GrowthRuleSet.Default;
-        rules.Find<TaperGrowthRule>()!.TipLength = request.Settings.TipMemberLength;
+        var rules = GrowthRuleSet.FromConfig(request.Settings);
         // Spec-shaped generation: cone tips on trunk/branch trees with disc bases. The capsule
         // grid/top-down paths remain available through the CLI for comparison.
         var generated = SupportGenerator.GenerateTree(worldMesh, region,

@@ -278,6 +278,10 @@ public sealed class UserConfigTests : IDisposable
                 MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
                 RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
+                ReinforceEnabled = true,
+                ReinforceSeedSelector = ReinforceSeedSelector.CriticalTips,
+                ReinforceCount = 5, ReinforceRingRadius = 4.5f,
+                ReinforceRingDiameterMultiplier = 1.6f,
                 BaseShape = SupportBaseShape.DiscCone, BaseDiameter = 6f, BaseHeight = 1.1f,
                 BaseConeHeight = 2.8f, Spacing = 3.2f, IslandSpacingMm = 0.7f, OverhangAngleDegrees = 51f,
                 MinIslandAreaMm2 = 0.9f,
@@ -309,6 +313,11 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
         Assert.False(supports.UseBaseGrid);
         Assert.Equal(18f, supports.BaseGridPitch);
+        Assert.True(supports.ReinforceEnabled);
+        Assert.Equal(ReinforceSeedSelector.CriticalTips, supports.ReinforceSeedSelector);
+        Assert.Equal(5, supports.ReinforceCount);
+        Assert.Equal(4.5f, supports.ReinforceRingRadius);
+        Assert.Equal(1.6f, supports.ReinforceRingDiameterMultiplier);
         Assert.Equal(SupportBaseShape.DiscCone, supports.BaseShape);
         Assert.Equal(6f, supports.BaseDiameter);
         Assert.Equal(1.1f, supports.BaseHeight);
@@ -435,6 +444,11 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
         Assert.True(supports.UseBaseGrid);
         Assert.Equal(6f, supports.BaseGridPitch);
+        Assert.False(supports.ReinforceEnabled);
+        Assert.Equal(ReinforceSeedSelector.LowestPointOfObject, supports.ReinforceSeedSelector);
+        Assert.Equal(3, supports.ReinforceCount);
+        Assert.Equal(2f, supports.ReinforceRingRadius);
+        Assert.Equal(1.25f, supports.ReinforceRingDiameterMultiplier);
         Assert.Equal(6f, new TreeRoutingOptions().BaseGridPitch);
         Assert.Equal(SupportBaseShape.Disc, supports.BaseShape);
         Assert.Equal(4f, supports.BaseDiameter);
