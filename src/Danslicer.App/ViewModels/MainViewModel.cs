@@ -94,8 +94,17 @@ public partial class MainViewModel : ViewModelBase
     // ----- Viewport tools -----
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayoutView), nameof(IsSupportView), nameof(IsLayersView))]
+    [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayoutView), nameof(IsSupportView), nameof(IsLayersView),
+        nameof(ViewportTools), nameof(IsObjectListSelectionEnabled))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
+
+    public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
+
+    /// <summary>
+    /// Object rows remain useful context in Support and Slicing, but only Layout owns object
+    /// selection. Disabling the list prevents it from fighting those modes' selection models.
+    /// </summary>
+    public bool IsObjectListSelectionEnabled => ViewportToolbarPolicy.CanSelectObjects(ViewMode);
 
     public bool IsModelView
     {

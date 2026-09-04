@@ -66,6 +66,17 @@
             <Setter Property="Margin" Value="6,0,10,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="Button.viewportTool">
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="Foreground" Value="#E0E3E7" />
+            <Setter Property="Background" Value="#D923262A" />
+            <Setter Property="BorderBrush" Value="#7A858F" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
@@ -180,30 +191,12 @@
 
         <Grid x:Name="WorkspaceGrid">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220" MinWidth="140" />
-                <ColumnDefinition Width="5" />
                 <ColumnDefinition Width="*" MinWidth="320" />
                 <ColumnDefinition Width="5" />
                 <ColumnDefinition Width="320" MinWidth="220" />
             </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="#23262A" BorderBrush="#111" BorderThickness="0,0,1,0">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Objects" Classes="section" Margin="10,8,10,4" />
-                <ListBox ItemsSource="{Binding Objects}" SelectedItem="{Binding SelectedObject}"
-                         Background="Transparent" Margin="4,0">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Name}" FontSize="12" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
-        </Border>
-
-        <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="#151719" />
-
-        <Border Grid.Column="4" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0" Padding="10,4">
+        <Border Grid.Column="2" Background="#23262A" BorderBrush="#111" BorderThickness="1,0,0,0" Padding="10,4">
             <Grid>
                 <ScrollViewer IsVisible="{Binding IsLayoutView}">
                     <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -227,7 +220,7 @@
                 <ScrollViewer IsVisible="{Binding IsSupportView}">
                     <!-- Right padding keeps the overlay scrollbar off the slider's upper handle. -->
                     <StackPanel Margin="0,0,14,0">
-                        <TextBlock Text="Support" Classes="section" />
+                        <TextBlock Text="Support inspection" Classes="section" />
                         <CheckBox Content="Hover waterline" IsChecked="{Binding SupportWaterline.Enabled}"
                                   Margin="0,0,0,6"
                                   ToolTip.Tip="Show a live model contour at the hovered surface height" />
@@ -248,32 +241,9 @@
                             <Button Grid.Column="6" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
                                     HorizontalAlignment="Right" Padding="8,2" />
                         </Grid>
-                        <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
-                            <TextBlock Text="Display" Classes="label" />
-                            <ComboBox Grid.Column="1"
-                                      ItemsSource="{Binding SupportSettings.SupportDisplayModes}"
-                                      SelectedIndex="{Binding SupportSettings.SupportDisplayModeIndex, Mode=TwoWay}" />
-                        </Grid>
-                        <WrapPanel Margin="0,2,0,4"
-                                   IsEnabled="{Binding SupportSettings.IsSupportElementVisibilityAvailable}">
-                            <CheckBox Content="Tips" IsChecked="{Binding SupportSettings.ShowSupportTips}" Margin="0,0,8,0" />
-                            <CheckBox Content="Minis" IsChecked="{Binding SupportSettings.ShowMiniSupports}" Margin="0,0,8,0" />
-                            <CheckBox Content="Branches" IsChecked="{Binding SupportSettings.ShowSupportBranches}" Margin="0,0,8,0" />
-                            <CheckBox Content="Trunks" IsChecked="{Binding SupportSettings.ShowSupportTrunks}" Margin="0,0,8,0" />
-                            <CheckBox Content="Bases" IsChecked="{Binding SupportSettings.ShowSupportBases}" Margin="0,0,8,0" />
-                            <CheckBox Content="Bracing" IsChecked="{Binding SupportSettings.ShowSupportBracing}" />
-                        </WrapPanel>
-                        <CheckBox Content="Contact points over transparent supports"
-                                  IsChecked="{Binding SupportSettings.ShowContactPointsInTransparent}"
-                                  IsVisible="{Binding SupportSettings.IsTransparentSupportDisplay}"
-                                  Margin="0,0,0,4" />
                         <ToggleButton Content="Select Through" IsChecked="{Binding SelectThroughSupports}"
                                       HorizontalAlignment="Stretch"
                                       ToolTip.Tip="Marquee-select supports hidden behind the model; hidden support elements remain excluded" />
-                        <Button Content="Generate Supports" Command="{Binding GenerateSupportsScopedCommand}"
-                                HorizontalAlignment="Stretch" Margin="0,6,0,2" />
-                        <TextBlock Text="Settings" Classes="section" />
-                        <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
                     </StackPanel>
                 </ScrollViewer>
 
@@ -324,10 +294,10 @@
             </Grid>
         </Border>
 
-        <GridSplitter Grid.Column="3" ResizeDirection="Columns" Background="#151719" />
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="#151719" />
 
         <!-- Main area: header strip, then either the 3D model view or the layer view. -->
-        <DockPanel Grid.Column="2">
+        <DockPanel Grid.Column="0">
             <Border DockPanel.Dock="Top" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,0,1" Padding="8,3">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <StackPanel Orientation="Horizontal" IsVisible="{Binding IsLayoutView}">
@@ -381,6 +351,96 @@
                     </Border>
                     <controls:LayerPreviewControl x:Name="LayerView" Bitmap="{Binding PreviewImage}" />
                 </DockPanel>
+
+                <!-- The GL composition surface covers ViewportControl's own 2D layer. Keep this
+                     toolbar here as a sibling, after both viewport surfaces, so it stays visible. -->
+                <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
+                    <Button x:Name="ObjectsToolButton" Classes="viewportTool" Content="▦" ToolTip.Tip="Objects">
+                        <Button.Flyout>
+                            <Flyout Placement="RightEdgeAlignedTop"
+                                    Closed="OnViewportFlyoutClosed">
+                                <Border Width="240" MaxHeight="520" Padding="10" Background="#F523262A">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Objects" Classes="section"
+                                                   Margin="0,0,0,6" />
+                                        <TextBlock DockPanel.Dock="Bottom"
+                                                   Text="Object selection is available in Layout mode."
+                                                   Classes="label" Margin="0,6,0,0"
+                                                   IsVisible="{Binding !IsObjectListSelectionEnabled}" />
+                                        <ListBox x:Name="ViewportObjectList"
+                                                 ItemsSource="{Binding Objects}"
+                                                 SelectedItem="{Binding SelectedObject}"
+                                                 IsEnabled="{Binding IsObjectListSelectionEnabled}"
+                                                 Background="Transparent"
+                                                 SelectionChanged="OnViewportObjectSelectionChanged">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Name}" FontSize="12" />
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </DockPanel>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button x:Name="SupportsToolButton" Classes="viewportTool" Content="Y" ToolTip.Tip="Supports"
+                            IsVisible="{Binding IsSupportView}">
+                        <Button.Flyout>
+                            <Flyout Placement="RightEdgeAlignedTop"
+                                    Closed="OnViewportFlyoutClosed">
+                                <Border Width="340" MaxHeight="700" Padding="10" Background="#F523262A">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Top" Content="Generate Supports"
+                                                Command="{Binding GenerateSupportsScopedCommand}"
+                                                HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                                                Click="OnGenerateSupportsFlyoutClick" />
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
+                                        </ScrollViewer>
+                                    </DockPanel>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Classes="viewportTool" Content="◉" ToolTip.Tip="Support visibility"
+                            IsVisible="{Binding IsSupportView}">
+                        <Button.Flyout>
+                            <Flyout Placement="RightEdgeAlignedTop"
+                                    Closed="OnViewportFlyoutClosed">
+                                <Border Width="300" Padding="10" Background="#F523262A">
+                                    <StackPanel>
+                                        <TextBlock Text="Visibility" Classes="section" Margin="0,0,0,6" />
+                                        <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
+                                            <TextBlock Text="Display" Classes="label" />
+                                            <ComboBox Grid.Column="1"
+                                                      ItemsSource="{Binding SupportSettings.SupportDisplayModes}"
+                                                      SelectedIndex="{Binding SupportSettings.SupportDisplayModeIndex, Mode=TwoWay}" />
+                                        </Grid>
+                                        <WrapPanel Margin="0,2,0,4"
+                                                   IsEnabled="{Binding SupportSettings.IsSupportElementVisibilityAvailable}">
+                                            <CheckBox Content="Tips" IsChecked="{Binding SupportSettings.ShowSupportTips}" Margin="0,0,8,0" />
+                                            <CheckBox Content="Minis" IsChecked="{Binding SupportSettings.ShowMiniSupports}" Margin="0,0,8,0" />
+                                            <CheckBox Content="Branches" IsChecked="{Binding SupportSettings.ShowSupportBranches}" Margin="0,0,8,0" />
+                                            <CheckBox Content="Trunks" IsChecked="{Binding SupportSettings.ShowSupportTrunks}" Margin="0,0,8,0" />
+                                            <CheckBox Content="Bases" IsChecked="{Binding SupportSettings.ShowSupportBases}" Margin="0,0,8,0" />
+                                            <CheckBox Content="Bracing" IsChecked="{Binding SupportSettings.ShowSupportBracing}" />
+                                        </WrapPanel>
+                                        <CheckBox Content="Contact points over transparent supports"
+                                                  IsChecked="{Binding SupportSettings.ShowContactPointsInTransparent}"
+                                                  IsVisible="{Binding SupportSettings.IsTransparentSupportDisplay}" />
+                                    </StackPanel>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+
+                    <Button Classes="viewportTool" Content="≋" IsEnabled="False"
+                            IsVisible="{Binding IsSupportView}"
+                            ToolTip.Tip="Rafts — coming soon" />
+                </StackPanel>
             </Grid>
         </DockPanel>
         </Grid>
