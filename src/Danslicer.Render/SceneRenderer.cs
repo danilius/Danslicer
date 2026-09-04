@@ -54,6 +54,8 @@ public sealed class RenderFrame
     public bool ShowViewCube { get; init; } = true;
     /// <summary>Hovered view-cube region from <see cref="ViewCube.HitRegion"/>, or -1.</summary>
     public int ViewCubeHover { get; init; } = -1;
+    /// <summary>On-screen cube size in DIP pixels before DPI scaling; see <see cref="ViewCube.Rect"/>.</summary>
+    public int ViewCubeSizePixels { get; init; } = ViewCube.DefaultSizePixels;
     /// <summary>Host DPI scale, so fixed-pixel overlays keep their physical size.</summary>
     public double RenderScaling { get; init; } = 1.0;
 }
@@ -113,7 +115,7 @@ public sealed partial class SceneRenderer : IDisposable
             _gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)frame.Framebuffer);
             _viewCube ??= new ViewCube(_gl, IsGles);
             _viewCube.Draw(frame.Width, frame.Height, frame.RenderScaling, frame.Camera.View,
-                frame.ViewCubeHover);
+                frame.ViewCubeHover, frame.ViewCubeSizePixels);
         }
     }
 
