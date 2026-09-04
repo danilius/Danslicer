@@ -16,6 +16,10 @@ public static class WindowKeymap
     public const string Redo = "edit.redo";
     public const string RedoAlternate = "edit.redo-alternate";
     public const string Delete = "edit.delete";
+    public const string DuplicateObjects = "object.duplicate";
+    public const string MirrorX = "object.mirror-x";
+    public const string MirrorY = "object.mirror-y";
+    public const string MirrorZ = "object.mirror-z";
     public const string DropToPlate = "object.drop-to-plate";
     public const string GenerateSupports = "support.generate";
     public const string SelectAll = "edit.select-all";
@@ -34,6 +38,10 @@ public static class WindowKeymap
         new(Redo, "Redo", "Ctrl+Shift+Z"),
         new(RedoAlternate, "Redo (alternate)", "Ctrl+Y"),
         new(Delete, "Delete", "Delete"),
+        new(DuplicateObjects, "Duplicate Objects", "Shift+D"),
+        new(MirrorX, "Mirror Objects on X", "Ctrl+Shift+1"),
+        new(MirrorY, "Mirror Objects on Y", "Ctrl+Shift+2"),
+        new(MirrorZ, "Mirror Objects on Z", "Ctrl+Shift+3"),
         new(DropToPlate, "Drop to Plate", "Ctrl+D"),
         new(GenerateSupports, "Generate Supports", "Ctrl+G"),
         new(SelectAll, "Select All", "Ctrl+A"),

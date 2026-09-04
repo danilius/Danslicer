@@ -111,6 +111,14 @@
                 <MenuItem x:Name="PreferencesMenuItem" Header="_Preferences..." Click="OnPreferencesClick" />
             </MenuItem>
             <MenuItem Header="_Object" IsVisible="{Binding IsModelView}">
+                <MenuItem x:Name="DuplicateObjectsMenuItem" Header="_Duplicate" Command="{Binding DuplicateScopedCommand}"
+                          IsVisible="{Binding DuplicateScopedCommand.IsAvailable}" />
+                <MenuItem Header="_Mirror" IsVisible="{Binding MirrorXScopedCommand.IsAvailable}">
+                    <MenuItem x:Name="MirrorXMenuItem" Header="Mirror _X" Command="{Binding MirrorXScopedCommand}" />
+                    <MenuItem x:Name="MirrorYMenuItem" Header="Mirror _Y" Command="{Binding MirrorYScopedCommand}" />
+                    <MenuItem x:Name="MirrorZMenuItem" Header="Mirror _Z" Command="{Binding MirrorZScopedCommand}" />
+                </MenuItem>
+                <Separator IsVisible="{Binding IsLayoutView}" />
                 <MenuItem x:Name="DropToPlateMenuItem" Header="_Drop to Plate" Command="{Binding DropToPlateScopedCommand}"
                           IsVisible="{Binding DropToPlateScopedCommand.IsAvailable}" />
                 <MenuItem Header="Lay _Flat on Face" Click="OnLayFlatClick" InputGesture="F"

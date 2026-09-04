@@ -430,6 +430,10 @@ public partial class MainWindow : Window
         AddWindowKeyBinding(WindowKeymap.Redo, () => ViewModel?.RedoCommand);
         AddWindowKeyBinding(WindowKeymap.RedoAlternate, () => ViewModel?.RedoCommand);
         AddWindowKeyBinding(WindowKeymap.Delete, () => ViewModel?.DeleteCommand);
+        AddWindowKeyBinding(WindowKeymap.DuplicateObjects, () => ViewModel?.DuplicateScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.MirrorX, () => ViewModel?.MirrorXScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.MirrorY, () => ViewModel?.MirrorYScopedCommand);
+        AddWindowKeyBinding(WindowKeymap.MirrorZ, () => ViewModel?.MirrorZScopedCommand);
         AddWindowKeyBinding(WindowKeymap.DropToPlate, () => ViewModel?.DropToPlateScopedCommand);
         AddWindowKeyBinding(WindowKeymap.GenerateSupports, () => ViewModel?.GenerateSupportsScopedCommand);
         AddWindowKeyBinding(WindowKeymap.SelectAll, () => ViewModel?.SelectAllCommand);
@@ -453,6 +457,10 @@ public partial class MainWindow : Window
         RedoMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Redo);
         SelectAllMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.SelectAll);
         DeleteMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Delete);
+        DuplicateObjectsMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.DuplicateObjects);
+        MirrorXMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.MirrorX);
+        MirrorYMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.MirrorY);
+        MirrorZMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.MirrorZ);
         PreferencesMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Preferences);
         DropToPlateMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.DropToPlate);
         HideUnselectedMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.HideUnselectedSupports);

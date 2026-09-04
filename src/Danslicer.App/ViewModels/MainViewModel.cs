@@ -88,6 +88,10 @@ public partial class MainViewModel : ViewModelBase
     }
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
+    public ModeScopedCommand DuplicateScopedCommand { get; }
+    public ModeScopedCommand MirrorXScopedCommand { get; }
+    public ModeScopedCommand MirrorYScopedCommand { get; }
+    public ModeScopedCommand MirrorZScopedCommand { get; }
     public ModeScopedCommand HideScopedCommand { get; }
     public ModeScopedCommand UnhideAllScopedCommand { get; }
     public ModeScopedCommand HideUnselectedSupportsScopedCommand { get; }
@@ -279,6 +283,14 @@ public partial class MainViewModel : ViewModelBase
             RefreshPrinterOptions();
             SupportSettings.Resins.Refresh();
         };
+        DuplicateScopedCommand = new ModeScopedCommand(
+            DuplicateCommand, () => ViewMode, WorkspaceMode.Layout);
+        MirrorXScopedCommand = new ModeScopedCommand(
+            MirrorXCommand, () => ViewMode, WorkspaceMode.Layout);
+        MirrorYScopedCommand = new ModeScopedCommand(
+            MirrorYCommand, () => ViewMode, WorkspaceMode.Layout);
+        MirrorZScopedCommand = new ModeScopedCommand(
+            MirrorZCommand, () => ViewMode, WorkspaceMode.Layout);
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
         HideScopedCommand = new ModeScopedCommand(
@@ -297,6 +309,10 @@ public partial class MainViewModel : ViewModelBase
             SliceCommand, () => ViewMode, WorkspaceMode.Slicing);
         _modeScopedCommands =
         [
+            DuplicateScopedCommand,
+            MirrorXScopedCommand,
+            MirrorYScopedCommand,
+            MirrorZScopedCommand,
             DropToPlateScopedCommand,
             HideScopedCommand,
             UnhideAllScopedCommand,
@@ -385,6 +401,10 @@ public partial class MainViewModel : ViewModelBase
         }
         RefreshFields();
         DeleteCommand.NotifyCanExecuteChanged();
+        DuplicateCommand.NotifyCanExecuteChanged();
+        MirrorXCommand.NotifyCanExecuteChanged();
+        MirrorYCommand.NotifyCanExecuteChanged();
+        MirrorZCommand.NotifyCanExecuteChanged();
         DropToPlateCommand.NotifyCanExecuteChanged();
         HideCommand.NotifyCanExecuteChanged();
         GenerateSupportsCommand.NotifyCanExecuteChanged();
@@ -567,6 +587,28 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void DropToPlate() => Document.DropSelectionToPlate();
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void Duplicate()
+    {
+        var count = Document.DuplicateSelection().Count;
+        if (count > 0) ViewportStatus = count == 1 ? "Duplicated object." : $"Duplicated {count} objects.";
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void MirrorX() => MirrorSelection(ObjectMirrorAxis.X);
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void MirrorY() => MirrorSelection(ObjectMirrorAxis.Y);
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void MirrorZ() => MirrorSelection(ObjectMirrorAxis.Z);
+
+    private void MirrorSelection(ObjectMirrorAxis axis)
+    {
+        Document.MirrorSelection(axis);
+        ViewportStatus = $"Mirrored selection on {axis}.";
+    }
 
     [RelayCommand(CanExecute = nameof(CanHide))]
     private void Hide()
