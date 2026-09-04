@@ -240,7 +240,8 @@ public sealed partial class SceneRenderer
             gl.DepthMask(false);
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Lequal);
             BindMeshShader(Matrix4x4.Identity, view, projection, draw.Color, draw.Opacity,
-                backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f);
+                backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f,
+                frame.ClipRange, frame.WaterlineZ);
             gpu.Draw();
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Less);
             gl.Disable(EnableCap.Blend);
