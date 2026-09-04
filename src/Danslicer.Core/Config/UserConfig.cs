@@ -22,11 +22,56 @@ public sealed class SpaceMouseConfig
     public float Deadzone { get; set; } = 0.001f;
 }
 
+/// <summary>Which viewport render pipeline draws the scene.</summary>
+public enum RenderPathMode
+{
+    /// <summary>The original forward renderer. Default until the deferred path is approved.</summary>
+    Classic,
+    /// <summary>G-buffer pipeline with composite lighting, cavity, outlines and FXAA.</summary>
+    Deferred,
+}
+
+/// <summary>Surface shading used by the deferred composite pass.</summary>
+public enum ViewportShadingMode
+{
+    Studio,
+    MatCapClay,
+    MatCapMetal,
+    MatCapPearl,
+}
+
 /// <summary>Viewport display tuning.</summary>
 public sealed class ViewportConfig
 {
     /// <summary>Overhang tint threshold, degrees from the vertical wall.</summary>
     public float OverhangAngleDegrees { get; set; } = 45f;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RenderPathMode RenderPath { get; set; } = RenderPathMode.Classic;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ViewportShadingMode Shading { get; set; } = ViewportShadingMode.Studio;
+
+    /// <summary>Screen-space ridge/valley shading (deferred path only).</summary>
+    public bool CavityEnabled { get; set; } = true;
+
+    /// <summary>Brightening applied to ridges, 0 disables.</summary>
+    public float CavityRidgeStrength { get; set; } = 0.35f;
+
+    /// <summary>Darkening applied to valleys, 0 disables.</summary>
+    public float CavityValleyStrength { get; set; } = 0.7f;
+
+    /// <summary>Cavity sample offset in physical pixels.</summary>
+    public float CavityRadiusPixels { get; set; } = 1.5f;
+
+    /// <summary>Object outlines from ID and depth discontinuities (deferred path only).</summary>
+    public bool OutlinesEnabled { get; set; } = true;
+
+    /// <summary>Outline blend strength, 0 to 1.</summary>
+    public float OutlineStrength { get; set; } = 0.75f;
+
+    /// <summary>Anti-aliasing on the final deferred image.</summary>
+    public bool FxaaEnabled { get; set; } = true;
 
     /// <summary>Build-plate opacity when the camera is below it: 0 invisible, 1 fully opaque.</summary>
     public float PlateOpacityFromBelow { get; set; } = 0.3f;
@@ -45,6 +90,19 @@ public sealed class ViewportConfig
 
     /// <summary>Viewport-only support presentation. This never changes slice geometry.</summary>
     public SupportDisplayConfig SupportDisplay { get; set; } = new();
+
+    internal void Normalize()
+    {
+        if (!Enum.IsDefined(RenderPath)) RenderPath = RenderPathMode.Classic;
+        if (!Enum.IsDefined(Shading)) Shading = ViewportShadingMode.Studio;
+        CavityRidgeStrength = Clamp(CavityRidgeStrength, 0f, 4f, 0.35f);
+        CavityValleyStrength = Clamp(CavityValleyStrength, 0f, 4f, 0.7f);
+        CavityRadiusPixels = Clamp(CavityRadiusPixels, 0.5f, 8f, 1.5f);
+        OutlineStrength = Clamp(OutlineStrength, 0f, 1f, 0.75f);
+    }
+
+    private static float Clamp(float value, float min, float max, float fallback) =>
+        float.IsFinite(value) ? Math.Clamp(value, min, max) : fallback;
 }
 
 public enum SupportDisplayMode
@@ -249,6 +307,7 @@ public sealed class UserConfig
             config.Viewport ??= new ViewportConfig();
             config.Viewport.SupportDisplay =
                 (config.Viewport.SupportDisplay ?? new SupportDisplayConfig()).Normalize();
+            config.Viewport.Normalize();
             config.Placement ??= new PlacementConfig();
             config.Supports ??= new SupportConfig();
             config.Supports.Normalize();
