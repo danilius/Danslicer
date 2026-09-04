@@ -9,6 +9,8 @@ public enum TipStrategy
     Island,
     /// <summary>Island below the normal area threshold, reserved for the mini-support pass.</summary>
     MiniIsland,
+    /// <summary>Regular contact converted to a member of a density-based mini-tip cluster.</summary>
+    MiniCluster,
     /// <summary>Local Z-minimum of the surface. Placed first, regardless of density.</summary>
     LocalMinimum,
     /// <summary>Poisson-disk sample on an overhang face.</summary>
@@ -38,4 +40,6 @@ public readonly record struct TipCandidate(
     SupportTipShape TipShape = SupportTipShape.Capsule,
     float ConeLength = 2f,
     float BallDiameter = 0f,
-    float PenetrationDepth = 0f);
+    float PenetrationDepth = 0f,
+    int? MiniClusterId = null,
+    Vector3? MiniClusterCenter = null);

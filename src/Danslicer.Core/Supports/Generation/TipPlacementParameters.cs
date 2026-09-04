@@ -42,6 +42,15 @@ public sealed record TipPlacementParameters
     public float MiniIslandMaxAreaMm2 { get; init; } = 0.1f;
     public float MiniSupportTipDiameterMm { get; init; } = 0.25f;
     public float MiniSupportConeLengthMm { get; init; } = 1f;
+    /// <summary>Enables density-based conversion of crowded regular contacts.</summary>
+    public bool EnableMiniTipClusters { get; init; }
+    /// <summary>
+    /// Regular contacts linked by distances below this threshold form density-based mini-tip
+    /// clusters. The default is half the default placement spacing.
+    /// </summary>
+    public float MiniSupportClusterDistanceMm { get; init; } = 1.25f;
+    /// <summary>Maximum members in one detected cluster; larger groups split deterministically.</summary>
+    public int MiniSupportMaxTipsPerCluster { get; init; } = 4;
 
     /// <summary>
     /// Dedup radius between island tips. Every island physically needs its own support — two

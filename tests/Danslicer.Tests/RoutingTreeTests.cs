@@ -202,6 +202,63 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void MiniClusterBuildsItsOwnCarrierAndEveryRodAscends()
+    {
+        var center = new Vector3(0, 0, 10);
+        var tips = new[]
+        {
+            new RoutingTip(new(-0.4f, 0, 10), Vector3.UnitZ, 0.25f,
+                MiniSupportOnly: true, MiniClusterId: 1, MiniClusterCenter: center),
+            new RoutingTip(new(0.4f, 0, 10), Vector3.UnitZ, 0.25f,
+                MiniSupportOnly: true, MiniClusterId: 1, MiniClusterCenter: center),
+            new RoutingTip(new(0, -0.4f, 10), Vector3.UnitZ, 0.25f,
+                MiniSupportOnly: true, MiniClusterId: 1, MiniClusterCenter: center),
+            new RoutingTip(new(0, 0.4f, 10), Vector3.UnitZ, 0.25f,
+                MiniSupportOnly: true, MiniClusterId: 1, MiniClusterCenter: center),
+        };
+
+        var result = Route(tips, new TreeRoutingOptions { UseBaseGrid = false });
+
+        Assert.Empty(result.Failures);
+        Assert.DoesNotContain(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.Tip);
+        Assert.Single(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.Trunk);
+        var minis = result.Graph.Segments
+            .Where(segment => segment.Type == SupportSegmentType.MiniSupport).ToList();
+        Assert.Equal(4, minis.Count);
+        Assert.All(minis, segment =>
+        {
+            var a = result.Graph.GetNode(segment.NodeA);
+            var b = result.Graph.GetNode(segment.NodeB);
+            var contact = a.Type == SupportNodeType.Tip ? a : b;
+            var branchEnd = a.Type == SupportNodeType.Junction ? a : b;
+            Assert.True(contact.Position.Z > branchEnd.Position.Z);
+        });
+    }
+
+    [Fact]
+    public void UnreachableMiniClusterReportsAReasonForEveryContact()
+    {
+        var center = new Vector3(3, 0, 10);
+        var tips = Enumerable.Range(0, 3).Select(index => new RoutingTip(
+            new Vector3(3 + index * 0.1f, 0, 10), Vector3.UnitZ, 0.25f,
+            MiniSupportOnly: true, MiniClusterId: 1, MiniClusterCenter: center));
+
+        var result = Route(tips, new TreeRoutingOptions
+        {
+            UseBaseGrid = true,
+            BaseGridPitch = 20,
+            MaxBranchLength = 1,
+        });
+
+        Assert.Equal(3, result.Failures.Count);
+        Assert.All(result.Failures,
+            failure => Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason));
+        Assert.Empty(result.Graph.Nodes);
+    }
+
+    [Fact]
     public void MiniSupportWithoutAReachableBranchEndReportsItsOwnRefusalReason()
     {
         var result = Route(new[]

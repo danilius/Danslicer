@@ -189,7 +189,13 @@ internal static class RouteCommand
                 BallDiameter: tip.BallDiameter,
                 PenetrationDepth: Math.Max(tip.PenetrationDepth, 0f),
                 MiniSupportOnly: string.Equals(tip.Strategy, nameof(TipStrategy.MiniIsland),
-                    StringComparison.OrdinalIgnoreCase));
+                                     StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(tip.Strategy, nameof(TipStrategy.MiniCluster),
+                                     StringComparison.OrdinalIgnoreCase),
+                MiniClusterId: tip.MiniClusterId,
+                MiniClusterCenter: tip.MiniClusterCenter is { Length: 3 }
+                    ? ToVector(tip.MiniClusterCenter)
+                    : null);
         }).ToList();
     }
 
@@ -317,5 +323,7 @@ internal static class RouteCommand
         public float BallDiameter { get; set; }
         public float PenetrationDepth { get; set; }
         public string? Strategy { get; set; }
+        public int? MiniClusterId { get; set; }
+        public float[]? MiniClusterCenter { get; set; }
     }
 }

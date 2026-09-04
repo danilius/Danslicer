@@ -159,7 +159,9 @@ public static class TipPlacer
             }
         }
 
-        return accepted;
+        return parameters.EnableMiniTipClusters
+            ? MiniTipClusterer.Apply(accepted, parameters)
+            : accepted;
     }
 
     private static void TryAcceptRequired(

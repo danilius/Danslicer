@@ -72,15 +72,18 @@ internal static class BenchCommand
         {
             var tips = model.Tips;
             var strategies = OrderedValues(tips.ByStrategy,
-                "Island", "MiniIsland", "LocalMinimum", "Corner", "Edge", "Overhang",
+                "Island", "MiniIsland", "MiniCluster", "LocalMinimum", "Corner", "Edge", "Overhang",
                 "GridProjection");
             var spacing = tips.Spacing is null
                 ? "Spacing n/a."
                 : $"Spacing min {F(tips.Spacing.Min)} / median {F(tips.Spacing.Median)} / " +
                   $"mean {F(tips.Spacing.Mean)}.";
+            var clusters = tips.MiniClusters > 0
+                ? $" across **{tips.MiniClusters}** mini clusters"
+                : string.Empty;
             text.AppendLine($"| {Escape(model.Key)} | `tips` | `--seat --json` | " +
                 $"{tips.WallSeconds:0.000} | {tips.ExitCode} | **{tips.Candidates}** candidates" +
-                $"{Parenthesize(strategies)} | {spacing} |");
+                $"{Parenthesize(strategies)}{clusters} | {spacing} |");
 
             foreach (var route in model.Routes)
             {
@@ -142,6 +145,9 @@ internal static class BenchCommand
             ExitCode = run.ExitCode,
             Candidates = root.GetProperty("count").GetInt32(),
             ByStrategy = ReadIntDictionary(root.GetProperty("byStrategy")),
+            MiniClusters = root.TryGetProperty("miniClusters", out var clusters)
+                ? clusters.GetInt32()
+                : 0,
             Spacing = root.TryGetProperty("spacing", out var spacing) &&
                       spacing.ValueKind != JsonValueKind.Null
                 ? new SpacingBenchmark
@@ -281,6 +287,7 @@ internal sealed class TipsBenchmark
     public int ExitCode { get; init; }
     public int Candidates { get; init; }
     public required Dictionary<string, int> ByStrategy { get; init; }
+    public int MiniClusters { get; init; }
     public SpacingBenchmark? Spacing { get; init; }
 }
 
