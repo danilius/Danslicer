@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.Input;
 using Danslicer.App.Configuration;
+using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Supports;
 
@@ -28,17 +29,21 @@ public sealed class ConfigViewModel : ViewModelBase
     private string _supportPresetValidationMessage = "";
     private PresetNameOperation _presetNameOperation;
 
-    public ConfigViewModel() : this(null, persistChanges: true, null)
+    public ConfigViewModel() : this(null, persistChanges: true, null, null)
+    {
+    }
+
+    public ConfigViewModel(Document document) : this(null, persistChanges: true, null, document)
     {
     }
 
     internal ConfigViewModel(SupportConfig supportSettings, Action supportChanged)
-        : this(supportSettings, persistChanges: false, supportChanged)
+        : this(supportSettings, persistChanges: false, supportChanged, null)
     {
     }
 
     private ConfigViewModel(SupportConfig? supportOverride, bool persistChanges,
-        Action? supportChanged)
+        Action? supportChanged, Document? document)
     {
         _supportOverride = supportOverride;
         _persistChanges = persistChanges;
@@ -47,6 +52,8 @@ public sealed class ConfigViewModel : ViewModelBase
         Keymap.Changed += () => Saved?.Invoke();
         Printers = new PrinterEditorViewModel(AppConfig.Current, AppConfig.Save);
         Printers.Changed += () => Saved?.Invoke();
+        Resins = new ResinPresetViewModel(AppConfig.Current, document ?? new Document(), AppConfig.Save);
+        Resins.Changed += () => Saved?.Invoke();
         SaveSupportPresetCommand = new RelayCommand(SaveSupportPreset, HasSelectedSupportPreset);
         BeginSaveSupportPresetAsCommand = new RelayCommand(BeginSaveSupportPresetAs);
         BeginRenameSupportPresetCommand = new RelayCommand(
@@ -63,6 +70,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public SupportDisplayConfig SupportDisplay => Viewport.SupportDisplay;
     public KeymapViewModel Keymap { get; }
     public PrinterEditorViewModel Printers { get; }
+    public ResinPresetViewModel Resins { get; }
 
     public IReadOnlyList<string> SupportDisplayModes { get; } =
         ["Full", "Contact points", "Lines", "Tips", "Transparent"];

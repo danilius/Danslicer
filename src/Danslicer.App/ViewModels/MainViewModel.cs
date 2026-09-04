@@ -58,6 +58,9 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>The one live support-settings model shared by Preferences and the Support panel.</summary>
     public ConfigViewModel SupportSettings { get; }
+    public LayerRangeClipViewModel SupportClip { get; } = new();
+    public HoverWaterlineViewModel SupportWaterline { get; } = new();
+    public ViewportClipRange ViewportClipRange => SupportClip.Range;
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
     public ModeScopedCommand HideScopedCommand { get; }
@@ -119,6 +122,8 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnViewModeChanged(WorkspaceMode value)
     {
+        SupportClip.Active = value == WorkspaceMode.Support;
+        SupportWaterline.SupportModeActive = value == WorkspaceMode.Support;
         _changingViewMode = true;
         try
         {
@@ -209,12 +214,16 @@ public partial class MainViewModel : ViewModelBase
         // Keep the document pointed at the live persisted settings. Each support operation takes
         // its own value snapshot, so edits affect the next generation/manual placement only.
         Document.SupportSettings = AppConfig.Current.Supports;
+        Document.ApplyResinPreset(AppConfig.Current.FindResinPreset(ResinPreset.DefaultId) ??
+                                  AppConfig.Current.ResinPresets.FirstOrDefault() ?? ResinPreset.Default);
         PrintSettings = new PrintSettingsViewModel(Document);
-        SupportSettings = new ConfigViewModel();
+        SupportSettings = new ConfigViewModel(Document);
+        SupportClip.Changed += () => OnPropertyChanged(nameof(ViewportClipRange));
         SupportSettings.Saved += () =>
         {
             Document.SupportSettings = AppConfig.Current.Supports;
             RefreshPrinterOptions();
+            SupportSettings.Resins.Refresh();
         };
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
@@ -369,6 +378,7 @@ public partial class MainViewModel : ViewModelBase
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         SliceCommand.NotifyCanExecuteChanged();
+        SupportClip.RefreshBounds(Document.Scene.WorldBounds, Document.Printer.BuildVolume.Z);
 
         // Geometry changed: the slice no longer matches the scene.
         if (LastSlice is not null && !IsSlicing) InvalidateSlice();
@@ -421,8 +431,11 @@ public partial class MainViewModel : ViewModelBase
     {
         var loaded = ProjectFile.Load(path);
         Document.ReplaceWith(loaded.Document);
+        SupportClip.RefreshBounds(Document.Scene.WorldBounds, Document.Printer.BuildVolume.Z,
+            reset: true);
         PrintSettings.Refresh();
         RefreshPrinterOptions(notifyDocument: false);
+        SupportSettings.Resins.Refresh();
         SelectedObject = null;
         LastSlice = null;
         PreviewImage = null;
@@ -600,7 +613,7 @@ public partial class MainViewModel : ViewModelBase
         {
             Document.ClearSelection();
             Document.SelectSupportElements(SupportDisplayPolicy.DisplayedElementIds(
-                Document.Supports, AppConfig.Current.Viewport.SupportDisplay));
+                Document.Supports, AppConfig.Current.Viewport.SupportDisplay, ViewportClipRange));
             return;
         }
         WorkspaceSelection.SelectAll(Document, ViewMode);
@@ -638,6 +651,7 @@ public partial class MainViewModel : ViewModelBase
         var objects = Document.Scene.Objects.ToList();
         var printer = Document.Printer;
         var settings = Document.PrintSettings;
+        var resin = Document.ResinSettings;
         var progress = new Progress<double>(p =>
         {
             SliceProgress = p;
@@ -646,7 +660,8 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
-            var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token, Document.Supports), token);
+            var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token,
+                Document.Supports, resin), token);
             LastSlice = result;
             SliceSummary =
                 $"{result.LayerCount} layers × {settings.LayerHeight:0.###} mm = {result.PrintHeight:0.##} mm\n" +
@@ -685,7 +700,8 @@ public partial class MainViewModel : ViewModelBase
     public async Task<bool> ExportAsync(string path)
     {
         var result = LastSlice;
-        if (result is null || result.Settings != Document.PrintSettings)
+        if (result is null || result.Settings != Document.PrintSettings ||
+            result.ResinSettings != Document.ResinSettings)
             result = await Slice();
         if (result is null) return false;
 
@@ -754,6 +770,6 @@ public partial class MainViewModel : ViewModelBase
         // Re-assign so bindings see a change even when the same bitmap instance was reused.
         PreviewImage = null;
         PreviewImage = bitmap;
-        PreviewLayerText = $"Layer {index + 1} / {result.LayerCount}   Z {layer.Z:0.###} mm   {layer.AreaMm2:0.#} mm²   {result.Settings.ExposureForLayer(index):0.##} s";
+        PreviewLayerText = $"Layer {index + 1} / {result.LayerCount}   Z {layer.Z:0.###} mm   {layer.AreaMm2:0.#} mm²   {result.ResinSettings.ExposureForLayer(index):0.##} s";
     }
 }

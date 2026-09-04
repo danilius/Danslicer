@@ -9,6 +9,7 @@ using Avalonia.OpenGL.Controls;
 using Avalonia.Threading;
 using Danslicer.App.Editing;
 using Danslicer.App.Input;
+using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Commands;
 using Danslicer.Core.Config;
@@ -56,6 +57,12 @@ public sealed class ViewportControl : OpenGlControlBase
         AvaloniaProperty.Register<ViewportControl, SupportDisplayConfig>(nameof(SupportDisplay),
             new SupportDisplayConfig());
 
+    public static readonly StyledProperty<ViewportClipRange> ClipRangeProperty =
+        AvaloniaProperty.Register<ViewportControl, ViewportClipRange>(nameof(ClipRange));
+
+    public static readonly StyledProperty<HoverWaterlineViewModel?> SupportWaterlineProperty =
+        AvaloniaProperty.Register<ViewportControl, HoverWaterlineViewModel?>(nameof(SupportWaterline));
+
     /// <summary>The live marquee rectangle in viewport coordinates; null when no drag is active.
     /// Drawn by a sibling overlay control, above the GL composition surface.</summary>
     public static readonly StyledProperty<Rect?> MarqueeRectProperty =
@@ -67,6 +74,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private SceneRenderer? _renderer;
     private ModalTransform? _modal;
     private Document? _subscribed;
+    private HoverWaterlineViewModel? _subscribedWaterline;
     private readonly Gizmo _gizmo = new();
     private Point _lastPointer;
     private bool _orbiting;
@@ -122,6 +130,8 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool SupportSelectionMode { get => GetValue(SupportSelectionModeProperty); set => SetValue(SupportSelectionModeProperty, value); }
     public bool SelectThroughSupports { get => GetValue(SelectThroughSupportsProperty); set => SetValue(SelectThroughSupportsProperty, value); }
     public SupportDisplayConfig SupportDisplay { get => GetValue(SupportDisplayProperty); set => SetValue(SupportDisplayProperty, value); }
+    public ViewportClipRange ClipRange { get => GetValue(ClipRangeProperty); set => SetValue(ClipRangeProperty, value); }
+    public HoverWaterlineViewModel? SupportWaterline { get => GetValue(SupportWaterlineProperty); set => SetValue(SupportWaterlineProperty, value); }
     public Rect? MarqueeRect { get => GetValue(MarqueeRectProperty); private set => SetValue(MarqueeRectProperty, value); }
 
     public ViewportControl()
@@ -192,7 +202,22 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         else if (change.Property == SupportSelectionModeProperty)
         {
+            if (SupportWaterline is { } waterline)
+                waterline.SupportModeActive = SupportSelectionMode;
             _supportMeshesDirty = true;
+            UpdateStatus();
+            Redraw();
+        }
+        else if (change.Property == SupportWaterlineProperty)
+        {
+            if (_subscribedWaterline is not null)
+                _subscribedWaterline.Changed -= OnWaterlineChanged;
+            _subscribedWaterline = SupportWaterline;
+            if (_subscribedWaterline is not null)
+            {
+                _subscribedWaterline.SupportModeActive = SupportSelectionMode;
+                _subscribedWaterline.Changed += OnWaterlineChanged;
+            }
             UpdateStatus();
             Redraw();
         }
@@ -208,6 +233,19 @@ public sealed class ViewportControl : OpenGlControlBase
                 if (retained.Count != document.SupportSelection.Count)
                     document.SelectSupportElements(retained);
             }
+            Redraw();
+        }
+        else if (change.Property == ClipRangeProperty)
+        {
+            if (Document is { } document)
+            {
+                var retained = document.SupportSelection
+                    .Where(id => SupportDisplayPolicy.IsElementDisplayed(
+                        document.Supports, id, SupportDisplay, ClipRange)).ToList();
+                if (retained.Count != document.SupportSelection.Count)
+                    document.SelectSupportElements(retained);
+            }
+            // Rendering is shader-only: do not rebuild support meshes while either thumb moves.
             Redraw();
         }
         else if (change.Property == ShowOverhangsProperty)
@@ -289,7 +327,15 @@ public sealed class ViewportControl : OpenGlControlBase
             OverhangCheckerSizeMm = Configuration.AppConfig.Current.Viewport.OverhangCheckerSizeMm,
             RenderPath = Configuration.AppConfig.Current.Viewport.RenderPath,
             Deferred = DeferredEffects.FromConfig(Configuration.AppConfig.Current.Viewport),
+            ClipRange = ClipRange,
+            WaterlineZ = SupportWaterline?.WorldZ,
         });
+    }
+
+    private void OnWaterlineChanged()
+    {
+        UpdateStatus();
+        Redraw();
     }
 
     private void UpdateGizmo()
@@ -350,6 +396,12 @@ public sealed class ViewportControl : OpenGlControlBase
         base.OnPointerEntered(e);
         Log("pointer entered");
         Focus();
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        SupportWaterline?.Clear();
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -519,6 +571,8 @@ public sealed class ViewportControl : OpenGlControlBase
             _gizmo.Hovered = GizmoHandle.None;
             Cursor = Cursor.Default;
         }
+
+        UpdateWaterline(MouseVector(e));
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -546,11 +600,15 @@ public sealed class ViewportControl : OpenGlControlBase
                     point => Camera.WorldToScreen(point, w, h),
                     new Vector2((float)start.X, (float)start.Y),
                     new Vector2((float)end.X, (float)end.Y),
-                    SelectThroughSupports ? null : point => IsSupportPointVisible(point, visibleObjectIds),
+                    point => ClipRange.Contains(point) &&
+                        (SelectThroughSupports || IsSupportPointVisible(point, visibleObjectIds)),
                     node => SupportDisplayPolicy.IsNodeDisplayed(
-                        Document.Supports, node, SupportDisplay),
+                        Document.Supports, node, SupportDisplay, ClipRange),
                     segment => SupportDisplayPolicy.IsSegmentDisplayed(
-                        segment.Type, SupportDisplay));
+                        Document.Supports, segment, SupportDisplay, ClipRange),
+                    segment => ClipRange.VisibleSegmentMidpoint(
+                        Document.Supports.GetNode(segment.NodeA).Position,
+                        Document.Supports.GetNode(segment.NodeB).Position));
                 Document.SelectSupportElements(ids, _marqueeAdditive);
             }
             else if (Document is not null && _pendingClickSupport is { } element)
@@ -594,6 +652,18 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private SceneObject? PickFace(Vector2 mouse, out int triangle) => PickSurface(mouse, out triangle, out _, out _);
 
+    private void UpdateWaterline(Vector2 mouse)
+    {
+        if (SupportWaterline is not { Enabled: true, SupportModeActive: true } waterline)
+        {
+            SupportWaterline?.Clear();
+            return;
+        }
+
+        var hit = PickSurface(mouse, out _, out var worldPoint, out _);
+        waterline.UpdateHover(hit is null ? null : worldPoint.Z);
+    }
+
     private SceneObject? PickSurface(Vector2 mouse, out int triangle, out Vector3 worldPoint, out Vector3 worldNormal)
     {
         triangle = -1;
@@ -609,7 +679,8 @@ public sealed class ViewportControl : OpenGlControlBase
             var world = obj.Transform.ToMatrix();
             if (!Matrix4x4.Invert(world, out var toLocal)) continue;
             var local = ray.Transform(toLocal);
-            if (local.IntersectMesh(obj.Mesh, out var tri) is not { } t) continue;
+            if (local.IntersectMesh(obj.Mesh, out var tri,
+                    localPoint => ClipRange.Contains(Vector3.Transform(localPoint, world))) is not { } t) continue;
             var hitWorld = Vector3.Transform(local.At(t), world);
             var d = Vector3.Distance(ray.Origin, hitWorld);
             if (d < bestDistance)
@@ -682,7 +753,7 @@ public sealed class ViewportControl : OpenGlControlBase
         var id = Document.SupportSelection.First();
         return Document.Supports.TryGetNode(id, out var node) &&
             node.Type == Danslicer.Core.Supports.SupportNodeType.Tip &&
-            SupportDisplayPolicy.IsElementDisplayed(Document.Supports, id, SupportDisplay)
+            SupportDisplayPolicy.IsElementDisplayed(Document.Supports, id, SupportDisplay, ClipRange)
             ? id : null;
     }
 
@@ -759,7 +830,7 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var node in supports.Nodes)
         {
             if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip ||
-                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay)) continue;
+                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
             var d = Vector2.Distance(mouse, p);
             if (d > SupportPickRadiusPixels || d >= bestScore) continue;
@@ -772,12 +843,14 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var segment in supports.Segments)
         {
             if (segment.Hidden || !SupportDisplayPolicy.IsSegmentDisplayed(
-                    segment.Type, SupportDisplay)) continue;
+                    supports, segment, SupportDisplay, ClipRange)) continue;
             var a = supports.GetNode(segment.NodeA);
             var b = supports.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
-            if (Camera.WorldToScreen(a.Position, w, h) is not { } pa ||
-                Camera.WorldToScreen(b.Position, w, h) is not { } pb) continue;
+            if (!ClipRange.TryClipSegment(a.Position, b.Position,
+                    out var visibleA, out var visibleB) ||
+                Camera.WorldToScreen(visibleA, w, h) is not { } pa ||
+                Camera.WorldToScreen(visibleB, w, h) is not { } pb) continue;
             var ab = pb - pa;
             var len2 = ab.LengthSquared();
             var t = len2 < 1e-6f ? 0f : Math.Clamp(Vector2.Dot(mouse - pa, ab) / len2, 0f, 1f);
@@ -785,7 +858,7 @@ public sealed class ViewportControl : OpenGlControlBase
             if (d > SupportPickRadiusPixels || d >= bestScore) continue;
             bestScore = d;
             best = segment.Id;
-            cameraDistance = Vector3.Distance(eye, Vector3.Lerp(a.Position, b.Position, t));
+            cameraDistance = Vector3.Distance(eye, Vector3.Lerp(visibleA, visibleB, t));
         }
 
         // A member line within the ordinary pick radius has an unambiguous, consistently sized
@@ -797,7 +870,7 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var node in supports.Nodes)
         {
             if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Base ||
-                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay)) continue;
+                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
             var d = Vector2.Distance(mouse, p);
             float? score = d <= SupportPickRadiusPixels ? d / SupportPickRadiusPixels : null;
@@ -834,7 +907,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private bool IsSupportPointVisible(Vector3 point, IReadOnlySet<Guid> visibleObjectIds)
     {
-        if (Document is null) return false;
+        if (Document is null || !ClipRange.Contains(point)) return false;
         var w = (float)Bounds.Width;
         var h = (float)Bounds.Height;
         if (Camera.WorldToScreen(point, w, h) is not { } screen) return false;
@@ -955,7 +1028,7 @@ public sealed class ViewportControl : OpenGlControlBase
             foreach (var segment in supports.Segments)
             {
                 if (segment.Hidden || !SupportDisplayPolicy.IsSegmentDisplayed(
-                        segment.Type, SupportDisplay)) continue;
+                        supports, segment, SupportDisplay, ClipRange)) continue;
                 var a = supports.GetNode(segment.NodeA);
                 var b = supports.GetNode(segment.NodeB);
                 if (a.Hidden || b.Hidden) continue;
@@ -980,7 +1053,7 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var node in supports.Nodes)
         {
             if (node.Hidden || node.Type != SupportNodeType.Tip ||
-                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay)) continue;
+                !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
             var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipMarkerColor;
             if (!SupportSelectionMode) color.W *= OutsideSupportModeOpacity;
             var p = node.Position;
@@ -1023,7 +1096,7 @@ public sealed class ViewportControl : OpenGlControlBase
         var component = Document.Supports.Component(seed);
         var ids = component.Nodes.Concat(component.Segments)
             .Where(id => SupportDisplayPolicy.IsElementDisplayed(
-                Document.Supports, id, SupportDisplay));
+                Document.Supports, id, SupportDisplay, ClipRange));
         Document.SelectSupportElements(ids, additive);
     }
 
@@ -1173,6 +1246,11 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_layFlatPick)
         {
             StatusText = "Lay flat: click a face to rest it on the plate · Esc cancel";
+            return;
+        }
+        if (SupportWaterline?.StatusText is { } waterlineStatus)
+        {
+            StatusText = waterlineStatus;
             return;
         }
         var projection = Camera.Orthographic ? "Ortho" : "Persp";

@@ -9,7 +9,8 @@ public static class SupportMarqueeSelection
         Func<Vector3, Vector2?> project, Vector2 cornerA, Vector2 cornerB,
         Func<Vector3, bool>? isVisible = null,
         Func<SupportNode, bool>? includeNode = null,
-        Func<SupportSegment, bool>? includeSegment = null)
+        Func<SupportSegment, bool>? includeSegment = null,
+        Func<SupportSegment, Vector3?>? segmentPoint = null)
     {
         var min = Vector2.Min(cornerA, cornerB);
         var max = Vector2.Max(cornerA, cornerB);
@@ -27,7 +28,10 @@ public static class SupportMarqueeSelection
             var a = graph.GetNode(segment.NodeA);
             var b = graph.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
-            if (Inside((a.Position + b.Position) * 0.5f)) ids.Add(segment.Id);
+            var point = segmentPoint is null
+                ? (a.Position + b.Position) * 0.5f
+                : segmentPoint(segment);
+            if (point is { } visiblePoint && Inside(visiblePoint)) ids.Add(segment.Id);
         }
         return ids;
     }

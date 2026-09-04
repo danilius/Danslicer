@@ -227,6 +227,26 @@
                 <ScrollViewer IsVisible="{Binding IsSupportView}">
                     <StackPanel>
                         <TextBlock Text="Support" Classes="section" />
+                        <CheckBox Content="Hover waterline" IsChecked="{Binding SupportWaterline.Enabled}"
+                                  Margin="0,0,0,6"
+                                  ToolTip.Tip="Show a live model contour at the hovered surface height" />
+                        <TextBlock Text="Layer range" Classes="label"
+                                   ToolTip.Tip="Viewport isolation only — slicing and support generation are unaffected" />
+                        <controls:LayerRangeSlider Minimum="{Binding SupportClip.MinimumZ}"
+                                                   Maximum="{Binding SupportClip.MaximumZ}"
+                                                   LowerValue="{Binding SupportClip.LowerZ, Mode=TwoWay}"
+                                                   UpperValue="{Binding SupportClip.UpperZ, Mode=TwoWay}"
+                                                   ToolTip.Tip="Drag either end to clip the Support viewport from below or above" />
+                        <Grid ColumnDefinitions="Auto,58,Auto,Auto,58,Auto,*" Margin="0,0,0,6">
+                            <TextBlock Text="Low" Classes="label" Margin="0,0,4,0" />
+                            <controls:ExpressionBox Grid.Column="1" Text="{Binding SupportClip.LowerField.Text, Mode=TwoWay}" />
+                            <TextBlock Grid.Column="2" Text="mm" Classes="label" Margin="4,0,10,0" />
+                            <TextBlock Grid.Column="3" Text="High" Classes="label" Margin="0,0,4,0" />
+                            <controls:ExpressionBox Grid.Column="4" Text="{Binding SupportClip.UpperField.Text, Mode=TwoWay}" />
+                            <TextBlock Grid.Column="5" Text="mm" Classes="label" Margin="4,0,0,0" />
+                            <Button Grid.Column="6" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
+                                    HorizontalAlignment="Right" Padding="8,2" />
+                        </Grid>
                         <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
                             <TextBlock Text="Display" Classes="label" />
                             <ComboBox Grid.Column="1"
@@ -262,6 +282,33 @@
                         <ComboBox ItemsSource="{Binding PrinterDisplayNames}"
                                   SelectedIndex="{Binding SelectedPrinterIndex, Mode=TwoWay}"
                                   Margin="0,0,0,4" />
+
+                        <TextBlock Text="Resin" Classes="section" />
+                        <ComboBox ItemsSource="{Binding SupportSettings.Resins.DisplayNames}"
+                                  SelectedIndex="{Binding SupportSettings.Resins.SelectedIndex, Mode=TwoWay}"
+                                  Margin="0,0,0,4" />
+                        <WrapPanel Margin="0,0,0,4">
+                            <Button Content="Save" Command="{Binding SupportSettings.Resins.SaveCommand}" Margin="0,0,4,4" />
+                            <Button Content="Save As…" Command="{Binding SupportSettings.Resins.BeginSaveAsCommand}" Margin="0,0,4,4" />
+                            <Button Content="Rename" Command="{Binding SupportSettings.Resins.BeginRenameCommand}" Margin="0,0,4,4" />
+                            <Button Content="Delete" Command="{Binding SupportSettings.Resins.DeleteCommand}" Margin="0,0,0,4" />
+                        </WrapPanel>
+                        <StackPanel IsVisible="{Binding SupportSettings.Resins.IsNameEditorVisible}" Margin="0,0,0,4">
+                            <TextBox Text="{Binding SupportSettings.Resins.NameDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     PlaceholderText="Preset name" />
+                            <TextBlock Text="{Binding SupportSettings.Resins.ValidationMessage}"
+                                       IsVisible="{Binding SupportSettings.Resins.HasValidationMessage}"
+                                       Foreground="#FFB35C" FontSize="11" TextWrapping="Wrap" />
+                            <WrapPanel Margin="0,4,0,0">
+                                <Button Content="{Binding SupportSettings.Resins.NameEditorAction}"
+                                        Command="{Binding SupportSettings.Resins.ConfirmNameCommand}" Margin="0,0,4,0" />
+                                <Button Content="Cancel" Command="{Binding SupportSettings.Resins.CancelNameCommand}" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding SupportSettings.Resins.Fields}"
+                                      ItemTemplate="{StaticResource WideFieldTemplate}" />
+
+                        <TextBlock Text="Print" Classes="section" />
                         <ItemsControl ItemsSource="{Binding PrintSettings.Fields}" ItemTemplate="{StaticResource WideFieldTemplate}" />
                         <CheckBox Content="Anti-aliasing (16 levels)" IsChecked="{Binding PrintSettings.AntiAliasing}" Margin="0,6,0,0" FontSize="12" />
 
@@ -310,6 +357,8 @@
                                           SupportSelectionMode="{Binding IsSupportView}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
                                           SupportDisplay="{Binding SupportSettings.SupportDisplay}"
+                                          ClipRange="{Binding ViewportClipRange}"
+                                          SupportWaterline="{Binding SupportWaterline}"
                                           ShowMoveGizmo="{Binding ShowMoveGizmo}"
                                           ShowRotateGizmo="{Binding ShowRotateGizmo}"
                                           ShowScaleGizmo="{Binding ShowScaleGizmo}"

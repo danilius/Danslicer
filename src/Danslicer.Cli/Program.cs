@@ -117,6 +117,7 @@ int Slice(string[] a)
     List<SceneObject> objects;
     Danslicer.Core.Supports.SupportGraph? supports = null;
     PrintSettings settings;
+    ResinSettings resin;
     var projectInputs = inputs.Where(ProjectFile.IsProjectPath).ToList();
     if (projectInputs.Count > 0)
     {
@@ -130,11 +131,13 @@ int Slice(string[] a)
         objects = project.Scene.Objects.ToList();
         supports = project.Supports;
         settings = project.PrintSettings;
+        resin = project.ResinSettings;
     }
     else
     {
         objects = [];
         settings = PrintSettings.Default;
+        resin = ResinSettings.Default;
         foreach (var path in inputs)
         {
             var mesh = MeshFile.Read(path);
@@ -147,11 +150,14 @@ int Slice(string[] a)
     settings = settings with
     {
         LayerHeight = layerHeight ?? settings.LayerHeight,
-        Exposure = exposure ?? settings.Exposure,
-        BottomExposure = bottomExposure ?? settings.BottomExposure,
-        BottomLayers = bottomLayers ?? settings.BottomLayers,
         XyCompensation = xyCompensation ?? settings.XyCompensation,
         AntiAliasing = noAntiAliasing ? false : settings.AntiAliasing,
+    };
+    resin = resin with
+    {
+        Exposure = exposure ?? resin.Exposure,
+        BottomExposure = bottomExposure ?? resin.BottomExposure,
+        BottomLayers = bottomLayers ?? resin.BottomLayers,
     };
 
     var sw = Stopwatch.StartNew();
@@ -165,7 +171,8 @@ int Slice(string[] a)
     SliceResult result;
     try
     {
-        result = Slicer.Slice(objects, printer, settings, progress, supports: supports);
+        result = Slicer.Slice(objects, printer, settings, progress, supports: supports,
+            resinSettings: resin);
     }
     catch (InvalidOperationException ex)
     {

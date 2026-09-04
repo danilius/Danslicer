@@ -1,4 +1,5 @@
 using System.Numerics;
+using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Printers;
@@ -43,6 +44,10 @@ public sealed class RenderFrame
     public RenderPathMode RenderPath { get; init; } = RenderPathMode.Classic;
     /// <summary>Shading and effect settings for the deferred path; ignored by Classic.</summary>
     public DeferredEffects Deferred { get; init; } = DeferredEffects.Default;
+    /// <summary>Support-mode world-Z isolation. Full/inactive ranges leave output bit-identical.</summary>
+    public ViewportClipRange ClipRange { get; init; }
+    /// <summary>Hovered model-surface world Z, or null when the Support waterline is inactive.</summary>
+    public float? WaterlineZ { get; init; }
 }
 
 /// <summary>
@@ -146,7 +151,8 @@ public sealed partial class SceneRenderer : IDisposable
         }
         // Sit just under Z = 0 so grid lines on the plane do not fight it.
         var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
-        BindMeshShader(model, view, projection, PlateColor, opacity, backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f);
+        BindMeshShader(model, view, projection, PlateColor, opacity, backfaceTint: 0f,
+            warnBelowPlate: false, overhangCos: 2f, clip: default);
         _plate.Draw();
         if (faded)
         {
@@ -185,7 +191,9 @@ public sealed partial class SceneRenderer : IDisposable
             var overhangCos = frame.ShowOverhangs
                 ? MathF.Sin(Math.Clamp(frame.OverhangAngleDegrees, 1f, 89f) * MathF.PI / 180f)
                 : 2f;
-            BindMeshShader(obj.Transform.ToMatrix(), view, projection, color, ghosted ? 0.25f : 1f, backfaceTint: 1f, warnBelowPlate: true, overhangCos);
+            BindMeshShader(obj.Transform.ToMatrix(), view, projection, color,
+                ghosted ? 0.25f : 1f, backfaceTint: 1f, warnBelowPlate: true,
+                overhangCos, frame.ClipRange, frame.WaterlineZ);
             gpu.Draw();
         }
 
@@ -216,7 +224,9 @@ public sealed partial class SceneRenderer : IDisposable
                 gl.DepthMask(false);
             }
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Lequal);
-            BindMeshShader(Matrix4x4.Identity, view, projection, draw.Color, draw.Opacity, backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f);
+            BindMeshShader(Matrix4x4.Identity, view, projection, draw.Color, draw.Opacity,
+                backfaceTint: 0f, warnBelowPlate: false, overhangCos: 2f,
+                clip: frame.ClipRange);
             gpu.Draw();
             if (draw.DepthOverlay) gl.DepthFunc(DepthFunction.Less);
             if (faded)
@@ -227,7 +237,10 @@ public sealed partial class SceneRenderer : IDisposable
         }
     }
 
-    private void BindMeshShader(in Matrix4x4 model, in Matrix4x4 view, in Matrix4x4 projection, Vector3 color, float opacity, float backfaceTint, bool warnBelowPlate, float overhangCos)
+    private void BindMeshShader(in Matrix4x4 model, in Matrix4x4 view,
+        in Matrix4x4 projection, Vector3 color, float opacity, float backfaceTint,
+        bool warnBelowPlate, float overhangCos, ViewportClipRange clip,
+        float? waterlineZ = null)
     {
         Matrix4x4.Invert(model * view, out var inverse);
         var normalMatrix = Matrix4x4.Transpose(inverse);
@@ -248,30 +261,46 @@ public sealed partial class SceneRenderer : IDisposable
         _meshShader.Set("uOverhangColorA", _overhangColorA);
         _meshShader.Set("uOverhangColorB", _overhangColorB);
         _meshShader.Set("uOverhangCell", _overhangCell);
+        BindClip(_meshShader, clip);
+        _meshShader.Set("uWaterlineEnabled", waterlineZ.HasValue ? 1f : 0f);
+        _meshShader.Set("uWaterlineZ", waterlineZ.GetValueOrDefault());
     }
 
     private void DrawLines(RenderFrame frame, in Matrix4x4 viewProjection)
     {
         var gl = _gl;
-        _depthLines.Clear();
-        _overlayLines.Clear();
-        AddGrid(frame.Printer);
-        foreach (var line in frame.DepthOverlay) _depthLines.Add(line);
-        foreach (var line in frame.Overlay) _overlayLines.Add(line);
-
         _lineShader.Use();
         _lineShader.Set("uViewProjection", viewProjection);
 
         gl.Enable(EnableCap.Blend);
         gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         gl.Enable(EnableCap.DepthTest);
+
+        _depthLines.Clear();
+        AddGrid(frame.Printer);
+        BindClip(_lineShader, default);
+        _depthLines.Draw();
+
+        _depthLines.Clear();
+        foreach (var line in frame.DepthOverlay) _depthLines.Add(line);
+        BindClip(_lineShader, frame.ClipRange);
         _depthLines.Draw();
 
         gl.Disable(EnableCap.DepthTest);
+        _overlayLines.Clear();
+        foreach (var line in frame.Overlay) _overlayLines.Add(line);
+        BindClip(_lineShader, default);
         _overlayLines.Draw();
 
         gl.Enable(EnableCap.DepthTest);
         gl.Disable(EnableCap.Blend);
+    }
+
+    private static void BindClip(ShaderProgram shader, ViewportClipRange clip)
+    {
+        shader.Set("uClipEnabled", clip.IsClipping ? 1f : 0f);
+        shader.Set("uClipLowerZ", clip.LowerZ);
+        shader.Set("uClipUpperZ", clip.UpperZ);
     }
 
     private void AddGrid(PrinterDefinition printer)

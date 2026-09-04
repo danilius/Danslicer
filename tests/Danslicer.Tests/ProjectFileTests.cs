@@ -33,6 +33,8 @@ public sealed class ProjectFileTests
         Assert.Equal(view, loaded.ViewState);
         Assert.False(loaded.Document.History.CanUndo);
         Assert.Equal(document.PrintSettings, loaded.Document.PrintSettings);
+        Assert.Equal(document.ResinSettings, loaded.Document.ResinSettings);
+        Assert.Equal(document.ResinPreset, loaded.Document.ResinPreset);
         Assert.Equal(document.Printer, loaded.Document.Printer);
         Assert.Equal(document.Scene.Objects.Count, loaded.Document.Scene.Objects.Count);
         for (var i = 0; i < document.Scene.Objects.Count; i++)
@@ -112,6 +114,57 @@ public sealed class ProjectFileTests
     }
 
     [Fact]
+    public void ProjectWithoutResinSelectionFallsBackToDefault()
+    {
+        using var file = new TemporaryProject();
+        ProjectFile.Save(file.Path, CompleteDocument(sharedMesh: false), new ProjectViewState());
+        RewriteManifest(file.Path, root =>
+        {
+            root.Remove("resinSettings");
+            root.Remove("resinPresetId");
+            root.Remove("resinPreset");
+        });
+
+        var loaded = ProjectFile.Load(file.Path);
+
+        Assert.Equal(ResinSettings.Default, loaded.Document.ResinSettings);
+        Assert.Equal(ResinPreset.Default, loaded.Document.ResinPreset);
+    }
+
+    [Fact]
+    public void VersionOneCombinedPrintSettingsMigrateTheirResinFields()
+    {
+        using var file = new TemporaryProject();
+        ProjectFile.Save(file.Path, CompleteDocument(sharedMesh: false), new ProjectViewState());
+        RewriteManifest(file.Path, root =>
+        {
+            root.Remove("resinSettings");
+            var print = root["printSettings"]!;
+            print["bottomLayers"] = 9;
+            print["bottomExposure"] = 41f;
+            print["exposure"] = 3.3f;
+            print["lightOffDelay"] = 0.8f;
+            print["liftHeight"] = 12f;
+            print["liftSpeed"] = 77f;
+            print["retractSpeed"] = 155f;
+            print["bottomLiftHeight"] = 13f;
+            print["bottomLiftSpeed"] = 66f;
+        });
+
+        var loaded = ProjectFile.Load(file.Path).Document;
+
+        Assert.Equal(9, loaded.ResinSettings.BottomLayers);
+        Assert.Equal(41f, loaded.ResinSettings.BottomExposure);
+        Assert.Equal(3.3f, loaded.ResinSettings.Exposure);
+        Assert.Equal(0.8f, loaded.ResinSettings.LightOffDelay);
+        Assert.Equal(12f, loaded.ResinSettings.LiftHeight);
+        Assert.Equal(77f, loaded.ResinSettings.LiftSpeed);
+        Assert.Equal(155f, loaded.ResinSettings.RetractSpeed);
+        Assert.Equal(13f, loaded.ResinSettings.BottomLiftHeight);
+        Assert.Equal(66f, loaded.ResinSettings.BottomLiftSpeed);
+    }
+
+    [Fact]
     public void ReplacingAnOpenDocumentStartsWithFreshSelectionAndUndoHistory()
     {
         var current = CompleteDocument(sharedMesh: false);
@@ -183,10 +236,18 @@ public sealed class ProjectFileTests
             Printer = TestPrinter("complete-document"),
             PrintSettings = PrintSettings.Default with
             {
-                LayerHeight = 0.075f, BottomLayers = 7, BottomExposure = 32,
-                Exposure = 2.4f, LightOffDelay = 1.2f, LiftHeight = 9,
-                LiftSpeed = 95, RetractSpeed = 165, BottomLiftHeight = 10,
-                BottomLiftSpeed = 80, AntiAliasing = false, XyCompensation = -0.03f,
+                LayerHeight = 0.075f, AntiAliasing = false, XyCompensation = -0.03f,
+            },
+            ResinSettings = ResinSettings.Default with
+            {
+                BottomLayers = 7, BottomExposure = 32, Exposure = 2.4f,
+                LightOffDelay = 1.2f, LiftHeight = 9, LiftSpeed = 95,
+                RetractSpeed = 165, BottomLiftHeight = 10, BottomLiftSpeed = 80,
+            },
+            ResinPreset = new ResinPreset
+            {
+                Id = "project-resin", Name = "Project resin",
+                Settings = ResinSettings.Default with { Exposure = 2.4f },
             },
         };
         var mesh = Box(2, 3, 4);

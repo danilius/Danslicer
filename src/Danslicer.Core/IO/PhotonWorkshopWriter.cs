@@ -30,6 +30,7 @@ public static class PhotonWorkshopWriter
     {
         var w = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
         var s = result.Settings;
+        var resin = result.ResinSettings;
         var p = result.Printer;
         var layerCount = result.LayerCount;
         var aaLevels = s.AntiAliasing ? 16u : 1u;
@@ -43,13 +44,13 @@ public static class PhotonWorkshopWriter
         w.Write(HeaderTableLength);
         w.Write(p.PixelPitchX * 1000f);                 // pixel size µm
         w.Write(s.LayerHeight);
-        w.Write(s.Exposure);
-        w.Write(s.LightOffDelay);
-        w.Write(s.BottomExposure);
-        w.Write((float)s.BottomLayers);
-        w.Write(s.LiftHeight);
-        w.Write(s.LiftSpeed * MmPerMinToMmPerSec);
-        w.Write(s.RetractSpeed * MmPerMinToMmPerSec);
+        w.Write(resin.Exposure);
+        w.Write(resin.LightOffDelay);
+        w.Write(resin.BottomExposure);
+        w.Write((float)resin.BottomLayers);
+        w.Write(resin.LiftHeight);
+        w.Write(resin.LiftSpeed * MmPerMinToMmPerSec);
+        w.Write(resin.RetractSpeed * MmPerMinToMmPerSec);
         w.Write(result.VolumeMl);
         w.Write(aaLevels);
         w.Write((uint)p.ResolutionX);
@@ -90,19 +91,19 @@ public static class PhotonWorkshopWriter
         WriteTableName(w, "EXTRA");
         w.Write(ExtraTableLength);
         w.Write(2u);                                    // bottom lift stages
-        w.Write(s.BottomLiftHeight);
-        w.Write(s.BottomLiftSpeed * MmPerMinToMmPerSec);
-        w.Write(s.RetractSpeed * MmPerMinToMmPerSec);   // bottom retract speed 2
+        w.Write(resin.BottomLiftHeight);
+        w.Write(resin.BottomLiftSpeed * MmPerMinToMmPerSec);
+        w.Write(resin.RetractSpeed * MmPerMinToMmPerSec);   // bottom retract speed 2
         w.Write(0f);                                    // bottom lift height 2
-        w.Write(s.BottomLiftSpeed * MmPerMinToMmPerSec);
-        w.Write(s.RetractSpeed * MmPerMinToMmPerSec);   // bottom retract speed 1
+        w.Write(resin.BottomLiftSpeed * MmPerMinToMmPerSec);
+        w.Write(resin.RetractSpeed * MmPerMinToMmPerSec);   // bottom retract speed 1
         w.Write(2u);                                    // normal lift stages
-        w.Write(s.LiftHeight);
-        w.Write(s.LiftSpeed * MmPerMinToMmPerSec);
-        w.Write(s.RetractSpeed * MmPerMinToMmPerSec);
+        w.Write(resin.LiftHeight);
+        w.Write(resin.LiftSpeed * MmPerMinToMmPerSec);
+        w.Write(resin.RetractSpeed * MmPerMinToMmPerSec);
         w.Write(0f);                                    // lift height 2
-        w.Write(s.LiftSpeed * MmPerMinToMmPerSec);
-        w.Write(s.RetractSpeed * MmPerMinToMmPerSec);
+        w.Write(resin.LiftSpeed * MmPerMinToMmPerSec);
+        w.Write(resin.RetractSpeed * MmPerMinToMmPerSec);
 
         // MACHINE
         var machineAddress = (uint)stream.Position;
@@ -138,9 +139,9 @@ public static class PhotonWorkshopWriter
             var layer = result.Layers[i];
             w.Write(addresses[i]);
             w.Write((uint)layer.Rle.Length);
-            w.Write(s.LiftHeightForLayer(i));
-            w.Write(s.LiftSpeedForLayer(i) * MmPerMinToMmPerSec);
-            w.Write(s.ExposureForLayer(i));
+            w.Write(resin.LiftHeightForLayer(i));
+            w.Write(resin.LiftSpeedForLayer(i) * MmPerMinToMmPerSec);
+            w.Write(resin.ExposureForLayer(i));
             w.Write(s.LayerHeight);
             w.Write(layer.LitPixels);
             w.Write(0u);
