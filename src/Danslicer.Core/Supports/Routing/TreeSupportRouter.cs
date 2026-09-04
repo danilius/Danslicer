@@ -39,7 +39,7 @@ public sealed record TreeRoutingOptions
     /// </summary>
     public bool FineFeatureMinisFallBackToRegular { get; init; } = true;
     /// <summary>
-    /// Minimum centreline clearance between non-incident support members. Zero disables
+    /// Minimum gap between the surfaces of non-incident support members. Zero disables
     /// the additional constraint and preserves legacy routing exactly.
     /// </summary>
     public float MinMemberSeparationMm { get; init; }
@@ -280,7 +280,7 @@ public sealed class TreeSupportRouter
                 _obstacles.IntersectsCapsule(branchEnd.Position, clearEnd, queryRadius,
                     Excluding(incident))) continue;
             if (state.HitsGenerated(branchEnd.Position, clearEnd, queryRadius, incident)) continue;
-            if (state.ViolatesMemberSeparation(branchEnd.Position, tip.SurfacePoint,
+            if (state.ViolatesMemberSeparation(branchEnd.Position, tip.SurfacePoint, bodyRadius,
                     branchEnd.Id, null, incident)) continue;
 
             var miniTip = state.NewNode(SupportNodeType.Tip, tip.SurfacePoint, options.Origin);
@@ -395,7 +395,8 @@ public sealed class TreeSupportRouter
         return clearEnd == branchEnd ||
                (!_obstacles.IntersectsCapsule(branchEnd, clearEnd, queryRadius) &&
                 !state.HitsGenerated(branchEnd, clearEnd, queryRadius) &&
-                !state.ViolatesMemberSeparation(branchEnd, tip.SurfacePoint));
+                !state.ViolatesMemberSeparation(branchEnd, tip.SurfacePoint,
+                    options.MiniSupportDiameter * 0.5f));
     }
 
     private bool TryRouteClusterCarrier(Vector3 branchEndPosition, TreeRoutingOptions options,
@@ -481,7 +482,7 @@ public sealed class TreeSupportRouter
             var sharedNode = MathF.Abs(candidate.Attach.Z - trunk.TopZ) <= 1e-3f
                 ? trunk.TopNodeId
                 : (Guid?)null;
-            if (state.ViolatesMemberSeparation(position, candidate.Attach,
+            if (state.ViolatesMemberSeparation(position, candidate.Attach, radius,
                     null, sharedNode, [targetSegment.Id])) continue;
 
             var attachNode = MathF.Abs(candidate.Attach.Z - trunk.TopZ) <= 1e-3f
@@ -602,8 +603,9 @@ public sealed class TreeSupportRouter
                 continue;
             if (!TrunkIsClear(trunkTop, options, state)) continue;
             if (state.ProposedMembersViolateSeparation(tip.SurfacePoint,
-                    branchJunction.Value, trunkTop,
-                    new Vector3(trunkTop.X, trunkTop.Y, options.PlateZ))) continue;
+                    branchJunction.Value, branchTipDiameter * 0.5f, trunkTop,
+                    new Vector3(trunkTop.X, trunkTop.Y, options.PlateZ),
+                    options.TrunkDiameter * 0.5f)) continue;
             EmitSupport(tip, trunkTop, branchJunction.Value, tipOnly: false,
                 options, state, branchTipDiameter);
             return true;
@@ -682,7 +684,8 @@ public sealed class TreeSupportRouter
             if (!ContactMemberIsClear(tip.SurfacePoint, candidate, contactRadius)) continue;
             if (state.HitsGenerated(tip.SurfacePoint, candidate,
                     tipMemberDiameter * 0.5f + state.Clearance.ModelDistance)) continue;
-            if (state.ViolatesMemberSeparation(tip.SurfacePoint, candidate)) continue;
+            if (state.ViolatesMemberSeparation(tip.SurfacePoint, candidate,
+                    tipMemberDiameter * 0.5f)) continue;
             if (BaseIsClear(candidate, options, state)) return candidate;
         }
         return null;
@@ -710,7 +713,8 @@ public sealed class TreeSupportRouter
                 var end = tip.SurfacePoint + direction * length;
                 if (!ContactMemberIsClear(tip.SurfacePoint, end, contactRadius)) continue;
                 if (state.HitsGenerated(tip.SurfacePoint, end, memberRadius)) continue;
-                if (state.ViolatesMemberSeparation(tip.SurfacePoint, end)) continue;
+                if (state.ViolatesMemberSeparation(tip.SurfacePoint, end,
+                        tipMemberDiameter * 0.5f)) continue;
                 yield return end;
             }
         }
@@ -840,7 +844,7 @@ public sealed class TreeSupportRouter
             var sharedNode = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
                 ? trunk.TopNodeId
                 : (Guid?)null;
-            if (state.ViolatesMemberSeparation(j1, attach,
+            if (state.ViolatesMemberSeparation(j1, attach, branchRadius,
                     null, sharedNode, [targetSegment.Id])) continue;
 
             var attachNode = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
@@ -962,7 +966,7 @@ public sealed class TreeSupportRouter
         if (!state.Clearance.PillarIsClear(_obstacles, start, end, physicalRadius)) return false;
         return !state.HitsGenerated(start, end,
                    physicalRadius + state.Clearance.ModelDistance, excludeSegments) &&
-               !state.ViolatesMemberSeparation(start, end,
+               !state.ViolatesMemberSeparation(start, end, physicalRadius,
                    null, null, excludeSegments);
     }
 
@@ -1318,7 +1322,7 @@ public sealed class TreeSupportRouter
             return false;
         }
 
-        public bool ViolatesMemberSeparation(Vector3 start, Vector3 end,
+        public bool ViolatesMemberSeparation(Vector3 start, Vector3 end, float radius,
             Guid? nodeA = null, Guid? nodeB = null,
             IReadOnlyCollection<Guid>? excludeSegments = null)
         {
@@ -1327,8 +1331,8 @@ public sealed class TreeSupportRouter
             {
                 if (excludeSegments is not null && excludeSegments.Contains(member.SegmentId))
                     continue;
-                if (!MemberSeparation.AreTooClose(start, end, nodeA, nodeB,
-                        member.Start, member.End, member.NodeA, member.NodeB,
+                if (!MemberSeparation.AreTooClose(start, end, radius, nodeA, nodeB,
+                        member.Start, member.End, member.Radius, member.NodeA, member.NodeB,
                         _minimumMemberSeparation)) continue;
                 SeparationRejections++;
                 return true;
@@ -1337,11 +1341,12 @@ public sealed class TreeSupportRouter
         }
 
         public bool ProposedMembersViolateSeparation(Vector3 firstStart, Vector3 firstEnd,
-            Vector3 secondStart, Vector3 secondEnd)
+            float firstRadius, Vector3 secondStart, Vector3 secondEnd, float secondRadius)
         {
             if (_minimumMemberSeparation <= 0 ||
-                !MemberSeparation.AreTooClose(firstStart, firstEnd, null, null,
-                    secondStart, secondEnd, null, null, _minimumMemberSeparation)) return false;
+                !MemberSeparation.AreTooClose(firstStart, firstEnd, firstRadius, null, null,
+                    secondStart, secondEnd, secondRadius, null, null,
+                    _minimumMemberSeparation)) return false;
             SeparationRejections++;
             return true;
         }

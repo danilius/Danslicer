@@ -110,10 +110,12 @@ internal static class RouteCommand
                 HalfMillimetreCrossingThreshold);
             var crossingPairCounts = MemberSeparation.CountPairsByType(result.Graph,
                 CrossingReportThresholdMm);
+            var intersectionPairs = MemberSeparation.CountIntersections(result.Graph);
             if (json) WriteJson(result, collisionFree, crossingPairs,
-                crossingPairsBelowHalfMm, crossingPairCounts, minMemberSeparation, seatOffset);
+                crossingPairsBelowHalfMm, crossingPairCounts, intersectionPairs,
+                minMemberSeparation, seatOffset);
             else WriteText(meshPath, tips.Count, result, collisionFree, crossingPairs,
-                crossingPairsBelowHalfMm, minMemberSeparation, seatOffset);
+                crossingPairsBelowHalfMm, intersectionPairs, minMemberSeparation, seatOffset);
             return result.UnroutedTips.Count == 0 && collisionFree ? 0 : 2;
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or JsonException
@@ -318,7 +320,7 @@ internal static class RouteCommand
 
     private static void WriteText(string meshPath, int tipCount, RoutingResult result,
         bool collisionFree, int crossingPairs, int crossingPairsBelowHalfMm,
-        float minMemberSeparation, Vector3? seatOffset)
+        int intersectionPairs, float minMemberSeparation, Vector3? seatOffset)
     {
         Console.WriteLine($"Mesh:           {meshPath}");
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
@@ -339,12 +341,13 @@ internal static class RouteCommand
         Console.WriteLine($"Max lean:       {Format(result.MaxLeanAngleDegrees)} degrees");
         Console.WriteLine($"Crossing pairs: {crossingPairsBelowHalfMm} below 0.5 mm; " +
                           $"{crossingPairs} below {Format(CrossingReportThresholdMm)} mm");
+        Console.WriteLine($"Intersections:  {intersectionPairs} overlapping member pairs");
         Console.WriteLine($"Collision-free: {(collisionFree ? "yes" : "no")}");
     }
 
     private static void WriteJson(RoutingResult result, bool collisionFree, int crossingPairs,
         int crossingPairsBelowHalfMm, IReadOnlyDictionary<string, int> crossingPairCounts,
-        float minMemberSeparation, Vector3? seatOffset)
+        int intersectionPairs, float minMemberSeparation, Vector3? seatOffset)
     {
         var summary = new Dictionary<string, object?>
         {
@@ -369,6 +372,7 @@ internal static class RouteCommand
             ["crossingPairsBelowHalfMm"] = crossingPairsBelowHalfMm,
             ["crossingPairs"] = crossingPairs,
             ["crossingPairCounts"] = crossingPairCounts,
+            ["intersectionPairs"] = intersectionPairs,
             ["collisionFree"] = collisionFree,
         };
         if (seatOffset is { } offset) summary["seatOffset"] = MeshSeat.Json(offset);

@@ -193,7 +193,7 @@ public sealed record SupportConfig
     public float MaxBranchLength { get; set; } = 8f;
     public bool PreferExistingTrunks { get; set; } = true;
     public float ExistingTrunkBranchRange { get; set; } = 8f;
-    /// <summary>Minimum centreline gap between non-incident members; zero disables the constraint.</summary>
+    /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     public float MiniSupportDiameter { get; set; } = 0.6f;
     public float MiniSupportTipDiameter { get; set; } = 0.25f;
