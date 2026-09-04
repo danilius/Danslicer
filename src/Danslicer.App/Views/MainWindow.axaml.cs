@@ -8,6 +8,7 @@ using Danslicer.App.Controls;
 using Danslicer.App.Configuration;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
+using Danslicer.Core.Config;
 using Danslicer.Core.IO;
 
 namespace Danslicer.App.Views;
@@ -34,6 +35,7 @@ public partial class MainWindow : Window
         Configuration.WindowStatePersistence.Track(this, "main",
             WorkspaceGrid.ColumnDefinitions[0], WorkspaceGrid.ColumnDefinitions[4]);
         RefreshWindowKeymap();
+        SyncRenderPathMenu();
         Viewport.PropertyChanged += (_, e) =>
         {
             if (e.Property == ViewportControl.StatusTextProperty && DataContext is MainViewModel vm)
@@ -296,6 +298,67 @@ public partial class MainWindow : Window
     {
         Viewport.RequestRedraw();
         RefreshWindowKeymap();
+    }
+
+    // ----- Render path (View menu) -----
+
+    /// <summary>Reflects the persisted render-path settings into the View menu check states.</summary>
+    private void SyncRenderPathMenu()
+    {
+        var viewport = AppConfig.Current.Viewport;
+        var deferred = viewport.RenderPath == RenderPathMode.Deferred;
+        DeferredRenderingMenuItem.IsChecked = deferred;
+        // The shading and effect switches only affect the deferred composite pass.
+        ShadingMenuItem.IsEnabled = deferred;
+        ShadingStudioMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.Studio;
+        ShadingClayMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapClay;
+        ShadingMetalMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapMetal;
+        ShadingPearlMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapPearl;
+        CavityMenuItem.IsChecked = viewport.CavityEnabled;
+        OutlinesMenuItem.IsChecked = viewport.OutlinesEnabled;
+        FxaaMenuItem.IsChecked = viewport.FxaaEnabled;
+    }
+
+    private void ApplyRenderPathChange()
+    {
+        AppConfig.Save();
+        SyncRenderPathMenu();
+        Viewport.RequestRedraw();
+    }
+
+    private void OnToggleDeferredRenderingClick(object? sender, RoutedEventArgs e)
+    {
+        var viewport = AppConfig.Current.Viewport;
+        viewport.RenderPath = viewport.RenderPath == RenderPathMode.Deferred
+            ? RenderPathMode.Classic
+            : RenderPathMode.Deferred;
+        ApplyRenderPathChange();
+    }
+
+    private void OnShadingClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string tag } &&
+            Enum.TryParse<ViewportShadingMode>(tag, out var mode))
+            AppConfig.Current.Viewport.Shading = mode;
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleCavityClick(object? sender, RoutedEventArgs e)
+    {
+        AppConfig.Current.Viewport.CavityEnabled = !AppConfig.Current.Viewport.CavityEnabled;
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleOutlinesClick(object? sender, RoutedEventArgs e)
+    {
+        AppConfig.Current.Viewport.OutlinesEnabled = !AppConfig.Current.Viewport.OutlinesEnabled;
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleFxaaClick(object? sender, RoutedEventArgs e)
+    {
+        AppConfig.Current.Viewport.FxaaEnabled = !AppConfig.Current.Viewport.FxaaEnabled;
+        ApplyRenderPathChange();
     }
 
     private void OnOpenProjectClick(object? sender, RoutedEventArgs e) => OpenProjectCommand.Execute(null);

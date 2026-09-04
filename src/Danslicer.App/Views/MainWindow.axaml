@@ -134,6 +134,27 @@
                 <MenuItem Header="_Top" Click="OnViewTopClick" InputGesture="D7" />
                 <Separator />
                 <MenuItem Header="Toggle _Perspective/Orthographic" Click="OnToggleProjectionClick" InputGesture="D5" />
+                <Separator />
+                <!-- Check states mirror the persisted viewport config; see SyncRenderPathMenu. -->
+                <MenuItem x:Name="DeferredRenderingMenuItem" Header="_Deferred Rendering (preview)"
+                          ToggleType="CheckBox" Click="OnToggleDeferredRenderingClick" />
+                <MenuItem x:Name="ShadingMenuItem" Header="Sha_ding">
+                    <MenuItem x:Name="ShadingStudioMenuItem" Header="_Studio Lights" ToggleType="Radio"
+                              GroupName="ViewportShading" Click="OnShadingClick" Tag="Studio" />
+                    <MenuItem x:Name="ShadingClayMenuItem" Header="MatCap _Clay" ToggleType="Radio"
+                              GroupName="ViewportShading" Click="OnShadingClick" Tag="MatCapClay" />
+                    <MenuItem x:Name="ShadingMetalMenuItem" Header="MatCap _Metal" ToggleType="Radio"
+                              GroupName="ViewportShading" Click="OnShadingClick" Tag="MatCapMetal" />
+                    <MenuItem x:Name="ShadingPearlMenuItem" Header="MatCap _Pearl" ToggleType="Radio"
+                              GroupName="ViewportShading" Click="OnShadingClick" Tag="MatCapPearl" />
+                    <Separator />
+                    <MenuItem x:Name="CavityMenuItem" Header="Ca_vity" ToggleType="CheckBox"
+                              Click="OnToggleCavityClick" />
+                    <MenuItem x:Name="OutlinesMenuItem" Header="_Outlines" ToggleType="CheckBox"
+                              Click="OnToggleOutlinesClick" />
+                    <MenuItem x:Name="FxaaMenuItem" Header="_FXAA" ToggleType="CheckBox"
+                              Click="OnToggleFxaaClick" />
+                </MenuItem>
             </MenuItem>
         </Menu>
 
