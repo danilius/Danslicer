@@ -20,14 +20,19 @@ Deliberately NOT queued: viewport G-buffer pass (needs interactive screen checks
 anything touching the user's pending decisions (grid/pitch verdict, island tweaks,
 recipes design).
 
-**Claude implementation lane ACTIVE** (user re-relaxed supervisory-only at the usage
-window reset, ~02:00 2026-09-04): an implementation agent works milestone 4 (readable
-viewport: G-buffer, MatCap, cavity, outlines, FXAA per DESIGN §6) in
-`F:\Git Repos\Danslicer-claude` branch `viewport-quality`, FLAG-GATED
-(Classic|Deferred render path, default Classic — user approves on screen before any
-default change), headless-only, log in that worktree's untracked CLAUDE-LANE.md.
-Supervisor reviews and merges LAST (after ChatGPT's 017/018, which touch the same
-shaders). Screen use unlocks only when the user says they are leaving.
+**Claude implementation lane COMPLETE** (~02:30 2026-09-04, under the user's one-hour
+budget): milestone 4 stages 1–5 implemented on `Danslicer-claude` branch
+`viewport-quality` (5 commits, 460/460 green, independently verified per commit):
+G-buffer, composite with studio/3 procedural MatCaps, cavity+outlines, ghosted/
+overlay passes, FXAA — all in new Danslicer.Render files, ViewportControl touched by
+2 lines, `RenderPath` Classic|Deferred default Classic with GL-failure latch-off
+fallback. Stretch goals (ID picking, view cube) deliberately skipped. MERGE AFTER
+ChatGPT's 017/018. Screen-test checklist in that worktree's untracked CLAUDE-LANE.md;
+the deferred toggle needs the user's morning approval before any default flip. NOTE:
+017/018's clip/waterline shaders apply to the CLASSIC path only — a known gap to
+close if the user adopts Deferred. ALSO: **dual-GL-context PROBE PASS** confirmed on
+screen (~02:15, user away) — preset editor's live preview renders alongside the main
+viewport flawlessly; screenshot sent to the user.
 
 **Qwen lane CLOSED for the night** (user shut down Unsloth ~01:00 2026-09-04 after
 7 merged test files; the API at 127.0.0.1:8888 is DOWN — do not call it until the
