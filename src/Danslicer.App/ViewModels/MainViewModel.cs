@@ -59,6 +59,7 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>The one live support-settings model shared by Preferences and the Support panel.</summary>
     public ConfigViewModel SupportSettings { get; }
     public LayerRangeClipViewModel SupportClip { get; } = new();
+    public HoverWaterlineViewModel SupportWaterline { get; } = new();
     public ViewportClipRange ViewportClipRange => SupportClip.Range;
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
@@ -122,6 +123,7 @@ public partial class MainViewModel : ViewModelBase
     partial void OnViewModeChanged(WorkspaceMode value)
     {
         SupportClip.Active = value == WorkspaceMode.Support;
+        SupportWaterline.SupportModeActive = value == WorkspaceMode.Support;
         _changingViewMode = true;
         try
         {
