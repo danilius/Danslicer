@@ -120,7 +120,7 @@ internal static class BenchCommand
                     $"{route.UnroutedTips} / {tips.Candidates}**, bases **{route.Bases}**, " +
                     $"max lean {F1(route.MaxLeanAngleDegrees)}°, collisionFree " +
                     $"**{route.CollisionFree.ToString().ToLowerInvariant()}**, crossing pairs " +
-                    $"**{route.CrossingPairs}** | " +
+                    $"<0.5 / <1 mm **{route.CrossingPairsBelowHalfMm} / {route.CrossingPairs}** | " +
                     $"Refusals: {(refusals.Length == 0 ? "none" : refusals)}; " +
                     $"island-origin **{route.IslandRefusals}**. |");
             }
@@ -225,6 +225,8 @@ internal static class BenchCommand
             MaxLeanAngleDegrees = root.GetProperty("maxLeanAngleDegrees").GetSingle(),
             CollisionFree = root.GetProperty("collisionFree").GetBoolean(),
             CrossingPairs = root.GetProperty("crossingPairs").GetInt32(),
+            CrossingPairsBelowHalfMm = root.GetProperty("crossingPairsBelowHalfMm").GetInt32(),
+            CrossingPairCounts = ReadIntDictionary(root.GetProperty("crossingPairCounts")),
         };
     }
 
@@ -386,4 +388,6 @@ internal sealed class RouteBenchmark
     public float MaxLeanAngleDegrees { get; init; }
     public bool CollisionFree { get; init; }
     public int CrossingPairs { get; init; }
+    public int CrossingPairsBelowHalfMm { get; init; }
+    public Dictionary<string, int> CrossingPairCounts { get; init; } = [];
 }

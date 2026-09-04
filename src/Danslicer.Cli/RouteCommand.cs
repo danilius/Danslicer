@@ -11,6 +11,8 @@ using Danslicer.Cli;
 internal static class RouteCommand
 {
     private static readonly CultureInfo Ci = CultureInfo.InvariantCulture;
+    private const float HalfMillimetreCrossingThreshold = 0.5f;
+    private const float CrossingReportThresholdMm = 1f;
 
     public static int Run(string[] args)
     {
@@ -102,11 +104,16 @@ internal static class RouteCommand
                 result = new GridSupportRouter(obstacles, rules).Route(tips, options);
             }
             var collisionFree = IsCollisionFree(result.Graph, obstacles);
-            var crossingPairs = MemberSeparation.CountPairs(result.Graph, minMemberSeparation);
+            var crossingPairs = MemberSeparation.CountPairs(result.Graph,
+                CrossingReportThresholdMm);
+            var crossingPairsBelowHalfMm = MemberSeparation.CountPairs(result.Graph,
+                HalfMillimetreCrossingThreshold);
+            var crossingPairCounts = MemberSeparation.CountPairsByType(result.Graph,
+                CrossingReportThresholdMm);
             if (json) WriteJson(result, collisionFree, crossingPairs,
-                minMemberSeparation, seatOffset);
+                crossingPairsBelowHalfMm, crossingPairCounts, minMemberSeparation, seatOffset);
             else WriteText(meshPath, tips.Count, result, collisionFree, crossingPairs,
-                minMemberSeparation, seatOffset);
+                crossingPairsBelowHalfMm, minMemberSeparation, seatOffset);
             return result.UnroutedTips.Count == 0 && collisionFree ? 0 : 2;
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or JsonException
@@ -310,7 +317,8 @@ internal static class RouteCommand
     }
 
     private static void WriteText(string meshPath, int tipCount, RoutingResult result,
-        bool collisionFree, int crossingPairs, float minMemberSeparation, Vector3? seatOffset)
+        bool collisionFree, int crossingPairs, int crossingPairsBelowHalfMm,
+        float minMemberSeparation, Vector3? seatOffset)
     {
         Console.WriteLine($"Mesh:           {meshPath}");
         if (seatOffset is { } offset) MeshSeat.WriteText(offset);
@@ -329,11 +337,13 @@ internal static class RouteCommand
         foreach (var position in result.BasePositions)
             Console.WriteLine($"  {Format(position.X)}, {Format(position.Y)}, {Format(position.Z)}");
         Console.WriteLine($"Max lean:       {Format(result.MaxLeanAngleDegrees)} degrees");
-        Console.WriteLine($"Crossing pairs: {crossingPairs} at {Format(minMemberSeparation)} mm gap");
+        Console.WriteLine($"Crossing pairs: {crossingPairsBelowHalfMm} below 0.5 mm; " +
+                          $"{crossingPairs} below {Format(CrossingReportThresholdMm)} mm");
         Console.WriteLine($"Collision-free: {(collisionFree ? "yes" : "no")}");
     }
 
     private static void WriteJson(RoutingResult result, bool collisionFree, int crossingPairs,
+        int crossingPairsBelowHalfMm, IReadOnlyDictionary<string, int> crossingPairCounts,
         float minMemberSeparation, Vector3? seatOffset)
     {
         var summary = new Dictionary<string, object?>
@@ -355,7 +365,10 @@ internal static class RouteCommand
             ["bases"] = result.BasePositions.Select(p => new[] { p.X, p.Y, p.Z }).ToList(),
             ["maxLeanAngleDegrees"] = result.MaxLeanAngleDegrees,
             ["minMemberSeparationMm"] = minMemberSeparation,
+            ["crossingThresholdMm"] = CrossingReportThresholdMm,
+            ["crossingPairsBelowHalfMm"] = crossingPairsBelowHalfMm,
             ["crossingPairs"] = crossingPairs,
+            ["crossingPairCounts"] = crossingPairCounts,
             ["collisionFree"] = collisionFree,
         };
         if (seatOffset is { } offset) summary["seatOffset"] = MeshSeat.Json(offset);

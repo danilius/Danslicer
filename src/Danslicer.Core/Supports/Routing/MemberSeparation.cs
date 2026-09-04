@@ -3,31 +3,52 @@ using System.Numerics;
 namespace Danslicer.Core.Supports.Routing;
 
 /// <summary>
-/// Pure member-to-member clearance geometry. Separation is measured between the cylindrical
-/// surfaces around each straight centreline; members incident on a shared graph node are an
-/// intentional joint and never conflict.
+/// Pure member-to-member clearance geometry. Separation is measured between straight centrelines;
+/// members incident on a shared graph node are an intentional joint and never conflict.
 /// </summary>
 public static class MemberSeparation
 {
-    public static bool AreTooClose(Vector3 firstStart, Vector3 firstEnd, float firstRadius,
+    public static bool AreTooClose(Vector3 firstStart, Vector3 firstEnd,
         Guid? firstNodeA, Guid? firstNodeB, Vector3 secondStart, Vector3 secondEnd,
-        float secondRadius, Guid? secondNodeA, Guid? secondNodeB, float minimumSeparation)
+        Guid? secondNodeA, Guid? secondNodeB, float minimumSeparation)
     {
         if (!float.IsFinite(minimumSeparation) || minimumSeparation < 0)
             throw new ArgumentOutOfRangeException(nameof(minimumSeparation));
         if (SharesNode(firstNodeA, firstNodeB, secondNodeA, secondNodeB)) return false;
 
-        var limit = MathF.Max(0, firstRadius) + MathF.Max(0, secondRadius) + minimumSeparation;
         return GeometryDistance.SegmentSegmentSquared(
-            firstStart, firstEnd, secondStart, secondEnd) < limit * limit;
+            firstStart, firstEnd, secondStart, secondEnd) <
+               minimumSeparation * minimumSeparation;
     }
 
     public static int CountPairs(SupportGraph graph, float minimumSeparation)
     {
+        var count = 0;
+        VisitPairs(graph, minimumSeparation, (_, _) => count++);
+        return count;
+    }
+
+    public static IReadOnlyDictionary<string, int> CountPairsByType(
+        SupportGraph graph, float minimumSeparation)
+    {
+        var counts = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        VisitPairs(graph, minimumSeparation, (first, second) =>
+        {
+            var names = new[] { first.Type.ToString(), second.Type.ToString() };
+            Array.Sort(names, StringComparer.Ordinal);
+            var key = $"{names[0]}-{names[1]}";
+            counts[key] = counts.GetValueOrDefault(key) + 1;
+        });
+        return counts;
+    }
+
+    private static void VisitPairs(SupportGraph graph, float minimumSeparation,
+        Action<SupportSegment, SupportSegment> visit)
+    {
         ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(visit);
         var members = graph.Segments.Where(segment => !segment.Disabled)
             .OrderBy(segment => segment.Id).ToList();
-        var count = 0;
         for (var firstIndex = 0; firstIndex < members.Count; firstIndex++)
         {
             var first = members[firstIndex];
@@ -36,15 +57,13 @@ public static class MemberSeparation
             for (var secondIndex = firstIndex + 1; secondIndex < members.Count; secondIndex++)
             {
                 var second = members[secondIndex];
-                if (AreTooClose(firstStart, firstEnd, first.Diameter * 0.5f,
-                        first.NodeA, first.NodeB,
+                if (AreTooClose(firstStart, firstEnd, first.NodeA, first.NodeB,
                         graph.GetNode(second.NodeA).Position,
-                        graph.GetNode(second.NodeB).Position, second.Diameter * 0.5f,
+                        graph.GetNode(second.NodeB).Position,
                         second.NodeA, second.NodeB, minimumSeparation))
-                    count++;
+                    visit(first, second);
             }
         }
-        return count;
     }
 
     private static bool SharesNode(Guid? firstNodeA, Guid? firstNodeB,

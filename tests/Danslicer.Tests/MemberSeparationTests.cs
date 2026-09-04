@@ -11,14 +11,14 @@ public sealed class MemberSeparationTests
     {
         var shared = Guid.NewGuid();
         var crossing = MemberSeparation.AreTooClose(
-            new(-1, -1, 0), new(1, 1, 0), 0,
+            new(-1, -1, 0), new(1, 1, 0),
             Guid.NewGuid(), Guid.NewGuid(),
-            new(-1, 1, 0), new(1, -1, 0), 0,
+            new(-1, 1, 0), new(1, -1, 0),
             Guid.NewGuid(), Guid.NewGuid(), 0.01f);
         var incident = MemberSeparation.AreTooClose(
-            Vector3.Zero, Vector3.UnitX, 0,
+            Vector3.Zero, Vector3.UnitX,
             shared, Guid.NewGuid(),
-            Vector3.Zero, Vector3.UnitY, 0,
+            Vector3.Zero, Vector3.UnitY,
             shared, Guid.NewGuid(), 0.01f);
 
         Assert.True(crossing);
@@ -26,14 +26,14 @@ public sealed class MemberSeparationTests
     }
 
     [Fact]
-    public void ParallelMembersInsideTheSurfaceGapThresholdConflict()
+    public void ParallelMembersInsideTheCentrelineThresholdConflict()
     {
         var close = MemberSeparation.AreTooClose(
-            Vector3.Zero, Vector3.UnitX, 0.2f, Guid.NewGuid(), Guid.NewGuid(),
-            new(0, 1.4f, 0), new(1, 1.4f, 0), 0.2f, Guid.NewGuid(), Guid.NewGuid(), 1.01f);
+            Vector3.Zero, Vector3.UnitX, Guid.NewGuid(), Guid.NewGuid(),
+            new(0, 1.4f, 0), new(1, 1.4f, 0), Guid.NewGuid(), Guid.NewGuid(), 1.41f);
         var farEnough = MemberSeparation.AreTooClose(
-            Vector3.Zero, Vector3.UnitX, 0.2f, Guid.NewGuid(), Guid.NewGuid(),
-            new(0, 1.4f, 0), new(1, 1.4f, 0), 0.2f, Guid.NewGuid(), Guid.NewGuid(), 0.99f);
+            Vector3.Zero, Vector3.UnitX, Guid.NewGuid(), Guid.NewGuid(),
+            new(0, 1.4f, 0), new(1, 1.4f, 0), Guid.NewGuid(), Guid.NewGuid(), 1.39f);
 
         Assert.True(close);
         Assert.False(farEnough);
@@ -102,6 +102,23 @@ public sealed class MemberSeparationTests
 
         AssertGraphsEqual(first.Graph, second.Graph);
         Assert.Equal(first.Failures, second.Failures);
+    }
+
+    [Fact]
+    public void RoutedBranchDoesNotLeaveItsTipTooCloseToItsOwnTrunk()
+    {
+        var tip = new RoutingTip(new(0.7f, 0, 10), Vector3.UnitZ, 0.4f);
+        var router = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
+        var baseline = router.Route([tip], new TreeRoutingOptions { BaseGridPitch = 4f });
+        var separated = router.Route([tip], new TreeRoutingOptions
+        {
+            BaseGridPitch = 4f,
+            MinMemberSeparationMm = 1f,
+        });
+
+        Assert.True(MemberSeparation.CountPairs(baseline.Graph, 1f) > 0);
+        Assert.Equal(0, MemberSeparation.CountPairs(separated.Graph, 1f));
+        Assert.Empty(separated.Failures);
     }
 
     private static SupportGraph ExistingMember()

@@ -67,6 +67,7 @@ public class BenchCommandTests
                             MaxLeanAngleDegrees = 44.56f,
                             CollisionFree = true,
                             CrossingPairs = 4,
+                            CrossingPairsBelowHalfMm = 2,
                         },
                     ],
                 },
@@ -84,7 +85,7 @@ public class BenchCommandTests
                         "2.346 | 2", markdown);
         Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);
         Assert.Contains("**unrouted 9 / 12**, bases **1**, max lean 44.6°, " +
-                        "collisionFree **true**, crossing pairs **4**", markdown);
+                        "collisionFree **true**, crossing pairs <0.5 / <1 mm **2 / 4**", markdown);
         Assert.Contains("Refusals: ContactBlocked 1, NoClearStep 8; island-origin **3**.", markdown);
         Assert.DoesNotContain("MiniIsland 0", markdown);
         Assert.DoesNotContain("brace 0", markdown);
