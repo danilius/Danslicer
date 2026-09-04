@@ -92,6 +92,34 @@ Very fine support is important — teeth, barbs and other fine detail need it:
 - They have a **configurable maximum length**; past it, a new branch or trunk is
   required to carry them.
 
+### Mini-tip clusters (user dictation with Blender mock-up, 2026-09-04)
+
+Where a regular tip goes, one or more mini-tips may go instead — a **cluster**: a
+group of fine rods converging near one contact location, sharing the branch end a
+single regular tip would have used. The mock-up shows a Y-shaped support: right
+branch ends in one regular cone tip, left branch ends in a cluster of four mini
+rods spreading to nearby contact points.
+
+- A cluster is **one or more** mini-tips at one location.
+- Use case: places where regular tips would be **too clustered** — several fine
+  contacts spread the load without the bulk of adjacent full-size cones.
+- Configurable: **max length**, **diameter**, and **max mini-tips in one cluster**.
+- (Existing knobs map: MiniSupportMaxLength, MiniSupportDiameter/TipDiameter, and
+  MiniSupportMaxFanPerBranchEnd becomes the per-cluster cap.)
+
+## Island-first generation and island tools (user dictation, 2026-09-04)
+
+- **Auto support order: islands first, then everything else.** Islands are the
+  print-killers; they get tips and routing priority before other strategies place
+  anything.
+- **Island Support** (Support-mode toolbar button): generates island supports ONLY.
+- **Island Detection** (Support-mode toolbar button): run AFTER supports are
+  generated or manually added — lists all still-unsupported islands and marks each
+  with a **red sphere** in the viewport.
+- A pop-out tunes Island Detection and Island Support parameters.
+- Working goal: the low-res drogon is the canonical push-until-well-supported test
+  subject for auto + manual support quality.
+
 ## Still open
 
 - Embedding depth: assumed measured along the tip axis past the contact point.
