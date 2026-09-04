@@ -9,12 +9,18 @@ namespace Danslicer.Tests;
 
 public sealed class ViewportToolbarTests
 {
-    [Theory]
-    [InlineData(WorkspaceMode.Layout)]
-    [InlineData(WorkspaceMode.Slicing)]
-    public void NonSupportModesShowOnlyObjects(WorkspaceMode mode)
+    [Fact]
+    public void LayoutModeShowsOnlyObjects()
     {
-        Assert.Equal([ViewportTool.Objects], ViewportToolbarPolicy.ToolsFor(mode));
+        Assert.Equal([ViewportTool.Objects],
+            ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Layout));
+    }
+
+    [Fact]
+    public void SlicingModeAddsUvtoolsCheck()
+    {
+        Assert.Equal([ViewportTool.Objects, ViewportTool.UvtoolsCheck],
+            ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Slicing));
     }
 
     [Fact]

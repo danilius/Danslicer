@@ -10,6 +10,7 @@ public enum ViewportTool
     IslandDetection,
     Visibility,
     Rafts,
+    UvtoolsCheck,
 }
 
 public enum ViewportPopupCloseTrigger
@@ -36,9 +37,13 @@ public static class ViewportToolbarPolicy
         ViewportTool.Rafts,
     ];
 
+    private static readonly IReadOnlyList<ViewportTool> SlicingTools =
+        [ViewportTool.Objects, ViewportTool.UvtoolsCheck];
+
     public static IReadOnlyList<ViewportTool> ToolsFor(WorkspaceMode mode) => mode switch
     {
         WorkspaceMode.Support => SupportTools,
+        WorkspaceMode.Slicing => SlicingTools,
         _ => ObjectTools,
     };
 
