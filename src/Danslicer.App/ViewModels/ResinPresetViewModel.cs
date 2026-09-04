@@ -17,6 +17,11 @@ public sealed class ResinPresetViewModel : ViewModelBase
     private IReadOnlyList<ResinPreset> _options = [];
     private IReadOnlyList<string> _displayNames = [];
     private int _selectedIndex = -1;
+    // Two views bind SelectedIndex to this instance (Preferences and the Slicing panel).
+    // Replacing DisplayNames makes each bound control reset its selection and write the index
+    // back mid-refresh; those write-backs must not re-apply presets or the views feed each
+    // other forever (stack overflow, 2026-09-04).
+    private bool _refreshing;
     private bool _isNameEditorVisible;
     private string _nameDraft = "";
     private string _validationMessage = "";
@@ -92,6 +97,7 @@ public sealed class ResinPresetViewModel : ViewModelBase
             if (value == _selectedIndex) return;
             _selectedIndex = value;
             OnPropertyChanged();
+            if (_refreshing) return;
             if (value < 0 || value >= _options.Count) return;
             _document.ApplyResinPreset(_options[value]);
             CancelName();
@@ -145,7 +151,7 @@ public sealed class ResinPresetViewModel : ViewModelBase
         }
 
         _options = options;
-        DisplayNames = options.Select(preset =>
+        var display = options.Select(preset =>
         {
             var projectOnly = _config.FindResinPreset(preset.Id) is null ? " (project)" : "";
             var modified = string.Equals(preset.Id, _document.ResinPreset.Id,
@@ -153,8 +159,17 @@ public sealed class ResinPresetViewModel : ViewModelBase
                            preset.Settings != _document.ResinSettings ? " *" : "";
             return preset.Name + projectOnly + modified;
         }).ToArray();
-        _selectedIndex = index;
-        OnPropertyChanged(nameof(SelectedIndex));
+        _refreshing = true;
+        try
+        {
+            if (!display.SequenceEqual(_displayNames)) DisplayNames = display;
+            _selectedIndex = index;
+            OnPropertyChanged(nameof(SelectedIndex));
+        }
+        finally
+        {
+            _refreshing = false;
+        }
         RefreshFields();
         NotifyCommands();
     }
