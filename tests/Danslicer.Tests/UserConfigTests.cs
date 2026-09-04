@@ -243,14 +243,13 @@ public sealed class UserConfigTests : IDisposable
     }
 
     [Fact]
-    public void MissingOrModifiedDefaultResinPresetIsRecreatedOnLoad()
+    public void MissingDefaultResinPresetIsRecreatedOnLoad()
     {
         var path = PathFor("missing-default-resin.json");
         Directory.CreateDirectory(_dir);
         File.WriteAllText(path, """
             {
               "ResinPresets": [
-                { "Version": 1, "Id": "default-resin", "Name": "Changed", "Settings": { "Exposure": 99 } },
                 { "Version": 1, "Id": "custom", "Name": "Custom", "Settings": { "Exposure": 3.1 } }
               ]
             }

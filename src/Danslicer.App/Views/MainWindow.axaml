@@ -241,6 +241,33 @@
                         <ComboBox ItemsSource="{Binding PrinterDisplayNames}"
                                   SelectedIndex="{Binding SelectedPrinterIndex, Mode=TwoWay}"
                                   Margin="0,0,0,4" />
+
+                        <TextBlock Text="Resin" Classes="section" />
+                        <ComboBox ItemsSource="{Binding SupportSettings.Resins.DisplayNames}"
+                                  SelectedIndex="{Binding SupportSettings.Resins.SelectedIndex, Mode=TwoWay}"
+                                  Margin="0,0,0,4" />
+                        <WrapPanel Margin="0,0,0,4">
+                            <Button Content="Save" Command="{Binding SupportSettings.Resins.SaveCommand}" Margin="0,0,4,4" />
+                            <Button Content="Save As…" Command="{Binding SupportSettings.Resins.BeginSaveAsCommand}" Margin="0,0,4,4" />
+                            <Button Content="Rename" Command="{Binding SupportSettings.Resins.BeginRenameCommand}" Margin="0,0,4,4" />
+                            <Button Content="Delete" Command="{Binding SupportSettings.Resins.DeleteCommand}" Margin="0,0,0,4" />
+                        </WrapPanel>
+                        <StackPanel IsVisible="{Binding SupportSettings.Resins.IsNameEditorVisible}" Margin="0,0,0,4">
+                            <TextBox Text="{Binding SupportSettings.Resins.NameDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     PlaceholderText="Preset name" />
+                            <TextBlock Text="{Binding SupportSettings.Resins.ValidationMessage}"
+                                       IsVisible="{Binding SupportSettings.Resins.HasValidationMessage}"
+                                       Foreground="#FFB35C" FontSize="11" TextWrapping="Wrap" />
+                            <WrapPanel Margin="0,4,0,0">
+                                <Button Content="{Binding SupportSettings.Resins.NameEditorAction}"
+                                        Command="{Binding SupportSettings.Resins.ConfirmNameCommand}" Margin="0,0,4,0" />
+                                <Button Content="Cancel" Command="{Binding SupportSettings.Resins.CancelNameCommand}" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding SupportSettings.Resins.Fields}"
+                                      ItemTemplate="{StaticResource WideFieldTemplate}" />
+
+                        <TextBlock Text="Print" Classes="section" />
                         <ItemsControl ItemsSource="{Binding PrintSettings.Fields}" ItemTemplate="{StaticResource WideFieldTemplate}" />
                         <CheckBox Content="Anti-aliasing (16 levels)" IsChecked="{Binding PrintSettings.AntiAliasing}" Margin="0,6,0,0" FontSize="12" />
 

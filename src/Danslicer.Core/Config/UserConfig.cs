@@ -459,11 +459,20 @@ public sealed class UserConfig
         {
             if (candidate is null) continue;
             var preset = candidate.Normalize();
-            if (preset.Id == ResinPreset.DefaultId ||
-                !ids.Add(preset.Id) || !names.Add(preset.Name)) continue;
+            if (!ids.Add(preset.Id) || !names.Add(preset.Name)) continue;
             normalized.Add(preset);
         }
-        normalized.Insert(0, ResinPreset.Default);
+        var defaultIndex = normalized.FindIndex(preset => preset.Id == ResinPreset.DefaultId);
+        if (defaultIndex < 0)
+        {
+            normalized.Insert(0, ResinPreset.Default);
+        }
+        else if (defaultIndex > 0)
+        {
+            var defaultPreset = normalized[defaultIndex];
+            normalized.RemoveAt(defaultIndex);
+            normalized.Insert(0, defaultPreset);
+        }
         ResinPresets = normalized;
     }
 

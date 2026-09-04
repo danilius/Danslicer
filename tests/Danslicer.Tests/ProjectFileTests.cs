@@ -132,6 +132,39 @@ public sealed class ProjectFileTests
     }
 
     [Fact]
+    public void VersionOneCombinedPrintSettingsMigrateTheirResinFields()
+    {
+        using var file = new TemporaryProject();
+        ProjectFile.Save(file.Path, CompleteDocument(sharedMesh: false), new ProjectViewState());
+        RewriteManifest(file.Path, root =>
+        {
+            root.Remove("resinSettings");
+            var print = root["printSettings"]!;
+            print["bottomLayers"] = 9;
+            print["bottomExposure"] = 41f;
+            print["exposure"] = 3.3f;
+            print["lightOffDelay"] = 0.8f;
+            print["liftHeight"] = 12f;
+            print["liftSpeed"] = 77f;
+            print["retractSpeed"] = 155f;
+            print["bottomLiftHeight"] = 13f;
+            print["bottomLiftSpeed"] = 66f;
+        });
+
+        var loaded = ProjectFile.Load(file.Path).Document;
+
+        Assert.Equal(9, loaded.ResinSettings.BottomLayers);
+        Assert.Equal(41f, loaded.ResinSettings.BottomExposure);
+        Assert.Equal(3.3f, loaded.ResinSettings.Exposure);
+        Assert.Equal(0.8f, loaded.ResinSettings.LightOffDelay);
+        Assert.Equal(12f, loaded.ResinSettings.LiftHeight);
+        Assert.Equal(77f, loaded.ResinSettings.LiftSpeed);
+        Assert.Equal(155f, loaded.ResinSettings.RetractSpeed);
+        Assert.Equal(13f, loaded.ResinSettings.BottomLiftHeight);
+        Assert.Equal(66f, loaded.ResinSettings.BottomLiftSpeed);
+    }
+
+    [Fact]
     public void ReplacingAnOpenDocumentStartsWithFreshSelectionAndUndoHistory()
     {
         var current = CompleteDocument(sharedMesh: false);

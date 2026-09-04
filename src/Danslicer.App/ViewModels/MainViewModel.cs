@@ -209,12 +209,15 @@ public partial class MainViewModel : ViewModelBase
         // Keep the document pointed at the live persisted settings. Each support operation takes
         // its own value snapshot, so edits affect the next generation/manual placement only.
         Document.SupportSettings = AppConfig.Current.Supports;
+        Document.ApplyResinPreset(AppConfig.Current.FindResinPreset(ResinPreset.DefaultId) ??
+                                  AppConfig.Current.ResinPresets.FirstOrDefault() ?? ResinPreset.Default);
         PrintSettings = new PrintSettingsViewModel(Document);
-        SupportSettings = new ConfigViewModel();
+        SupportSettings = new ConfigViewModel(Document);
         SupportSettings.Saved += () =>
         {
             Document.SupportSettings = AppConfig.Current.Supports;
             RefreshPrinterOptions();
+            SupportSettings.Resins.Refresh();
         };
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
@@ -423,6 +426,7 @@ public partial class MainViewModel : ViewModelBase
         Document.ReplaceWith(loaded.Document);
         PrintSettings.Refresh();
         RefreshPrinterOptions(notifyDocument: false);
+        SupportSettings.Resins.Refresh();
         SelectedObject = null;
         LastSlice = null;
         PreviewImage = null;

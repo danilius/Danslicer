@@ -70,7 +70,7 @@ public static class ProjectFile
             FormatVersion = new VersionDto { Major = CurrentMajorVersion, Minor = CurrentMinorVersion },
             Objects = document.Scene.Objects.Select(obj => ObjectDto.From(obj, meshes[obj.Mesh])).ToList(),
             SupportGraph = SupportGraphDto.From(document.Supports),
-            PrintSettings = document.PrintSettings,
+            PrintSettings = PrintSettingsDto.From(document.PrintSettings),
             ResinSettings = document.ResinSettings,
             ResinPresetId = document.ResinPreset.Id,
             ResinPreset = document.ResinPreset,
@@ -147,8 +147,9 @@ public static class ProjectFile
 
         var document = new Document
         {
-            PrintSettings = manifest.PrintSettings ?? PrintSettings.Default,
-            ResinSettings = (manifest.ResinSettings ?? ResinSettings.Default).Normalize(),
+            PrintSettings = manifest.PrintSettings?.ToSettings() ?? PrintSettings.Default,
+            ResinSettings = (manifest.ResinSettings ?? manifest.PrintSettings?.ToLegacyResinSettings() ??
+                             ResinSettings.Default).Normalize(),
             ResinPreset = ResolveResinPreset(manifest),
             Printer = ResolvePrinter(manifest),
         };
@@ -211,7 +212,7 @@ public static class ProjectFile
         public VersionDto? FormatVersion { get; set; }
         public List<ObjectDto> Objects { get; set; } = [];
         public SupportGraphDto SupportGraph { get; set; } = new();
-        public PrintSettings? PrintSettings { get; set; }
+        public PrintSettingsDto? PrintSettings { get; set; }
         public ResinSettings? ResinSettings { get; set; }
         public string? ResinPresetId { get; set; }
         public ResinPreset? ResinPreset { get; set; }
@@ -238,6 +239,61 @@ public static class ProjectFile
         return string.Equals(embedded.Id, manifest.ResinPresetId, StringComparison.OrdinalIgnoreCase)
             ? embedded
             : ResinPreset.Default;
+    }
+
+    /// <summary>
+    /// Explicit project DTO keeps old version-1 files readable after the resin split. Legacy resin
+    /// properties are read from printSettings but are never emitted by current saves.
+    /// </summary>
+    private sealed class PrintSettingsDto
+    {
+        public float LayerHeight { get; set; } = PrintSettings.Default.LayerHeight;
+        public bool AntiAliasing { get; set; } = PrintSettings.Default.AntiAliasing;
+        public float XyCompensation { get; set; } = PrintSettings.Default.XyCompensation;
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public int? BottomLayers { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? BottomExposure { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? Exposure { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? LightOffDelay { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? LiftHeight { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? LiftSpeed { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? RetractSpeed { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? BottomLiftHeight { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public float? BottomLiftSpeed { get; set; }
+
+        public static PrintSettingsDto From(PrintSettings settings) => new()
+        {
+            LayerHeight = settings.LayerHeight,
+            AntiAliasing = settings.AntiAliasing,
+            XyCompensation = settings.XyCompensation,
+        };
+
+        public PrintSettings ToSettings() => new()
+        {
+            LayerHeight = LayerHeight,
+            AntiAliasing = AntiAliasing,
+            XyCompensation = XyCompensation,
+        };
+
+        public ResinSettings? ToLegacyResinSettings()
+        {
+            if (BottomLayers is null && BottomExposure is null && Exposure is null &&
+                LightOffDelay is null && LiftHeight is null && LiftSpeed is null &&
+                RetractSpeed is null && BottomLiftHeight is null && BottomLiftSpeed is null)
+                return null;
+            var defaults = ResinSettings.Default;
+            return defaults with
+            {
+                BottomLayers = BottomLayers ?? defaults.BottomLayers,
+                BottomExposure = BottomExposure ?? defaults.BottomExposure,
+                Exposure = Exposure ?? defaults.Exposure,
+                LightOffDelay = LightOffDelay ?? defaults.LightOffDelay,
+                LiftHeight = LiftHeight ?? defaults.LiftHeight,
+                LiftSpeed = LiftSpeed ?? defaults.LiftSpeed,
+                RetractSpeed = RetractSpeed ?? defaults.RetractSpeed,
+                BottomLiftHeight = BottomLiftHeight ?? defaults.BottomLiftHeight,
+                BottomLiftSpeed = BottomLiftSpeed ?? defaults.BottomLiftSpeed,
+            };
+        }
     }
 
     private sealed class VersionDto
