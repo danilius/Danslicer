@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Silk.NET.OpenGL;
 
 namespace Danslicer.Render;
@@ -27,9 +27,32 @@ public sealed unsafe class ViewCube : IDisposable
     public const int MinSizePixels = 48;
     public const int MaxSizePixels = 192;
 
-    // Label text width in face-plane units (-1..1 spans the whole face); sized off the widest
-    // label ("BOTTOM") so every face uses the same glyph scale and nothing overflows the face.
-    private const float LabelTargetWidth = 1.6f;
+    /// <summary>
+    /// Label text width in face-plane units (-1..1 spans the whole face); sized off the widest
+    /// label ("BOTTOM") so every face uses the same glyph scale and nothing overflows the face.
+    /// 0.9 of the face, matching the proportions Fusion's view cube uses for its full-word labels.
+    /// </summary>
+    public const float LabelTargetWidth = 1.8f;
+
+    /// <summary>Size of one font cell in face-plane units. Public for the legibility test, which
+    /// pins the rendered glyph height as a fraction of the face rather than trusting the eye.</summary>
+    public static float LabelCellSize => LabelTargetWidth / ViewCubeLabels.Measure("BOTTOM").Width;
+
+    /// <summary>Rendered glyph height as a fraction of the face (face height is 2 units).</summary>
+    public static float LabelHeightFraction => LabelCellSize * ViewCubeLabels.GlyphHeight / 2f;
+
+    // Strokes are drawn as solid runs that overlap their neighbours by this fraction of a cell, so
+    // a diagonal or a corner joins up instead of leaving a hairline seam at the cube's small scale.
+    private const float LabelStrokeBleed = 0.08f;
+
+    // A dark halo of this many cells is drawn behind the glyphs. One fixed label colour cannot have
+    // good contrast against both the bright +axis faces and the dimmed -axis ones; the halo is what
+    // makes a single colour work everywhere, and it thickens the apparent stroke into the bargain.
+    private const float LabelHaloExtent = 0.32f;
+
+    /// <summary>The one label colour, every face (near-white; the halo below supplies contrast).</summary>
+    private static readonly Vector3 LabelInk = new(0.97f);
+    private static readonly Vector3 LabelHalo = new(0.06f);
 
     private readonly GL _gl;
     private readonly ShaderProgram _shader;
@@ -268,29 +291,34 @@ public sealed unsafe class ViewCube : IDisposable
         var up = Vector3.Cross(normal, right);
 
         var (widthPx, heightPx) = ViewCubeLabels.Measure(text);
-        var pixel = LabelTargetWidth / ViewCubeLabels.Measure("BOTTOM").Width; // one scale, all faces
+        var pixel = LabelCellSize; // one scale for all faces, so letters are the same size everywhere
         var totalWidth = widthPx * pixel;
         var totalHeight = heightPx * pixel;
-        var textColor = LabelColor(FaceColor(axis, sign));
         var centerRegion = RegionId(
             axis == 0 ? sign : 0, axis == 1 ? sign : 0, axis == 2 ? sign : 0);
 
-        var gap = pixel * 0.12f; // slim gutter between cells for a legible dot-matrix look
-        var half = pixel / 2f - gap;
-        foreach (var (row, col) in ViewCubeLabels.Rasterize(text))
+        // Halo first, then the ink over it: Draw() has no depth test, so whatever is submitted
+        // later simply wins the pixel.
+        var runs = ViewCubeLabels.Runs(text).ToList();
+        foreach (var (color, grow) in new[] { (LabelHalo, LabelHaloExtent), (LabelInk, LabelStrokeBleed) })
+        foreach (var (row, col, length) in runs)
         {
-            var u = (col + 0.5f) * pixel - totalWidth / 2f;
-            var v = totalHeight / 2f - (row + 0.5f) * pixel;
-            var p00 = normal + right * (u - half) + up * (v - half);
-            var p10 = normal + right * (u + half) + up * (v - half);
-            var p11 = normal + right * (u + half) + up * (v + half);
-            var p01 = normal + right * (u - half) + up * (v + half);
+            // Cell (row, col) spans [col, col+1) across and [row, row+1) down from the top-left of
+            // the text block; a run of length cells is one quad, not `length` of them.
+            var u0 = (col - grow) * pixel - totalWidth / 2f;
+            var u1 = (col + length + grow) * pixel - totalWidth / 2f;
+            var v0 = totalHeight / 2f - (row + 1 + grow) * pixel;
+            var v1 = totalHeight / 2f - (row - grow) * pixel;
+            var p00 = normal + right * u0 + up * v0;
+            var p10 = normal + right * u1 + up * v0;
+            var p11 = normal + right * u1 + up * v1;
+            var p01 = normal + right * u0 + up * v1;
             // CCW as seen from outside: right/up/normal form a camera-style basis (x,y,z-toward-
             // viewer), so this winding matches the CCW front-face convention used everywhere else.
             foreach (var p in new[] { p00, p10, p11, p00, p11, p01 })
             {
                 data.Add(p.X); data.Add(p.Y); data.Add(p.Z);
-                data.Add(textColor.X); data.Add(textColor.Y); data.Add(textColor.Z);
+                data.Add(color.X); data.Add(color.Y); data.Add(color.Z);
                 data.Add(centerRegion);
             }
         }
@@ -298,15 +326,6 @@ public sealed unsafe class ViewCube : IDisposable
 
     private static Vector3 AxisVector(int axis) =>
         axis == 0 ? Vector3.UnitX : axis == 1 ? Vector3.UnitY : Vector3.UnitZ;
-
-    /// <summary>Near-black or near-white text, chosen from the face colour's luminance so labels
-    /// stay legible against any cube palette (including a future dark theme with a bright accent),
-    /// rather than a colour hardcoded against today's Blender-style axis colours.</summary>
-    private static Vector3 LabelColor(Vector3 faceColor)
-    {
-        var luminance = Vector3.Dot(faceColor, new Vector3(0.299f, 0.587f, 0.114f));
-        return luminance > 0.5f ? new Vector3(0.05f) : new Vector3(0.95f);
-    }
 
     private static void Quad(List<float> data, int axis, int sign, int t1, int t2,
         float a0, float a1, float b0, float b1, Vector3 color, int region)

@@ -1,4 +1,4 @@
-using Danslicer.Render;
+﻿using Danslicer.Render;
 
 namespace Danslicer.Tests;
 
@@ -85,5 +85,41 @@ public sealed class ViewCubeLabelsTests
             var end = start + ViewCubeLabels.GlyphWidth - 1;
             Assert.Contains(pixels, p => p.Col >= start && p.Col <= end);
         }
+    }
+
+    [Fact]
+    public void RunsAreMaximalCoverEveryLitCellAndNeverTouchEachOther()
+    {
+        const string text = "BOTTOM";
+        var lit = new HashSet<(int Row, int Col)>(ViewCubeLabels.Rasterize(text));
+        var runs = ViewCubeLabels.Runs(text).ToList();
+
+        // Every run is lit end to end, and nothing is covered twice.
+        var covered = new HashSet<(int Row, int Col)>();
+        foreach (var (row, col, length) in runs)
+        {
+            Assert.True(length >= 1);
+            for (var i = 0; i < length; i++)
+            {
+                Assert.Contains((row, col + i), lit);
+                Assert.True(covered.Add((row, col + i)), $"cell ({row},{col + i}) covered twice");
+            }
+            // Maximal: the cells immediately either side must be unlit, or a run was split.
+            Assert.DoesNotContain((row, col - 1), lit);
+            Assert.DoesNotContain((row, col + length), lit);
+        }
+
+        Assert.Equal(lit, covered); // and nothing was dropped
+    }
+
+    [Fact]
+    public void RunsCollapseASolidBarIntoOneQuadNotFive()
+    {
+        // 'T' is a full-width top bar over a centre stem: 1 run of 5 then 6 runs of 1.
+        var runs = ViewCubeLabels.Runs("T").ToList();
+
+        Assert.Equal((0, 0, ViewCubeLabels.GlyphWidth), runs[0]);
+        Assert.Equal(ViewCubeLabels.GlyphHeight, runs.Count); // one per row, not one per cell
+        Assert.All(runs.Skip(1), r => Assert.Equal((r.Row, 2, 1), r));
     }
 }

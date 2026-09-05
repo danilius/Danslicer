@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Config;
 using Danslicer.Render;
 
@@ -148,5 +148,29 @@ public sealed class ViewCubeTests
         {
             try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
         }
+    }
+
+    [Fact]
+    public void LabelsAreSizedForLegibilityNotJustCorrectness()
+    {
+        // The user's verdict on the first cut was "correct, but almost illegible". These two
+        // numbers are what that failure looked like: the text filled 0.8 of the face and each
+        // glyph stood 0.16 of the face high, and every font cell was drawn as its own dot with
+        // a 12% gutter, so a stroke was thinner than a screen pixel at the default cube size.
+        // Runs (tested in ViewCubeLabelsTests) removed the gutters; these pin the scale.
+        Assert.True(ViewCube.LabelTargetWidth >= 1.75f,
+            $"labels only span {ViewCube.LabelTargetWidth} of the face's 2 units");
+        Assert.True(ViewCube.LabelTargetWidth <= 1.9f,
+            "labels would overflow the face's rounded corners");
+
+        Assert.True(ViewCube.LabelHeightFraction >= 0.17f,
+            $"glyphs are only {ViewCube.LabelHeightFraction:P0} of the face height");
+
+        // At the default cube size a font cell must still be at least a whole screen pixel: below
+        // that no amount of stroke merging saves it. The cube spans OrthoExtent*2 units across
+        // DefaultSizePixels pixels, so one face unit is DefaultSizePixels / 4.2 pixels.
+        var pixelsPerUnit = ViewCube.DefaultSizePixels / 4.2f;
+        Assert.True(ViewCube.LabelCellSize * pixelsPerUnit >= 1f,
+            $"a font cell is {ViewCube.LabelCellSize * pixelsPerUnit:0.00} screen pixels at the default size");
     }
 }
