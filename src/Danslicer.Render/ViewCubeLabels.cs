@@ -1,4 +1,4 @@
-namespace Danslicer.Render;
+﻿namespace Danslicer.Render;
 
 /// <summary>
 /// Deterministic 5x7 dot-matrix glyph data for the view cube's face labels (Front/Back/Left/
@@ -69,6 +69,30 @@ public static class ViewCubeLabels
             var colOffset = i * (GlyphWidth + 1);
             foreach (var (row, col) in Glyph(text[i]))
                 yield return (row, col + colOffset);
+        }
+    }
+
+    /// <summary>
+    /// Lit cells of a string collapsed into maximal horizontal runs: (row, first column, length).
+    /// <see cref="ViewCube"/> emits one quad per run rather than one per cell, so a stroke renders
+    /// as a single solid bar instead of a line of separate dots with a gutter between them. At the
+    /// cube's on-screen scale a font cell is barely over a pixel wide, which is where the original
+    /// dot-per-cell rendering lost its legibility — the gutters ate most of the stroke.
+    /// </summary>
+    public static IEnumerable<(int Row, int Col, int Length)> Runs(string text)
+    {
+        var lit = new HashSet<(int, int)>(Rasterize(text));
+        var (width, _) = Measure(text);
+        for (var row = 0; row < GlyphHeight; row++)
+        {
+            var col = 0;
+            while (col < width)
+            {
+                if (!lit.Contains((row, col))) { col++; continue; }
+                var start = col;
+                while (col < width && lit.Contains((row, col))) col++;
+                yield return (row, start, col - start);
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
@@ -106,10 +106,11 @@ public sealed class ViewportConfig
 
     /// <summary>
     /// On-screen size of the view cube, in DIP pixels before DPI scaling. Bounds mirror
-    /// <c>ViewCube.MinSizePixels</c>/<c>MaxSizePixels</c> in Danslicer.Render, which Core cannot
+    /// <c>ViewCube.MinSizePixels</c>/<c>MaxSizePixels</c> in Danslicer.Render, and this default
+    /// mirrors its <c>DefaultSizePixels</c> (120), which Core cannot
     /// reference directly — keep the two in sync if either changes.
     /// </summary>
-    public int ViewCubeSizePixels { get; set; } = 96;
+    public int ViewCubeSizePixels { get; set; } = 120;
 
     /// <summary>Build-plate opacity when the camera is below it: 0 invisible, 1 fully opaque.</summary>
     public float PlateOpacityFromBelow { get; set; } = 0.3f;
