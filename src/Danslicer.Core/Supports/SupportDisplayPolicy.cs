@@ -8,6 +8,23 @@ namespace Danslicer.Core.Supports;
 /// </summary>
 public static class SupportDisplayPolicy
 {
+    /// <summary>
+    /// The display config as a given workspace should actually see it. Layout may force supports
+    /// opaque (<see cref="ViewportConfig.OpaqueSupportsInLayout"/>) by demoting the transparent
+    /// mode to Full; nothing else about the config changes, so every "which parts are shown"
+    /// answer below is unaffected.
+    ///
+    /// <para>Both render paths and the picking code must be handed the SAME value from this
+    /// method rather than each deciding for itself — that is the whole point of routing it
+    /// through here, and it is why transparency-driven draw ordering and hit testing cannot
+    /// disagree about what the user is looking at.</para>
+    /// </summary>
+    public static SupportDisplayConfig ForWorkspace(SupportDisplayConfig display, bool isLayoutView,
+        bool opaqueSupportsInLayout) =>
+        isLayoutView && opaqueSupportsInLayout && display.Mode == SupportDisplayMode.Transparent
+            ? display with { Mode = SupportDisplayMode.Full }
+            : display;
+
     public static bool ShowsMeshes(SupportDisplayConfig display) =>
         display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Tips or
             SupportDisplayMode.Transparent;

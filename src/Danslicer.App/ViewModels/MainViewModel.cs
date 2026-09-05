@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -88,6 +88,29 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    public bool OpaqueSupportsInLayout
+    {
+        get => AppConfig.Current.Viewport.OpaqueSupportsInLayout;
+        set
+        {
+            if (value == AppConfig.Current.Viewport.OpaqueSupportsInLayout) return;
+            AppConfig.Current.Viewport.OpaqueSupportsInLayout = value;
+            AppConfig.Save();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(EffectiveSupportDisplay));
+        }
+    }
+
+    /// <summary>
+    /// The support display config the viewport actually draws with: the user's chosen display
+    /// mode, demoted from transparent to opaque while Layout is active if they have asked for
+    /// that. Every consumer binds THIS rather than the raw config, so the two render paths and
+    /// picking cannot disagree — see <see cref="SupportDisplayPolicy.ForWorkspace"/>.
+    /// </summary>
+    public SupportDisplayConfig EffectiveSupportDisplay => SupportDisplayPolicy.ForWorkspace(
+        AppConfig.Current.Viewport.SupportDisplay, ViewMode == WorkspaceMode.Layout,
+        AppConfig.Current.Viewport.OpaqueSupportsInLayout);
+
     public ModeScopedCommand DropToPlateScopedCommand { get; }
     public ModeScopedCommand DuplicateScopedCommand { get; }
     public ModeScopedCommand MirrorXScopedCommand { get; }
@@ -141,7 +164,7 @@ public partial class MainViewModel : ViewModelBase
         nameof(ViewportTools), nameof(IsObjectListSelectionEnabled), nameof(IsObjectsToolVisible),
         nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
         nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible),
-        nameof(IsUvtoolsCheckToolVisible))]
+        nameof(IsUvtoolsCheckToolVisible), nameof(EffectiveSupportDisplay))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
@@ -300,6 +323,13 @@ public partial class MainViewModel : ViewModelBase
         PrintSettings = new PrintSettingsViewModel(Document);
         SupportSettings = new ConfigViewModel(Document);
         SupportClip.Changed += () => OnPropertyChanged(nameof(ViewportClipRange));
+        // The display mode lives in the shared settings view-model, so the effective value the
+        // viewport binds has to be re-read whenever that changes, not only on a mode switch.
+        SupportSettings.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ConfigViewModel.SupportDisplay) or null)
+                OnPropertyChanged(nameof(EffectiveSupportDisplay));
+        };
         SupportSettings.Saved += () =>
         {
             Document.SupportSettings = AppConfig.Current.Supports;
@@ -791,7 +821,7 @@ public partial class MainViewModel : ViewModelBase
         {
             Document.ClearSelection();
             Document.SelectSupportElements(SupportDisplayPolicy.DisplayedElementIds(
-                Document.Supports, AppConfig.Current.Viewport.SupportDisplay, ViewportClipRange));
+                Document.Supports, EffectiveSupportDisplay, ViewportClipRange));
             return;
         }
         WorkspaceSelection.SelectAll(Document, ViewMode);

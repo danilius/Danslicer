@@ -331,7 +331,7 @@
                                           IsVisible="{Binding IsModelView}"
                                           SupportSelectionMode="{Binding IsSupportView}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
-                                          SupportDisplay="{Binding SupportSettings.SupportDisplay}"
+                                          SupportDisplay="{Binding EffectiveSupportDisplay}"
                                           ClipRange="{Binding ViewportClipRange}"
                                           CapInterior="{Binding CapInterior}"
                                           CapStyle="{Binding CapStyle}"
@@ -654,6 +654,9 @@
                                 <CheckBox Content="Hover waterline"
                                           IsChecked="{Binding SupportWaterline.Enabled, Mode=TwoWay}"
                                           IsVisible="{Binding IsSupportView}" />
+                                <CheckBox Content="Opaque supports in Layout"
+                                          ToolTip.Tip="Draw supports solid while arranging the plate, even when the support display mode is Transparent"
+                                          IsChecked="{Binding OpaqueSupportsInLayout, Mode=TwoWay}" />
                                 <ToggleButton Content="Select Through" Margin="0,4,0,0"
                                               IsChecked="{Binding SelectThroughSupports, Mode=TwoWay}"
                                               IsVisible="{Binding IsSupportView}" />

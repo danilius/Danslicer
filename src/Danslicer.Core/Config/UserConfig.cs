@@ -130,6 +130,15 @@ public sealed class ViewportConfig
     /// <summary>Viewport-only support presentation. This never changes slice geometry.</summary>
     public SupportDisplayConfig SupportDisplay { get; set; } = new();
 
+    /// <summary>
+    /// In Layout, draw supports opaque even when <see cref="SupportDisplay"/> asks for the
+    /// transparent mode. Transparency exists so a support tree does not hide the model you are
+    /// editing supports on, which is a Support-mode concern; in Layout the supports are context
+    /// for arranging the plate and read better solid. On by default, which is the behaviour the
+    /// user asked for; turning it off restores one display mode everywhere.
+    /// </summary>
+    public bool OpaqueSupportsInLayout { get; set; } = true;
+
     internal void Normalize()
     {
         if (!Enum.IsDefined(RenderPath)) RenderPath = RenderPathMode.Deferred;
