@@ -50,14 +50,21 @@ Stopping cleanly with one task finished beats half-finishing two.
 5. If the queue is empty, append a line to `Weekend\LOG.md` saying so, release the lock,
    and exit. Do not invent work.
 
-## Governance for this run
+## Governance for this run — BRANCH ONLY, DO NOT MERGE
 
-- **You MAY merge and push to `main`.** The user granted this explicitly for the weekend.
-  It does not extend past the deadline above.
-- Merge only when: the solution builds clean, the FULL test suite passes, and you verified
-  both with process exit codes. If anything is red, do not merge — commit to the branch,
-  record it in the log, and stop.
-- Work on a branch named for the task, then merge to `main` with `--no-ff` and push.
+- **Do NOT merge to `main`. Do NOT push.** Work on a branch named for the task, commit
+  there, and stop. The user merges in the morning.
+- This replaces the earlier "you MAY merge and push" grant, and it is not a loss of trust:
+  writes to `main` are gated by the permission classifier on this machine, so a session that
+  reaches a merge step **stalls on a prompt nobody is awake to answer** and wastes its
+  firing. That happened on 2026-09-05 at 23:19. A branch costs the user ten seconds in the
+  morning; a stalled session costs a whole task.
+- Everything else about verification is unchanged: build clean and the FULL suite green,
+  both confirmed by process exit codes, before you consider the task done. Red means you
+  say so in the log — it does not mean you keep going.
+- In `Weekend\LOG.md` always record the **branch name and final SHA**, so the user can find
+  and merge your work without hunting for it.
+- **Never force-push. Never rewrite published history. Never delete a branch.**
 - **Never force-push. Never rewrite published history. Never delete a branch that has not
   been merged.**
 - End every commit message with:
