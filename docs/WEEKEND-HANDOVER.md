@@ -38,6 +38,15 @@ Stopping cleanly with one task finished beats half-finishing two.
 4. Take the lock: write `Weekend\LOCK` containing the task file name and the current time
    in ISO 8601. Then claim the **lowest-numbered** file in `Weekend\QUEUE\` by MOVING it to
    `Weekend\working\`.
+
+   **Then keep re-stamping it while you work.** The 90-minute rule above assumes a session
+   that stops writing has died. A session that is merely *slow* — a big task, a long test
+   run, waiting on a usage-window reset — would otherwise be declared dead and have its
+   task handed to a second session working the same files in the same checkout. So rewrite
+   `Weekend\LOCK` with your task name and the **current** ISO time after every significant
+   step (a build, a test run, a commit), and immediately before AND after any wait. A lock
+   is stale only when its timestamp is more than 90 minutes old; re-stamping is what makes
+   that mean "dead" rather than "busy".
 5. If the queue is empty, append a line to `Weekend\LOG.md` saying so, release the lock,
    and exit. Do not invent work.
 
@@ -66,15 +75,28 @@ dotnet test Danslicer.slnx --no-build --nologo # then CHECK $LASTEXITCODE
 
 Report real numbers in the log. Never write "green" without having seen both exit codes.
 
-## Screen use
+## Screen use — FORBIDDEN for this run
 
-The user has authorised using the screen from **2026-09-05 23:00 onward** — they are at the
-computer until then, and a session that steals focus while they are working is a real cost
-to them. Before that
-time, headless only. When you do drive the app, see the `danslicer-ui-testing` memory for
-the foreground/focus/hit-test pitfalls. If a task's value depends on a visual judgement,
-take a screenshot, do your honest best, and record in the log what you were unsure about —
-the user has said they can correct it afterwards.
+**This run is headless. Do not launch, drive, screenshot or focus the app. Ever.** The user
+withdrew screen permission on 2026-09-05 at 23:05, after the screen-driving parts of a
+session produced a stream of permission prompts they had to answer by hand. That defeats the
+point of an unattended run, so the screen is simply out of scope now.
+
+This OVERRIDES the "Screen check" section that several task files still carry. When you meet
+one, do not perform it. Instead:
+
+- Do everything the task can prove headless — build, full test suite, and any behaviour you
+  can pin in a unit test. Prefer adding a test to leaving a property unverified.
+- Write in `Weekend\LOG.md` exactly which visual judgement you could NOT make, in enough
+  detail that the user can make it in one minute at the app: what to look at, what you
+  intended it to look like, and what number or value to change if it is wrong.
+- Then decide honestly whether the change is safe to merge on tests alone. If its whole
+  value is a visual judgement, leave it on its branch, say so, and let the user look. A
+  branch waiting for a two-minute human check is a fine outcome; a merged change nobody
+  ever looked at is not.
+
+Do not "just check quickly". There is no quick check — every one of them costs the user a
+prompt and their attention, which is the thing this run exists to save.
 
 ## Where things are
 
