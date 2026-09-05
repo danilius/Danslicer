@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
@@ -6,7 +6,8 @@ namespace Danslicer.App.Themes;
 
 /// <summary>
 /// Named, runtime-selectable chrome palettes. Each name maps to a <see cref="ResourceDictionary"/>
-/// (ClassicTheme.axaml, CarbideTheme.axaml, SlateTheme.axaml) that defines the shared "App*" tokens
+/// (ClassicTheme.axaml, CarbideTheme.axaml, SlateTheme.axaml, TechyTheme.axaml, BlenderTheme.axaml)
+/// that defines the shared "App*" tokens
 /// plus IconSet.axaml's icon geometries plus a handful of FluentTheme resource-key overrides — see
 /// PLAN.md for the full token list and the rationale for overriding FluentTheme this way.
 /// </summary>
@@ -15,6 +16,8 @@ public static class ThemeCatalog
     public const string Classic = "Classic";
     public const string Carbide = "Carbide";
     public const string Slate = "Slate";
+    public const string Techy = "Techy";
+    public const string Blender = "Blender";
 
     /// <summary>Today's look; stays the default so existing users see no change on upgrade.</summary>
     public const string DefaultTheme = Classic;
@@ -25,10 +28,12 @@ public static class ThemeCatalog
             [Classic] = new Uri("avares://Danslicer.App/Themes/ClassicTheme.axaml"),
             [Carbide] = new Uri("avares://Danslicer.App/Themes/CarbideTheme.axaml"),
             [Slate] = new Uri("avares://Danslicer.App/Themes/SlateTheme.axaml"),
+            [Techy] = new Uri("avares://Danslicer.App/Themes/TechyTheme.axaml"),
+            [Blender] = new Uri("avares://Danslicer.App/Themes/BlenderTheme.axaml"),
         };
 
     /// <summary>Display order for the Preferences selector.</summary>
-    public static IReadOnlyList<string> Names { get; } = [Classic, Carbide, Slate];
+    public static IReadOnlyList<string> Names { get; } = [Classic, Carbide, Slate, Techy, Blender];
 
     public static bool IsKnown(string? name) => name is not null && ThemeUris.ContainsKey(name);
 

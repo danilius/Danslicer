@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Danslicer.App.Themes;
 using Danslicer.Core.Config;
 
@@ -15,6 +15,15 @@ namespace Danslicer.Tests;
 public sealed class ThemeTests : IDisposable
 {
     private static readonly string ThemesDir = FindThemesDirectory();
+
+    /// <summary>Every palette dictionary, in catalog order. Adding a theme means adding it here
+    /// too — the parity checks below are what stop a new palette shipping with a missing key.</summary>
+    private static readonly string[] ThemeFiles =
+    [
+        "ClassicTheme.axaml", "CarbideTheme.axaml", "SlateTheme.axaml",
+        "TechyTheme.axaml", "BlenderTheme.axaml",
+    ];
+
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "danslicer-theme-tests", Guid.NewGuid().ToString("N"));
     private string PathFor(string name) => Path.Combine(_dir, name);
 
@@ -43,12 +52,22 @@ public sealed class ThemeTests : IDisposable
             .ToHashSet();
     }
 
-    [Theory]
-    [InlineData("ClassicTheme.axaml")]
-    [InlineData("CarbideTheme.axaml")]
-    [InlineData("SlateTheme.axaml")]
-    public void EveryThemeFileExists(string fileName) =>
-        Assert.True(File.Exists(Path.Combine(ThemesDir, fileName)), fileName);
+    [Fact]
+    public void EveryThemeFileExists()
+    {
+        foreach (var fileName in ThemeFiles)
+            Assert.True(File.Exists(Path.Combine(ThemesDir, fileName)), fileName);
+    }
+
+    [Fact]
+    public void CatalogAndThemeFileListAgree()
+    {
+        // "<Name>Theme.axaml" is the convention; a catalog entry with no file (or the reverse)
+        // would otherwise only fail at runtime, when Apply tries to load a missing avares URI.
+        Assert.Equal(
+            ThemeCatalog.Names.Select(n => n + "Theme.axaml").OrderBy(n => n),
+            ThemeFiles.OrderBy(n => n));
+    }
 
     [Fact]
     public void EveryThemeDefinesTheSameAppTokens()
@@ -62,16 +81,14 @@ public sealed class ThemeTests : IDisposable
         foreach (var token in requiredAppTokens)
             Assert.Contains(token, classic);
 
-        var carbide = ExtractKeys("CarbideTheme.axaml");
-        var slate = ExtractKeys("SlateTheme.axaml");
-        Assert.Equal(classic, carbide);
-        Assert.Equal(classic, slate);
+        foreach (var fileName in ThemeFiles)
+            Assert.Equal(classic, ExtractKeys(fileName));
     }
 
     [Fact]
     public void EveryThemeMergesTheSharedIconSet()
     {
-        foreach (var fileName in new[] { "ClassicTheme.axaml", "CarbideTheme.axaml", "SlateTheme.axaml" })
+        foreach (var fileName in ThemeFiles)
         {
             var text = File.ReadAllText(Path.Combine(ThemesDir, fileName));
             Assert.Contains("avares://Danslicer.App/Themes/IconSet.axaml", text);
@@ -86,7 +103,7 @@ public sealed class ThemeTests : IDisposable
         // would silently shadow the shared set and defeat the "define icons once" design).
         var iconKeys = ExtractKeys("IconSet.axaml");
         Assert.NotEmpty(iconKeys);
-        foreach (var fileName in new[] { "ClassicTheme.axaml", "CarbideTheme.axaml", "SlateTheme.axaml" })
+        foreach (var fileName in ThemeFiles)
         {
             var themeKeys = ExtractKeys(fileName);
             Assert.Empty(iconKeys.Intersect(themeKeys));
@@ -94,12 +111,14 @@ public sealed class ThemeTests : IDisposable
     }
 
     [Fact]
-    public void CatalogListsAllThreeThemesWithClassicDefault()
+    public void CatalogListsEveryThemeWithClassicDefault()
     {
-        Assert.Equal(["Classic", "Carbide", "Slate"], ThemeCatalog.Names);
+        Assert.Equal(["Classic", "Carbide", "Slate", "Techy", "Blender"], ThemeCatalog.Names);
         Assert.Equal("Classic", ThemeCatalog.DefaultTheme);
         Assert.True(ThemeCatalog.IsKnown("Classic"));
         Assert.True(ThemeCatalog.IsKnown("carbide")); // case-insensitive
+        Assert.True(ThemeCatalog.IsKnown("Techy"));
+        Assert.True(ThemeCatalog.IsKnown("blender"));
         Assert.False(ThemeCatalog.IsKnown("NotAThinTheme"));
         Assert.False(ThemeCatalog.IsKnown(null));
     }
@@ -111,13 +130,14 @@ public sealed class ThemeTests : IDisposable
     [Fact]
     public void ThemeRoundTripsThroughSaveAndLoad()
     {
-        var config = new UserConfig { Theme = "Carbide" };
+        var config = new UserConfig { Theme = "Techy" };
         var path = PathFor("theme.json");
 
         config.Save(path);
         var loaded = UserConfig.Load(path);
 
-        Assert.Equal("Carbide", loaded.Theme);
+        Assert.Equal("Techy", loaded.Theme);
+        Assert.True(ThemeCatalog.IsKnown(loaded.Theme));
     }
 
     [Fact]
