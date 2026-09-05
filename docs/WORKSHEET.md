@@ -64,7 +64,7 @@ fine-feature pass → 777/627 after 023f → 723/576 after 024 → **702/549** a
 |------|--------|
 | Stylesheet proposal | BUILT on `theme-claude` (`dfafd0c`, 524 green): Classic/Carbide/Slate, runtime-switchable, Classic default. **Held unmerged** pending job 031 so the bake-off stays like-for-like |
 | Painted cap style (deferred path) | **BUILT** on `painted-clip-caps` (`df5d60c`, 585 green): stencil cross-section in the deferred pass, Classic falls back to Sliced. Needs a GPU screen check — the stencil path has never run against a real driver |
-| View cube face labels + configurable size | backlog (user request; labels were a W3 deferral) |
+| View cube: labels, size, drag-orbit | **LANDED** on `main` — legible full-word labels and a configurable size (default 120), then drag-orbit: press-and-drag turns the camera at ~1.42 deg/px on the default cube, a press under 4px still snaps. Rate derived from the cube size; say if it feels fast |
 | pwmx preview image | backlog — currently a flat top-down height map from `Slicer.cs`; wants a 3D render like Lychee's |
 | Internal void supports (sealed cavities) | last, simple struts only (D10) |
 | D5 island-search tweaks | brief when wanted — 024 has landed |
