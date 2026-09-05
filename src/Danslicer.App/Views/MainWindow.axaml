@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
@@ -8,6 +8,7 @@
         x:Class="Danslicer.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Width="1400" Height="900"
+        Background="{DynamicResource AppSurface}"
         Title="{Binding Title}">
 
     <Design.DataContext>
@@ -34,7 +35,7 @@
     <Window.Styles>
         <Style Selector="TextBlock.label">
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#9AA0A6" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style Selector="TextBlock.status.warning">
@@ -42,7 +43,7 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="TextBlock.section">
-            <Setter Property="Foreground" Value="#C8CCD0" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextMuted}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,10,0,4" />
@@ -76,19 +77,28 @@
             <Setter Property="Margin" Value="0,0,0,4" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="FontSize" Value="19" />
-            <Setter Property="Foreground" Value="#E0E3E7" />
-            <Setter Property="Background" Value="#D923262A" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource AppPopupBackground}" />
             <Setter Property="BorderBrush" Value="#7A858F" />
             <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.viewportTool PathIcon">
+            <Setter Property="Width" Value="19" />
+            <Setter Property="Height" Value="19" />
         </Style>
         <Style Selector="Button.popupClose">
             <Setter Property="Width" Value="22" />
             <Setter Property="Height" Value="22" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <Style Selector="Button.popupClose PathIcon">
+            <Setter Property="Width" Value="11" />
+            <Setter Property="Height" Value="11" />
         </Style>
     </Window.Styles>
 
@@ -190,7 +200,7 @@
             </MenuItem>
         </Menu>
 
-        <Border DockPanel.Dock="Bottom" Background="#1B1D20" Padding="8,3">
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource AppSurface}" Padding="8,3">
             <Grid ColumnDefinitions="*,Auto,Auto">
                 <TextBlock Text="{Binding ViewportStatusDisplay}" Classes="label status"
                            Classes.warning="{Binding HasSliceWarning}" TextTrimming="CharacterEllipsis" />
@@ -200,7 +210,7 @@
             </Grid>
         </Border>
 
-        <Border DockPanel.Dock="Bottom" Background="#23262A" Padding="10,5"
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource AppPanel}" Padding="10,5"
                 IsVisible="{Binding IsGeneratingSupports}">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                 <TextBlock Text="Generating supports" Classes="label" VerticalAlignment="Center" />
@@ -218,8 +228,8 @@
                 <ColumnDefinition Width="320" MinWidth="220" />
             </Grid.ColumnDefinitions>
 
-        <Border x:Name="RightPanel" Grid.Column="2" Background="#23262A" BorderBrush="#111"
-                BorderThickness="1,0,0,0" Padding="10,4">
+        <Border x:Name="RightPanel" Grid.Column="2" Background="{DynamicResource AppPanel}"
+                BorderBrush="{DynamicResource AppBorder}" BorderThickness="1,0,0,0" Padding="10,4">
             <Grid>
                 <ScrollViewer IsVisible="{Binding IsLayoutView}">
                     <StackPanel IsEnabled="{Binding SelectedObject, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -262,7 +272,7 @@
                                      PlaceholderText="Preset name" />
                             <TextBlock Text="{Binding SupportSettings.Resins.ValidationMessage}"
                                        IsVisible="{Binding SupportSettings.Resins.HasValidationMessage}"
-                                       Foreground="#FFB35C" FontSize="11" TextWrapping="Wrap" />
+                                       Foreground="{DynamicResource AppAccent}" FontSize="11" TextWrapping="Wrap" />
                             <WrapPanel Margin="0,4,0,0">
                                 <Button Content="{Binding SupportSettings.Resins.NameEditorAction}"
                                         Command="{Binding SupportSettings.Resins.ConfirmNameCommand}" Margin="0,0,4,0" />
@@ -292,7 +302,7 @@
 
         <!-- Main area: header strip, then either the 3D model view or the layer view. -->
         <DockPanel Grid.Column="0">
-            <Border DockPanel.Dock="Top" Background="#1F2124" BorderBrush="#111" BorderThickness="0,0,0,1" Padding="8,3">
+            <Border DockPanel.Dock="Top" Background="{DynamicResource AppHeader}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,0,1" Padding="8,3">
                 <Grid ColumnDefinitions="Auto,*,Auto">
                     <StackPanel Orientation="Horizontal" IsVisible="{Binding IsLayoutView}">
                         <TextBlock Text="Gizmo" Classes="label" Margin="0,0,8,0" />
@@ -381,7 +391,7 @@
                 </Border>
 
                 <DockPanel IsVisible="{Binding IsLayersView}">
-                    <Border DockPanel.Dock="Bottom" Background="#1F2124" BorderBrush="#111" BorderThickness="0,1,0,0" Padding="10,4">
+                    <Border DockPanel.Dock="Bottom" Background="{DynamicResource AppHeader}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,1,0,0" Padding="10,4">
                         <Grid ColumnDefinitions="*,Auto">
                             <Slider Minimum="0" Maximum="{Binding PreviewLayerMax}" Value="{Binding PreviewLayer}"
                                     TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
@@ -399,20 +409,24 @@
                             IsEnabled="{Binding CanCheckWithUvtools}"
                             ToolTip.Tip="{Binding UvtoolsCheckTooltip}"
                             Click="OnUvtoolsCheckClick" />
-                    <Button x:Name="ObjectsToolButton" Classes="viewportTool" Content="▦"
+                    <Button x:Name="ObjectsToolButton" Classes="viewportTool"
                             IsVisible="{Binding IsObjectsToolVisible}"
-                            ToolTip.Tip="Objects" Click="OnObjectsToolClick" />
+                            ToolTip.Tip="Objects" Click="OnObjectsToolClick">
+                        <PathIcon Data="{DynamicResource IconObjects}" />
+                    </Button>
                     <Popup x:Name="ObjectsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #ObjectsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="ObjectsPopupContent" Width="240" MaxHeight="520" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Objects" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Objects" Click="OnObjectsPopupCloseClick" />
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Objects" Click="OnObjectsPopupCloseClick">
+                                        <PathIcon Data="{DynamicResource IconClose}" />
+                                    </Button>
                                 </Grid>
                                 <TextBlock DockPanel.Dock="Bottom"
                                            Text="Object selection is available in Layout mode."
@@ -433,19 +447,23 @@
                         </Border>
                     </Popup>
 
-                    <Button x:Name="SupportsToolButton" Classes="viewportTool" Content="Y" ToolTip.Tip="Supports"
-                            IsVisible="{Binding IsSupportsToolVisible}" Click="OnSupportsToolClick" />
+                    <Button x:Name="SupportsToolButton" Classes="viewportTool" ToolTip.Tip="Supports"
+                            IsVisible="{Binding IsSupportsToolVisible}" Click="OnSupportsToolClick">
+                        <PathIcon Data="{DynamicResource IconSupports}" />
+                    </Button>
                     <Popup x:Name="SupportsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #SupportsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="SupportsPopupContent" Width="340" MaxHeight="700" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Supports" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Supports" Click="OnSupportsPopupCloseClick" />
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Supports" Click="OnSupportsPopupCloseClick">
+                                        <PathIcon Data="{DynamicResource IconClose}" />
+                                    </Button>
                                 </Grid>
                                 <Button DockPanel.Dock="Top" Content="Generate Supports"
                                         Command="{Binding GenerateSupportsScopedCommand}"
@@ -470,12 +488,14 @@
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="IslandDetectionPopupContent" Width="360" MaxHeight="700" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Island Detection" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Island Detection" Click="OnIslandDetectionPopupCloseClick" />
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Island Detection" Click="OnIslandDetectionPopupCloseClick">
+                                        <PathIcon Data="{DynamicResource IconClose}" />
+                                    </Button>
                                 </Grid>
                                 <StackPanel DockPanel.Dock="Top">
                                     <Grid ColumnDefinitions="*,*" Margin="0,0,0,6">
@@ -527,20 +547,24 @@
                         </Border>
                     </Popup>
 
-                    <Button x:Name="VisibilityToolButton" Classes="viewportTool" Content="◉"
+                    <Button x:Name="VisibilityToolButton" Classes="viewportTool"
                             ToolTip.Tip="Support visibility" IsVisible="{Binding IsVisibilityToolVisible}"
-                            Click="OnVisibilityToolClick" />
+                            Click="OnVisibilityToolClick">
+                        <PathIcon Data="{DynamicResource IconVisibility}" />
+                    </Button>
                     <Popup x:Name="VisibilityToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #VisibilityToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="VisibilityPopupContent" Width="300" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Visibility" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Visibility" Click="OnVisibilityPopupCloseClick" />
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Visibility" Click="OnVisibilityPopupCloseClick">
+                                        <PathIcon Data="{DynamicResource IconClose}" />
+                                    </Button>
                                 </Grid>
                                 <Grid ColumnDefinitions="90,*" Margin="0,0,0,4">
                                     <TextBlock Text="Display" Classes="label" />
@@ -564,20 +588,24 @@
                         </Border>
                     </Popup>
 
-                    <Button x:Name="RaftsToolButton" Classes="viewportTool" Content="≋"
+                    <Button x:Name="RaftsToolButton" Classes="viewportTool"
                             IsVisible="{Binding IsRaftsToolVisible}" ToolTip.Tip="Rafts"
-                            Click="OnRaftsToolClick" />
+                            Click="OnRaftsToolClick">
+                        <PathIcon Data="{DynamicResource IconRafts}" />
+                    </Button>
                     <Popup x:Name="RaftsToolPopup" Placement="RightEdgeAlignedTop"
                            PlacementTarget="{Binding #RaftsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="RaftsPopupContent" Width="240" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Rafts" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close Rafts" Click="OnRaftsPopupCloseClick" />
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Rafts" Click="OnRaftsPopupCloseClick">
+                                        <PathIcon Data="{DynamicResource IconClose}" />
+                                    </Button>
                                 </Grid>
                                 <TextBlock Text="Rafts are coming soon." Classes="label" />
                             </StackPanel>
@@ -589,19 +617,23 @@
                      Sibling of the viewport for the same reason as the toolbar. -->
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,116,44,0"
                             IsVisible="{Binding IsModelView}">
-                    <Button x:Name="ViewSettingsButton" Classes="viewportTool" Content="⚙"
-                            ToolTip.Tip="View settings" Click="OnViewSettingsClick" />
+                    <Button x:Name="ViewSettingsButton" Classes="viewportTool"
+                            ToolTip.Tip="View settings" Click="OnViewSettingsClick">
+                        <PathIcon Data="{DynamicResource IconViewSettings}" />
+                    </Button>
                     <Popup x:Name="ViewSettingsPopup" Placement="LeftEdgeAlignedTop"
                            PlacementTarget="{Binding #ViewSettingsButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="ViewSettingsPopupContent" Width="235" Padding="10"
-                                Background="#F523262A" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="View" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose" Content="×"
-                                            ToolTip.Tip="Close View" Click="OnViewSettingsCloseClick" />
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close View" Click="OnViewSettingsCloseClick">
+                                        <PathIcon Data="{DynamicResource IconClose}" />
+                                    </Button>
                                 </Grid>
                                 <CheckBox x:Name="PopDeferred" Content="Deferred rendering"
                                           Click="OnToggleDeferredRenderingClick" />

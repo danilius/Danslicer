@@ -1,0 +1,107 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Techy: the near-black, thin-outline proposal from the user's mockup sheet. Chrome sits
+         darker than Classic and controls read as OUTLINED rather than filled — low-contrast
+         fills over a visible cool-grey border, with the amber accent reserved for state
+         (focus, checked, slider fill, active tab). Same token and FluentTheme-override key set
+         as ClassicTheme.axaml — only the values differ. See TechyTheme.rationale.md. -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://Danslicer.App/Themes/IconSet.axaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- App tokens (every theme defines exactly this key set; see ThemeTokenParityTests). -->
+    <Color x:Key="AppSurfaceColor">#1C1E22</Color>
+    <SolidColorBrush x:Key="AppSurface" Color="{StaticResource AppSurfaceColor}" />
+    <SolidColorBrush x:Key="AppSurfaceAlt" Color="#15171A" />
+    <SolidColorBrush x:Key="AppPanel" Color="#212429" />
+    <SolidColorBrush x:Key="AppHeader" Color="#191B1F" />
+    <SolidColorBrush x:Key="AppBorder" Color="#0A0B0D" />
+    <SolidColorBrush x:Key="AppTextPrimary" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="AppTextMuted" Color="#A5AEB8" />
+    <SolidColorBrush x:Key="AppTextFaint" Color="#6C757E" />
+    <Color x:Key="AppAccentColor">#F59E0B</Color>
+    <SolidColorBrush x:Key="AppAccent" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="AppPopupBackground" Color="#F5212429" />
+
+    <!-- FluentTheme overrides. Application.Resources is checked ahead of Application.Styles
+         (where FluentTheme lives), so plain keys here win over the theme's own Dark-variant
+         resources without needing ThemeDictionaries — see PLAN.md. App is Dark-only. -->
+
+    <Color x:Key="SystemAccentColor">#F59E0B</Color>
+    <Color x:Key="SystemAccentColorLight1">#F7B23C</Color>
+    <Color x:Key="SystemAccentColorLight2">#F9C66E</Color>
+    <Color x:Key="SystemAccentColorLight3">#FBDA9F</Color>
+    <Color x:Key="SystemAccentColorDark1">#D4870A</Color>
+    <Color x:Key="SystemAccentColorDark2">#B07008</Color>
+    <Color x:Key="SystemAccentColorDark3">#8C5A06</Color>
+
+    <SolidColorBrush x:Key="SystemRegionBrush" Color="#1C1E22" />
+    <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="#212429" />
+    <SolidColorBrush x:Key="SystemControlBackgroundBaseLowBrush" Color="#22262B" />
+    <SolidColorBrush x:Key="SystemControlBackgroundBaseMediumLowBrush" Color="#191B1F" />
+    <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumBrush" Color="#212429" />
+    <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="#A5AEB8" />
+    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumLowBrush" Color="#6C757E" />
+    <SolidColorBrush x:Key="SystemControlHighlightBaseHighBrush" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="SystemControlDisabledBaseMediumLowBrush" Color="#4A525B" />
+    <SolidColorBrush x:Key="SystemControlPageBackgroundAltHighBrush" Color="#1C1E22" />
+
+    <!-- Outlined, not filled: the fill barely lifts off the surface and the border does the
+         work of defining the control. -->
+    <SolidColorBrush x:Key="ButtonBackground" Color="#22262B" />
+    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#2C3138" />
+    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#17191D" />
+    <SolidColorBrush x:Key="ButtonForeground" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#3A424C" />
+
+    <SolidColorBrush x:Key="ToggleButtonBackground" Color="#22262B" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#2C3138" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#F7B23C" />
+    <SolidColorBrush x:Key="ToggleButtonForeground" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#14161A" />
+    <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="#3A424C" />
+
+    <SolidColorBrush x:Key="ComboBoxBackground" Color="#15171A" />
+    <SolidColorBrush x:Key="ComboBoxForeground" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#3A424C" />
+    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#212429" />
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#14161A" />
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="#2C3138" />
+
+    <SolidColorBrush x:Key="CheckBoxBackgroundUnchecked" Color="#15171A" />
+    <SolidColorBrush x:Key="CheckBoxBorderBrushUnchecked" Color="#6C757E" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundChecked" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#14161A" />
+    <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#F0F4F8" />
+
+    <SolidColorBrush x:Key="TextControlBackground" Color="#15171A" />
+    <SolidColorBrush x:Key="TextControlForeground" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="TextControlBorderBrush" Color="#3A424C" />
+    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#6C757E" />
+
+    <SolidColorBrush x:Key="ScrollBarBackground" Color="Transparent" />
+    <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver" Color="#6C757E" />
+
+    <SolidColorBrush x:Key="SliderTrackFill" Color="#2C3138" />
+    <SolidColorBrush x:Key="SliderTrackValueFill" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="SliderThumbBackground" Color="{StaticResource AppAccentColor}" />
+
+    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#212429" />
+    <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#2C3138" />
+
+    <SolidColorBrush x:Key="TabItemHeaderBackgroundSelected" Color="#212429" />
+    <SolidColorBrush x:Key="TabItemHeaderForegroundSelected" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="TabItemHeaderForegroundUnselected" Color="#6C757E" />
+    <SolidColorBrush x:Key="TabItemHeaderSelectedPipeFill" Color="{StaticResource AppAccentColor}" />
+
+    <SolidColorBrush x:Key="ToolTipBackground" Color="#212429" />
+    <SolidColorBrush x:Key="ToolTipForeground" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#3A424C" />
+</ResourceDictionary>

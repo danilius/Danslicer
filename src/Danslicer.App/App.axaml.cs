@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Danslicer.App.Configuration;
+using Danslicer.App.Themes;
 using Danslicer.App.ViewModels;
 using Danslicer.App.Views;
 
@@ -15,6 +17,9 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Applied before any window is constructed so the very first frame is already themed.
+        ThemeCatalog.Apply(AppConfig.Current.Theme);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var vm = new MainViewModel();
