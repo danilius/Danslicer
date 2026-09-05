@@ -125,7 +125,8 @@ public sealed class ViewCubeTests
     [Fact]
     public void ViewCubeSizeConfigDefaultsAndRoundTripsAndClampsOutOfRangeValues()
     {
-        Assert.Equal(96, new ViewportConfig().ViewCubeSizePixels);
+        Assert.Equal(120, new ViewportConfig().ViewCubeSizePixels);
+        Assert.Equal(ViewCube.DefaultSizePixels, new ViewportConfig().ViewCubeSizePixels);
 
         var dir = Path.Combine(Path.GetTempPath(), "danslicer-viewcube-size-tests",
             Guid.NewGuid().ToString("N"));

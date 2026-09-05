@@ -16,8 +16,13 @@ public sealed unsafe class ViewCube : IDisposable
     private const float Band = 0.6f;
     private const float OrthoExtent = 2.1f; // > cube diagonal radius sqrt(3), any rotation fits
 
-    /// <summary>Default on-screen size in DIP-independent pixels, before DPI scaling.</summary>
-    public const int DefaultSizePixels = 96;
+    /// <summary>Default on-screen size in DIP-independent pixels, before DPI scaling. Raised from
+    /// 96 to 120 by the user after seeing full-word labels at both sizes.</summary>
+    public const int DefaultSizePixels = 120;
+
+    // Margin as a fraction of the cube's size. Pinned to the original fixed-96 layout (10px at 96)
+    // rather than to DefaultSizePixels, so changing the default does not silently move every cube.
+    private const float MarginFraction = 10f / 96f;
 
     /// <summary>
     /// Clamp bounds for the configurable size (<see cref="Danslicer.Core.Config.ViewportConfig.ViewCubeSizePixels"/>).
@@ -50,9 +55,11 @@ public sealed unsafe class ViewCube : IDisposable
     // makes a single colour work everywhere, and it thickens the apparent stroke into the bargain.
     private const float LabelHaloExtent = 0.32f;
 
-    /// <summary>The one label colour, every face (near-white; the halo below supplies contrast).</summary>
-    private static readonly Vector3 LabelInk = new(0.97f);
-    private static readonly Vector3 LabelHalo = new(0.06f);
+    /// <summary>The one label colour, every face: near-black on the light grey faces, the way
+    /// Fusion's cube reads. The halo is a touch lighter than the lightest face, so a glyph keeps
+    /// its edge where it crosses the darker region-grid cells.</summary>
+    private static readonly Vector3 LabelInk = new(0.13f);
+    private static readonly Vector3 LabelHalo = new(0.94f);
 
     private readonly GL _gl;
     private readonly ShaderProgram _shader;
@@ -92,14 +99,15 @@ public sealed unsafe class ViewCube : IDisposable
     /// Corner viewport of the cube in framebuffer pixels (GL origin, bottom-left).
     /// <paramref name="sizePixels"/> is the configured on-screen size before DPI scaling
     /// (<see cref="DefaultSizePixels"/> when unset); the margin keeps the same proportion to it
-    /// that the original fixed-96 layout used, so bigger cubes get a bigger margin too.
+    /// that the original fixed-96 layout used (see <see cref="MarginFraction"/>), so bigger cubes
+    /// get a bigger margin too.
     /// </summary>
     public static (int X, int Y, int Size) Rect(int width, int height, double scaling,
         int sizePixels = DefaultSizePixels)
     {
         var clamped = Math.Clamp(sizePixels, MinSizePixels, MaxSizePixels);
         var size = (int)(clamped * Math.Max(scaling, 0.5));
-        var margin = (int)(clamped * (10f / DefaultSizePixels) * Math.Max(scaling, 0.5));
+        var margin = (int)(clamped * MarginFraction * Math.Max(scaling, 0.5));
         return (width - size - margin, height - size - margin, size);
     }
 
@@ -222,15 +230,22 @@ public sealed unsafe class ViewCube : IDisposable
     }
 
     /// <summary>Blender axis palette; negative faces dimmed, border cells darkened a touch.</summary>
+    /// <summary>
+    /// Neutral greys. The axis colours (red/green/blue by axis, dimmed on the -side) are gone at
+    /// the user's request — Fusion's cube, the reference they gave, is a plain light-grey solid.
+    /// A small per-axis step and a dim on the -axis faces remain so the cube still reads as a lit
+    /// object rather than a flat silhouette; the only colour left on it is the amber hover tint
+    /// applied in the fragment shader, which now has the whole cube to itself.
+    /// </summary>
     private static Vector3 FaceColor(int axis, int sign)
     {
-        var c = axis switch
+        var level = axis switch
         {
-            0 => new Vector3(0.84f, 0.31f, 0.36f),
-            1 => new Vector3(0.47f, 0.72f, 0.23f),
-            _ => new Vector3(0.28f, 0.52f, 0.86f),
+            0 => 0.72f,
+            1 => 0.76f,
+            _ => 0.82f, // Z: the top face catches the most light, as it would in life
         };
-        return sign > 0 ? c : c * 0.55f;
+        return new Vector3(sign > 0 ? level : level * 0.86f);
     }
 
     private static float[] BuildVertices()
