@@ -84,7 +84,7 @@
 
                 <StackPanel x:Name="AppearanceSection">
                     <TextBlock Text="Appearance" Classes="section" Margin="0,0,0,6" />
-                    <Grid Tag="appearance theme colour color scheme dark blender carbide classic slate palette"
+                    <Grid Tag="appearance theme colour color scheme dark blender carbide classic slate techy palette"
                           ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Theme" Classes="label" />
                         <ComboBox Grid.Column="1" HorizontalAlignment="Left" MinWidth="160"
