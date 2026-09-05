@@ -3,8 +3,15 @@
 **You are a fresh Claude session started by a scheduled task. You have no memory of any
 previous session. This file is your entire context. Read it fully, do ONE task, stop.**
 
-Authorised by the user on 2026-09-04 for an unattended run ending **Saturday 2026-09-05
-at 21:00 local**. After that deadline, do nothing but write a line to the log and exit.
+Authorised by the user on 2026-09-05 for an unattended run ending **Sunday 2026-09-06
+at 09:00 local**. After that deadline, do nothing but write a line to the log and exit.
+
+(The first attempt at this run, armed on 2026-09-04, never did any work: a fresh session
+had no pre-approved tool permissions, so it stalled on its first prompt with nobody there
+to answer. The project now carries `.claude/settings.json` with an allow list covering
+dotnet, git, the file tools and the shell utilities these tasks need. If you find yourself
+blocked on a permission prompt anyway, do not fight it: write what was blocked into
+`Weekend\LOG.md` and exit, so the next session is not wasted the same way.)
 
 ## The single most important rule
 
@@ -16,7 +23,7 @@ Stopping cleanly with one task finished beats half-finishing two.
 
 1. If `F:\Git Repos\Danslicer\Weekend\STOP` exists, exit immediately. That is the user's
    kill switch. Do not delete it.
-2. If the current local time is after **2026-09-05 21:00**, append one line to
+2. If the current local time is after **2026-09-06 09:00**, append one line to
    `Weekend\LOG.md` saying the run has ended and exit.
 3. Check `Weekend\LOCK`. If it exists, read it. It records a task name and an ISO start
    time.
@@ -61,7 +68,9 @@ Report real numbers in the log. Never write "green" without having seen both exi
 
 ## Screen use
 
-The user has authorised using the screen from **2026-09-04 19:00 onward**. Before that
+The user has authorised using the screen from **2026-09-05 23:00 onward** — they are at the
+computer until then, and a session that steals focus while they are working is a real cost
+to them. Before that
 time, headless only. When you do drive the app, see the `danslicer-ui-testing` memory for
 the foreground/focus/hit-test pitfalls. If a task's value depends on a visual judgement,
 take a screenshot, do your honest best, and record in the log what you were unsure about —
