@@ -61,11 +61,6 @@
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportTipDiameter, Mode=TwoWay}" />
                 </Grid>
-                <Grid Tag="supports tip cone length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Cone length" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
-                                   Value="{Binding SupportConeLength, Mode=TwoWay}" />
-                </Grid>
                 <Grid Tag="supports tip ball snap diameter none zero mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Ball diameter (0 = none)" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
@@ -97,7 +92,7 @@
                                    Value="{Binding SupportMemberAngleDegrees, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members tip member length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Tip member length" Classes="label" />
+                    <TextBlock Text="Cone length" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportTipMemberLength, Mode=TwoWay}" />
                 </Grid>

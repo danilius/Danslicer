@@ -105,6 +105,13 @@ base is the one exception.
   new top junction. Branches already on the trunk keep both their ends. A trunk whose
   top carries its own cone tip is never raised, since the raise would run up inside
   the cone. A branch can still attach anywhere below a trunk's top.
+- **The cone is the whole tip member, and its base is the ball's diameter.** One taper
+  from the contact radius to the radius of the sphere it grows from, base ring at that
+  sphere's centre, so the base simply rotates about the sphere's centre (user drawing
+  2026-09-07). There is no separate neck: the old "cone length" that tapered to the tip
+  member's own diameter is gone from the panel, and "Cone length" now names the tip
+  member length. The ring keeps the few-percent draw-in over a short buried run that
+  stops its rim showing through the ball's facets.
 - **A cone is straight.** The normal lead-in (a short run along the contact normal before
   bending toward the junction) is set to zero in generation and manual placement and its
   setting is gone from the panel (user screen test 2026-09-07: a bent cone is wrong).

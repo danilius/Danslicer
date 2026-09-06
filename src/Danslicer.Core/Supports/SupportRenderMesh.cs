@@ -148,7 +148,7 @@ public static class SupportRenderMesh
                 builders[key] = builder = new MeshBuilder();
 
             if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
-                AppendConeTip(builder, tip, other, segment.Diameter * 0.5f,
+                AppendConeTip(builder, tip, other,
                     SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f);
             else
                 AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
@@ -191,7 +191,7 @@ public static class SupportRenderMesh
             var b = graph.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
             if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
-                AppendConeTip(builder, tip, other, segment.Diameter * 0.5f,
+                AppendConeTip(builder, tip, other,
                     SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f);
             else
                 AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
@@ -219,18 +219,18 @@ public static class SupportRenderMesh
 
     /// <summary>
     /// Renders a cone-shaped tip member from the same sections <see cref="SupportSliceGeometry.ConeTipSection"/>
-    /// slices: contact-to-neck taper, full parent-member width by the point where the tip leaves
-    /// the parent's surface, a nose narrow enough to bury its end cap inside the parent, and the
-    /// contact ball (or a contact-radius sphere) at the tip.
+    /// slices: one taper from the contact to the radius of the ball at the junction, with the
+    /// base ring at that ball's centre, and the contact ball (or a contact-radius sphere) at
+    /// the tip.
     /// </summary>
     public static void AppendConeTip(MeshBuilder builder, SupportNode tip, SupportNode other,
-        float neckRadius, float junctionRadius)
+        float junctionRadius)
     {
-        var sections = TipBodyGeometry.Sections(tip, other, neckRadius, junctionRadius,
+        var sections = TipBodyGeometry.Sections(tip, other, junctionRadius,
             embedContact: false);
         if (sections.Count == 0)
         {
-            AppendCapsule(builder, tip.Position, other.Position, neckRadius);
+            AppendCapsule(builder, tip.Position, other.Position, junctionRadius);
             return;
         }
 

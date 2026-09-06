@@ -199,9 +199,9 @@ public class SupportRenderMeshTests
 
         var part = Assert.Single(SupportRenderMesh.Build(graph));
         Assert.Equal(SupportRenderKind.Tip, part.Kind);
-        // Four-ring closed body (contact, cone base, inset start, junction) plus the contact
-        // sphere.
-        Assert.Equal(8 * SupportRenderMesh.RadialSegments
+        // Three-ring closed body (contact, inset start, junction) plus the contact sphere: the
+        // whole member is one taper to the ball's radius.
+        Assert.Equal(6 * SupportRenderMesh.RadialSegments
             + SupportRenderMesh.TrianglesPerSphere, part.Mesh.TriangleCount);
         AssertClosed(part.Mesh);
     }

@@ -65,7 +65,8 @@ public sealed class SupportSliceIntegrationTests
         }
 
         AssertRegularTipJunctionMatchesParent(graph);
-        AssertMiniRodMatchesConfiguredDiameter(graph);
+        // Mini rods are set aside (2026-09-07); like every cone tip they now taper to the ball
+        // they grow from, so their configured diameter is no longer a slice invariant.
 
         var sliced = Slice(graph);
         Assert.Equal(layerCount, sliced.LayerCount);
@@ -165,28 +166,6 @@ public sealed class SupportSliceIntegrationTests
         var polygons = MeshSlicer.Finish(SupportSliceGeometry.SectionsAt(graph, z), 0);
         var junctionPath = Assert.Single(polygons, path => Contains(path, junction.Position));
         var actualArea = Math.Abs(Clipper.Area(junctionPath)) /
-                         (MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm);
-
-        Assert.InRange(actualArea, expectedArea * 0.995, expectedArea * 1.005);
-    }
-
-    private static void AssertMiniRodMatchesConfiguredDiameter(SupportGraph graph)
-    {
-        var mini = graph.Segments
-            .Where(segment => segment.Type == SupportSegmentType.MiniSupport)
-            .Select(segment => (Segment: segment,
-                A: graph.GetNode(segment.NodeA), B: graph.GetNode(segment.NodeB)))
-            .OrderBy(item => Math.Max(item.A.Position.Y, item.B.Position.Y))
-            .Last();
-        var tip = mini.A.Type == SupportNodeType.Tip ? mini.A : mini.B;
-        var junction = mini.A.Type == SupportNodeType.Tip ? mini.B : mini.A;
-        var axis = Vector3.Normalize(junction.Position - tip.Position);
-        var coneBase = tip.Position + axis * MiniConeLength;
-        var expectedArea = Math.PI * Math.Pow(MiniDiameter * 0.5, 2) / Math.Abs(axis.Z);
-        var polygons = MeshSlicer.Finish(
-            SupportSliceGeometry.SectionsAt(graph, coneBase.Z), 0);
-        var miniPath = Assert.Single(polygons, path => Contains(path, coneBase));
-        var actualArea = Math.Abs(Clipper.Area(miniPath)) /
                          (MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm);
 
         Assert.InRange(actualArea, expectedArea * 0.995, expectedArea * 1.005);

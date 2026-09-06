@@ -66,7 +66,6 @@ public sealed class BvhCollisionScene : ICollisionScene
                 tip.TipNormalLeadIn > 0)
             {
                 foreach (var section in TipBodyGeometry.Sections(tip, other,
-                             segment.Diameter * 0.5f,
                              SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f,
                              embedContact: false))
                     AddCapsule(section.Start, section.End,

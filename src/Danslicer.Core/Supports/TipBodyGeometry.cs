@@ -7,9 +7,10 @@ internal readonly record struct TipBodySection(
     Vector3 Start, Vector3 End, float StartRadius, float EndRadius);
 
 /// <summary>
-/// Shared centreline and taper construction for rendered and sliced cone tips. A configured
-/// lead-in leaves the contact along its outward surface normal before bending toward the graph
-/// junction; zero keeps the historical straight centreline exactly.
+/// Shared centreline and taper construction for rendered and sliced cone tips: the whole tip
+/// member is the cone, tapering from the contact to the full radius of the ball at its
+/// junction. A configured lead-in leaves the contact along its outward surface normal before
+/// bending toward the graph junction; zero keeps a straight centreline exactly.
 /// </summary>
 public static class TipBodyGeometry
 {
@@ -52,8 +53,14 @@ public static class TipBodyGeometry
         return [contact, bend, junction];
     }
 
+    /// <summary>
+    /// The tip member as one linear taper from the contact radius to the radius of the ball it
+    /// grows from, with its base ring at the ball's centre (user decision 2026-09-07: the cone's
+    /// base always has the diameter of the sphere it connects to, and simply rotates about that
+    /// sphere's centre). Bends in the centreline split the taper without changing the radii.
+    /// </summary>
     internal static IReadOnlyList<TipBodySection> Sections(SupportNode tip, SupportNode other,
-        float neckRadius, float junctionRadius, bool embedContact)
+        float junctionRadius, bool embedContact)
     {
         var points = Centerline(tip.Position, tip.SurfaceNormal, other.Position,
             tip.TipNormalLeadIn);
@@ -63,29 +70,21 @@ public static class TipBodyGeometry
 
         var totalLength = distances[^1];
         if (totalLength < Epsilon) return [];
-        var coneLength = MathF.Min(MathF.Max(tip.ConeLength, 0f), totalLength);
-        if (coneLength <= 0) return [];
 
         var contactRadius = MathF.Max(tip.TipDiameter * 0.5f, 0f);
-        var neck = MathF.Max(neckRadius, 0f);
         var junction = MathF.Max(junctionRadius, 0f);
         var insetRun = MathF.Min(junction * JunctionInsetRun, totalLength * 0.5f);
         var insetStart = totalLength - insetRun;
-
-        // Ascending, so a bend crossed by both splits keeps its knots in order along the path.
-        var splits = new List<float>(2);
-        if (coneLength < insetStart - Epsilon) splits.Add(coneLength);
-        if (insetRun > Epsilon) splits.Add(insetStart);
 
         var knots = new List<(Vector3 Point, float Distance)> { (points[0], 0f) };
         for (var i = 1; i < points.Count; i++)
         {
             var startDistance = distances[i - 1];
             var endDistance = distances[i];
-            foreach (var split in splits)
-                if (split > startDistance + Epsilon && split < endDistance - Epsilon)
-                    knots.Add((Vector3.Lerp(points[i - 1], points[i],
-                        (split - startDistance) / (endDistance - startDistance)), split));
+            if (insetRun > Epsilon && insetStart > startDistance + Epsilon &&
+                insetStart < endDistance - Epsilon)
+                knots.Add((Vector3.Lerp(points[i - 1], points[i],
+                    (insetStart - startDistance) / (endDistance - startDistance)), insetStart));
             knots.Add((points[i], endDistance));
         }
 
@@ -110,15 +109,8 @@ public static class TipBodyGeometry
         }
         return sections;
 
-        // The configured taper: contact to neck over the cone, then on to the junction.
-        float BaseRadiusAt(float distance)
-        {
-            if (coneLength >= totalLength - Epsilon)
-                return Lerp(contactRadius, junction, distance / totalLength);
-            if (distance <= coneLength)
-                return Lerp(contactRadius, neck, distance / coneLength);
-            return Lerp(neck, junction, (distance - coneLength) / (totalLength - coneLength));
-        }
+        float BaseRadiusAt(float distance) =>
+            Lerp(contactRadius, junction, distance / totalLength);
 
         float RadiusAt(float distance)
         {

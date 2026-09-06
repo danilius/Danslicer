@@ -40,8 +40,7 @@ public static class SupportSliceGeometry
             var b = graph.GetNode(segment.NodeB);
             if (a.Disabled || b.Disabled) continue;
             if (TryConeTip(a, b, out var tip, out var other))
-                ConeTipSection(tip, other, segment.Diameter * 0.5,
-                    TipJunctionDiameter(graph, segment) * 0.5, z, paths);
+                ConeTipSection(tip, other, TipJunctionDiameter(graph, segment) * 0.5, z, paths);
             else
                 CapsuleSection(a.Position, b.Position, segment.Diameter * 0.5, z, paths);
         }
@@ -129,22 +128,20 @@ public static class SupportSliceGeometry
     }
 
     /// <summary>
-    /// Cone frustum along the neck (contact radius to neck radius over cone length), then a
-    /// frustum out to the parent-member radius, reached where the tip leaves the parent's cap
-    /// rather than at the buried junction node, and finally a narrowing nose so the flat end
-    /// stays inside the parent instead of standing proud of it. Embedding moves the narrow end
-    /// past the surface while leaving the base fixed, so the original contact plane cuts a
-    /// slightly wider part of the frustum.
+    /// One cone frustum from the contact radius to the parent-member (ball) radius over the
+    /// whole tip member, its base ring at the ball's centre. Embedding moves the narrow end past
+    /// the surface while leaving the base fixed, so the original contact plane cuts a slightly
+    /// wider part of the frustum.
     /// </summary>
-    public static void ConeTipSection(SupportNode tip, SupportNode other, double neckRadius,
-        double junctionRadius, double z, Paths64 output)
+    public static void ConeTipSection(SupportNode tip, SupportNode other, double junctionRadius,
+        double z, Paths64 output)
     {
         var rContact = Math.Max(tip.TipDiameter * 0.5, 0.0);
-        var sections = TipBodyGeometry.Sections(tip, other, (float)neckRadius,
-            (float)junctionRadius, embedContact: true);
+        var sections = TipBodyGeometry.Sections(tip, other, (float)junctionRadius,
+            embedContact: true);
         if (sections.Count == 0)
         {
-            CapsuleSection(tip.Position, other.Position, neckRadius, z, output);
+            CapsuleSection(tip.Position, other.Position, junctionRadius, z, output);
             return;
         }
 
