@@ -127,6 +127,25 @@ public sealed class Document
         History.Clear();
     }
 
+    /// <summary>
+    /// Empties the document for a new project: no objects, no supports, no history. The machine
+    /// setup — printer, resin and print settings — is deliberately kept, because that describes
+    /// the user's rig rather than the model they were working on.
+    /// </summary>
+    public void Clear() => ReplaceWith(new Document
+    {
+        Printer = Printer,
+        PrintSettings = PrintSettings,
+        ResinPreset = ResinPreset,
+        ResinSettings = ResinSettings,
+    });
+
+    /// <summary>
+    /// Whether starting a new project would throw work away. Nothing to lose means no dialog:
+    /// a confirmation nobody needs is a confirmation people learn to click through.
+    /// </summary>
+    public bool HasContent => Scene.Objects.Count > 0 || Supports.NodeCount > 0;
+
     /// <summary>Raise Changed for transient edits (e.g. live drag) that bypass the command stack.</summary>
     public void NotifyTransientChange() => Changed?.Invoke();
 
@@ -168,6 +187,14 @@ public sealed class Document
     }
 
     public bool IsSelected(SceneObject obj) => _selection.Contains(obj);
+
+    /// <summary>
+    /// The model support work acts on: the single selected object, or null when the selection
+    /// is empty or holds more than one. Support mode keeps exactly one object selected, so this
+    /// is that object; in Layout it is simply "the one selected model", which is the same thing
+    /// the user would mean. See <see cref="SupportTargetPolicy"/> for what the target governs.
+    /// </summary>
+    public SceneObject? SupportTarget => _selection.Count == 1 ? _selection.First() : null;
 
     public bool IsSupportSelected(Guid id) => _supportSelection.Contains(id);
 
@@ -334,6 +361,41 @@ public sealed class Document
     public void ClearSupportRegions(SceneObject obj) =>
         SetSupportRegions(obj, ObjectSupportRegions.Empty, "Clear support region");
 
+    /// <summary>
+    /// The support elements of <paramref name="original"/>, copied onto <paramref name="copy"/>
+    /// and shifted by the offset between them, as one command to fold into the duplicate's undo
+    /// step. Null when the original has no supports.
+    ///
+    /// <para>Only segments with BOTH ends owned by the original are copied. A support that shares
+    /// a trunk with another model is half-owned by a model that was not duplicated, and there is
+    /// no honest place to put the other half — so that fragment is left behind rather than
+    /// invented.</para>
+    /// </summary>
+    private IDocumentCommand? CopySupportsForDuplicate(SceneObject original, SceneObject copy)
+    {
+        var offset = copy.Transform.Translation - original.Transform.Translation;
+        var owned = Supports.Nodes.Where(node => node.Origin.ObjectId == original.Id).ToList();
+        if (owned.Count == 0) return null;
+
+        var newIds = owned.ToDictionary(node => node.Id, _ => Guid.NewGuid());
+        var nodes = owned.Select(node =>
+        {
+            var clone = node.Clone(newIds[node.Id], node.Origin with { ObjectId = copy.Id });
+            clone.Position = node.Position + offset;
+            if (clone.ContactObjectId == original.Id) clone.ContactObjectId = copy.Id;
+            return clone;
+        }).ToList();
+
+        var segments = Supports.Segments
+            .Where(segment => newIds.ContainsKey(segment.NodeA) && newIds.ContainsKey(segment.NodeB))
+            .Select(segment => segment.Clone(Guid.NewGuid(), newIds[segment.NodeA],
+                newIds[segment.NodeB], segment.Origin with { ObjectId = copy.Id }))
+            .ToList();
+
+        return new ApplySupportGraphEditCommand(Supports,
+            new SupportGraphEdit(nodes, segments, []), $"Duplicate {original.Name}");
+    }
+
     /// <summary>Ids of every support node owned by <paramref name="obj"/>. Segments are not listed:
     /// <see cref="RemoveSupportElementsCommand"/> pulls in each node's attached segments itself.</summary>
     private IEnumerable<Guid> AssociatedSupportNodeIds(SceneObject obj) => Supports.Nodes
@@ -407,6 +469,9 @@ public sealed class Document
             var copy = new SceneObject(NextCopyName(original.Name, usedNames), original.Mesh)
             {
                 RenderState = original.RenderState,
+                // The painted region indexes faces of the mesh, which the copy shares, so it
+                // stays meaningful. Regions are immutable, so the instance can be shared.
+                Regions = original.Regions,
             };
             var requested = original.Transform with
             {
@@ -415,6 +480,11 @@ public sealed class Document
             copy.Transform = ApplyPlacement(copy.Mesh, requested);
             copies.Add(copy);
             commands.Add(new AddObjectCommand(Scene, copy));
+            // Duplicating a supported model duplicates its supports: the copy is the same model
+            // in the same orientation, just moved, so its supports are valid by the same argument
+            // that lets a translation keep them (see SupportTransformRule).
+            var supportCopy = CopySupportsForDuplicate(original, copy);
+            if (supportCopy is not null) commands.Add(supportCopy);
         }
 
         var name = copies.Count == 1 ? $"Duplicate {originals[0].Name}" : $"Duplicate {copies.Count} objects";
@@ -681,6 +751,11 @@ public sealed class Document
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
         out RoutingFailureReason? failureReason)
     {
+        failureReason = null;
+        // A click on a model that is not the support target is refused before any routing work:
+        // this is not a routing failure, so it carries no routing reason. The caller turns it
+        // into the status line from SupportTargetPolicy.
+        if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return false;
         var settings = SupportSettings with { };
         var independent = settings.IndependentManualSupports;
         ICollisionScene obstacles = independent

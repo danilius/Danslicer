@@ -62,7 +62,6 @@ public partial class MainViewModel : ViewModelBase
     public LayerRangeClipViewModel SupportClip { get; } = new();
     public HoverWaterlineViewModel SupportWaterline { get; } = new();
     public ViewportClipRange ViewportClipRange => SupportClip.Range;
-    public IReadOnlyList<ClipCapStyle> ClipCapStyles { get; } = Enum.GetValues<ClipCapStyle>();
 
     public bool CapInterior
     {
@@ -88,28 +87,14 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    public bool OpaqueSupportsInLayout
-    {
-        get => AppConfig.Current.Viewport.OpaqueSupportsInLayout;
-        set
-        {
-            if (value == AppConfig.Current.Viewport.OpaqueSupportsInLayout) return;
-            AppConfig.Current.Viewport.OpaqueSupportsInLayout = value;
-            AppConfig.Save();
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(EffectiveSupportDisplay));
-        }
-    }
-
     /// <summary>
     /// The support display config the viewport actually draws with: the user's chosen display
-    /// mode, demoted from transparent to opaque while Layout is active if they have asked for
-    /// that. Every consumer binds THIS rather than the raw config, so the two render paths and
-    /// picking cannot disagree — see <see cref="SupportDisplayPolicy.ForWorkspace"/>.
+    /// mode, demoted from transparent to opaque while Layout is active. Every consumer binds THIS
+    /// rather than the raw config, so the two render paths and picking cannot disagree — see
+    /// <see cref="SupportDisplayPolicy.ForWorkspace"/>.
     /// </summary>
     public SupportDisplayConfig EffectiveSupportDisplay => SupportDisplayPolicy.ForWorkspace(
-        AppConfig.Current.Viewport.SupportDisplay, ViewMode == WorkspaceMode.Layout,
-        AppConfig.Current.Viewport.OpaqueSupportsInLayout);
+        AppConfig.Current.Viewport.SupportDisplay, ViewMode == WorkspaceMode.Layout);
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
     public ModeScopedCommand DuplicateScopedCommand { get; }
@@ -219,10 +204,19 @@ public partial class MainViewModel : ViewModelBase
                 Document.ClearSupportSelection();
                 if (SelectedObject is { } target) Document.Select(target);
             }
+            else if (value == WorkspaceMode.Support)
+            {
+                // Support mode keeps exactly one object selected: the support target. It is the
+                // same object the user had in Layout, it draws in the selection colour there and
+                // here, and Document.SupportTarget reads it back for generation and manual
+                // placement. A multi-selection collapses to the active object.
+                if (SelectedObject is { } target) Document.Select(target);
+                else Document.ClearSelection();
+            }
             else
             {
                 Document.ClearSelection();
-                if (value == WorkspaceMode.Slicing) Document.ClearSupportSelection();
+                Document.ClearSupportSelection();
             }
         }
         finally
@@ -445,7 +439,7 @@ public partial class MainViewModel : ViewModelBase
         _syncingSelection = true;
         try
         {
-            if (!_changingViewMode && ViewMode == WorkspaceMode.Layout)
+            if (!_changingViewMode && ViewMode is WorkspaceMode.Layout or WorkspaceMode.Support)
                 SelectedObject = Document.Selection.FirstOrDefault();
         }
         finally
@@ -471,7 +465,7 @@ public partial class MainViewModel : ViewModelBase
         _syncingSelection = true;
         try
         {
-            if (ViewMode == WorkspaceMode.Layout)
+            if (ViewMode is WorkspaceMode.Layout or WorkspaceMode.Support)
             {
                 if (value is null) Document.ClearSelection();
                 else Document.Select(value);
@@ -563,6 +557,27 @@ public partial class MainViewModel : ViewModelBase
         ProjectPath = System.IO.Path.GetFullPath(path);
         Title = $"{System.IO.Path.GetFileNameWithoutExtension(ProjectPath)} — Danslicer";
         ViewportStatus = $"Saved {System.IO.Path.GetFileName(ProjectPath)}.";
+    }
+
+    /// <summary>
+    /// Starts an empty project on the same machine setup. The caller confirms first when
+    /// <see cref="Document"/>.HasContent — this method does not ask, so that the confirmation
+    /// lives in one place (the window) rather than being duplicated per entry point.
+    /// </summary>
+    public void NewProject()
+    {
+        Document.Clear();
+        SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z, reset: true);
+        SelectedObject = null;
+        LastSlice = null;
+        SliceWarning = null;
+        PreviewImage = null;
+        PreviewLayerText = "";
+        SliceSummary = "Not sliced yet.";
+        ViewMode = WorkspaceMode.Layout;
+        ProjectPath = null;
+        Title = "Danslicer";
+        ViewportStatus = "New project.";
     }
 
     public ProjectViewState OpenProject(string path)

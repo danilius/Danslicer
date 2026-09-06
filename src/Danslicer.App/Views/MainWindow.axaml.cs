@@ -1,4 +1,4 @@
-using System.Windows.Input;
+﻿using System.Windows.Input;
 using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia.Controls;
@@ -22,6 +22,7 @@ public partial class MainWindow : Window
 {
     public ICommand SaveProjectCommand { get; }
     public ICommand SaveProjectAsCommand { get; }
+    public ICommand NewProjectCommand { get; }
     public ICommand OpenProjectCommand { get; }
     public ICommand ImportCommand { get; }
     public ModeScopedCommand ExportCommand { get; }
@@ -30,6 +31,7 @@ public partial class MainWindow : Window
     {
         SaveProjectCommand = new AsyncRelayCommand(SaveProjectAsync);
         SaveProjectAsCommand = new AsyncRelayCommand(SaveProjectAsAsync);
+        NewProjectCommand = new AsyncRelayCommand(NewProjectAsync);
         OpenProjectCommand = new AsyncRelayCommand(OpenProjectAsync);
         ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
         ExportCommand = new ModeScopedCommand(
@@ -350,6 +352,28 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Empties the scene for a new project, asking first when there is something to lose. The
+    /// question is asked here, once, so every future entry point to "new" gets the same guard.
+    /// </summary>
+    private async Task NewProjectAsync()
+    {
+        if (ViewModel is not { } vm) return;
+        if (vm.IsGeneratingSupports || vm.IsSlicing)
+        {
+            vm.ViewportStatus = "Wait for the current operation before starting a new project.";
+            return;
+        }
+        if (vm.Document.HasContent && !await ConfirmDialog.AskAsync(this, "New project",
+                "The current scene has models in it. Starting a new project discards them, " +
+                "along with their supports and the undo history.",
+                confirmText: "Discard"))
+            return;
+        vm.NewProject();
+        Viewport.FrameAll();
+        Viewport.Focus();
+    }
+
     private async Task OpenProjectAsync()
     {
         if (ViewModel is not { } vm) return;
@@ -522,9 +546,9 @@ public partial class MainWindow : Window
     private void SyncRenderPathMenu()
     {
         var viewport = AppConfig.Current.Viewport;
+        // Classic is only ever reached by the automatic fallback after a GL failure, so the
+        // shading switches follow it rather than a user choice.
         var deferred = viewport.RenderPath == RenderPathMode.Deferred;
-        DeferredRenderingMenuItem.IsChecked = deferred;
-        // The shading and effect switches only affect the deferred composite pass.
         ShadingMenuItem.IsEnabled = deferred;
         ShadingStudioMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.Studio;
         ShadingClayMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapClay;
@@ -555,7 +579,6 @@ public partial class MainWindow : Window
         try
         {
             PopShading.ItemsSource ??= new[] { "Studio", "MatCap Clay", "MatCap Metal", "MatCap Pearl" };
-            PopDeferred.IsChecked = deferred;
             PopShading.SelectedIndex = Array.IndexOf(ShadingOrder, viewport.Shading);
             PopShading.IsEnabled = deferred;
             PopCavity.IsChecked = viewport.CavityEnabled;
@@ -601,19 +624,6 @@ public partial class MainWindow : Window
         Viewport.RequestRedraw();
     }
 
-    private void OnToggleDeferredRenderingClick(object? sender, RoutedEventArgs e)
-    {
-        var viewport = AppConfig.Current.Viewport;
-        viewport.RenderPath = viewport.RenderPath == RenderPathMode.Deferred
-            ? RenderPathMode.Classic
-            : RenderPathMode.Deferred;
-        // A Painted clip-cap style resolves differently per render path (exact CPU caps on
-        // Classic, screen-space caps on Deferred); this toggle bypasses the ViewportControl
-        // property change notification that normally triggers that re-resolution.
-        Viewport.NotifyRenderPathChanged();
-        ApplyRenderPathChange();
-    }
-
     private void OnShadingClick(object? sender, RoutedEventArgs e)
     {
         if (sender is MenuItem { Tag: string tag } &&
@@ -640,6 +650,7 @@ public partial class MainWindow : Window
         ApplyRenderPathChange();
     }
 
+    private void OnNewProjectClick(object? sender, RoutedEventArgs e) => NewProjectCommand.Execute(null);
     private void OnOpenProjectClick(object? sender, RoutedEventArgs e) => OpenProjectCommand.Execute(null);
     private void OnSaveProjectClick(object? sender, RoutedEventArgs e) => SaveProjectCommand.Execute(null);
     private void OnSaveProjectAsClick(object? sender, RoutedEventArgs e) => SaveProjectAsCommand.Execute(null);

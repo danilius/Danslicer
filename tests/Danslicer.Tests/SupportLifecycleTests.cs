@@ -61,16 +61,48 @@ public sealed class SupportLifecycleTests
     }
 
     [Fact]
-    public void RotationAndScaleDoNotMapContactsExactly()
+    public void TiltingAndScalingDoNotMapContactsExactly()
     {
         var before = Transform.Identity;
 
         Assert.False(SupportTransformRule.MapsContactsExactly(before,
-            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.4f) }));
+            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.4f) }));
+        Assert.False(SupportTransformRule.MapsContactsExactly(before,
+            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.4f) }));
         Assert.False(SupportTransformRule.MapsContactsExactly(before,
             before with { Scale = new Vector3(2f, 2f, 2f) }));
         Assert.False(SupportTransformRule.MapsContactsExactly(before,
             before with { Scale = new Vector3(1f, 1f, 1.5f) })); // non-uniform too
+    }
+
+    [Fact]
+    public void TurningAboutTheVerticalKeepsSupports()
+    {
+        // A turn about Z carries contacts, trunks and bases round together: the tree that fitted
+        // before fits after, so there is nothing to discard.
+        var before = Transform.Identity;
+
+        Assert.True(SupportTransformRule.MapsContactsExactly(before,
+            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.4f) }));
+        Assert.True(SupportTransformRule.MapsContactsExactly(before,
+            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) }));
+
+        // Also from an already-turned start, and combined with a move.
+        var turned = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f) };
+        Assert.True(SupportTransformRule.MapsContactsExactly(turned, turned with
+        {
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -0.3f),
+            Translation = new Vector3(9f, 2f, 0f),
+        }));
+
+        // But a turn about Z applied to a tilted object still leaves it tilted, and a tilt added
+        // on top of a turn is still a tilt.
+        var tilted = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f) };
+        Assert.False(SupportTransformRule.MapsContactsExactly(tilted, tilted with
+        {
+            Rotation = Quaternion.Concatenate(tilted.Rotation,
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f)),
+        }));
     }
 
     [Fact]
@@ -83,6 +115,113 @@ public sealed class SupportLifecycleTests
         var after = before with { Rotation = -rotation };
 
         Assert.True(SupportTransformRule.MapsContactsExactly(before, after));
+    }
+
+    // ----- Layout: a model and its supports are one thing -----
+
+    [Fact]
+    public void EverySupportElementKnowsWhichModelItBelongsTo()
+    {
+        // What Layout clicking needs: any part of a support answers "which model is this?", so
+        // a click anywhere on it can select the model.
+        var (document, box) = SupportedBox();
+
+        foreach (var node in document.Supports.Nodes)
+            Assert.Equal(box.Id, document.Supports.OwningObjectId(node.Id));
+        foreach (var segment in document.Supports.Segments)
+            Assert.Equal(box.Id, document.Supports.OwningObjectId(segment.Id));
+    }
+
+    [Fact]
+    public void AnUnknownElementBelongsToNoModel()
+    {
+        var (document, _) = SupportedBox();
+
+        Assert.Null(document.Supports.OwningObjectId(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void SupportsOfTwoModelsAreToldApart()
+    {
+        var (document, first) = SupportedBox("first");
+        var second = new SceneObject("second", Box(new Vector3(20, -5, 8), new Vector3(30, 5, 14)));
+        document.AddObject(second);
+        Assert.True(document.AddManualSupport(second, new Vector3(25, 0, 8), -Vector3.UnitZ));
+
+        foreach (var node in document.Supports.Nodes)
+        {
+            var owner = document.Supports.OwningObjectId(node.Id);
+            Assert.True(owner == first.Id || owner == second.Id);
+            Assert.Equal(node.Origin.ObjectId, owner);
+        }
+    }
+
+    // ----- Duplicate -----
+
+    [Fact]
+    public void DuplicatingAModelDuplicatesItsSupports()
+    {
+        var (document, box) = SupportedBox();
+        var nodesBefore = document.Supports.Nodes.Count;
+        var segmentsBefore = document.Supports.Segments.Count;
+        var tipBefore = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
+
+        document.Select(box);
+        var copy = Assert.Single(document.DuplicateSelection());
+
+        Assert.Equal(nodesBefore * 2, document.Supports.Nodes.Count);
+        Assert.Equal(segmentsBefore * 2, document.Supports.Segments.Count);
+        Assert.Equal(nodesBefore, OwnedNodes(document, copy));
+
+        // The copy's supports sit under the copy, shifted by the same offset the model was.
+        var offset = copy.Transform.Translation - box.Transform.Translation;
+        var copiedTip = document.Supports.Nodes
+            .Single(n => n.Type == SupportNodeType.Tip && n.Origin.ObjectId == copy.Id);
+        Assert.Equal(tipBefore.X + offset.X, copiedTip.Position.X, 4);
+        Assert.Equal(tipBefore.Y + offset.Y, copiedTip.Position.Y, 4);
+        Assert.Equal(tipBefore.Z + offset.Z, copiedTip.Position.Z, 4);
+    }
+
+    [Fact]
+    public void DuplicateAndItsSupportsAreOneUndoStep()
+    {
+        var (document, box) = SupportedBox();
+        var nodesBefore = document.Supports.Nodes.Count;
+        document.Select(box);
+        document.DuplicateSelection();
+
+        Assert.True(document.Undo());
+
+        Assert.Single(document.Scene.Objects);
+        Assert.Equal(nodesBefore, document.Supports.Nodes.Count);
+    }
+
+    [Fact]
+    public void DuplicatingAnUnsupportedModelAddsNoSupports()
+    {
+        var document = new Document();
+        var box = new SceneObject("box", Box(new Vector3(-5, -5, 8), new Vector3(5, 5, 14)));
+        document.AddObject(box);
+        document.Select(box);
+
+        document.DuplicateSelection();
+
+        Assert.Empty(document.Supports.Nodes);
+    }
+
+    [Fact]
+    public void ACopysSupportsAreItsOwnAndSurviveTheOriginalsDeletion()
+    {
+        var (document, box) = SupportedBox();
+        document.Select(box);
+        var copy = Assert.Single(document.DuplicateSelection());
+        var copySupports = OwnedNodes(document, copy);
+
+        document.Select(box);
+        document.DeleteSelection();
+
+        Assert.Equal(copySupports, OwnedNodes(document, copy));
+        Assert.Equal(0, OwnedNodes(document, box));
     }
 
     // ----- Delete -----
@@ -159,6 +298,41 @@ public sealed class SupportLifecycleTests
     }
 
     [Fact]
+    public void TurningAboutZKeepsSupportsAndCarriesThemRound()
+    {
+        var (document, box) = SupportedBox();
+        var supportsBefore = document.Supports.Nodes.Count;
+        var tipBefore = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
+        var before = box.Transform;
+        var angle = 0.7f;
+        var turned = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle) };
+
+        document.CommitTransform(box, before, turned, "Rotate", applyPlacement: false);
+
+        Assert.Equal(supportsBefore, document.Supports.Nodes.Count);
+        var tipAfter = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
+        var expected = Vector3.Transform(tipBefore, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle));
+        Assert.Equal(expected.X, tipAfter.X, 4);
+        Assert.Equal(expected.Y, tipAfter.Y, 4);
+        Assert.Equal(expected.Z, tipAfter.Z, 4); // the turn is about the vertical: height is untouched
+    }
+
+    [Fact]
+    public void TurningAboutZKeepsSupportsEvenWhenItCarriesThemOffThePlate()
+    {
+        // Off the plate is the build volume's complaint to make, not a reason to destroy work.
+        var (document, box) = SupportedBox();
+        var supportsBefore = document.Supports.Nodes.Count;
+        var before = box.Transform with { Translation = new Vector3(400f, 0f, 0f) };
+        box.Transform = before;
+        var turned = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.4f) };
+
+        document.CommitTransform(box, before, turned, "Rotate", applyPlacement: false);
+
+        Assert.Equal(supportsBefore, document.Supports.Nodes.Count);
+    }
+
+    [Fact]
     public void ScalingDiscardsSupports()
     {
         var (document, box) = SupportedBox();
@@ -200,7 +374,7 @@ public sealed class SupportLifecycleTests
         document.CommitTransforms(
         [
             (moved, movedBefore, movedBefore with
-                { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f) }),
+                { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f) }),
             (untouched, untouched.Transform, untouched.Transform),
         ], "Rotate", applyPlacement: false);
 
@@ -265,29 +439,17 @@ public sealed class SupportLifecycleTests
     // ----- Layout opacity -----
 
     [Fact]
-    public void LayoutShowsSupportsOpaqueByDefaultButSupportModeKeepsTheChosenMode()
+    public void LayoutShowsSupportsOpaqueButSupportModeKeepsTheChosenMode()
     {
-        Assert.True(new ViewportConfig().OpaqueSupportsInLayout);
+        // Not a setting: in Layout a model and its supports are one object being arranged, so
+        // the supports are solid there whatever the display mode says.
         var transparent = new SupportDisplayConfig { Mode = SupportDisplayMode.Transparent };
 
-        var inLayout = SupportDisplayPolicy.ForWorkspace(transparent,
-            isLayoutView: true, opaqueSupportsInLayout: true);
-        var inSupport = SupportDisplayPolicy.ForWorkspace(transparent,
-            isLayoutView: false, opaqueSupportsInLayout: true);
+        var inLayout = SupportDisplayPolicy.ForWorkspace(transparent, isLayoutView: true);
+        var inSupport = SupportDisplayPolicy.ForWorkspace(transparent, isLayoutView: false);
 
         Assert.Equal(SupportDisplayMode.Full, inLayout.Mode);
         Assert.Equal(SupportDisplayMode.Transparent, inSupport.Mode);
-    }
-
-    [Fact]
-    public void TurningTheLayoutOpacitySettingOffRestoresOneModeEverywhere()
-    {
-        var transparent = new SupportDisplayConfig { Mode = SupportDisplayMode.Transparent };
-
-        var inLayout = SupportDisplayPolicy.ForWorkspace(transparent,
-            isLayoutView: true, opaqueSupportsInLayout: false);
-
-        Assert.Equal(SupportDisplayMode.Transparent, inLayout.Mode);
     }
 
     [Fact]
@@ -301,8 +463,7 @@ public sealed class SupportLifecycleTests
             ShowContactPointsInTransparent = false,
         };
 
-        var forced = SupportDisplayPolicy.ForWorkspace(display,
-            isLayoutView: true, opaqueSupportsInLayout: true);
+        var forced = SupportDisplayPolicy.ForWorkspace(display, isLayoutView: true);
 
         Assert.Equal(display with { Mode = SupportDisplayMode.Full }, forced);
     }
@@ -316,32 +477,6 @@ public sealed class SupportLifecycleTests
     {
         var display = new SupportDisplayConfig { Mode = mode };
 
-        Assert.Same(display, SupportDisplayPolicy.ForWorkspace(display,
-            isLayoutView: true, opaqueSupportsInLayout: true));
-    }
-
-    [Fact]
-    public void TheLayoutOpacitySettingRoundTripsThroughTheConfigFile()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "danslicer-lifecycle-tests",
-            Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        try
-        {
-            var path = Path.Combine(dir, "config.json");
-            new UserConfig { Viewport = new ViewportConfig { OpaqueSupportsInLayout = false } }
-                .Save(path);
-
-            Assert.False(UserConfig.Load(path).Viewport.OpaqueSupportsInLayout);
-
-            // A config written before this setting existed must default to the new behaviour.
-            var legacy = Path.Combine(dir, "legacy.json");
-            File.WriteAllText(legacy, """{ "Viewport": { "OverhangAngleDegrees": 30 } }""");
-            Assert.True(UserConfig.Load(legacy).Viewport.OpaqueSupportsInLayout);
-        }
-        finally
-        {
-            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
-        }
+        Assert.Same(display, SupportDisplayPolicy.ForWorkspace(display, isLayoutView: true));
     }
 }

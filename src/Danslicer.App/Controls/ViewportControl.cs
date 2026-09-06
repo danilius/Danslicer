@@ -542,10 +542,13 @@ public sealed class ViewportControl : OpenGlControlBase
             var px = (int)(pick.Mouse.X * scaling);
             var py = height - 1 - (int)(pick.Mouse.Y * scaling);
             if (_renderer.TryPickObject(px, py, out var hit))
-                ApplyObjectClick(hit, pick.Additive);
+                // Support geometry is not in the ID buffer, so a click that lands on a support
+                // reads as empty space there. Ask the CPU pick before believing it.
+                ApplyObjectClick(hit ?? SupportOwnerAt(pick.Mouse, float.PositiveInfinity), pick.Additive);
             else
                 // The frame fell back to the classic path; pick the CPU way instead.
-                ApplyObjectClick(PickObject(pick.Mouse), pick.Additive);
+                ApplyObjectClick(PickObject(pick.Mouse) ??
+                    SupportOwnerAt(pick.Mouse, float.PositiveInfinity), pick.Additive);
         }
     }
 
@@ -730,6 +733,14 @@ public sealed class ViewportControl : OpenGlControlBase
 
             var hitObj = PickSurface(m, out _, out var surfacePoint, out _);
             var objDistance = hitObj is null ? float.PositiveInfinity : Vector3.Distance(Camera.Eye, surfacePoint);
+            if (!SupportSelectionMode && SupportOwnerAt(m, objDistance) is { } ownerByClick)
+            {
+                // Outside Support mode a model and its supports are one thing, so clicking any
+                // part of the support selects the model it belongs to.
+                ApplyObjectClick(ownerByClick, additive);
+                e.Handled = true;
+                return;
+            }
             if (SupportSelectionMode)
             {
                 // Every LMB press arms a marquee, wherever it starts (Blender box select);
@@ -995,6 +1006,10 @@ public sealed class ViewportControl : OpenGlControlBase
         if (Document is null) return null;
         var hit = PickSurface(mouse, out _, out var point, out var normal);
         if (hit is null) return null;
+        // Only the support target takes supports; a click on any other model says so rather than
+        // silently doing nothing. Document refuses it as well — this is the visible half.
+        if (Danslicer.Core.Supports.SupportTargetPolicy.RefusalMessage(Document.SupportTarget, hit)
+            is { } refusal) return refusal;
         if (!Document.AddManualSupport(hit, point, normal, out var reason))
             return reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
                 ? "Support: contact is too tight to the surface"
@@ -1076,6 +1091,21 @@ public sealed class ViewportControl : OpenGlControlBase
     /// and sit on segments), then segments. Returns its camera distance for depth arbitration
     /// against a surface hit.
     /// </summary>
+    /// <summary>
+    /// The model owning the support element under <paramref name="mouse"/>, when one is nearer
+    /// than <paramref name="objectDistance"/>. Layout treats a model and its supports as one
+    /// object: there is no support selection there, so a click on a support means the model.
+    /// </summary>
+    private SceneObject? SupportOwnerAt(Vector2 mouse, float objectDistance)
+    {
+        if (Document is null) return null;
+        if (PickSupportElement(mouse, out var supportDistance) is not { } element) return null;
+        if (supportDistance > objectDistance + 0.5f) return null;
+        return Document.Supports.OwningObjectId(element) is { } objectId
+            ? Document.Scene.Objects.FirstOrDefault(obj => obj.Id == objectId)
+            : null;
+    }
+
     private Guid? PickSupportElement(Vector2 mouse, out float cameraDistance)
     {
         cameraDistance = float.PositiveInfinity;
@@ -1279,7 +1309,6 @@ public sealed class ViewportControl : OpenGlControlBase
     }
 
     private const float TransparentSupportOpacity = 0.28f;
-    private const float OutsideSupportModeOpacity = 0.45f;
 
     private void AddSupportParts(IEnumerable<SupportRenderPart> parts, Vector3 sortOrigin,
         float opacity)
@@ -1301,8 +1330,7 @@ public sealed class ViewportControl : OpenGlControlBase
         _supportMeshes.Add(new SupportMeshBatch(new AuxMeshDraw(
             part.Mesh,
             new Vector3(color.X, color.Y, color.Z),
-            opacity * (SupportSelectionMode ? 1f : OutsideSupportModeOpacity) *
-                (part.Disabled ? DisabledSupportOpacity : 1f)), sortOrigin));
+            opacity * (part.Disabled ? DisabledSupportOpacity : 1f)), sortOrigin));
     }
 
     private void AppendSupportLines(List<OverlayLine> lines)
@@ -1330,7 +1358,6 @@ public sealed class ViewportControl : OpenGlControlBase
                     };
                 if (segment.Disabled || a.Disabled || b.Disabled)
                     color.W *= DisabledSupportOpacity;
-                if (!SupportSelectionMode) color.W *= OutsideSupportModeOpacity;
                 lines.Add(new OverlayLine(a.Position, b.Position, color));
             }
         }
@@ -1341,7 +1368,6 @@ public sealed class ViewportControl : OpenGlControlBase
             if (node.Hidden || node.Type != SupportNodeType.Tip ||
                 !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
             var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipMarkerColor;
-            if (!SupportSelectionMode) color.W *= OutsideSupportModeOpacity;
             var p = node.Position;
             if (SupportDisplay.Mode is SupportDisplayMode.ContactPoints or
                 SupportDisplayMode.Transparent)
