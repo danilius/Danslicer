@@ -9,6 +9,74 @@ namespace Danslicer.Tests;
 public sealed class LayerRangeClipViewModelTests
 {
     [Fact]
+    public void TheRangeFollowsTheModelsAsTheyAreMovedInLayout()
+    {
+        var viewModel = new MainViewModel { RegionBrushRadiusMm = 2 };
+        var box = new SceneObject("box", UnitBox());
+        viewModel.Document.AddObject(box);
+        var before = viewModel.SupportClip.MaximumZ;
+
+        var raised = box.Transform with { Translation = box.Transform.Translation + new Vector3(0, 0, 5) };
+        viewModel.Document.CommitTransform(box, box.Transform, raised, "Move", applyPlacement: false);
+
+        Assert.Equal(before + 5, viewModel.SupportClip.MaximumZ, 4);
+    }
+
+    [Fact]
+    public void SupportsDoNotStretchTheRangeBeyondTheModels()
+    {
+        // Supports reach the plate and beyond the models; including them made the layer numbers
+        // unrelatable to anything the user could point at.
+        var viewModel = new MainViewModel();
+        var box = new SceneObject("box", UnitBox());
+        viewModel.Document.AddObject(box);
+        var raised = box.Transform with { Translation = new Vector3(0, 0, 8) };
+        viewModel.Document.CommitTransform(box, box.Transform, raised, "Move", applyPlacement: false);
+        var top = viewModel.SupportClip.MaximumZ;
+        var bottom = viewModel.SupportClip.MinimumZ;
+
+        Assert.True(viewModel.Document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+
+        Assert.Equal(bottom, viewModel.SupportClip.MinimumZ, 4); // not dragged down to the plate
+        Assert.Equal(top, viewModel.SupportClip.MaximumZ, 4);
+    }
+
+    [Fact]
+    public void AHiddenModelIsNotPartOfTheRange()
+    {
+        var viewModel = new MainViewModel();
+        var low = new SceneObject("low", UnitBox());
+        var high = new SceneObject("high", UnitBox())
+        {
+            Transform = Transform.Identity with { Translation = new Vector3(0, 0, 20) },
+        };
+        viewModel.Document.AddObject(low);
+        viewModel.Document.AddObject(high);
+        Assert.Equal(21, viewModel.SupportClip.MaximumZ, 4);
+
+        high.RenderState = RenderState.Hidden;
+        viewModel.Document.NotifyTransientChange();
+
+        Assert.Equal(1, viewModel.SupportClip.MaximumZ, 4);
+    }
+
+    private static Mesh UnitBox()
+    {
+        var p = new[]
+        {
+            new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 1, 0), new Vector3(0, 1, 0),
+            new Vector3(0, 0, 1), new Vector3(1, 0, 1), new Vector3(1, 1, 1), new Vector3(0, 1, 1),
+        };
+        int[] indices =
+        [
+            0, 3, 2, 0, 2, 1, 4, 5, 6, 4, 6, 7,
+            0, 1, 5, 0, 5, 4, 2, 3, 7, 2, 7, 6,
+            0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5,
+        ];
+        return new Mesh(p, indices);
+    }
+
+    [Fact]
     public void TheBoxesReadInLayerNumbersNotMillimetres()
     {
         var model = new LayerRangeClipViewModel { LayerHeightMm = 0.05 };
@@ -125,8 +193,12 @@ public sealed class LayerRangeClipViewModelTests
     }
 
     [Fact]
-    public void MainViewModelRangeTracksVisibleSupportGenerationAndDeletion()
+    public void GeneratingSupportsDoesNotMoveTheRange()
     {
+        // This test used to assert the opposite: the range stretched down to a support's base at
+        // the plate. The user's rule is that the clip range is the models' combined bounding box,
+        // so supports appearing or being deleted must leave the numbers where they were.
+
         var viewModel = new MainViewModel();
         viewModel.Document.AddObject(new SceneObject("floating", new Mesh(
             [new(0, 0, 5), new(1, 0, 5), new(0, 1, 10)], [0, 1, 2])));
@@ -146,9 +218,11 @@ public sealed class LayerRangeClipViewModelTests
             Diameter = 1,
         });
 
-        Assert.Equal(-0.5, viewModel.SupportClip.MinimumZ, precision: 6);
+        Assert.Equal(5, viewModel.SupportClip.MinimumZ);
         Assert.Equal(10, viewModel.SupportClip.MaximumZ);
         viewModel.SupportClip.Active = true;
+        // A range at both extremes clips nothing, so the trunk running down to the plate below
+        // the range is still drawn. Supports vanish only once a handle is actually dragged.
         Assert.False(viewModel.ViewportClipRange.IsClipping);
 
         viewModel.Document.Supports.RemoveNode(plate.Id);

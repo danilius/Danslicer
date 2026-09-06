@@ -764,8 +764,19 @@ public partial class MainViewModel : ViewModelBase
         return loaded.ViewState;
     }
 
-    private Aabb VisiblePrintBounds() => Document.Scene.WorldBounds.Union(
-        SupportRenderMesh.VisibleBounds(Document.Supports));
+    /// <summary>
+    /// The Z range the clip slider spans: the combined bounding box of the models on the plate,
+    /// hidden ones excluded, recomputed from the live transforms every time the document changes,
+    /// so moving a model in Layout moves the numbers with it.
+    ///
+    /// <para>Supports are deliberately NOT included. They reach down to the plate and out beyond
+    /// the models, so unioning them stretched the range past anything the user could point at and
+    /// made the layer numbers unrelatable to the models they were reading. Nothing disappears as
+    /// a result: a range sitting at both extremes does not clip at all
+    /// (<see cref="ViewportClipRange.IsClipping"/>), so supports outside the model range are
+    /// hidden only once the user actually drags a handle — which is what the tool is for.</para>
+    /// </summary>
+    private Aabb VisiblePrintBounds() => Document.Scene.WorldBounds;
 
     /// <summary>
     /// Rebuilds the slicing choices after Preferences changes. A project-embedded definition is
