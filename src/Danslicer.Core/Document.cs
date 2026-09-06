@@ -981,12 +981,13 @@ public sealed class Document
                 MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
                 MaxContactFaceAngleDegrees = request.Settings.MaxContactFaceAngleDegrees,
                 RequireContactSeesPlate = request.Settings.RequireContactSeesPlate,
-                EnableMiniSupports = true,
-                MiniIslandMaxAreaMm2 = request.Settings.MiniIslandMaxAreaMm2,
-                MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
-                MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
-                MiniSupportClusterDistanceMm = request.Settings.MiniSupportClusterDistance,
-                FineFeatureMaxAreaMm2 = request.Settings.FineFeatureMaxAreaMm2,
+                // Mini supports are set aside (user decision 2026-09-07): every island at or
+                // above the minimum area gets a regular cone tip, and no contact is converted
+                // to a mini by crowding or fineness. The mini code and its settings stay for
+                // when they return.
+                EnableMiniSupports = false,
+                EnableMiniTipClusters = false,
+                FineFeatureMaxAreaMm2 = 0f,
                 // Only a PAINTED region switches to the even surface grid; with nothing painted
                 // this stays null and generation is unchanged.
                 RegionGrid = request.Regions.Faces.Count > 0

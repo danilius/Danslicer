@@ -83,13 +83,11 @@ public sealed class TreeSupportRouter
     private const float ProjectedBranchClearanceDiameters = 1f;
     /// <summary>Slack on the bend limit so a nominally exact member-angle joint is never refused.</summary>
     private const float BendToleranceDegrees = 0.01f;
-    /// <summary>Step by which a blocked tip direction stands up toward vertical.</summary>
-    private const float TipFallbackStepDegrees = 15f;
     /// <summary>
-    /// Tip directions a contact is routed from before it is refused: the clamped normal, its
-    /// stand-up steps toward vertical, and vertical itself for a 45° normal.
+    /// Tip directions a contact is routed from before it is refused: the clamped normal, then
+    /// vertical.
     /// </summary>
-    private const int TipDirectionAttempts = 4;
+    private const int TipDirectionAttempts = 2;
     private readonly ICollisionScene _obstacles;
     private readonly GrowthRuleSet _rules;
 
@@ -548,7 +546,7 @@ public sealed class TreeSupportRouter
     /// <summary>
     /// Routes one contact. The cone is tried pointing along its (angle-clamped) normal first;
     /// when no branch or trunk can follow from that junction within the member angle, the whole
-    /// route is retried from the next tip direction, which stands the cone up toward vertical.
+    /// route is retried with the cone vertical.
     /// </summary>
     private bool RouteOne(RoutingTip tip, TreeRoutingOptions options, RouteState state,
         out RoutingFailureReason reason)
@@ -802,10 +800,8 @@ public sealed class TreeSupportRouter
             : Vector2.UnitX;
         yield return Direction(lateral, angle);
 
-        // The cone should point along the normal. When that is blocked it stays in the normal's
-        // vertical plane and stands up step by step; fully vertical is always acceptable.
-        foreach (var shallower in ShallowerAngles(angle))
-            yield return Direction(lateral, shallower);
+        // The cone points along the normal, or at the member angle when the normal is steeper
+        // (user decision 2026-09-07). When that is blocked, fully vertical is always acceptable.
         yield return -Vector3.UnitZ;
 
         // Only then swing around the vertical at the clamped angle, as a last resort.
@@ -818,15 +814,6 @@ public sealed class TreeSupportRouter
 
         static Vector3 Direction(Vector2 lateral, float angle) => Vector3.Normalize(
             new Vector3(lateral * MathF.Sin(angle), -MathF.Cos(angle)));
-    }
-
-    /// <summary>Angles (radians) strictly between <paramref name="angle"/> and vertical, steepest first.</summary>
-    private static IEnumerable<float> ShallowerAngles(float angle)
-    {
-        var step = TipFallbackStepDegrees * MathF.PI / 180f;
-        for (var candidate = MathF.Floor((angle - 1e-4f) / step) * step;
-             candidate > 1e-4f; candidate -= step)
-            yield return candidate;
     }
 
     /// <summary>Unit direction a tip member travels from its contact to its junction.</summary>

@@ -1043,10 +1043,10 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
-    public void BlockedTipDirectionStandsUpTowardVerticalInTheNormalsPlane()
+    public void BlockedTipDirectionFallsBackToVertical()
     {
         // A small obstacle sits exactly where the 45° tip member would end. Rather than swing
-        // around the vertical at 45°, the tip stays in the normal's plane and stands up to 30°.
+        // around the vertical at 45°, the tip goes straight down.
         // The 45° member of a 2 mm tip ends at (1.414, 0, 8.586); the sphere sits just within
         // the member's clearance of that end and clear of the 30° member and its trunk.
         var scene = new LinearCollisionScene();
@@ -1063,9 +1063,7 @@ public sealed class RoutingTreeTests
         var delta = result.Graph.GetNode(otherId).Position - tipNode.Position;
         var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
             * 180 / MathF.PI;
-        Assert.Equal(30f, lean, 2);
-        Assert.True(delta.X > 0, "the tip should stay on the normal's side of the vertical");
-        Assert.Equal(0f, delta.Y, 3);
+        Assert.Equal(0f, lean, 2);
     }
 
     [Fact]

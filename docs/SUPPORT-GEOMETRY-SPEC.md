@@ -91,10 +91,10 @@ base is the one exception.
 
 - **The cone points along the contact's outward normal**, clamped to the member angle
   (45° by default) from vertical. Fully vertical is always allowed.
-- **When the normal direction is blocked, or nothing can follow from it, the cone stands
-  up toward vertical** in the normal's own vertical plane (15° steps), and the whole
-  route is retried from each direction before the contact is refused. Only after
-  vertical does the router swing the cone around the vertical at the clamped angle.
+- **A normal steeper than 45° simply gets a 45° cone** (user drawing 2026-09-07: a
+  tilted block on a vertical trunk, cone at 45°). When that direction is blocked, or
+  nothing can follow from it, the cone goes vertical and the whole route is retried;
+  only after vertical does the router swing the cone around the vertical at 45°.
 - **The bend at the ball is limited to the member angle.** The branch (or trunk) leaving
   the cone's junction may turn by at most 45° from the cone's own axis, so a branch never
   doubles back on the cone it grows from (the "Z" kink seen on the 2026-09-06 screen
@@ -105,8 +105,11 @@ base is the one exception.
   new top junction. Branches already on the trunk keep both their ends. A trunk whose
   top carries its own cone tip is never raised, since the raise would run up inside
   the cone. A branch can still attach anywhere below a trunk's top.
-- Mini-supports are set aside for now (they keep their own 75° limit) and will be
-  revisited.
+- **Mini-supports are removed for now** (user decision 2026-09-07): generation never
+  classifies a contact as a mini, and the mini settings are gone from the support
+  panel. Islands at or above the minimum area get regular cone tips; smaller ones are
+  ignored as before minis existed. The mini code, its configuration fields and the CLI
+  options remain for when they return.
 
 ## Mini-supports (user dictation, 2026-09-03 late night)
 
