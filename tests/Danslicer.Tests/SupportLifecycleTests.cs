@@ -117,6 +117,74 @@ public sealed class SupportLifecycleTests
         Assert.True(SupportTransformRule.MapsContactsExactly(before, after));
     }
 
+    // ----- Duplicate -----
+
+    [Fact]
+    public void DuplicatingAModelDuplicatesItsSupports()
+    {
+        var (document, box) = SupportedBox();
+        var nodesBefore = document.Supports.Nodes.Count;
+        var segmentsBefore = document.Supports.Segments.Count;
+        var tipBefore = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
+
+        document.Select(box);
+        var copy = Assert.Single(document.DuplicateSelection());
+
+        Assert.Equal(nodesBefore * 2, document.Supports.Nodes.Count);
+        Assert.Equal(segmentsBefore * 2, document.Supports.Segments.Count);
+        Assert.Equal(nodesBefore, OwnedNodes(document, copy));
+
+        // The copy's supports sit under the copy, shifted by the same offset the model was.
+        var offset = copy.Transform.Translation - box.Transform.Translation;
+        var copiedTip = document.Supports.Nodes
+            .Single(n => n.Type == SupportNodeType.Tip && n.Origin.ObjectId == copy.Id);
+        Assert.Equal(tipBefore.X + offset.X, copiedTip.Position.X, 4);
+        Assert.Equal(tipBefore.Y + offset.Y, copiedTip.Position.Y, 4);
+        Assert.Equal(tipBefore.Z + offset.Z, copiedTip.Position.Z, 4);
+    }
+
+    [Fact]
+    public void DuplicateAndItsSupportsAreOneUndoStep()
+    {
+        var (document, box) = SupportedBox();
+        var nodesBefore = document.Supports.Nodes.Count;
+        document.Select(box);
+        document.DuplicateSelection();
+
+        Assert.True(document.Undo());
+
+        Assert.Single(document.Scene.Objects);
+        Assert.Equal(nodesBefore, document.Supports.Nodes.Count);
+    }
+
+    [Fact]
+    public void DuplicatingAnUnsupportedModelAddsNoSupports()
+    {
+        var document = new Document();
+        var box = new SceneObject("box", Box(new Vector3(-5, -5, 8), new Vector3(5, 5, 14)));
+        document.AddObject(box);
+        document.Select(box);
+
+        document.DuplicateSelection();
+
+        Assert.Empty(document.Supports.Nodes);
+    }
+
+    [Fact]
+    public void ACopysSupportsAreItsOwnAndSurviveTheOriginalsDeletion()
+    {
+        var (document, box) = SupportedBox();
+        document.Select(box);
+        var copy = Assert.Single(document.DuplicateSelection());
+        var copySupports = OwnedNodes(document, copy);
+
+        document.Select(box);
+        document.DeleteSelection();
+
+        Assert.Equal(copySupports, OwnedNodes(document, copy));
+        Assert.Equal(0, OwnedNodes(document, box));
+    }
+
     // ----- Delete -----
 
     [Fact]
