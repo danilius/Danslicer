@@ -160,7 +160,7 @@ public class SupportRegionSelectionTests
         var twice = SupportRegionSelection.Invert(mesh, once);
 
         Assert.Equal(mesh.TriangleCount - faces.Count, once.Count);
-        Assert.Equal(faces.OrderBy(f => f), twice);
+        Assert.Equal(faces.OrderBy(f => f), twice.ToList());
     }
 
     [Fact]
@@ -295,6 +295,6 @@ public class SupportRegionSelectionTests
         ];
 
         foreach (var result in results)
-            Assert.Equal(result.OrderBy(f => f), result);
+            Assert.Equal(result.OrderBy(f => f).ToList(), result.ToList());
     }
 }
