@@ -429,7 +429,7 @@
                                     </Button>
                                 </Grid>
                                 <TextBlock DockPanel.Dock="Bottom"
-                                           Text="Object selection is available in Layout mode."
+                                           Text="Object selection is available in Layout and Support modes."
                                            Classes="label" Margin="0,6,0,0"
                                            IsVisible="{Binding !IsObjectListSelectionEnabled}" />
                                 <ListBox x:Name="ViewportObjectList"

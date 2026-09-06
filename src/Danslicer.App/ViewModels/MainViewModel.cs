@@ -219,10 +219,19 @@ public partial class MainViewModel : ViewModelBase
                 Document.ClearSupportSelection();
                 if (SelectedObject is { } target) Document.Select(target);
             }
+            else if (value == WorkspaceMode.Support)
+            {
+                // Support mode keeps exactly one object selected: the support target. It is the
+                // same object the user had in Layout, it draws in the selection colour there and
+                // here, and Document.SupportTarget reads it back for generation and manual
+                // placement. A multi-selection collapses to the active object.
+                if (SelectedObject is { } target) Document.Select(target);
+                else Document.ClearSelection();
+            }
             else
             {
                 Document.ClearSelection();
-                if (value == WorkspaceMode.Slicing) Document.ClearSupportSelection();
+                Document.ClearSupportSelection();
             }
         }
         finally
@@ -445,7 +454,7 @@ public partial class MainViewModel : ViewModelBase
         _syncingSelection = true;
         try
         {
-            if (!_changingViewMode && ViewMode == WorkspaceMode.Layout)
+            if (!_changingViewMode && ViewMode is WorkspaceMode.Layout or WorkspaceMode.Support)
                 SelectedObject = Document.Selection.FirstOrDefault();
         }
         finally
@@ -471,7 +480,7 @@ public partial class MainViewModel : ViewModelBase
         _syncingSelection = true;
         try
         {
-            if (ViewMode == WorkspaceMode.Layout)
+            if (ViewMode is WorkspaceMode.Layout or WorkspaceMode.Support)
             {
                 if (value is null) Document.ClearSelection();
                 else Document.Select(value);

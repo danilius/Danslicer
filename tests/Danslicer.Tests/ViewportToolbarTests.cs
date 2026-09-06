@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Geometry;
@@ -32,11 +32,13 @@ public sealed class ViewportToolbarTests
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Support));
     }
 
+    // Support mode gained object selection: the selected model is the support target, so the
+    // list must be live there too. Slicing still has nothing to do with an object selection.
     [Theory]
     [InlineData(WorkspaceMode.Layout, true)]
-    [InlineData(WorkspaceMode.Support, false)]
+    [InlineData(WorkspaceMode.Support, true)]
     [InlineData(WorkspaceMode.Slicing, false)]
-    public void ObjectSelectionIsOwnedByLayout(WorkspaceMode mode, bool expected) =>
+    public void ObjectSelectionIsForTheModesWithObjectWork(WorkspaceMode mode, bool expected) =>
         Assert.Equal(expected, ViewportToolbarPolicy.CanSelectObjects(mode));
 
     [Theory]

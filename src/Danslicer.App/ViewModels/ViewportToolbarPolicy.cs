@@ -1,4 +1,4 @@
-using Danslicer.Core;
+﻿using Danslicer.Core;
 
 namespace Danslicer.App.ViewModels;
 
@@ -50,7 +50,12 @@ public static class ViewportToolbarPolicy
     public static bool IsAvailable(ViewportTool tool, WorkspaceMode mode) =>
         ToolsFor(mode).Contains(tool);
 
-    public static bool CanSelectObjects(WorkspaceMode mode) => mode == WorkspaceMode.Layout;
+    /// <summary>
+    /// Layout selects the object to arrange; Support selects the object to support. Slicing has
+    /// no object-level operations, so its list stays read-only.
+    /// </summary>
+    public static bool CanSelectObjects(WorkspaceMode mode) =>
+        mode is WorkspaceMode.Layout or WorkspaceMode.Support;
 
     public static bool ShouldClosePopup(ViewportPopupCloseTrigger trigger) => trigger is
         ViewportPopupCloseTrigger.HeaderButton or ViewportPopupCloseTrigger.Escape;

@@ -995,6 +995,10 @@ public sealed class ViewportControl : OpenGlControlBase
         if (Document is null) return null;
         var hit = PickSurface(mouse, out _, out var point, out var normal);
         if (hit is null) return null;
+        // Only the support target takes supports; a click on any other model says so rather than
+        // silently doing nothing. Document refuses it as well — this is the visible half.
+        if (Danslicer.Core.Supports.SupportTargetPolicy.RefusalMessage(Document.SupportTarget, hit)
+            is { } refusal) return refusal;
         if (!Document.AddManualSupport(hit, point, normal, out var reason))
             return reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
                 ? "Support: contact is too tight to the surface"

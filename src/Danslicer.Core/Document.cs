@@ -169,6 +169,14 @@ public sealed class Document
 
     public bool IsSelected(SceneObject obj) => _selection.Contains(obj);
 
+    /// <summary>
+    /// The model support work acts on: the single selected object, or null when the selection
+    /// is empty or holds more than one. Support mode keeps exactly one object selected, so this
+    /// is that object; in Layout it is simply "the one selected model", which is the same thing
+    /// the user would mean. See <see cref="SupportTargetPolicy"/> for what the target governs.
+    /// </summary>
+    public SceneObject? SupportTarget => _selection.Count == 1 ? _selection.First() : null;
+
     public bool IsSupportSelected(Guid id) => _supportSelection.Contains(id);
 
     public void SelectSupportElement(Guid id, bool additive = false)
@@ -681,6 +689,11 @@ public sealed class Document
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
         out RoutingFailureReason? failureReason)
     {
+        failureReason = null;
+        // A click on a model that is not the support target is refused before any routing work:
+        // this is not a routing failure, so it carries no routing reason. The caller turns it
+        // into the status line from SupportTargetPolicy.
+        if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return false;
         var settings = SupportSettings with { };
         var independent = settings.IndependentManualSupports;
         ICollisionScene obstacles = independent
