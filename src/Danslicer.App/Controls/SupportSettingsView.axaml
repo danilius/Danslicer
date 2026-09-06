@@ -76,11 +76,6 @@
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportPenetrationDepth, Mode=TwoWay}" />
                 </Grid>
-                <Grid Tag="supports tip surface normal lead in bend mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Normal lead-in" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
-                                   Value="{Binding SupportTipNormalLeadInMm, Mode=TwoWay}" />
-                </Grid>
             </StackPanel>
         </Expander>
 

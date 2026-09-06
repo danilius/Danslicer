@@ -105,6 +105,9 @@ base is the one exception.
   new top junction. Branches already on the trunk keep both their ends. A trunk whose
   top carries its own cone tip is never raised, since the raise would run up inside
   the cone. A branch can still attach anywhere below a trunk's top.
+- **A cone is straight.** The normal lead-in (a short run along the contact normal before
+  bending toward the junction) is set to zero in generation and manual placement and its
+  setting is gone from the panel (user screen test 2026-09-07: a bent cone is wrong).
 - **Mini-supports are removed for now** (user decision 2026-09-07): generation never
   classifies a contact as a mini, and the mini settings are gone from the support
   panel. Islands at or above the minimum area get regular cone tips; smaller ones are

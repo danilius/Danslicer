@@ -799,7 +799,8 @@ public sealed class Document
         var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
             TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
             BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth,
-            TipNormalLeadIn: settings.TipNormalLeadInMm);
+            // A cone is straight (user decision 2026-09-07): no normal lead-in bend.
+            TipNormalLeadIn: 0f);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
         var options = new TreeRoutingOptions
@@ -973,7 +974,8 @@ public sealed class Document
                 ConeLengthMm = request.Settings.ConeLength,
                 BallDiameterMm = request.Settings.BallDiameter,
                 PenetrationDepthMm = request.Settings.PenetrationDepth,
-                TipNormalLeadInMm = request.Settings.TipNormalLeadInMm,
+                // A cone is straight (user decision 2026-09-07): no normal lead-in bend.
+                TipNormalLeadInMm = 0f,
                 SpacingMm = request.Settings.Spacing,
                 MinSpacingMm = request.Settings.Spacing,
                 IslandSpacingMm = request.Settings.IslandSpacingMm,
