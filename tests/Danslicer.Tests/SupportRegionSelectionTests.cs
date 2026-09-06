@@ -268,6 +268,104 @@ public class SupportRegionSelectionTests
         Assert.Empty(box.Regions.Faces);
     }
 
+    [Fact]
+    public void ThePatchAngleBoxActuallyReachesTheOperation()
+    {
+        // The regression this exists for: an ExpressionBox bound straight at a double looked like
+        // it worked, kept the old value, and a 0 degree patch angle still grew across a 90 degree
+        // edge. The boxes go through NumericField like every other number in the app.
+        var (viewModel, _) = SupportedScene();
+
+        viewModel.RegionDihedralField.Text = "0";
+
+        Assert.Equal(0, viewModel.RegionDihedralDegrees);
+    }
+
+    [Fact]
+    public void AZeroPatchAngleTakesOnlyTheClickedFacesOwnPlane()
+    {
+        var (viewModel, box) = SupportedScene();
+        viewModel.RegionDihedralField.Text = "0";
+
+        viewModel.PaintRegionFromFace(box, triangle: 0, erase: false);
+
+        Assert.Equal([0, 1], box.Regions.Faces.OrderBy(f => f)); // the clicked side, not its walls
+    }
+
+    [Fact]
+    public void TheRegionBoxesRoundTripTheirValues()
+    {
+        var (viewModel, _) = SupportedScene();
+
+        viewModel.RegionOverhangField.Text = "90";
+        viewModel.RegionBrushRadiusField.Text = "3.5";
+
+        Assert.Equal(90, viewModel.RegionOverhangDegrees);
+        Assert.Equal(3.5, viewModel.RegionBrushRadiusMm);
+        Assert.Equal("90", viewModel.RegionOverhangField.Text);
+    }
+
+    [Fact]
+    public void TheHoverHighlightIsThePatchAClickWouldPaint()
+    {
+        var (viewModel, box) = SupportedScene();
+        viewModel.RegionPickMode = true;
+        viewModel.RegionDihedralField.Text = "1";
+
+        viewModel.HoverRegionFace(box, triangle: 0);
+
+        Assert.NotNull(viewModel.RegionHover);
+        Assert.Same(box, viewModel.RegionHover!.Object);
+        Assert.Equal([0, 1], viewModel.RegionHover.Faces.OrderBy(f => f));
+
+        // And it is the set the click then takes.
+        viewModel.PaintRegionFromFace(box, triangle: 0, erase: false);
+        Assert.Equal(viewModel.RegionHover.Faces.OrderBy(f => f), box.Regions.Faces.OrderBy(f => f));
+    }
+
+    [Fact]
+    public void ChangingThePatchAngleRecomputesTheHighlightWithoutMovingTheCursor()
+    {
+        var (viewModel, box) = SupportedScene();
+        viewModel.RegionPickMode = true;
+        viewModel.RegionDihedralField.Text = "1";
+        viewModel.HoverRegionFace(box, triangle: 0);
+        var narrow = viewModel.RegionHover!.Faces.Count;
+
+        viewModel.RegionDihedralField.Text = "120";
+
+        Assert.True(viewModel.RegionHover!.Faces.Count > narrow);
+    }
+
+    [Fact]
+    public void TheHighlightDisappearsWhenPaintingIsDisarmedOrTheCursorLeavesTheModel()
+    {
+        var (viewModel, box) = SupportedScene();
+        viewModel.RegionPickMode = true;
+        viewModel.HoverRegionFace(box, triangle: 0);
+        Assert.NotNull(viewModel.RegionHover);
+
+        viewModel.HoverRegionFace(null, -1);
+        Assert.Null(viewModel.RegionHover);
+
+        viewModel.HoverRegionFace(box, triangle: 0);
+        viewModel.RegionPickMode = false;
+        Assert.Null(viewModel.RegionHover);
+    }
+
+    [Fact]
+    public void TheBrushHasNoClickHighlight()
+    {
+        // The brush paints where it is dragged; a patch highlight would promise something else.
+        var (viewModel, box) = SupportedScene();
+        viewModel.RegionPickMode = true;
+        viewModel.RegionBrushMode = true;
+
+        viewModel.HoverRegionFace(box, triangle: 0);
+
+        Assert.Null(viewModel.RegionHover);
+    }
+
     private static (MainViewModel ViewModel, SceneObject Box) SupportedScene()
     {
         var viewModel = new MainViewModel();

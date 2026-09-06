@@ -55,6 +55,7 @@ public partial class MainWindow : Window
         Viewport.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
         Viewport.RegionFacePicked += (obj, triangle, erase) =>
             ViewModel?.PaintRegionFromFace(obj, triangle, erase);
+        Viewport.RegionFaceHovered += (obj, triangle) => ViewModel?.HoverRegionFace(obj, triangle);
         Viewport.RegionStrokeStarted += (obj, erase) => ViewModel?.BeginStroke(obj, erase);
         Viewport.RegionStrokeDab += (point, triangle) => ViewModel?.BrushStroke(point, triangle);
         Viewport.RegionStrokeEnded += () => ViewModel?.EndStroke();

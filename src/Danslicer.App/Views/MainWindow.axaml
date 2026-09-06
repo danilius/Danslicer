@@ -340,6 +340,8 @@
                                           SupportSelectionMode="{Binding IsSupportView}"
                                           RegionPickMode="{Binding RegionPickMode}"
                                           RegionBrushMode="{Binding RegionBrushMode}"
+                                          RegionHoverObject="{Binding RegionHover.Object}"
+                                          RegionHoverFaces="{Binding RegionHover.Faces}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
                                           SupportDisplay="{Binding EffectiveSupportDisplay}"
                                           ClipRange="{Binding ViewportClipRange}"
@@ -501,7 +503,7 @@
                                     <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
                                         <TextBlock Text="Brush radius" Classes="label" VerticalAlignment="Center" />
                                         <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionBrushRadiusMm, Mode=TwoWay}"
+                                            Text="{Binding RegionBrushRadiusField.Text, Mode=TwoWay}"
                                             ToolTip.Tip="Millimetres on the surface" />
                                     </Grid>
                                     <CheckBox Content="Edit keep-clean region"
@@ -510,13 +512,13 @@
                                     <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
                                         <TextBlock Text="Patch angle" Classes="label" VerticalAlignment="Center" />
                                         <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionDihedralDegrees, Mode=TwoWay}"
+                                            Text="{Binding RegionDihedralField.Text, Mode=TwoWay}"
                                             ToolTip.Tip="Click-to-grow crosses an edge while the faces turn by no more than this" />
                                     </Grid>
                                     <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,4">
                                         <TextBlock Text="Down angle" Classes="label" VerticalAlignment="Center" />
                                         <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionOverhangDegrees, Mode=TwoWay}"
+                                            Text="{Binding RegionOverhangField.Text, Mode=TwoWay}"
                                             ToolTip.Tip="Measured from vertical, as generation measures it: 0 is a wall, 90 a flat underside" />
                                     </Grid>
                                     <Button Content="Select faces pointing down"

@@ -206,10 +206,27 @@ public partial class MainViewModel : ViewModelBase
 
     // ----- Support regions (DESIGN 8.3 stage 2) -----
 
-    /// <summary>Dihedral limit for click-to-grow, in degrees. Live: changing it and clicking
-    /// again is the whole interaction, since the operation keeps no state between clicks.</summary>
+    /// <summary>Dihedral limit for click-to-grow, in degrees. Live: changing it re-computes the
+    /// highlight under the cursor, since the operation keeps no state between clicks.</summary>
     [ObservableProperty]
     public partial double RegionDihedralDegrees { get; set; } = 30;
+
+    // The three region numbers are edited through NumericField like every other number in the
+    // app — expressions and units included. Binding an ExpressionBox straight at a double looked
+    // like it worked and silently kept the old value, which is how a 0° patch angle still grew
+    // across a 90° edge.
+    public NumericField RegionDihedralField { get; }
+    public NumericField RegionOverhangField { get; }
+    public NumericField RegionBrushRadiusField { get; }
+
+    partial void OnRegionDihedralDegreesChanged(double value)
+    {
+        RegionDihedralField.SetValue(value);
+        RefreshRegionHover();
+    }
+
+    partial void OnRegionOverhangDegreesChanged(double value) => RegionOverhangField.SetValue(value);
+    partial void OnRegionBrushRadiusMmChanged(double value) => RegionBrushRadiusField.SetValue(value);
 
     /// <summary>Threshold for "select what faces down", in generation's convention: measured from
     /// vertical, strict greater-than. Defaults to the support settings' own overhang angle so the
@@ -249,6 +266,41 @@ public partial class MainViewModel : ViewModelBase
             : ObjectSupportRegions.From(next, regions.KeepCleanFaces), name);
         ViewportStatus = $"{name}: {next.Count} of {obj.Mesh.TriangleCount} faces in the {RegionSetName}.";
     }
+
+    private SceneObject? _hoverObject;
+    private int _hoverTriangle = -1;
+
+    /// <summary>
+    /// The patch the cursor is over, as object plus faces, or null when it is over nothing. The
+    /// viewport draws it as a highlight so the user can see what a click would take before
+    /// committing to it — the same set the click then paints, computed by the same call.
+    /// </summary>
+    [ObservableProperty]
+    public partial RegionHoverPreview? RegionHover { get; set; }
+
+    /// <summary>The cursor moved over a face (or off the model, with a null object).</summary>
+    public void HoverRegionFace(SceneObject? obj, int triangle)
+    {
+        if (ReferenceEquals(obj, _hoverObject) && triangle == _hoverTriangle) return;
+        _hoverObject = obj;
+        _hoverTriangle = triangle;
+        RefreshRegionHover();
+    }
+
+    /// <summary>Recomputes the highlight: after a move, or after the angle that shapes it changed.</summary>
+    private void RefreshRegionHover()
+    {
+        if (!RegionPickMode || RegionBrushMode || _hoverObject is not { } obj || _hoverTriangle < 0)
+        {
+            RegionHover = null;
+            return;
+        }
+        RegionHover = new RegionHoverPreview(obj,
+            SupportRegionSelection.GrowByDihedral(obj.Mesh, [_hoverTriangle], (float)RegionDihedralDegrees));
+    }
+
+    partial void OnRegionPickModeChanged(bool value) => RefreshRegionHover();
+    partial void OnRegionBrushModeChanged(bool value) => RefreshRegionHover();
 
     /// <summary>Click-to-grow: the picked face plus everything reachable across edges that turn
     /// by no more than <see cref="RegionDihedralDegrees"/>. Shift-click erases the same patch.</summary>
@@ -547,6 +599,16 @@ public partial class MainViewModel : ViewModelBase
         });
         PlacementHeight = placementHeight;
         PlacementHeight.SetValue(Document.PlacementHeightMm);
+
+        RegionDihedralField = new NumericField("Patch angle", UnitKind.Angle, "0.##",
+            value => RegionDihedralDegrees = Math.Clamp(value, 0, 180));
+        RegionOverhangField = new NumericField("Down angle", UnitKind.Angle, "0.##",
+            value => RegionOverhangDegrees = Math.Clamp(value, 0, 90));
+        RegionBrushRadiusField = new NumericField("Brush radius", UnitKind.Length, "0.##",
+            value => RegionBrushRadiusMm = Math.Max(0, value));
+        RegionDihedralField.SetValue(RegionDihedralDegrees);
+        RegionOverhangField.SetValue(RegionOverhangDegrees);
+        RegionBrushRadiusField.SetValue(RegionBrushRadiusMm);
 
         Document.Scene.ObjectAdded += o => Objects.Add(o);
         Document.Scene.ObjectRemoved += o => Objects.Remove(o);

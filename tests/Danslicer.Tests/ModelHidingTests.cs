@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Geometry;
@@ -259,6 +259,48 @@ public class ModelHidingTests
 
         Assert.True(first.IsVisible);
         Assert.True(second.IsVisible);
+    }
+
+    [Fact]
+    public void EveryDrawnAndPickableFormOfASupportIsFilteredByItsOwner()
+    {
+        // The quirk from screen testing: meshes were filtered but the contact markers were not,
+        // so hiding a model left its tips floating. One rule, applied wherever an element is
+        // drawn or picked.
+        var document = new Document();
+        var obj = At("model", new Vector3(0, 0, 8)); // floating, so its underside can take a tip
+        document.AddObject(obj);
+        Assert.True(document.AddManualSupport(obj, new Vector3(5, 5, 8), -Vector3.UnitZ));
+
+        document.SetObjectHidden(obj, true);
+        var hidden = SupportOwnerVisibility.HiddenObjectIds(document.Scene.Objects);
+
+        Assert.All(document.Supports.Nodes,
+            node => Assert.True(SupportOwnerVisibility.IsOwnedByHidden(node, hidden)));
+        Assert.All(document.Supports.Segments,
+            segment => Assert.True(
+                SupportOwnerVisibility.IsOwnedByHidden(document.Supports, segment.Id, hidden)));
+
+        document.SetObjectHidden(obj, false);
+        var shown = SupportOwnerVisibility.HiddenObjectIds(document.Scene.Objects);
+        Assert.All(document.Supports.Nodes,
+            node => Assert.False(SupportOwnerVisibility.IsOwnedByHidden(node, shown)));
+    }
+
+    [Fact]
+    public void HidingAModelRaisesTheDocumentChangeTheViewportRedrawsOn()
+    {
+        // Supports used to stay on screen until something else rebuilt them — a mode switch,
+        // typically. The viewport rebuilds on Document.Changed, so hiding must raise it.
+        var document = new Document();
+        var obj = At("model", Vector3.Zero);
+        document.AddObject(obj);
+        var changes = 0;
+        document.Changed += () => changes++;
+
+        document.SetObjectHidden(obj, true);
+
+        Assert.True(changes > 0);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
-using System.Numerics;
+﻿using System.Numerics;
+using System.Runtime.CompilerServices;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports.Generation;
 
@@ -147,11 +148,25 @@ public static class SupportRegionSelection
         GrowByDihedral(mesh, seeds, 180f);
 
     /// <summary>
+    /// Cached per mesh, because hover preview calls these operations on every mouse move and
+    /// rebuilding the adjacency of a hundred thousand triangles at 60 Hz is the difference
+    /// between a live highlight and a slideshow. Keyed weakly, so an unloaded mesh's table goes
+    /// with it.
+    /// </summary>
+    private static readonly ConditionalWeakTable<Mesh, List<int>[]> AdjacencyCache = new();
+
+    private static List<int>[] FaceAdjacency(Mesh mesh) =>
+        AdjacencyCache.GetValue(mesh, BuildFaceAdjacency);
+
+    /// <summary>The same cached adjacency, for the brush — one table per mesh, not two.</summary>
+    internal static IReadOnlyList<IReadOnlyList<int>> FaceAdjacencyOf(Mesh mesh) => FaceAdjacency(mesh);
+
+    /// <summary>
     /// Faces sharing an edge, for every face of the mesh. Built from the mesh indices rather than
     /// through <see cref="MeshAnalysis"/>, whose cache also carries curvature, planar patches and
     /// a BVH that none of these operations need.
     /// </summary>
-    private static List<int>[] FaceAdjacency(Mesh mesh)
+    private static List<int>[] BuildFaceAdjacency(Mesh mesh)
     {
         var edges = new Dictionary<(int A, int B), List<int>>();
         for (var face = 0; face < mesh.TriangleCount; face++)
