@@ -200,7 +200,7 @@ public sealed class Document
 
     public void SelectSupportElement(Guid id, bool additive = false)
     {
-        var selectable = IsSupportElementVisible(id);
+        var selectable = IsSupportElementSelectable(id);
         if (additive)
         {
             if (!_supportSelection.Remove(id) && selectable) _supportSelection.Add(id);
@@ -227,9 +227,9 @@ public sealed class Document
         var (nodes, segments) = Supports.Component(seed);
         if (!additive) _supportSelection.Clear();
         foreach (var id in nodes)
-            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
+            if (IsSupportElementSelectable(id)) _supportSelection.Add(id);
         foreach (var id in segments)
-            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
+            if (IsSupportElementSelectable(id)) _supportSelection.Add(id);
         SupportSelectionChanged?.Invoke();
     }
 
@@ -854,8 +854,22 @@ public sealed class Document
     {
         if (!additive) _supportSelection.Clear();
         foreach (var id in ids)
-            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
+            if (IsSupportElementSelectable(id)) _supportSelection.Add(id);
         SupportSelectionChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// What a click, a marquee or a whole-support pick may take: a visible element that belongs
+    /// to the support target. Another model's supports are inert while it is not the target, for
+    /// the same reason its surface is — Support mode works on one model, and reaching a
+    /// neighbour's supports is how a delete goes wrong. With no target chosen, or for an element
+    /// that belongs to no object, everything stays selectable as before.
+    /// </summary>
+    private bool IsSupportElementSelectable(Guid id)
+    {
+        if (!IsSupportElementVisible(id)) return false;
+        if (SupportTarget is not { } target) return true;
+        return Supports.OwningObjectId(id) is not { } owner || owner == target.Id;
     }
 
     private bool IsSupportElementVisible(Guid id)

@@ -200,6 +200,95 @@ public class SupportTargetTests
     }
 
     [Fact]
+    public void AnotherModelsSupportsAreUnselectable()
+    {
+        // The target is the one model being worked on: its neighbour's supports are as inert as
+        // its surface, whether reached by a click, a marquee, or a whole-support double-click.
+        var doc = new Document();
+        var a = new SceneObject("a", Box(new(-5, -5, 5), new(5, 5, 15)));
+        var b = new SceneObject("b", Box(new(20, -5, 5), new(30, 5, 15)));
+        doc.AddObject(a);
+        doc.AddObject(b);
+        doc.GenerateSupports(a);
+        doc.GenerateSupports(b);
+        doc.Select(a);
+
+        var foreign = doc.Supports.Nodes.First(n => n.Origin.ObjectId == b.Id).Id;
+        var mine = doc.Supports.Nodes.First(n => n.Origin.ObjectId == a.Id).Id;
+
+        doc.SelectSupportElement(foreign);
+        Assert.Empty(doc.SupportSelection);
+
+        doc.SelectSupportComponent(foreign);
+        Assert.Empty(doc.SupportSelection);
+
+        doc.SelectSupportElements([mine, foreign]);
+        Assert.Equal([mine], doc.SupportSelection);
+
+        // Nor may an additive marquee sweep one in alongside the target's own.
+        doc.SelectSupportElement(foreign, additive: true);
+        Assert.Equal([mine], doc.SupportSelection);
+    }
+
+    [Fact]
+    public void WithNoTargetEverySupportStaysSelectable()
+    {
+        var doc = new Document();
+        var a = new SceneObject("a", Box(new(-5, -5, 5), new(5, 5, 15)));
+        var b = new SceneObject("b", Box(new(20, -5, 5), new(30, 5, 15)));
+        doc.AddObject(a);
+        doc.AddObject(b);
+        doc.GenerateSupports(a);
+        doc.GenerateSupports(b);
+        doc.ClearSelection();
+
+        var foreign = doc.Supports.Nodes.First(n => n.Origin.ObjectId == b.Id).Id;
+        doc.SelectSupportElement(foreign);
+
+        Assert.Equal([foreign], doc.SupportSelection);
+    }
+
+    [Fact]
+    public void SelectAllInSupportModeKeepsTheTargetSelected()
+    {
+        // Support mode's object selection IS the target, so select-all takes the supports and
+        // leaves the model selected; dropping it here used to un-scope the very same call.
+        var doc = new Document();
+        var a = new SceneObject("a", Box(new(-5, -5, 5), new(5, 5, 15)));
+        var b = new SceneObject("b", Box(new(20, -5, 5), new(30, 5, 15)));
+        doc.AddObject(a);
+        doc.AddObject(b);
+        doc.GenerateSupports(a);
+        doc.GenerateSupports(b);
+        doc.Select(a);
+
+        WorkspaceSelection.SelectAll(doc, WorkspaceMode.Support);
+
+        Assert.Same(a, doc.SupportTarget);
+        Assert.True(doc.IsSelected(a));
+        Assert.NotEmpty(doc.SupportSelection);
+        Assert.All(doc.SupportSelection,
+            id => Assert.Equal(a.Id, doc.Supports.OwningObjectId(id)));
+    }
+
+    [Fact]
+    public void ViewModelSelectAllInSupportModeKeepsTheTargetSelected()
+    {
+        var viewModel = new MainViewModel();
+        var a = new SceneObject("a", Box(new(-5, -5, 5), new(5, 5, 15)));
+        viewModel.Document.AddObject(a);
+        viewModel.SelectedObject = a;
+        viewModel.ViewMode = WorkspaceMode.Support;
+        viewModel.Document.GenerateSupports(a);
+
+        viewModel.SelectAllCommand.Execute(null);
+
+        Assert.Same(a, viewModel.SelectedObject);
+        Assert.Same(a, viewModel.Document.SupportTarget);
+        Assert.True(viewModel.Document.IsSelected(a));
+    }
+
+    [Fact]
     public void GenerationTargetsTheActiveObjectOnly()
     {
         var doc = new Document();

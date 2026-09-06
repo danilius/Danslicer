@@ -1091,7 +1091,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (ViewMode == WorkspaceMode.Support)
         {
-            Document.ClearSelection();
+            // The support target stays selected: select-all takes supports, not the model.
             Document.SelectSupportElements(SupportDisplayPolicy.DisplayedElementIds(
                 Document.Supports, EffectiveSupportDisplay, ViewportClipRange));
             return;
