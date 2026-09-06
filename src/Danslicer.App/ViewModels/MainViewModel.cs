@@ -164,8 +164,8 @@ public partial class MainViewModel : ViewModelBase
         ViewportToolbarPolicy.IsAvailable(ViewportTool.UvtoolsCheck, ViewMode);
 
     /// <summary>
-    /// Object rows remain useful context in Support and Slicing, but only Layout owns object
-    /// selection. Disabling the list prevents it from fighting those modes' selection models.
+    /// Object rows are live wherever an object selection means something: Layout arranges the
+    /// selected model, Support supports it. Slicing has no object-level operations.
     /// </summary>
     public bool IsObjectListSelectionEnabled => ViewportToolbarPolicy.CanSelectObjects(ViewMode);
 
@@ -191,6 +191,90 @@ public partial class MainViewModel : ViewModelBase
         get => ViewMode == WorkspaceMode.Slicing;
         set { if (value) ViewMode = WorkspaceMode.Slicing; }
     }
+
+    // ----- Support regions (DESIGN 8.3 stage 2) -----
+
+    /// <summary>Dihedral limit for click-to-grow, in degrees. Live: changing it and clicking
+    /// again is the whole interaction, since the operation keeps no state between clicks.</summary>
+    [ObservableProperty]
+    public partial double RegionDihedralDegrees { get; set; } = 30;
+
+    /// <summary>Threshold for "select what faces down", in generation's convention: measured from
+    /// vertical, strict greater-than. Defaults to the support settings' own overhang angle so the
+    /// two agree unless the user deliberately parts them.</summary>
+    [ObservableProperty]
+    public partial double RegionOverhangDegrees { get; set; } = 45;
+
+    /// <summary>Which of the two face sets the operations edit: the support region, or the
+    /// keep-clean region that overrides it.</summary>
+    [ObservableProperty]
+    public partial bool EditingKeepCleanRegion { get; set; }
+
+    /// <summary>While set, a viewport click paints faces instead of selecting supports.</summary>
+    [ObservableProperty]
+    public partial bool RegionPickMode { get; set; }
+
+    public string RegionSetName => EditingKeepCleanRegion ? "keep-clean region" : "support region";
+
+    /// <summary>
+    /// Applies a set operation to the region being edited, as one undoable step.
+    ///
+    /// <para><b>Empty means two different things, deliberately.</b> To GENERATION an empty support
+    /// region means "every face" — the compatibility guard from stage 1. To these EDITING
+    /// operations it means the literal empty set, because a user who inverts an unpainted object
+    /// expects to end up with every face painted, not with a no-op. The two readings agree on
+    /// what actually gets supported, which is what matters: painting every face explicitly and
+    /// painting nothing at all generate the same supports.</para>
+    /// </summary>
+    private void EditRegion(Func<Mesh, IReadOnlySet<int>, IReadOnlySet<int>> operation, string name)
+    {
+        if (SelectedObject is not { } obj) return;
+        var regions = obj.Regions;
+        var current = EditingKeepCleanRegion ? regions.KeepCleanFaces : regions.Faces;
+        var next = operation(obj.Mesh, current);
+        Document.SetSupportRegions(obj, EditingKeepCleanRegion
+            ? ObjectSupportRegions.From(regions.Faces, next)
+            : ObjectSupportRegions.From(next, regions.KeepCleanFaces), name);
+        ViewportStatus = $"{name}: {next.Count} of {obj.Mesh.TriangleCount} faces in the {RegionSetName}.";
+    }
+
+    /// <summary>Click-to-grow: the picked face plus everything reachable across edges that turn
+    /// by no more than <see cref="RegionDihedralDegrees"/>. Shift-click erases the same patch.</summary>
+    public void PaintRegionFromFace(SceneObject obj, int triangle, bool erase)
+    {
+        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        var patch = SupportRegionSelection.GrowByDihedral(obj.Mesh, [triangle], (float)RegionDihedralDegrees);
+        EditRegion((_, current) =>
+        {
+            var next = new HashSet<int>(current);
+            if (erase) next.ExceptWith(patch);
+            else next.UnionWith(patch);
+            return next;
+        }, erase ? "Erase region patch" : "Paint region patch");
+    }
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void SelectFacingDownRegion() => EditRegion(
+        (mesh, _) => SupportRegionSelection.FacingDown(mesh, (float)RegionOverhangDegrees),
+        "Select faces pointing down");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void InvertRegion() => EditRegion(SupportRegionSelection.Invert, "Invert region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void GrowRegion() => EditRegion(SupportRegionSelection.Grow, "Grow region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ShrinkRegion() => EditRegion(SupportRegionSelection.Shrink, "Shrink region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ConnectedRegion() => EditRegion(
+        (mesh, current) => SupportRegionSelection.Connected(mesh, current), "Select connected");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ClearRegion() => EditRegion((_, _) => new HashSet<int>(), "Clear region");
+
+    private bool HasRegionTarget() => SelectedObject is not null;
 
     partial void OnViewModeChanged(WorkspaceMode value)
     {
@@ -479,7 +563,20 @@ public partial class MainViewModel : ViewModelBase
         GenerateSupportsCommand.NotifyCanExecuteChanged();
         GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
         DetectIslandsCommand.NotifyCanExecuteChanged();
+        NotifyRegionCommands();
     }
+
+    private void NotifyRegionCommands()
+    {
+        SelectFacingDownRegionCommand.NotifyCanExecuteChanged();
+        InvertRegionCommand.NotifyCanExecuteChanged();
+        GrowRegionCommand.NotifyCanExecuteChanged();
+        ShrinkRegionCommand.NotifyCanExecuteChanged();
+        ConnectedRegionCommand.NotifyCanExecuteChanged();
+        ClearRegionCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnEditingKeepCleanRegionChanged(bool value) => OnPropertyChanged(nameof(RegionSetName));
 
     partial void OnAutoDropEnabledChanged(bool value)
     {

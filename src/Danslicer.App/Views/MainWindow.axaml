@@ -338,6 +338,7 @@
                 <controls:ViewportControl x:Name="Viewport" Document="{Binding Document}"
                                           IsVisible="{Binding IsModelView}"
                                           SupportSelectionMode="{Binding IsSupportView}"
+                                          RegionPickMode="{Binding RegionPickMode}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
                                           SupportDisplay="{Binding EffectiveSupportDisplay}"
                                           ClipRange="{Binding ViewportClipRange}"
@@ -473,6 +474,41 @@
                                 <Button DockPanel.Dock="Top" Content="Generate Supports"
                                         Command="{Binding GenerateSupportsScopedCommand}"
                                         HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+                                <!-- Support regions (DESIGN 8.3). Painting decides WHERE generation
+                                     may place contacts; the operations themselves live in
+                                     SupportRegionSelection and are pure set maths. -->
+                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <TextBlock Text="Region" Classes="section" Margin="0,0,0,4" />
+                                    <ToggleButton x:Name="RegionPaintToggle" Content="Paint faces (click)"
+                                                  IsChecked="{Binding RegionPickMode, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch"
+                                                  ToolTip.Tip="Click a face to add its patch to the region; Shift-click erases it" />
+                                    <CheckBox Content="Edit keep-clean region"
+                                              IsChecked="{Binding EditingKeepCleanRegion, Mode=TwoWay}"
+                                              ToolTip.Tip="Operations edit the keep-clean faces instead of the supported faces" />
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                        <TextBlock Text="Patch angle" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionDihedralDegrees, Mode=TwoWay}"
+                                            ToolTip.Tip="Click-to-grow crosses an edge while the faces turn by no more than this" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,4">
+                                        <TextBlock Text="Down angle" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionOverhangDegrees, Mode=TwoWay}"
+                                            ToolTip.Tip="Measured from vertical, as generation measures it: 0 is a wall, 90 a flat underside" />
+                                    </Grid>
+                                    <Button Content="Select faces pointing down"
+                                            Command="{Binding SelectFacingDownRegionCommand}"
+                                            HorizontalAlignment="Stretch" />
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <Button Content="Invert" Command="{Binding InvertRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Grow" Command="{Binding GrowRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Shrink" Command="{Binding ShrinkRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Connected" Command="{Binding ConnectedRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Clear" Command="{Binding ClearRegionCommand}" Margin="0,0,4,4" />
+                                    </WrapPanel>
+                                </StackPanel>
                                 <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                                     <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
                                 </ScrollViewer>

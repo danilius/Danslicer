@@ -52,6 +52,9 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> SupportSelectionModeProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(SupportSelectionMode));
 
+    public static readonly StyledProperty<bool> RegionPickModeProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(RegionPickMode));
+
     public static readonly StyledProperty<bool> SelectThroughSupportsProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(SelectThroughSupports));
 
@@ -162,6 +165,21 @@ public sealed class ViewportControl : OpenGlControlBase
     public bool SnapEnabled { get => GetValue(SnapEnabledProperty); set => SetValue(SnapEnabledProperty, value); }
     public bool ShowOverhangs { get => GetValue(ShowOverhangsProperty); set => SetValue(ShowOverhangsProperty, value); }
     public bool SupportSelectionMode { get => GetValue(SupportSelectionModeProperty); set => SetValue(SupportSelectionModeProperty, value); }
+
+    /// <summary>
+    /// While set, a left click in Support mode picks a mesh face for support-region painting and
+    /// reports it through <see cref="RegionFacePicked"/> instead of selecting support elements.
+    /// The control does no region work itself: what a picked face means — grow by dihedral, add,
+    /// erase — belongs to the view model that owns the region edit.
+    /// </summary>
+    public bool RegionPickMode { get => GetValue(RegionPickModeProperty); set => SetValue(RegionPickModeProperty, value); }
+
+    /// <summary>
+    /// The object and triangle index under a region-painting click, and whether the click was an
+    /// erase (Shift held) rather than an add. The modifier is read here because this is where the
+    /// pointer event is: a listener has no way to ask what was held at the time.
+    /// </summary>
+    public event Action<SceneObject, int, bool>? RegionFacePicked;
     public bool SelectThroughSupports { get => GetValue(SelectThroughSupportsProperty); set => SetValue(SelectThroughSupportsProperty, value); }
     public SupportDisplayConfig SupportDisplay { get => GetValue(SupportDisplayProperty); set => SetValue(SupportDisplayProperty, value); }
     public ViewportClipRange ClipRange { get => GetValue(ClipRangeProperty); set => SetValue(ClipRangeProperty, value); }
@@ -685,6 +703,17 @@ public sealed class ViewportControl : OpenGlControlBase
                 _layFlatPick = false;
                 TryLayFlat(m);
                 UpdateStatus();
+                e.Handled = true;
+                return;
+            }
+
+            // Region painting takes the click before support selection does: while it is armed
+            // the user is choosing faces, not support elements.
+            if (SupportSelectionMode && RegionPickMode && PickFace(m, out var regionTriangle) is { } regionHit &&
+                regionTriangle >= 0)
+            {
+                RegionFacePicked?.Invoke(regionHit, regionTriangle,
+                    e.KeyModifiers.HasFlag(KeyModifiers.Shift));
                 e.Handled = true;
                 return;
             }

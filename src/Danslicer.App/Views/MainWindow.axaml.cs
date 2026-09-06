@@ -53,6 +53,8 @@ public partial class MainWindow : Window
                 vm.ViewportStatus = Viewport.StatusText;
         };
         Viewport.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
+        Viewport.RegionFacePicked += (obj, triangle, erase) =>
+            ViewModel?.PaintRegionFromFace(obj, triangle, erase);
         LayerView.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
         LayerView.LayerStepRequested += delta => ViewModel?.StepLayer(delta);
         _uvtoolsAvailabilityTimer.Tick += (_, _) => ViewModel?.RefreshUvtoolsAvailability();
@@ -479,6 +481,11 @@ public partial class MainWindow : Window
         AddWindowKeyBinding(WindowKeymap.ExportPrint, () => ExportCommand);
         AddWindowKeyBinding(WindowKeymap.Preferences,
             () => new RelayCommand(() => OnPreferencesClick(this, new RoutedEventArgs())));
+        AddWindowKeyBinding(WindowKeymap.RegionFacingDown, () => ViewModel?.SelectFacingDownRegionCommand);
+        AddWindowKeyBinding(WindowKeymap.RegionInvert, () => ViewModel?.InvertRegionCommand);
+        AddWindowKeyBinding(WindowKeymap.RegionGrow, () => ViewModel?.GrowRegionCommand);
+        AddWindowKeyBinding(WindowKeymap.RegionShrink, () => ViewModel?.ShrinkRegionCommand);
+        AddWindowKeyBinding(WindowKeymap.RegionConnected, () => ViewModel?.ConnectedRegionCommand);
 
         OpenProjectMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.OpenProject);
         SaveProjectMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.SaveProject);
