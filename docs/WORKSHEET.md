@@ -37,7 +37,6 @@ fine-feature pass → 777/627 after 023f → 723/576 after 024 → **702/549** a
 |---|------|--------|
 | U1 | Screen-test merged batch (ten jobs) | open — checklists in the result files |
 | U3 | Mirror-X test print | **CLOSED** (D11) |
-| U4 | Restart Unsloth for the Qwen lane | open |
 | U5 | Re-run `/auto-mode-setup` | open |
 | U6 | Branch X-crossing | 028c COMPLETE; awaiting 028c2 then a screen verdict on the separation default |
 | U7 | Drogon-head supports: no downward tips | CONFIRMED |
@@ -82,6 +81,7 @@ started; they are the user's own words turned into work items.
 | B4 | Support generation progress bar is not smooth | It jumps to about half, then to done. The two phases (compute, then commit in batches) are weighted 0.8/0.2 and the compute phase reports too coarsely. |
 | B5 | Toolbar pop-outs should be mutually exclusive | Clicking a toolbar button while another pop-out is open should close that one first. |
 | B6 | A viewport click in Support mode must not change the object selection | Clicking a support currently deselects the active model. Only the Objects pop-out selects or deselects models. |
+| B7 | The plate stops being transparent near the model | **FIXED on `fix-plate-fade-from-below`, awaiting a screen check.** The fade tested the eye's height, so zooming in from below lifted the eye back over z = 0 and the plate snapped solid mid-approach, hiding the supports. It now ramps on the view direction (`PlateFade`), solid past 12° of look-down. Watch for the plate reading too faint on ordinary low side-on views. |
 | B3 | Replace the Layout right-hand panel with a placement pop-out | The right-hand window goes. A toolbar pop-out gives precise placement instead: edit boxes for X/Y/Z position, rotation and scale, with a **uniform** checkbox for scaling. |
 
 ## Dormant
