@@ -61,16 +61,48 @@ public sealed class SupportLifecycleTests
     }
 
     [Fact]
-    public void RotationAndScaleDoNotMapContactsExactly()
+    public void TiltingAndScalingDoNotMapContactsExactly()
     {
         var before = Transform.Identity;
 
         Assert.False(SupportTransformRule.MapsContactsExactly(before,
-            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.4f) }));
+            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.4f) }));
+        Assert.False(SupportTransformRule.MapsContactsExactly(before,
+            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.4f) }));
         Assert.False(SupportTransformRule.MapsContactsExactly(before,
             before with { Scale = new Vector3(2f, 2f, 2f) }));
         Assert.False(SupportTransformRule.MapsContactsExactly(before,
             before with { Scale = new Vector3(1f, 1f, 1.5f) })); // non-uniform too
+    }
+
+    [Fact]
+    public void TurningAboutTheVerticalKeepsSupports()
+    {
+        // A turn about Z carries contacts, trunks and bases round together: the tree that fitted
+        // before fits after, so there is nothing to discard.
+        var before = Transform.Identity;
+
+        Assert.True(SupportTransformRule.MapsContactsExactly(before,
+            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.4f) }));
+        Assert.True(SupportTransformRule.MapsContactsExactly(before,
+            before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) }));
+
+        // Also from an already-turned start, and combined with a move.
+        var turned = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f) };
+        Assert.True(SupportTransformRule.MapsContactsExactly(turned, turned with
+        {
+            Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -0.3f),
+            Translation = new Vector3(9f, 2f, 0f),
+        }));
+
+        // But a turn about Z applied to a tilted object still leaves it tilted, and a tilt added
+        // on top of a turn is still a tilt.
+        var tilted = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f) };
+        Assert.False(SupportTransformRule.MapsContactsExactly(tilted, tilted with
+        {
+            Rotation = Quaternion.Concatenate(tilted.Rotation,
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.2f)),
+        }));
     }
 
     [Fact]
@@ -159,6 +191,41 @@ public sealed class SupportLifecycleTests
     }
 
     [Fact]
+    public void TurningAboutZKeepsSupportsAndCarriesThemRound()
+    {
+        var (document, box) = SupportedBox();
+        var supportsBefore = document.Supports.Nodes.Count;
+        var tipBefore = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
+        var before = box.Transform;
+        var angle = 0.7f;
+        var turned = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle) };
+
+        document.CommitTransform(box, before, turned, "Rotate", applyPlacement: false);
+
+        Assert.Equal(supportsBefore, document.Supports.Nodes.Count);
+        var tipAfter = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
+        var expected = Vector3.Transform(tipBefore, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle));
+        Assert.Equal(expected.X, tipAfter.X, 4);
+        Assert.Equal(expected.Y, tipAfter.Y, 4);
+        Assert.Equal(expected.Z, tipAfter.Z, 4); // the turn is about the vertical: height is untouched
+    }
+
+    [Fact]
+    public void TurningAboutZKeepsSupportsEvenWhenItCarriesThemOffThePlate()
+    {
+        // Off the plate is the build volume's complaint to make, not a reason to destroy work.
+        var (document, box) = SupportedBox();
+        var supportsBefore = document.Supports.Nodes.Count;
+        var before = box.Transform with { Translation = new Vector3(400f, 0f, 0f) };
+        box.Transform = before;
+        var turned = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.4f) };
+
+        document.CommitTransform(box, before, turned, "Rotate", applyPlacement: false);
+
+        Assert.Equal(supportsBefore, document.Supports.Nodes.Count);
+    }
+
+    [Fact]
     public void ScalingDiscardsSupports()
     {
         var (document, box) = SupportedBox();
@@ -200,7 +267,7 @@ public sealed class SupportLifecycleTests
         document.CommitTransforms(
         [
             (moved, movedBefore, movedBefore with
-                { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f) }),
+                { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f) }),
             (untouched, untouched.Transform, untouched.Transform),
         ], "Rotate", applyPlacement: false);
 
