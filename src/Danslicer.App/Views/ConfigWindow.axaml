@@ -107,7 +107,7 @@
                                        Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
                     </Grid>
                     <Grid Tag="viewport plate bed transparency opacity below underneath" ColumnDefinitions="190,*,110" Margin="0,2">
-                        <TextBlock Text="Plate opacity from below" Classes="label" />
+                        <TextBlock Text="Plate opacity, edge-on and below" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0" Maximum="1"
                                 Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00"

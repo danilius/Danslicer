@@ -34,7 +34,7 @@ public sealed class RenderFrame
     public bool ShowOverhangs { get; init; }
     /// <summary>Overhang threshold measured from the vertical wall: 45 tints anything steeper.</summary>
     public float OverhangAngleDegrees { get; init; } = 45f;
-    /// <summary>Plate opacity when the camera is below it: 0 invisible, 1 opaque (no fade).</summary>
+    /// <summary>Plate opacity when the view grazes or passes under it: 0 invisible, 1 opaque (no fade).</summary>
     public float PlateOpacityFromBelow { get; init; } = 1f;
     /// <summary>The two overhang checker colours and the checker cell edge in millimetres.</summary>
     public Vector3 OverhangColorA { get; init; } = new(0.98f, 0.80f, 0.15f);
@@ -149,15 +149,16 @@ public sealed partial class SceneRenderer : IDisposable
         _buildVolume = frame.Printer.BuildVolume;
 
         PruneMeshCache(frame);
-        // Looking up from under the plate, the plate fades to the configured opacity so the
-        // model stays visible; it then draws after the opaque passes so blending sees them.
-        var plateFaded = frame.Camera.Eye.Z < 0f && frame.PlateOpacityFromBelow < 1f;
+        // Looking along or up at the plate, it fades toward the configured opacity so the model
+        // stays visible; it then draws after the opaque passes so blending sees them.
+        var plateOpacity = PlateFade.OpacityFor(frame.Camera, frame.PlateOpacityFromBelow);
+        var plateFaded = plateOpacity < 1f;
         if (!plateFaded) DrawPlate(frame.Printer, view, projection, 1f);
         DrawObjects(frame, view, projection, ghosted: false);
         DrawWireframe(frame, view, projection);
         DrawAuxMeshes(frame, view, projection);
-        if (plateFaded && frame.PlateOpacityFromBelow > 0.001f)
-            DrawPlate(frame.Printer, view, projection, frame.PlateOpacityFromBelow);
+        if (plateFaded && plateOpacity > 0.001f)
+            DrawPlate(frame.Printer, view, projection, plateOpacity);
         DrawObjects(frame, view, projection, ghosted: true);
         DrawLines(frame, view * projection);
 

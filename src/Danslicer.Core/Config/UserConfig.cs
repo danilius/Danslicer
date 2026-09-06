@@ -112,7 +112,10 @@ public sealed class ViewportConfig
     /// </summary>
     public int ViewCubeSizePixels { get; set; } = 120;
 
-    /// <summary>Build-plate opacity when the camera is below it: 0 invisible, 1 fully opaque.</summary>
+    /// <summary>
+    /// Build-plate opacity once the view grazes the plate or looks up from under it: 0 invisible,
+    /// 1 fully opaque (no fade). The ramp between this and solid lives in <c>PlateFade</c>.
+    /// </summary>
     public float PlateOpacityFromBelow { get; set; } = 0.3f;
 
     /// <summary>First overhang checker colour, "#RRGGBB".</summary>

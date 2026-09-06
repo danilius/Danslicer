@@ -93,11 +93,12 @@ public sealed partial class SceneRenderer
         _buildVolume = frame.Printer.BuildVolume;
 
         PruneMeshCache(frame);
-        var plateFaded = frame.Camera.Eye.Z < 0f && frame.PlateOpacityFromBelow < 1f;
+        var plateOpacity = PlateFade.OpacityFor(frame.Camera, frame.PlateOpacityFromBelow);
+        var plateFaded = plateOpacity < 1f;
 
         DrawGeometryPass(frame, view, projection, plateFaded);
         DrawCompositePass(frame, view, projection);
-        DrawForwardPasses(frame, view, projection, plateFaded);
+        DrawForwardPasses(frame, view, projection, plateFaded, plateOpacity);
         ResolveToHost(frame);
 
         gl.BindVertexArray(0);
@@ -405,7 +406,7 @@ public sealed partial class SceneRenderer
     /// the classic order.
     /// </summary>
     private void DrawForwardPasses(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection,
-        bool plateFaded)
+        bool plateFaded, float plateOpacity)
     {
         var gl = _gl;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, _deferred!.ForwardFbo);
@@ -413,8 +414,8 @@ public sealed partial class SceneRenderer
 
         DrawWireframe(frame, view, projection);
         DrawTransparentAuxMeshes(frame, view, projection);
-        if (plateFaded && frame.PlateOpacityFromBelow > 0.001f)
-            DrawPlate(frame.Printer, view, projection, frame.PlateOpacityFromBelow);
+        if (plateFaded && plateOpacity > 0.001f)
+            DrawPlate(frame.Printer, view, projection, plateOpacity);
         DrawObjects(frame, view, projection, ghosted: true);
         DrawLines(frame, view * projection);
     }
