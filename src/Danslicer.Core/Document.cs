@@ -297,7 +297,71 @@ public sealed class Document
     {
         if (_selection.Count == 0) return;
         var commands = _selection.Select(o => (IDocumentCommand)new RemoveObjectCommand(Scene, o)).ToList();
-        Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Delete {commands.Count} objects", commands));
+        var name = commands.Count == 1 ? commands[0].Name : $"Delete {commands.Count} objects";
+
+        // Supports are object-owned, so a deleted model must take its supports with it — otherwise
+        // they are left standing in mid-air, owned by an object that no longer exists. Both go into
+        // one composite so a single undo brings the model and its supports back together.
+        var orphaned = new HashSet<Guid>();
+        foreach (var obj in _selection) orphaned.UnionWith(AssociatedSupportNodeIds(obj));
+        if (orphaned.Count > 0) commands.Add(DiscardSupportsCommand(orphaned, name));
+
+        Execute(new CompositeCommand(name, commands));
+    }
+
+    /// <summary>Ids of every support node owned by <paramref name="obj"/>. Segments are not listed:
+    /// <see cref="RemoveSupportElementsCommand"/> pulls in each node's attached segments itself.</summary>
+    private IEnumerable<Guid> AssociatedSupportNodeIds(SceneObject obj) => Supports.Nodes
+        .Where(node => node.Origin.ObjectId == obj.Id)
+        .Select(node => node.Id);
+
+    /// <summary>
+    /// Removal command for a set of owned support nodes, extended with any fragment the removal
+    /// would strand — the same orphan sweep a manual support deletion does, so discarding one
+    /// object's supports cannot leave a tipless twig hanging off a trunk shared with another
+    /// object. Clears the ids from the support selection first: selection is transient and must
+    /// not keep pointing at elements that are about to leave the graph.
+    /// </summary>
+    private IDocumentCommand DiscardSupportsCommand(HashSet<Guid> nodeIds, string name)
+    {
+        var segments = new HashSet<Guid>();
+
+        // AddOrphanedFragments sweeps the WHOLE graph and takes any fragment that lacks a tip or
+        // a base. That is right for a manual support deletion, but here it would also collect a
+        // different object's half-built supports, which this removal has nothing to do with. So
+        // run the sweep and then keep only the extras that are actually connected to what we are
+        // removing — the shared-trunk case the sweep exists for.
+        var swept = new HashSet<Guid>(nodeIds);
+        AddOrphanedFragments(swept, segments);
+        var extras = swept.Except(nodeIds).ToHashSet();
+        if (extras.Count > 0)
+        {
+            var connected = ConnectedToAny(nodeIds);
+            nodeIds.UnionWith(extras.Where(connected.Contains));
+        }
+
+        if (_supportSelection.RemoveWhere(id => nodeIds.Contains(id) || segments.Contains(id)) > 0)
+            SupportSelectionChanged?.Invoke();
+        return new RemoveSupportElementsCommand(Supports, nodeIds, segments, name);
+    }
+
+    /// <summary>Every node reachable from <paramref name="seeds"/> across segments, seeds excluded.
+    /// Used to tell "this fragment was stranded by the removal" from "this fragment was already
+    /// standing on its own somewhere else in the graph".</summary>
+    private HashSet<Guid> ConnectedToAny(IReadOnlySet<Guid> seeds)
+    {
+        var reached = new HashSet<Guid>();
+        var queue = new Queue<Guid>(seeds);
+        var visited = new HashSet<Guid>(seeds);
+        while (queue.Count > 0)
+            foreach (var segment in Supports.SegmentsAt(queue.Dequeue()))
+                foreach (var endId in new[] { segment.NodeA, segment.NodeB })
+                {
+                    if (!visited.Add(endId)) continue;
+                    reached.Add(endId);
+                    queue.Enqueue(endId);
+                }
+        return reached;
     }
 
     /// <summary>
@@ -456,16 +520,25 @@ public sealed class Document
         supportBefore ??= CaptureAssociatedSupportPositions(itemList.Select(item => item.Object));
         var commands = new List<IDocumentCommand>();
         var supportEntries = new List<SetSupportPositionsCommand.Entry>();
+        var discardedSupportNodes = new HashSet<Guid>();
         foreach (var (obj, before, requested) in itemList)
         {
             var after = applyPlacement ? ApplyPlacement(obj, requested) : requested;
             obj.Transform = after;
             if (after == before) continue;
             commands.Add(new SetTransformCommand(obj, before, after, name));
-            AppendAssociatedSupportTransform(obj, before, after, supportBefore, supportEntries);
+            // See SupportTransformRule: a transform keeps this object's supports only if it maps
+            // every contact exactly. Only objects that actually moved are considered, so a
+            // multi-object selection never discards supports on an object that stayed put.
+            if (SupportTransformRule.MapsContactsExactly(before, after))
+                AppendAssociatedSupportTransform(obj, before, after, supportBefore, supportEntries);
+            else
+                discardedSupportNodes.UnionWith(AssociatedSupportNodeIds(obj));
         }
         if (supportEntries.Count > 0)
             commands.Add(new SetSupportPositionsCommand(Supports, supportEntries, name));
+        if (discardedSupportNodes.Count > 0)
+            commands.Add(DiscardSupportsCommand(discardedSupportNodes, name));
         if (commands.Count > 0) Execute(new CompositeCommand(name, commands));
         else NotifyTransientChange();
     }

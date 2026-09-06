@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -47,8 +47,15 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(before, obj.Transform);
     }
 
+    /// <summary>
+    /// Renamed and re-pointed 2026-09-06 for the support lifecycle rule (task 03, user decision
+    /// D13). It used to assert that a rotate-and-scale CARRIED its supports to transformed
+    /// positions; under <see cref="SupportTransformRule"/> such a transform cannot map contacts
+    /// exactly and discards them instead. What is still worth pinning is the part that did not
+    /// change: only the transformed object's own supports are touched, and it is all one undo step.
+    /// </summary>
     [Fact]
-    public void ObjectTransformCarriesOnlyItsOwnedSupportNodesInTheSameUndoStep()
+    public void ObjectTransformTouchesOnlyItsOwnedSupportNodesInTheSameUndoStep()
     {
         var doc = new Document { PlacementMode = PlacementMode.Off };
         var obj = new SceneObject("owned", Box(new(-1), new(1)));
@@ -80,23 +87,35 @@ public sealed class PlacementAndSupportCommandTests
 
         doc.CommitTransform(obj, before, requested, "Move object and supports");
 
-        Assert.Equal(new Vector3(10, 4, 0), owned.Position, new Vector3Comparer(1e-5f));
-        Assert.Equal(Vector3.UnitY, owned.SurfaceNormal, new Vector3Comparer(1e-5f));
+        // Rotation and scale: the owned support goes, the other object's stays put.
+        Assert.DoesNotContain(doc.Supports.Nodes, n => n.Id == owned.Id);
+        Assert.Contains(doc.Supports.Nodes, n => n.Id == untouched.Id);
         Assert.Equal(new Vector3(9, 9, 9), untouched.Position);
         Assert.Equal("Move object and supports", doc.History.UndoName);
 
+        // One undo restores the transform AND the discarded support together, which is what makes
+        // a silent discard with no confirmation dialog acceptable.
         doc.Undo();
         Assert.Equal(before, obj.Transform);
+        Assert.Contains(doc.Supports.Nodes, n => n.Id == owned.Id);
         Assert.Equal(new Vector3(2, 0, 0), owned.Position);
         Assert.Equal(new Vector3(9, 9, 9), untouched.Position);
 
         doc.Redo();
         Assert.Equal(requested, obj.Transform);
-        Assert.Equal(new Vector3(10, 4, 0), owned.Position, new Vector3Comparer(1e-5f));
+        Assert.DoesNotContain(doc.Supports.Nodes, n => n.Id == owned.Id);
+        Assert.Contains(doc.Supports.Nodes, n => n.Id == untouched.Id);
     }
 
+    /// <summary>
+    /// Also re-pointed for D13: a zero scale used to collapse the owned support onto the origin
+    /// and keep it. Scaling cannot map contacts exactly, so it now discards — and the degenerate
+    /// case is no longer special, which is the point of stating the rule once rather than
+    /// enumerating transforms. (The non-invertible-matrix branch in AppendAssociatedSupportMatrix
+    /// survives for Mirror, which still carries its supports.)
+    /// </summary>
     [Fact]
-    public void ScalingObjectToZeroStillCarriesOwnedSupportPositions()
+    public void ScalingObjectToZeroDiscardsOwnedSupportsAndUndoRestoresThem()
     {
         var doc = new Document { PlacementMode = PlacementMode.Off };
         var obj = new SceneObject("owned", Box(new(-1), new(1)));
@@ -111,8 +130,10 @@ public sealed class PlacementAndSupportCommandTests
 
         doc.CommitTransform(obj, obj.Transform, obj.Transform with { Scale = Vector3.Zero });
 
-        Assert.Equal(Vector3.Zero, node.Position);
+        Assert.Empty(doc.Supports.Nodes);
+
         doc.Undo();
+        Assert.Contains(doc.Supports.Nodes, n => n.Id == node.Id);
         Assert.Equal(new Vector3(3, 2, 1), node.Position);
     }
 
