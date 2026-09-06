@@ -340,6 +340,7 @@
                                           SupportSelectionMode="{Binding IsSupportView}"
                                           RegionPickMode="{Binding RegionPickMode}"
                                           RegionBrushMode="{Binding RegionBrushMode}"
+                                          RegionBrushRadiusPixels="{Binding RegionBrushRadiusPixels}"
                                           RegionHoverObject="{Binding RegionHover.Object}"
                                           RegionHoverFaces="{Binding RegionHover.Faces}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
@@ -501,10 +502,10 @@
                                               IsChecked="{Binding RegionBrushMode, Mode=TwoWay}"
                                               ToolTip.Tip="With painting armed, drag to paint a stroke; Shift-drag erases. One undo per stroke." />
                                     <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
-                                        <TextBlock Text="Brush radius" Classes="label" VerticalAlignment="Center" />
+                                        <TextBlock Text="Brush radius (px)" Classes="label" VerticalAlignment="Center" />
                                         <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
                                             Text="{Binding RegionBrushRadiusField.Text, Mode=TwoWay}"
-                                            ToolTip.Tip="Millimetres on the surface" />
+                                            ToolTip.Tip="Screen pixels: the ring keeps its size as you zoom" />
                                     </Grid>
                                     <CheckBox Content="Edit keep-clean region"
                                               IsChecked="{Binding EditingKeepCleanRegion, Mode=TwoWay}"

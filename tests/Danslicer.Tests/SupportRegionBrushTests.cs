@@ -115,14 +115,13 @@ public class SupportRegionBrushTests
     public void AStrokeIsOneUndoStepAndUndoRestoresExactlyThePriorRegion()
     {
         var (viewModel, box) = Scene();
-        viewModel.RegionBrushRadiusMm = 0.4;
         // Something painted beforehand, so "restores the prior region" means more than "empties".
         viewModel.PaintRegionFromFace(box, triangle: 0, erase: false);
         var before = box.Regions.Faces.ToHashSet();
         var undoDepth = UndoDepth(viewModel);
 
         viewModel.BeginStroke(box, erase: false);
-        for (var i = 0; i < 20; i++) viewModel.BrushStroke(new Vector3(0.5f, 0.5f, 1f), triangle: 2);
+        for (var i = 0; i < 20; i++) viewModel.BrushStroke(new Vector3(0.5f, 0.5f, 1f), triangle: 2, worldRadius: 0.4f);
         viewModel.EndStroke();
 
         Assert.True(box.Regions.Faces.Count > before.Count);
@@ -136,17 +135,16 @@ public class SupportRegionBrushTests
     public void ErasingRemovesExactlyWhatTheSameStrokePainted()
     {
         var (viewModel, box) = Scene();
-        viewModel.RegionBrushRadiusMm = 0.3;
         var centre = new Vector3(0.5f, 0.5f, 1f);
 
         viewModel.BeginStroke(box, erase: false);
-        viewModel.BrushStroke(centre, triangle: 2);
+        viewModel.BrushStroke(centre, triangle: 2, worldRadius: 0.3f);
         viewModel.EndStroke();
         var painted = box.Regions.Faces.ToHashSet();
         Assert.NotEmpty(painted);
 
         viewModel.BeginStroke(box, erase: true);
-        viewModel.BrushStroke(centre, triangle: 2);
+        viewModel.BrushStroke(centre, triangle: 2, worldRadius: 0.3f);
         viewModel.EndStroke();
 
         Assert.Empty(box.Regions.Faces);
@@ -156,9 +154,8 @@ public class SupportRegionBrushTests
     public void AStrokeThatPaintsNothingNewAddsNoUndoStep()
     {
         var (viewModel, box) = Scene();
-        viewModel.RegionBrushRadiusMm = 0.3;
         viewModel.BeginStroke(box, erase: true); // erasing an unpainted region changes nothing
-        viewModel.BrushStroke(new Vector3(0.5f, 0.5f, 1f), triangle: 2);
+        viewModel.BrushStroke(new Vector3(0.5f, 0.5f, 1f), triangle: 2, worldRadius: 0.4f);
         var undoDepth = UndoDepth(viewModel);
 
         viewModel.EndStroke();
@@ -171,7 +168,7 @@ public class SupportRegionBrushTests
     {
         var (viewModel, box) = Scene();
 
-        viewModel.BrushStroke(new Vector3(0.5f, 0.5f, 1f), triangle: 2);
+        viewModel.BrushStroke(new Vector3(0.5f, 0.5f, 1f), triangle: 2, worldRadius: 0.4f);
         viewModel.EndStroke();
 
         Assert.Empty(box.Regions.Faces);

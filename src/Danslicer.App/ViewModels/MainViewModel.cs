@@ -226,7 +226,7 @@ public partial class MainViewModel : ViewModelBase
     }
 
     partial void OnRegionOverhangDegreesChanged(double value) => RegionOverhangField.SetValue(value);
-    partial void OnRegionBrushRadiusMmChanged(double value) => RegionBrushRadiusField.SetValue(value);
+    partial void OnRegionBrushRadiusPixelsChanged(double value) => RegionBrushRadiusField.SetValue(value);
 
     /// <summary>Threshold for "select what faces down", in generation's convention: measured from
     /// vertical, strict greater-than. Defaults to the support settings' own overhang angle so the
@@ -322,9 +322,13 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool RegionBrushMode { get; set; }
 
-    /// <summary>Brush radius in millimetres, adjustable while painting.</summary>
+    /// <summary>
+    /// Brush radius in SCREEN pixels, adjustable while painting. A brush is aimed with the eye,
+    /// so it keeps the size it looks: a millimetre radius would grow and shrink as the user
+    /// zooms. The viewport converts to world units at the point being painted.
+    /// </summary>
     [ObservableProperty]
-    public partial double RegionBrushRadiusMm { get; set; } = 2;
+    public partial double RegionBrushRadiusPixels { get; set; } = 24;
 
     private SupportRegionStroke? _stroke;
     private SceneObject? _strokeObject;
@@ -342,15 +346,19 @@ public partial class MainViewModel : ViewModelBase
         _stroke = new SupportRegionStroke(obj.Regions, EditingKeepCleanRegion, erase);
     }
 
-    /// <summary>One dab of the brush, centred on a surface point on a picked face.</summary>
-    public void BrushStroke(Vector3 surfacePoint, int triangle)
+    /// <summary>
+    /// One dab of the brush, centred on a surface point on a picked face.
+    /// <paramref name="worldRadius"/> is the on-screen radius converted to world units by the
+    /// viewport, which is the only part of the app that knows the camera.
+    /// </summary>
+    public void BrushStroke(Vector3 surfacePoint, int triangle, float worldRadius)
     {
         if (_stroke is null || _strokeObject is not { } obj) return;
         // The stroke works in the object's own space, because that is where its faces live.
         if (!Matrix4x4.Invert(obj.Transform.ToMatrix(), out var worldToLocal)) return;
         var local = Vector3.Transform(surfacePoint, worldToLocal);
         var scale = obj.Transform.Scale;
-        var localRadius = (float)RegionBrushRadiusMm /
+        var localRadius = worldRadius /
             MathF.Max(MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y)), MathF.Abs(scale.Z));
         if (!_stroke.Add(SupportRegionBrush.FacesWithin(obj.Mesh, local, localRadius, triangle))) return;
         // Live feedback only — not an undoable edit. EndStroke commits the whole stroke.
@@ -379,7 +387,9 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(HasRegionTarget))]
     private void SelectFacingDownRegion() => EditRegion(
-        (mesh, _) => SupportRegionSelection.FacingDown(mesh, (float)RegionOverhangDegrees),
+        (mesh, _) => SupportRegionSelection.FacingDown(mesh,
+            SelectedObject?.Transform.ToMatrix() ?? Matrix4x4.Identity,
+            (float)RegionOverhangDegrees),
         "Select faces pointing down");
 
     [RelayCommand(CanExecute = nameof(HasRegionTarget))]
@@ -604,11 +614,11 @@ public partial class MainViewModel : ViewModelBase
             value => RegionDihedralDegrees = Math.Clamp(value, 0, 180));
         RegionOverhangField = new NumericField("Down angle", UnitKind.Angle, "0.##",
             value => RegionOverhangDegrees = Math.Clamp(value, 0, 90));
-        RegionBrushRadiusField = new NumericField("Brush radius", UnitKind.Length, "0.##",
-            value => RegionBrushRadiusMm = Math.Max(0, value));
+        RegionBrushRadiusField = new NumericField("Brush radius", UnitKind.Scalar, "0",
+            value => RegionBrushRadiusPixels = Math.Clamp(value, 2, 400), suffix: "px");
         RegionDihedralField.SetValue(RegionDihedralDegrees);
         RegionOverhangField.SetValue(RegionOverhangDegrees);
-        RegionBrushRadiusField.SetValue(RegionBrushRadiusMm);
+        RegionBrushRadiusField.SetValue(RegionBrushRadiusPixels);
 
         Document.Scene.ObjectAdded += o => Objects.Add(o);
         Document.Scene.ObjectRemoved += o => Objects.Remove(o);

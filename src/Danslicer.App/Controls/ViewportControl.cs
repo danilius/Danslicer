@@ -58,6 +58,9 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> RegionBrushModeProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(RegionBrushMode));
 
+    public static readonly StyledProperty<double> RegionBrushRadiusPixelsProperty =
+        AvaloniaProperty.Register<ViewportControl, double>(nameof(RegionBrushRadiusPixels), 24d);
+
     public static readonly StyledProperty<IReadOnlySet<int>?> RegionHoverFacesProperty =
         AvaloniaProperty.Register<ViewportControl, IReadOnlySet<int>?>(nameof(RegionHoverFaces));
 
@@ -189,6 +192,18 @@ public sealed class ViewportControl : OpenGlControlBase
     /// </summary>
     public bool RegionBrushMode { get => GetValue(RegionBrushModeProperty); set => SetValue(RegionBrushModeProperty, value); }
 
+    /// <summary>
+    /// Brush radius in SCREEN pixels. A brush is aimed with the eye, so it should stay the size
+    /// it looks wherever the camera is: a millimetre radius grows and shrinks as you zoom, which
+    /// is exactly what a painting tool must not do. The control converts to world units at the
+    /// point being painted, since only it knows the camera.
+    /// </summary>
+    public double RegionBrushRadiusPixels
+    {
+        get => GetValue(RegionBrushRadiusPixelsProperty);
+        set => SetValue(RegionBrushRadiusPixelsProperty, value);
+    }
+
     /// <summary>The faces a region click would paint, highlighted under the cursor.</summary>
     public IReadOnlySet<int>? RegionHoverFaces
     {
@@ -209,8 +224,12 @@ public sealed class ViewportControl : OpenGlControlBase
     /// <summary>A brush stroke began on this object; the flag is true for an erasing stroke.</summary>
     public event Action<SceneObject, bool>? RegionStrokeStarted;
 
-    /// <summary>One dab: a world-space surface point and the triangle under it.</summary>
-    public event Action<Vector3, int>? RegionStrokeDab;
+    /// <summary>
+    /// One dab: a world-space surface point, the triangle under it, and the brush radius in world
+    /// units at that point. The radius travels with the dab because it depends on where the point
+    /// is relative to the camera, which changes as the stroke moves across the model.
+    /// </summary>
+    public event Action<Vector3, int, float>? RegionStrokeDab;
 
     /// <summary>The stroke ended and should be committed as one undo step.</summary>
     public event Action? RegionStrokeEnded;
@@ -323,6 +342,8 @@ public sealed class ViewportControl : OpenGlControlBase
             if (SupportWaterline is { } waterline)
                 waterline.SupportModeActive = SupportSelectionMode;
             _supportMeshesDirty = true;
+            // The region overlay is Support-mode only, so a mode change rebuilds it too.
+            MarkRegionOverlayDirty();
             UpdateStatus();
             Redraw();
         }
@@ -565,6 +586,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 new Vector3(SupportSelectedColor.X, SupportSelectedColor.Y, SupportSelectedColor.Z),
                 1f, DepthOverlay: true));
         AppendSupportLines(_depthOverlay);
+        AppendBrushCursor(_overlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         if (!SupportSelectionMode) UpdateGizmo();
         // Hide the gizmo during keyboard-driven modals; keep it while dragging a handle.
@@ -766,7 +788,7 @@ public sealed class ViewportControl : OpenGlControlBase
             {
                 _brushing = true;
                 RegionStrokeStarted?.Invoke(brushHit, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
-                RegionStrokeDab?.Invoke(brushPoint, brushTriangle);
+                RegionStrokeDab?.Invoke(brushPoint, brushTriangle, WorldRadiusAt(brushPoint));
                 e.Pointer.Capture(this);
                 e.Handled = true;
                 return;
@@ -883,10 +905,23 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_brushing)
         {
             if (PickSurface(MouseVector(e), out var triangle, out var point, out _) is not null &&
-                triangle >= 0) RegionStrokeDab?.Invoke(point, triangle);
+                triangle >= 0)
+            {
+                _brushCursor = point;
+                RegionStrokeDab?.Invoke(point, triangle, WorldRadiusAt(point));
+            }
             Redraw();
         }
-        else if (SupportSelectionMode && RegionPickMode && !RegionBrushMode)
+        else if (SupportSelectionMode && RegionPickMode && RegionBrushMode)
+        {
+            // The cursor ring needs a point on the surface to sit on; off the model there is
+            // nothing to paint and nothing to draw.
+            _brushCursor = PickSurface(MouseVector(e), out _, out var cursorPoint, out _) is null
+                ? null
+                : cursorPoint;
+            Redraw();
+        }
+        else if (SupportSelectionMode && RegionPickMode)
         {
             var hit = PickFace(MouseVector(e), out var hoverTriangle);
             RegionFaceHovered?.Invoke(hit, hit is null ? -1 : hoverTriangle);
@@ -1085,6 +1120,8 @@ public sealed class ViewportControl : OpenGlControlBase
     private bool _layFlatPick;
     /// <summary>True between a brush press and its release: every move in between is a dab.</summary>
     private bool _brushing;
+    /// <summary>Where the brush ring is drawn; null when the cursor is off the model.</summary>
+    private Vector3? _brushCursor;
 
     /// <summary>Arms lay-flat: the next left click on a face lays the object on it.</summary>
     public void BeginLayFlatPick()
@@ -1356,6 +1393,9 @@ public sealed class ViewportControl : OpenGlControlBase
         _regionOverlayDirty = false;
         _regionOverlays.Clear();
         if (Document is not { } document) return;
+        // Regions are a Support-mode concern. In Layout the user is arranging models, and a
+        // painted tint there is noise on top of the thing they are trying to position.
+        if (!SupportSelectionMode) return;
         foreach (var obj in document.Scene.Objects)
         {
             if (obj.RenderState == RenderState.Hidden || obj.Regions.IsEmpty) continue;
@@ -1524,6 +1564,49 @@ public sealed class ViewportControl : OpenGlControlBase
                 lines.Add(new OverlayLine(p - new Vector3(0, size, 0), p + new Vector3(0, size, 0), color));
                 lines.Add(new OverlayLine(p - new Vector3(0, 0, size), p + new Vector3(0, 0, size), color));
             }
+        }
+    }
+
+    /// <summary>
+    /// A screen-pixel length in world units at <paramref name="point"/>. Perspective makes this
+    /// depend on how far away the point is; orthographic does not, which is why the camera is
+    /// asked rather than assumed.
+    /// </summary>
+    private float PixelsToWorld(Vector3 point, double pixels)
+    {
+        var height = MathF.Max((float)Bounds.Height, 1f);
+        var viewHeight = Camera.Orthographic
+            ? Camera.ViewHeightAtTarget
+            : 2f * MathF.Max(Vector3.Dot(point - Camera.Eye, Camera.ViewDirection), Camera.Near) *
+                MathF.Tan(Camera.FovDegrees * 0.5f * MathF.PI / 180f);
+        return viewHeight / height * (float)pixels;
+    }
+
+    private float WorldRadiusAt(Vector3 point) => PixelsToWorld(point, RegionBrushRadiusPixels);
+
+    /// <summary>
+    /// The brush ring: a circle on the screen plane at the point under the cursor, so the user
+    /// can see what one dab would cover before pressing. Drawn in the overlay rather than as a
+    /// 2D cursor because it has to sit on the surface it is about to paint.
+    /// </summary>
+    private void AppendBrushCursor(List<OverlayLine> lines)
+    {
+        if (!SupportSelectionMode || !RegionPickMode || !RegionBrushMode) return;
+        if (_brushCursor is not { } centre) return;
+        var radius = WorldRadiusAt(centre);
+        if (radius <= 0) return;
+
+        const int steps = 48;
+        var right = Camera.Right * radius;
+        var up = Camera.Up * radius;
+        var colour = new Vector4(0.95f, 0.97f, 1f, 0.9f);
+        var previous = centre + right;
+        for (var i = 1; i <= steps; i++)
+        {
+            var angle = i * MathF.Tau / steps;
+            var next = centre + right * MathF.Cos(angle) + up * MathF.Sin(angle);
+            lines.Add(new OverlayLine(previous, next, colour));
+            previous = next;
         }
     }
 

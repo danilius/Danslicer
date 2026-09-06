@@ -148,6 +148,57 @@ public class SupportRegionSelectionTests
         Assert.Equal([1], down); // face 0 is downward too, but outside the limit
     }
 
+    [Fact]
+    public void FacingDownAsksAboutTheModelsCurrentOrientationNotItsMeshsIdea()
+    {
+        // The screen-test failure: a rotated plate-shaped part selected its EDGES, because the
+        // mesh's own normals still pointed the way they did before the part was turned. Facing
+        // down is a question about gravity, so the object's transform has to be in it.
+        var mesh = Box(new Vector3(0, 0, 0), new Vector3(4, 4, 1)); // a flat slab: 0,1 face down
+
+        var upright = SupportRegionSelection.FacingDown(mesh, Matrix4x4.Identity, 45f);
+        Assert.Equal([0, 1], upright);
+
+        // Turn it on its side: the faces that now point down are the ones that were a wall.
+        var onItsSide = Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathF.PI / 2f);
+        var turned = SupportRegionSelection.FacingDown(mesh, onItsSide, 45f);
+
+        Assert.NotEqual(upright, turned);
+        Assert.DoesNotContain(0, turned);
+        Assert.DoesNotContain(1, turned);
+        Assert.NotEmpty(turned);
+    }
+
+    [Fact]
+    public void TurningAModelUpsideDownSelectsWhatWasItsTop()
+    {
+        var mesh = Box(new Vector3(0, 0, 0), new Vector3(4, 4, 1));
+        var flipped = Matrix4x4.CreateFromAxisAngle(Vector3.UnitX, MathF.PI);
+
+        var down = SupportRegionSelection.FacingDown(mesh, flipped, 45f);
+
+        Assert.Equal([2, 3], down); // the top pair, now underneath
+    }
+
+    [Fact]
+    public void TheFacingDownCommandUsesTheTargetsTransform()
+    {
+        var viewModel = new MainViewModel();
+        var slab = new SceneObject("slab", Box(new Vector3(0, 0, 0), new Vector3(4, 4, 1)))
+        {
+            Transform = Transform.Identity with
+            {
+                Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI),
+            },
+        };
+        viewModel.Document.AddObject(slab);
+        viewModel.SelectedObject = slab;
+
+        viewModel.SelectFacingDownRegionCommand.Execute(null);
+
+        Assert.Equal([2, 3], slab.Regions.Faces.OrderBy(f => f));
+    }
+
     // ----- Invert, grow, shrink, connected -----
 
     [Fact]
@@ -298,10 +349,10 @@ public class SupportRegionSelectionTests
         var (viewModel, _) = SupportedScene();
 
         viewModel.RegionOverhangField.Text = "90";
-        viewModel.RegionBrushRadiusField.Text = "3.5";
+        viewModel.RegionBrushRadiusField.Text = "36";
 
         Assert.Equal(90, viewModel.RegionOverhangDegrees);
-        Assert.Equal(3.5, viewModel.RegionBrushRadiusMm);
+        Assert.Equal(36, viewModel.RegionBrushRadiusPixels); // screen pixels, not millimetres
         Assert.Equal("90", viewModel.RegionOverhangField.Text);
     }
 

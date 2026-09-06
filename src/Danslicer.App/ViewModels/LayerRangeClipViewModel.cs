@@ -125,8 +125,10 @@ public sealed class LayerRangeClipViewModel : ObservableObject
         if (!double.IsFinite(minimum) || !double.IsFinite(maximum)) return;
         if (maximum - minimum < 0.001)
         {
-            minimum -= 0.5;
-            maximum += 0.5;
+            // A degenerate range (a flat model, or one dragged entirely below the plate, whose
+            // clamped bounds collapse onto zero) is opened out so the slider still has somewhere
+            // to travel — upwards only, because the plate is still the floor.
+            maximum = minimum + 1;
         }
 
         var lowerAtEdge = Math.Abs(_lowerZ - _minimumZ) <= Epsilon;
