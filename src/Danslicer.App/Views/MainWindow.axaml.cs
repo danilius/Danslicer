@@ -22,6 +22,7 @@ public partial class MainWindow : Window
 {
     public ICommand SaveProjectCommand { get; }
     public ICommand SaveProjectAsCommand { get; }
+    public ICommand NewProjectCommand { get; }
     public ICommand OpenProjectCommand { get; }
     public ICommand ImportCommand { get; }
     public ModeScopedCommand ExportCommand { get; }
@@ -30,6 +31,7 @@ public partial class MainWindow : Window
     {
         SaveProjectCommand = new AsyncRelayCommand(SaveProjectAsync);
         SaveProjectAsCommand = new AsyncRelayCommand(SaveProjectAsAsync);
+        NewProjectCommand = new AsyncRelayCommand(NewProjectAsync);
         OpenProjectCommand = new AsyncRelayCommand(OpenProjectAsync);
         ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
         ExportCommand = new ModeScopedCommand(
@@ -350,6 +352,28 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Empties the scene for a new project, asking first when there is something to lose. The
+    /// question is asked here, once, so every future entry point to "new" gets the same guard.
+    /// </summary>
+    private async Task NewProjectAsync()
+    {
+        if (ViewModel is not { } vm) return;
+        if (vm.IsGeneratingSupports || vm.IsSlicing)
+        {
+            vm.ViewportStatus = "Wait for the current operation before starting a new project.";
+            return;
+        }
+        if (vm.Document.HasContent && !await ConfirmDialog.AskAsync(this, "New project",
+                "The current scene has models in it. Starting a new project discards them, " +
+                "along with their supports and the undo history.",
+                confirmText: "Discard"))
+            return;
+        vm.NewProject();
+        Viewport.FrameAll();
+        Viewport.Focus();
+    }
+
     private async Task OpenProjectAsync()
     {
         if (ViewModel is not { } vm) return;
@@ -626,6 +650,7 @@ public partial class MainWindow : Window
         ApplyRenderPathChange();
     }
 
+    private void OnNewProjectClick(object? sender, RoutedEventArgs e) => NewProjectCommand.Execute(null);
     private void OnOpenProjectClick(object? sender, RoutedEventArgs e) => OpenProjectCommand.Execute(null);
     private void OnSaveProjectClick(object? sender, RoutedEventArgs e) => SaveProjectCommand.Execute(null);
     private void OnSaveProjectAsClick(object? sender, RoutedEventArgs e) => SaveProjectAsCommand.Execute(null);

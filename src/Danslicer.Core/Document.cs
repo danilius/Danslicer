@@ -127,6 +127,25 @@ public sealed class Document
         History.Clear();
     }
 
+    /// <summary>
+    /// Empties the document for a new project: no objects, no supports, no history. The machine
+    /// setup — printer, resin and print settings — is deliberately kept, because that describes
+    /// the user's rig rather than the model they were working on.
+    /// </summary>
+    public void Clear() => ReplaceWith(new Document
+    {
+        Printer = Printer,
+        PrintSettings = PrintSettings,
+        ResinPreset = ResinPreset,
+        ResinSettings = ResinSettings,
+    });
+
+    /// <summary>
+    /// Whether starting a new project would throw work away. Nothing to lose means no dialog:
+    /// a confirmation nobody needs is a confirmation people learn to click through.
+    /// </summary>
+    public bool HasContent => Scene.Objects.Count > 0 || Supports.NodeCount > 0;
+
     /// <summary>Raise Changed for transient edits (e.g. live drag) that bypass the command stack.</summary>
     public void NotifyTransientChange() => Changed?.Invoke();
 

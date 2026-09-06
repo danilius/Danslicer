@@ -105,6 +105,7 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
+                <MenuItem x:Name="NewProjectMenuItem" Header="_New Project" Click="OnNewProjectClick" />
                 <MenuItem x:Name="OpenProjectMenuItem" Header="_Open Project..." Click="OnOpenProjectClick" />
                 <MenuItem x:Name="SaveProjectMenuItem" Header="_Save Project" Click="OnSaveProjectClick" />
                 <MenuItem x:Name="SaveProjectAsMenuItem" Header="Save Project _As..." Click="OnSaveProjectAsClick" />

@@ -559,6 +559,27 @@ public partial class MainViewModel : ViewModelBase
         ViewportStatus = $"Saved {System.IO.Path.GetFileName(ProjectPath)}.";
     }
 
+    /// <summary>
+    /// Starts an empty project on the same machine setup. The caller confirms first when
+    /// <see cref="Document"/>.HasContent — this method does not ask, so that the confirmation
+    /// lives in one place (the window) rather than being duplicated per entry point.
+    /// </summary>
+    public void NewProject()
+    {
+        Document.Clear();
+        SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z, reset: true);
+        SelectedObject = null;
+        LastSlice = null;
+        SliceWarning = null;
+        PreviewImage = null;
+        PreviewLayerText = "";
+        SliceSummary = "Not sliced yet.";
+        ViewMode = WorkspaceMode.Layout;
+        ProjectPath = null;
+        Title = "Danslicer";
+        ViewportStatus = "New project.";
+    }
+
     public ProjectViewState OpenProject(string path)
     {
         var loaded = ProjectFile.Load(path);
