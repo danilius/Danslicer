@@ -1,14 +1,17 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Slicing;
+using Danslicer.Core.IO;
+using Danslicer.Core.Printers;
+using Danslicer.Core.Scene;
 using Danslicer.Core.Supports;
 
 namespace Danslicer.Tests;
 
 public class PreviewRendererTests
 {
-    private const int Width = Slicer.PreviewWidth;
-    private const int Height = Slicer.PreviewHeight;
+    private const int Width = PrinterDefinition.DefaultPreviewWidth;
+    private const int Height = PrinterDefinition.DefaultPreviewHeight;
 
     private static Mesh Box(float sx, float sy, float sz)
     {
@@ -258,7 +261,103 @@ public class PreviewRendererTests
     public void PreviewSizeMatchesWhatPhotonWorkshopWriterExpects()
     {
         var objects = new[] { new PreviewRenderer.RenderObject(Box(5, 5, 5), Matrix4x4.Identity) };
-        var preview = PreviewRenderer.Render(objects, null, Slicer.PreviewWidth, Slicer.PreviewHeight);
-        Assert.Equal(Slicer.PreviewWidth * Slicer.PreviewHeight * 2, preview.Length);
+        var preview = PreviewRenderer.Render(objects, null, PrinterDefinition.DefaultPreviewWidth, PrinterDefinition.DefaultPreviewHeight);
+        Assert.Equal(PrinterDefinition.DefaultPreviewWidth * PrinterDefinition.DefaultPreviewHeight * 2, preview.Length);
+    }
+
+    // ----- The size comes from the printer -----
+
+    [Fact]
+    public void TheSeededPrinterKeepsTheFormatsOwnPreviewSize()
+    {
+        // Byte-identical output for existing projects rests on this pair of numbers.
+        Assert.Equal(224, PrinterDefinition.PhotonMonoX.PreviewWidth);
+        Assert.Equal(168, PrinterDefinition.PhotonMonoX.PreviewHeight);
+    }
+
+    [Fact]
+    public void APrinterDefinitionWrittenBeforePreviewSizeExistedGetsTheDefault()
+    {
+        var json = """
+        {
+          "Id": "legacy", "IsBuiltIn": false, "Name": "Legacy", "MachineName": "Legacy",
+          "FileExtension": "pwmx", "DisplayWidthMm": 192, "DisplayHeightMm": 120,
+          "ZTravelMm": 245, "ResolutionX": 3840, "ResolutionY": 2400,
+          "MirrorX": true, "MirrorY": false, "FormatVersion": 516
+        }
+        """;
+
+        var loaded = System.Text.Json.JsonSerializer.Deserialize<PrinterDefinition>(json)!.Normalize();
+
+        Assert.Equal(PrinterDefinition.DefaultPreviewWidth, loaded.PreviewWidth);
+        Assert.Equal(PrinterDefinition.DefaultPreviewHeight, loaded.PreviewHeight);
+    }
+
+    [Fact]
+    public void NormalizeRepairsAnUnusablePreviewSize()
+    {
+        var broken = PrinterDefinition.PhotonMonoX with { PreviewWidth = 0, PreviewHeight = -4 };
+
+        var fixedUp = broken.Normalize();
+
+        Assert.Equal(PrinterDefinition.DefaultPreviewWidth, fixedUp.PreviewWidth);
+        Assert.Equal(PrinterDefinition.DefaultPreviewHeight, fixedUp.PreviewHeight);
+    }
+
+    [Fact]
+    public void ASlicedPreviewIsRenderedAtThePrintersSizeAndTheHeaderSaysSo()
+    {
+        var obj = new SceneObject("box", Box(20, 20, 5));
+        obj.Transform = Transform.Identity with { Translation = new Vector3(-10, -10, 0) };
+        var printer = PrinterDefinition.PhotonMonoX with
+        {
+            Id = "wide", IsBuiltIn = false, PreviewWidth = 320, PreviewHeight = 240,
+        };
+
+        var result = Slicer.Slice([obj], printer, PrintSettings.Default with { LayerHeight = 1f });
+
+        Assert.Equal(320, result.PreviewWidth);
+        Assert.Equal(240, result.PreviewHeight);
+        Assert.Equal(320 * 240 * 2, result.Preview.Length); // RGB565: two bytes a pixel
+
+        // The written PREVIEW block must describe the pixels beside it, not a constant.
+        using var stream = new MemoryStream();
+        PhotonWorkshopWriter.Write(result, stream);
+        var bytes = stream.ToArray();
+        var marker = System.Text.Encoding.ASCII.GetBytes("PREVIEW");
+        var at = IndexOf(bytes, marker);
+        Assert.True(at >= 0, "no PREVIEW block was written");
+        // The block is a 12-byte fixed table name, a 4-byte length, then width, "x", height.
+        const int tableNameBytes = 12;
+        var width = BitConverter.ToUInt32(bytes, at + tableNameBytes + 4);
+        var height = BitConverter.ToUInt32(bytes, at + tableNameBytes + 4 + 8);
+        Assert.Equal(320u, width);
+        Assert.Equal(240u, height);
+    }
+
+    [Fact]
+    public void TheDefaultPrinterStillProducesTheSamePreviewBytesAsBefore()
+    {
+        var obj = new SceneObject("box", Box(20, 20, 5));
+        obj.Transform = Transform.Identity with { Translation = new Vector3(-10, -10, 0) };
+        var settings = PrintSettings.Default with { LayerHeight = 1f };
+
+        var result = Slicer.Slice([obj], PrinterDefinition.PhotonMonoX, settings);
+        var reference = PreviewRenderer.Render(
+            [new PreviewRenderer.RenderObject(obj.Mesh, obj.Transform.ToMatrix())], null,
+            PrinterDefinition.DefaultPreviewWidth, PrinterDefinition.DefaultPreviewHeight);
+
+        Assert.Equal(reference, result.Preview);
+    }
+
+    private static int IndexOf(byte[] haystack, byte[] needle)
+    {
+        for (var i = 0; i + needle.Length <= haystack.Length; i++)
+        {
+            var match = true;
+            for (var j = 0; j < needle.Length && match; j++) match = haystack[i + j] == needle[j];
+            if (match) return i;
+        }
+        return -1;
     }
 }

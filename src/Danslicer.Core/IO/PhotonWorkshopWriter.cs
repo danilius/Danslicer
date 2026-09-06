@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Danslicer.Core.Slicing;
 
 namespace Danslicer.Core.IO;
@@ -68,9 +68,9 @@ public static class PhotonWorkshopWriter
         var previewAddress = (uint)stream.Position;
         WriteTableName(w, "PREVIEW");
         w.Write((uint)(MarkSize + 4 + 12 + result.Preview.Length));
-        w.Write((uint)Slicer.PreviewWidth);
+        w.Write((uint)result.PreviewWidth);
         w.Write((byte)'x'); w.Write((byte)0); w.Write((byte)0); w.Write((byte)0);
-        w.Write((uint)Slicer.PreviewHeight);
+        w.Write((uint)result.PreviewHeight);
         w.Write(result.Preview);
 
         // Grey level table (no table name)
