@@ -876,6 +876,17 @@ public sealed class ViewportControl : OpenGlControlBase
         }
     }
 
+    /// <summary>
+    /// Drops the object selection, except in Support mode: there the selected model IS the
+    /// support target, so nothing in the viewport — an empty click, a marquee, Esc — may drop
+    /// it. Only the Objects pop-out retargets.
+    /// </summary>
+    private void ClearObjectSelection()
+    {
+        if (SupportSelectionMode) return;
+        Document?.ClearSelection();
+    }
+
     /// <summary>Object click-selection semantics, shared by the CPU and ID-buffer pick paths.</summary>
     private void ApplyObjectClick(SceneObject? hitObj, bool additive)
     {
@@ -884,7 +895,7 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (!additive)
             {
-                Document.ClearSelection();
+                ClearObjectSelection();
                 Document.ClearSupportSelection();
             }
             return;
@@ -1029,14 +1040,14 @@ public sealed class ViewportControl : OpenGlControlBase
             }
             else if (Document is not null && _pendingClickSupport is { } element)
             {
-                if (!_marqueeAdditive) Document.ClearSelection();
+                if (!_marqueeAdditive) ClearObjectSelection();
                 // Double-click selects the whole support tree; single click the element.
                 if (_pendingClickCount >= 2) SelectDisplayedSupportComponent(element, _marqueeAdditive);
                 else Document.SelectSupportElement(element, _marqueeAdditive);
             }
             else if (!_marqueeAdditive)
             {
-                Document?.ClearSelection();
+                ClearObjectSelection();
                 Document?.ClearSupportSelection();
             }
             _pendingClickSupport = null;
@@ -1704,6 +1715,9 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.G when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Move, mouse, w, h); break;
                 case Key.R when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Rotate, mouse, w, h); break;
                 case Key.S when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Scale, mouse, w, h); break;
+                case Key.A when e.KeyModifiers.HasFlag(KeyModifiers.Alt) && SupportSelectionMode:
+                    Document.ClearSupportSelection();
+                    break;
                 case Key.A when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.ClearSelection(); break;
                 case Key.A when !ctrl && SupportSelectionMode:
                     Document.SelectSupportElements(SupportDisplayPolicy.DisplayedElementIds(
@@ -1731,7 +1745,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.Escape when _layFlatPick: _layFlatPick = false; break;
                 case Key.Escape when _borderSelectArmed: _borderSelectArmed = false; break;
                 case Key.Escape when Document.SupportSelection.Count > 0: Document.ClearSupportSelection(); break;
-                case Key.Escape: Document.ClearSelection(); break;
+                case Key.Escape: ClearObjectSelection(); break;
                 case Key.Delete when Document.SupportSelection.Count > 0: Document.DeleteSupportSelection(); break;
                 case Key.Home: FrameAll(); break;
                 case Key.OemPeriod: case Key.Decimal: FrameSelected(); break;
@@ -1900,7 +1914,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 else if (_tipDrag is not null) CancelTipDrag();
                 else if (_layFlatPick) _layFlatPick = false;
                 else if (Document.SupportSelection.Count > 0) Document.ClearSupportSelection();
-                else Document.ClearSelection();
+                else ClearObjectSelection();
                 UpdateStatus();
                 break;
             // View buttons wait out an active modal drag rather than yanking its screen mapping.

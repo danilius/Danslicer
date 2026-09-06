@@ -19,6 +19,7 @@ public enum ViewportPopupCloseTrigger
     Escape,
     OutsidePointer,
     ContentAction,
+    AnotherPopup,
 }
 
 /// <summary>Keeps the floating viewport tools deterministic and independently testable.</summary>
@@ -58,7 +59,8 @@ public static class ViewportToolbarPolicy
         mode is WorkspaceMode.Layout or WorkspaceMode.Support;
 
     public static bool ShouldClosePopup(ViewportPopupCloseTrigger trigger) => trigger is
-        ViewportPopupCloseTrigger.HeaderButton or ViewportPopupCloseTrigger.Escape;
+        ViewportPopupCloseTrigger.HeaderButton or ViewportPopupCloseTrigger.Escape
+        or ViewportPopupCloseTrigger.AnotherPopup;
 }
 
 /// <summary>
@@ -78,4 +80,29 @@ public sealed class ViewportPopupState(ViewportTool tool)
 
     public bool IsVisible(WorkspaceMode mode) =>
         IsOpen && ViewportToolbarPolicy.IsAvailable(Tool, mode);
+}
+
+/// <summary>
+/// The viewport pop-outs are mutually exclusive. They are light-dismiss-free panels floating
+/// over the same viewport, so a second one opened from the toolbar would sit on top of the
+/// first; opening one closes whichever was open, and clicking the open one's own icon still
+/// just closes it.
+/// </summary>
+public sealed class ViewportPopupGroup(params ViewportPopupState[] states)
+{
+    private readonly IReadOnlyList<ViewportPopupState> _states = states;
+
+    public IReadOnlyList<ViewportPopupState> States => _states;
+
+    public void Toggle(ViewportPopupState state)
+    {
+        var opening = !state.IsOpen;
+        CloseAll();
+        if (opening) state.Toggle();
+    }
+
+    public void CloseAll()
+    {
+        foreach (var state in _states) state.Close(ViewportPopupCloseTrigger.AnotherPopup);
+    }
 }

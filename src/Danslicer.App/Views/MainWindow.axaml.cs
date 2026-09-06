@@ -38,6 +38,9 @@ public partial class MainWindow : Window
             new RelayCommand(() => OnExportClick(this, new RoutedEventArgs())),
             () => ViewModel?.ViewMode ?? WorkspaceMode.Layout,
             WorkspaceMode.Slicing);
+        _viewportPopups = new ViewportPopupGroup(
+            _objectsPopupState, _supportsPopupState, _islandDetectionPopupState,
+            _visibilityPopupState, _raftsPopupState);
         InitializeComponent();
         Configuration.WindowStatePersistence.Track(this, "main",
             rightPanel: WorkspaceGrid.ColumnDefinitions[2],
@@ -91,6 +94,8 @@ public partial class MainWindow : Window
     private readonly ViewportPopupState _islandDetectionPopupState = new(ViewportTool.IslandDetection);
     private readonly ViewportPopupState _visibilityPopupState = new(ViewportTool.Visibility);
     private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
+    // Declared after the states it groups: field initializers run in declaration order.
+    private readonly ViewportPopupGroup _viewportPopups;
     private readonly DispatcherTimer _uvtoolsAvailabilityTimer = new()
         { Interval = TimeSpan.FromSeconds(1) };
 
@@ -150,39 +155,52 @@ public partial class MainWindow : Window
     }
 
     private void OnObjectsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_objectsPopupState, ObjectsToolPopup);
+        ToggleViewportPopup(_objectsPopupState);
 
     private void OnSupportsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_supportsPopupState, SupportsToolPopup);
+        ToggleViewportPopup(_supportsPopupState);
 
     private void OnIslandDetectionToolClick(object? sender, RoutedEventArgs e)
     {
-        ToggleViewportPopup(_islandDetectionPopupState, IslandDetectionToolPopup);
+        ToggleViewportPopup(_islandDetectionPopupState);
         if (_islandDetectionPopupState.IsOpen && ViewModel?.DetectIslandsCommand.CanExecute(null) == true)
             ViewModel.DetectIslandsCommand.Execute(null);
     }
 
     private void OnVisibilityToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_visibilityPopupState, VisibilityToolPopup);
+        ToggleViewportPopup(_visibilityPopupState);
 
     private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_raftsPopupState, RaftsToolPopup);
+        ToggleViewportPopup(_raftsPopupState);
 
     private void OnViewSettingsClick(object? sender, RoutedEventArgs e)
     {
         SyncViewSettingsPopup();
-        ToggleViewportPopup(ViewSettingsPopup);
+        // View settings is the one pop-out with no mode-dependent state of its own, so it joins
+        // the mutual exclusion here rather than through the group.
+        var opening = !ViewSettingsPopup.IsOpen;
+        if (opening) CloseViewportToolPopups();
+        ViewSettingsPopup.IsOpen = opening;
     }
 
     private void OnViewSettingsCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(ViewSettingsPopup, ViewportPopupCloseTrigger.HeaderButton);
 
-    private static void ToggleViewportPopup(Popup popup) => popup.IsOpen = !popup.IsOpen;
-
-    private void ToggleViewportPopup(ViewportPopupState state, Popup popup)
+    /// <summary>
+    /// Opens one pop-out and closes every other, including View settings: only one panel ever
+    /// floats over the viewport. Clicking the open one's own icon closes it, as before.
+    /// </summary>
+    private void ToggleViewportPopup(ViewportPopupState state)
     {
-        state.Toggle();
-        ApplyViewportPopupState(state, popup);
+        _viewportPopups.Toggle(state);
+        ViewSettingsPopup.IsOpen = false;
+        ApplyViewportPopupMode();
+    }
+
+    private void CloseViewportToolPopups()
+    {
+        _viewportPopups.CloseAll();
+        ApplyViewportPopupMode();
     }
 
     private void ApplyViewportPopupMode()

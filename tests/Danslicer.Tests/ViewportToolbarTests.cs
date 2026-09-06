@@ -124,4 +124,42 @@ public sealed class ViewportToolbarTests
 
     private static Mesh Triangle() => new(
         [Vector3.Zero, Vector3.UnitX, Vector3.UnitY], [0, 1, 2]);
+
+    [Fact]
+    public void OpeningAPopupClosesTheOneAlreadyOpen()
+    {
+        // The pop-outs float over the same viewport with no light dismiss, so two open at once
+        // would overlap. A toolbar click means "show me this one".
+        var objects = new ViewportPopupState(ViewportTool.Objects);
+        var supports = new ViewportPopupState(ViewportTool.Supports);
+        var rafts = new ViewportPopupState(ViewportTool.Rafts);
+        var group = new ViewportPopupGroup(objects, supports, rafts);
+
+        group.Toggle(objects);
+        Assert.True(objects.IsOpen);
+
+        group.Toggle(supports);
+        Assert.True(supports.IsOpen);
+        Assert.False(objects.IsOpen);
+
+        // The open one's own icon still closes it, leaving nothing open.
+        group.Toggle(supports);
+        Assert.False(supports.IsOpen);
+        Assert.False(objects.IsOpen);
+        Assert.False(rafts.IsOpen);
+    }
+
+    [Fact]
+    public void CloseAllClosesEveryPopup()
+    {
+        var objects = new ViewportPopupState(ViewportTool.Objects);
+        var supports = new ViewportPopupState(ViewportTool.Supports);
+        var group = new ViewportPopupGroup(objects, supports);
+        group.Toggle(objects);
+
+        group.CloseAll();
+
+        Assert.False(objects.IsOpen);
+        Assert.False(supports.IsOpen);
+    }
 }
