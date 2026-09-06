@@ -199,8 +199,9 @@ public class SupportRenderMeshTests
 
         var part = Assert.Single(SupportRenderMesh.Build(graph));
         Assert.Equal(SupportRenderKind.Tip, part.Kind);
-        // Three-ring closed body (contact, cone base, junction) plus the contact sphere.
-        Assert.Equal(6 * SupportRenderMesh.RadialSegments
+        // Four-ring closed body (contact, cone base, inset start, junction) plus the contact
+        // sphere.
+        Assert.Equal(8 * SupportRenderMesh.RadialSegments
             + SupportRenderMesh.TrianglesPerSphere, part.Mesh.TriangleCount);
         AssertClosed(part.Mesh);
     }
@@ -208,20 +209,28 @@ public class SupportRenderMeshTests
     [Theory]
     [InlineData(SupportSegmentType.Trunk, 0.8f)]
     [InlineData(SupportSegmentType.Branch, 1.6f)]
-    public void ConeTipJunctionRingMatchesItsParentMember(SupportSegmentType parentType,
+    public void ConeTipBaseRingMatchesTheBallItSitsOn(SupportSegmentType parentType,
         float parentDiameter)
     {
         var graph = ConeTipWithParent(parentType, parentDiameter);
+        var parentRadius = parentDiameter * 0.5f;
 
         var tipPart = Assert.Single(SupportRenderMesh.Build(graph),
             part => part.Kind == SupportRenderKind.Tip);
-        var junctionRadius = tipPart.Mesh.Positions
-            .Where(position => MathF.Abs(position.Z - 5f) < 1e-4f)
-            .Max(position => new Vector2(position.X, position.Y).Length());
 
-        Assert.Equal(parentDiameter * 0.5f, junctionRadius, 3);
+        // The base ring sits at the centre of the parent's cap ball and carries all but the few
+        // percent that keep its rim off that ball's facets, which lie a cosine inside the
+        // analytic surface. Any more and the ring shows through as a disc.
+        var baseRadius = RadiusAtZ(tipPart.Mesh, 5f);
+        Assert.Equal(parentRadius * 0.94f, baseRadius, 3);
+        Assert.True(baseRadius < parentRadius * MathF.Cos(MathF.PI / SupportRenderMesh.RadialSegments),
+            "the tip's base ring stands proud of the ball it sits on");
         Assert.Equal(5f, tipPart.Mesh.Bounds.Min.Z, 3);
     }
+
+    private static float RadiusAtZ(Mesh mesh, float z) => mesh.Positions
+        .Where(position => MathF.Abs(position.Z - z) < 1e-4f)
+        .Max(position => new Vector2(position.X, position.Y).Length());
 
     [Fact]
     public void ConeTipBallReplacesTheContactSphere()

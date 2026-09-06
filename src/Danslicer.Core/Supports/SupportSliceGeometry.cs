@@ -129,44 +129,28 @@ public static class SupportSliceGeometry
     }
 
     /// <summary>
-    /// Cone frustum along the neck (contact radius → neck radius over cone length), then a
-    /// frustum from the neck radius to the parent-member radius at the junction. The flat-ended
-    /// body avoids a second, differently sized spherical cap inside the parent member.
+    /// Cone frustum along the neck (contact radius to neck radius over cone length), then a
+    /// frustum out to the parent-member radius, reached where the tip leaves the parent's cap
+    /// rather than at the buried junction node, and finally a narrowing nose so the flat end
+    /// stays inside the parent instead of standing proud of it. Embedding moves the narrow end
+    /// past the surface while leaving the base fixed, so the original contact plane cuts a
+    /// slightly wider part of the frustum.
     /// </summary>
     public static void ConeTipSection(SupportNode tip, SupportNode other, double neckRadius,
         double junctionRadius, double z, Paths64 output)
     {
         var rContact = Math.Max(tip.TipDiameter * 0.5, 0.0);
-        var axis = other.Position - tip.Position;
-        var segLen = axis.Length();
-        var coneLen = Math.Min(Math.Max(tip.ConeLength, 0f), segLen);
-        if (segLen < 1e-9f || coneLen <= 0)
+        var sections = TipBodyGeometry.Sections(tip, other, (float)neckRadius,
+            (float)junctionRadius, embedContact: true);
+        if (sections.Count == 0)
         {
             CapsuleSection(tip.Position, other.Position, neckRadius, z, output);
             return;
         }
 
-        if (tip.TipNormalLeadIn > 0)
-        {
-            foreach (var section in TipBodyGeometry.Sections(tip, other,
-                         (float)neckRadius, (float)junctionRadius, embedContact: true))
-                ConeSection(section.Start, section.End, section.StartRadius,
-                    section.EndRadius, z, output);
-            if (tip.BallDiameter <= 0 && rContact > 0)
-                SphereSection(tip.Position, rContact, z, output);
-            return;
-        }
-
-        var dir = axis / segLen;
-        var coneBase = tip.Position + dir * coneLen;
-        // Move the narrow end past the surface while leaving the base fixed. The original
-        // contact plane therefore cuts a slightly wider part of the embedded frustum.
-        var embeddedTip = tip.Position - dir * tip.PenetrationDepth;
-        var hasRemainder = segLen - coneLen > 1e-4f;
-        ConeSection(embeddedTip, coneBase, rContact,
-            hasRemainder ? neckRadius : junctionRadius, z, output);
-        if (hasRemainder)
-            ConeSection(coneBase, other.Position, neckRadius, junctionRadius, z, output);
+        foreach (var section in sections)
+            ConeSection(section.Start, section.End, section.StartRadius,
+                section.EndRadius, z, output);
         if (tip.BallDiameter <= 0 && rContact > 0)
             SphereSection(tip.Position, rContact, z, output);
     }

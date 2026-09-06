@@ -270,15 +270,25 @@ public class SupportSliceGeometryTests
     [Theory]
     [InlineData(SupportSegmentType.Trunk, 0.8f)]
     [InlineData(SupportSegmentType.Branch, 1.6f)]
-    public void ConeTipSectionApproachesItsParentDiameterAtTheJunction(
-        SupportSegmentType parentType, float parentDiameter)
+    public void ConeTipBaseMatchesTheBallItSitsOn(SupportSegmentType parentType,
+        float parentDiameter)
     {
         var graph = ConeTipWithParent(parentType, parentDiameter);
+        // The parent's cap is a ball of its own diameter centred on the junction, and the tip's
+        // base ring sits at that centre. It carries all but the few percent that keep its rim
+        // from standing proud of the ball; the ball itself fills the difference.
+        var expected = parentDiameter * 0.5 * 0.94;
 
-        // The first emitted contour is the tip body's section 0.001 mm above the junction.
-        // Its radius is within 0.05% of the exact parent radius; the old constant neck was 50%.
-        var sections = SupportSliceGeometry.SectionsAt(graph, 5.001);
-        AssertAreaNear(Math.PI * Math.Pow(parentDiameter * 0.5, 2), [sections[0]]);
+        var tipOnly = SupportSliceGeometry.SectionsAt(graph, 5.001,
+            segment => segment.Type == SupportSegmentType.Tip, includeNode: null);
+
+        AssertAreaNear(Math.PI * expected * expected, tipOnly);
+        // Nothing of the tip may reach the ball's tessellated surface, whose facets lie a
+        // cosine inside the analytic one.
+        var parentRadius = parentDiameter * 0.5;
+        var clearance = parentRadius * Math.Cos(Math.PI / SupportRenderMesh.RadialSegments);
+        Assert.True(AreaMm2(tipOnly) < Math.PI * clearance * clearance,
+            "the tip's base ring stands proud of the ball it sits on");
     }
 
     [Fact]

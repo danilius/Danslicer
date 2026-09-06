@@ -15,6 +15,23 @@ public static class TipBodyGeometry
 {
     private const float Epsilon = 1e-6f;
 
+    /// <summary>
+    /// How much of the junction radius the tip's base ring actually carries. The tip grows out of
+    /// a ball of the parent's diameter centred on the junction, and a base ring of exactly that
+    /// radius has its rim *on* the ball — and so outside the tessellated one, where it shows
+    /// through as a disc standing proud of the parent. A few percent in clears the facets of both
+    /// the ball's rings and its stacks; the ball itself fills the difference, in the print and on
+    /// screen alike.
+    /// </summary>
+    private const float JunctionInset = 0.94f;
+
+    /// <summary>
+    /// Length of the run over which the base ring is drawn in, as a fraction of the junction
+    /// radius. Kept short so the whole of it is buried in the ball and the member keeps its
+    /// configured profile everywhere the eye and the resin can reach it.
+    /// </summary>
+    private const float JunctionInsetRun = 0.25f;
+
     public static IReadOnlyList<Vector3> Centerline(Vector3 contact, Vector3 surfaceNormal,
         Vector3 junction, float requestedLeadIn)
     {
@@ -50,16 +67,25 @@ public static class TipBodyGeometry
         if (coneLength <= 0) return [];
 
         var contactRadius = MathF.Max(tip.TipDiameter * 0.5f, 0f);
+        var neck = MathF.Max(neckRadius, 0f);
+        var junction = MathF.Max(junctionRadius, 0f);
+        var insetRun = MathF.Min(junction * JunctionInsetRun, totalLength * 0.5f);
+        var insetStart = totalLength - insetRun;
+
+        // Ascending, so a bend crossed by both splits keeps its knots in order along the path.
+        var splits = new List<float>(2);
+        if (coneLength < insetStart - Epsilon) splits.Add(coneLength);
+        if (insetRun > Epsilon) splits.Add(insetStart);
+
         var knots = new List<(Vector3 Point, float Distance)> { (points[0], 0f) };
         for (var i = 1; i < points.Count; i++)
         {
             var startDistance = distances[i - 1];
             var endDistance = distances[i];
-            if (coneLength > startDistance + Epsilon && coneLength < endDistance - Epsilon)
-            {
-                var t = (coneLength - startDistance) / (endDistance - startDistance);
-                knots.Add((Vector3.Lerp(points[i - 1], points[i], t), coneLength));
-            }
+            foreach (var split in splits)
+                if (split > startDistance + Epsilon && split < endDistance - Epsilon)
+                    knots.Add((Vector3.Lerp(points[i - 1], points[i],
+                        (split - startDistance) / (endDistance - startDistance)), split));
             knots.Add((points[i], endDistance));
         }
 
@@ -84,14 +110,21 @@ public static class TipBodyGeometry
         }
         return sections;
 
-        float RadiusAt(float distance)
+        // The configured taper: contact to neck over the cone, then on to the junction.
+        float BaseRadiusAt(float distance)
         {
             if (coneLength >= totalLength - Epsilon)
-                return Lerp(contactRadius, junctionRadius, distance / totalLength);
+                return Lerp(contactRadius, junction, distance / totalLength);
             if (distance <= coneLength)
-                return Lerp(contactRadius, MathF.Max(neckRadius, 0f), distance / coneLength);
-            return Lerp(MathF.Max(neckRadius, 0f), MathF.Max(junctionRadius, 0f),
-                (distance - coneLength) / (totalLength - coneLength));
+                return Lerp(contactRadius, neck, distance / coneLength);
+            return Lerp(neck, junction, (distance - coneLength) / (totalLength - coneLength));
+        }
+
+        float RadiusAt(float distance)
+        {
+            if (insetRun <= Epsilon || distance <= insetStart) return BaseRadiusAt(distance);
+            return Lerp(BaseRadiusAt(insetStart), junction * JunctionInset,
+                (distance - insetStart) / insetRun);
         }
     }
 
