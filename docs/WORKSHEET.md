@@ -79,6 +79,9 @@ started; they are the user's own words turned into work items.
 |---|------|-------|
 | B1 | Supports in Layout take the model's colour | Selected and unselected, per model — supports are part of the model there, so they should not keep their own support palette. Follows from a model and its supports being one object in Layout. |
 | B2 | Model/support collision checker (Layout) | A *checking tool*, on demand: warns that models intersect each other, and that one model's supports intersect another model. Supports intersecting supports after moving models is an ADVISORY, not a blocker. Nothing is prevented — the user may do as they like; the tool only reports. |
+| B4 | Support generation progress bar is not smooth | It jumps to about half, then to done. The two phases (compute, then commit in batches) are weighted 0.8/0.2 and the compute phase reports too coarsely. |
+| B5 | Toolbar pop-outs should be mutually exclusive | Clicking a toolbar button while another pop-out is open should close that one first. |
+| B6 | A viewport click in Support mode must not change the object selection | Clicking a support currently deselects the active model. Only the Objects pop-out selects or deselects models. |
 | B3 | Replace the Layout right-hand panel with a placement pop-out | The right-hand window goes. A toolbar pop-out gives precise placement instead: edit boxes for X/Y/Z position, rotation and scale, with a **uniform** checkbox for scaling. |
 
 ## Dormant

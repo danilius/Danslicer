@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Geometry;
 
 namespace Danslicer.Core.Supports;
@@ -23,6 +23,14 @@ public static class SupportRegionOverlay
 
     /// <summary>Translucent enough to read the surface through, solid enough to see at a glance.</summary>
     public const float Opacity = 0.38f;
+
+    /// <summary>
+    /// The patch under the cursor, before it is committed: a pale wash rather than a third hue,
+    /// so it reads as "this is what you are about to take" over either painted colour instead of
+    /// competing with them.
+    /// </summary>
+    public static readonly Vector3 HoverColor = new(0.95f, 0.97f, 1f);
+    public const float HoverOpacity = 0.30f;
 
     /// <summary>
     /// World-space mesh of the given faces of <paramref name="mesh"/>, or null when the set is

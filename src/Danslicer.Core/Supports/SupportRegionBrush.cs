@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Geometry;
 
 namespace Danslicer.Core.Supports;
@@ -8,6 +8,9 @@ namespace Danslicer.Core.Supports;
 /// radius r, centred on a point of the surface, covers. Pure geometry, like
 /// <see cref="SupportRegionSelection"/> — a stroke is just a sequence of dabs unioned together,
 /// which is what lets the caller commit a whole stroke as one undo step.
+///
+/// <para>Adjacency comes from <see cref="SupportRegionSelection"/>'s per-mesh cache, so a drag
+/// does not rebuild it on every dab.</para>
 ///
 /// <para><b>Distance is straight-line, but spread is across the surface.</b> A face joins the dab
 /// only if it is edge-connected to the face under the cursor AND its nearest point is within the
@@ -34,7 +37,7 @@ public static class SupportRegionBrush
         var result = new SortedSet<int>();
         if ((uint)seedFace >= (uint)mesh.TriangleCount) return result;
 
-        var adjacency = FaceAdjacency(mesh);
+        var adjacency = SupportRegionSelection.FaceAdjacencyOf(mesh);
         var radiusSquared = MathF.Max(radiusMm, 0f) * MathF.Max(radiusMm, 0f);
         var stack = new Stack<int>();
         result.Add(seedFace);
@@ -54,43 +57,6 @@ public static class SupportRegionBrush
             }
         }
         return result;
-    }
-
-    /// <summary>
-    /// Faces sharing an edge. Duplicated from <see cref="SupportRegionSelection"/> deliberately
-    /// rather than shared: this one runs per dab during a drag, so it is the piece to cache if
-    /// brushing ever becomes slow, and it should be free to change without disturbing the
-    /// selection operations.
-    /// </summary>
-    private static List<int>[] FaceAdjacency(Mesh mesh)
-    {
-        var edges = new Dictionary<(int A, int B), List<int>>();
-        for (var face = 0; face < mesh.TriangleCount; face++)
-        {
-            int a = mesh.Indices[face * 3], b = mesh.Indices[face * 3 + 1], c = mesh.Indices[face * 3 + 2];
-            Add(a, b, face);
-            Add(b, c, face);
-            Add(c, a, face);
-        }
-
-        var adjacency = new List<int>[mesh.TriangleCount];
-        for (var face = 0; face < adjacency.Length; face++) adjacency[face] = [];
-        foreach (var (_, faces) in edges)
-        {
-            for (var i = 0; i < faces.Count; i++)
-                for (var j = 0; j < faces.Count; j++)
-                    if (i != j && !adjacency[faces[i]].Contains(faces[j]))
-                        adjacency[faces[i]].Add(faces[j]);
-        }
-        foreach (var list in adjacency) list.Sort();
-        return adjacency;
-
-        void Add(int u, int v, int face)
-        {
-            var key = u < v ? (u, v) : (v, u);
-            if (!edges.TryGetValue(key, out var list)) edges[key] = list = [];
-            list.Add(face);
-        }
     }
 }
 

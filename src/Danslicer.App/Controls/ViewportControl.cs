@@ -58,6 +58,12 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> RegionBrushModeProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(RegionBrushMode));
 
+    public static readonly StyledProperty<IReadOnlySet<int>?> RegionHoverFacesProperty =
+        AvaloniaProperty.Register<ViewportControl, IReadOnlySet<int>?>(nameof(RegionHoverFaces));
+
+    public static readonly StyledProperty<SceneObject?> RegionHoverObjectProperty =
+        AvaloniaProperty.Register<ViewportControl, SceneObject?>(nameof(RegionHoverObject));
+
     public static readonly StyledProperty<bool> SelectThroughSupportsProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(SelectThroughSupports));
 
@@ -183,6 +189,23 @@ public sealed class ViewportControl : OpenGlControlBase
     /// </summary>
     public bool RegionBrushMode { get => GetValue(RegionBrushModeProperty); set => SetValue(RegionBrushModeProperty, value); }
 
+    /// <summary>The faces a region click would paint, highlighted under the cursor.</summary>
+    public IReadOnlySet<int>? RegionHoverFaces
+    {
+        get => GetValue(RegionHoverFacesProperty);
+        set => SetValue(RegionHoverFacesProperty, value);
+    }
+
+    /// <summary>The object those faces belong to.</summary>
+    public SceneObject? RegionHoverObject
+    {
+        get => GetValue(RegionHoverObjectProperty);
+        set => SetValue(RegionHoverObjectProperty, value);
+    }
+
+    /// <summary>The face under the cursor while region painting is armed; -1 for none.</summary>
+    public event Action<SceneObject?, int>? RegionFaceHovered;
+
     /// <summary>A brush stroke began on this object; the flag is true for an erasing stroke.</summary>
     public event Action<SceneObject, bool>? RegionStrokeStarted;
 
@@ -244,6 +267,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 _subscribed.SupportSelectionChanged -= Redraw;
                 _subscribed.SupportSelectionChanged -= MarkSelectionMeshDirty;
                 _subscribed.Supports.Changed -= MarkSupportMeshesDirty;
+                _subscribed.Changed -= MarkSupportMeshesDirty;
                 _subscribed.Changed -= MarkRegionOverlayDirty;
             }
             _subscribed = Document;
@@ -260,6 +284,10 @@ public sealed class ViewportControl : OpenGlControlBase
                 // the app for seconds after a marquee selection on a generated forest).
                 _subscribed.SupportSelectionChanged += MarkSelectionMeshDirty;
                 _subscribed.Supports.Changed += MarkSupportMeshesDirty;
+                // Hiding a model hides its supports, and that is an object change, not a graph
+                // change — without this the supports stayed on screen until something else
+                // happened to rebuild them (a mode switch, typically).
+                _subscribed.Changed += MarkSupportMeshesDirty;
                 // A region is object state, so it changes on paint, undo, project load and any
                 // object move — all of which raise Document.Changed.
                 _subscribed.Changed += MarkRegionOverlayDirty;
@@ -284,6 +312,11 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             ApplySnap();
             UpdateStatus();
+        }
+        else if (change.Property == RegionHoverFacesProperty ||
+                 change.Property == RegionHoverObjectProperty)
+        {
+            MarkRegionOverlayDirty();
         }
         else if (change.Property == SupportSelectionModeProperty)
         {
@@ -853,6 +886,11 @@ public sealed class ViewportControl : OpenGlControlBase
                 triangle >= 0) RegionStrokeDab?.Invoke(point, triangle);
             Redraw();
         }
+        else if (SupportSelectionMode && RegionPickMode && !RegionBrushMode)
+        {
+            var hit = PickFace(MouseVector(e), out var hoverTriangle);
+            RegionFaceHovered?.Invoke(hit, hit is null ? -1 : hoverTriangle);
+        }
         else if (_orbiting)
         {
             Camera.Orbit(dx, dy);
@@ -1184,7 +1222,9 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         cameraDistance = float.PositiveInfinity;
         var supports = Document?.Supports;
-        if (supports is null || supports.NodeCount == 0) return null;
+        if (Document is null || supports is null || supports.NodeCount == 0) return null;
+        // What is not drawn is not pickable: a hidden model's supports are neither.
+        var hiddenOwners = SupportOwnerVisibility.HiddenObjectIds(Document.Scene.Objects);
         var w = (float)Bounds.Width;
         var h = (float)Bounds.Height;
         var eye = Camera.Eye;
@@ -1195,6 +1235,7 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip ||
                 !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
+            if (SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners)) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
             var d = Vector2.Distance(mouse, p);
             if (d > SupportPickRadiusPixels || d >= bestScore) continue;
@@ -1208,6 +1249,7 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (segment.Hidden || !SupportDisplayPolicy.IsSegmentDisplayed(
                     supports, segment, SupportDisplay, ClipRange)) continue;
+            if (SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenOwners)) continue;
             var a = supports.GetNode(segment.NodeA);
             var b = supports.GetNode(segment.NodeB);
             if (a.Hidden || b.Hidden) continue;
@@ -1235,6 +1277,7 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Base ||
                 !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
+            if (SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners)) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
             var d = Vector2.Distance(mouse, p);
             float? score = d <= SupportPickRadiusPixels ? d / SupportPickRadiusPixels : null;
@@ -1320,6 +1363,18 @@ public sealed class ViewportControl : OpenGlControlBase
                          obj.Mesh, obj.Transform.ToMatrix(), obj.Regions))
                 _regionOverlays.Add(new AuxMeshDraw(mesh, color,
                     Danslicer.Core.Supports.SupportRegionOverlay.Opacity, DepthOverlay: true));
+        }
+
+        // The patch under the cursor, drawn last so it reads over whatever is already painted:
+        // this is what a click would take.
+        if (RegionHoverObject is { } hovered && hovered.RenderState != RenderState.Hidden &&
+            RegionHoverFaces is { Count: > 0 } faces &&
+            Danslicer.Core.Supports.SupportRegionOverlay.Build(
+                hovered.Mesh, hovered.Transform.ToMatrix(), faces) is { } preview)
+        {
+            _regionOverlays.Add(new AuxMeshDraw(preview,
+                Danslicer.Core.Supports.SupportRegionOverlay.HoverColor,
+                Danslicer.Core.Supports.SupportRegionOverlay.HoverOpacity, DepthOverlay: true));
         }
     }
 
@@ -1417,12 +1472,16 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         var supports = Document?.Supports;
         if (Document is null || supports is null) return;
+        // Lines and contact markers are drawn here rather than as meshes, so they need the same
+        // ownership filter: a hidden model must not leave its tip markers floating in the air.
+        var hiddenOwners = SupportOwnerVisibility.HiddenObjectIds(Document.Scene.Objects);
         if (SupportDisplayPolicy.ShowsLines(SupportDisplay))
         {
             foreach (var segment in supports.Segments)
             {
                 if (segment.Hidden || !SupportDisplayPolicy.IsSegmentDisplayed(
                         supports, segment, SupportDisplay, ClipRange)) continue;
+                if (SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenOwners)) continue;
                 var a = supports.GetNode(segment.NodeA);
                 var b = supports.GetNode(segment.NodeB);
                 if (a.Hidden || b.Hidden) continue;
@@ -1447,6 +1506,7 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (node.Hidden || node.Type != SupportNodeType.Tip ||
                 !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
+            if (SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners)) continue;
             var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipMarkerColor;
             var p = node.Position;
             if (SupportDisplay.Mode is SupportDisplayMode.ContactPoints or

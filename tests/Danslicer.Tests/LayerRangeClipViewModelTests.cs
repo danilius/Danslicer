@@ -103,15 +103,17 @@ public sealed class LayerRangeClipViewModelTests
     }
 
     [Fact]
-    public void GeometryBelowThePlateReadsAsZeroOrNegativeLayers()
+    public void TheRangeStartsAtThePlateEvenWhenGeometryHangsBelowIt()
     {
-        // A model dragged under the plate is the user's business; the panel says so plainly
-        // rather than pretending the range starts at layer 1.
+        // Rotating a model can push part of it under the plate. That is the build volume's
+        // complaint to make; a clip handle numbered in negative layers is just a broken ruler,
+        // so the range starts at layer zero whatever the bounding box says.
         var model = new LayerRangeClipViewModel { LayerHeightMm = 0.05 };
         model.RefreshBounds(new Aabb(new Vector3(0, 0, -21.118f), new Vector3(1, 1, 92.107f)), 100,
             reset: true);
 
-        Assert.Equal(-422, model.LowerLayer); // -21.118 / 0.05, rounded toward the plate
+        Assert.Equal(0, model.LowerLayer);
+        Assert.Equal(0, model.MinimumZ);
         Assert.Equal(1843, model.UpperLayer);
     }
 
