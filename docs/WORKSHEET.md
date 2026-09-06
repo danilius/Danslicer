@@ -1,4 +1,4 @@
-# Outstanding work worksheet — 2026-09-04 (rev 4, after the ten-job merge)
+﻿# Outstanding work worksheet — 2026-09-04 (rev 4, after the ten-job merge)
 
 User's working goal: **push auto + manual supports on drogon-lo until it is
 well-supported** — support-quality jobs lead the queue. D1–D7 decisions are all in (rev 2).
@@ -69,6 +69,17 @@ fine-feature pass → 777/627 after 023f → 723/576 after 024 → **702/549** a
 | Internal void supports (sealed cavities) | last, simple struts only (D10) |
 | D5 island-search tweaks | brief when wanted — 024 has landed |
 | W9 recipes/regions (support painting) | **PROMOTED by D9 and D12** — the main remaining direction. Needs a design pass with the user before it can be briefed |
+
+## Backlog from screen testing 2026-09-06
+
+Recorded from the user's testing of the layout-and-support-ux batch. None of these are
+started; they are the user's own words turned into work items.
+
+| # | Item | Notes |
+|---|------|-------|
+| B1 | Supports in Layout take the model's colour | Selected and unselected, per model — supports are part of the model there, so they should not keep their own support palette. Follows from a model and its supports being one object in Layout. |
+| B2 | Model/support collision checker (Layout) | A *checking tool*, on demand: warns that models intersect each other, and that one model's supports intersect another model. Supports intersecting supports after moving models is an ADVISORY, not a blocker. Nothing is prevented — the user may do as they like; the tool only reports. |
+| B3 | Replace the Layout right-hand panel with a placement pop-out | The right-hand window goes. A toolbar pop-out gives precise placement instead: edit boxes for X/Y/Z position, rotation and scale, with a **uniform** checkbox for scaling. |
 
 ## Dormant
 
