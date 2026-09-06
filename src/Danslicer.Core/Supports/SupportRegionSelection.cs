@@ -74,19 +74,37 @@ public static class SupportRegionSelection
     /// generation then places tips on, which is the one thing this operation must not do. It
     /// calls <see cref="TipPlacementParameters.IsOverhang"/> rather than re-deriving it.</para>
     /// </summary>
-    public static IReadOnlySet<int> FacingDown(Mesh mesh, float overhangDegrees,
+    public static IReadOnlySet<int> FacingDown(Mesh mesh, Matrix4x4 transform, float overhangDegrees,
         IReadOnlySet<int>? limitTo = null)
     {
         ArgumentNullException.ThrowIfNull(mesh);
+        // WORLD normals, not the mesh's own. "Facing down" is a question about gravity, and the
+        // object's rotation is what decides which of its faces point at the plate — a rotated
+        // model whose local normals were tested instead selects whatever happened to face down
+        // before it was turned, which on a plate-shaped part means its edges.
+        //
+        // Generation asks the same question of a world-space mesh (Document.ComputeSupportGeneration
+        // transforms first), so testing in world space is also what keeps painting and generation
+        // agreeing about which faces are overhangs.
+        var normalTransform = Matrix4x4.Invert(transform, out var inverse)
+            ? Matrix4x4.Transpose(inverse)
+            : Matrix4x4.Identity;
         var parameters = TipPlacementParameters.Default with { OverhangAngleDegrees = overhangDegrees };
         var result = new HashSet<int>();
         for (var face = 0; face < mesh.TriangleCount; face++)
         {
             if (limitTo is not null && !limitTo.Contains(face)) continue;
-            if (parameters.IsOverhang(mesh.FaceNormals[face])) result.Add(face);
+            var normal = Vector3.TransformNormal(mesh.FaceNormals[face], normalTransform);
+            if (normal.LengthSquared() > 1e-12f) normal = Vector3.Normalize(normal);
+            if (parameters.IsOverhang(normal)) result.Add(face);
         }
         return Sorted(result);
     }
+
+    /// <summary>Identity-transform overload: the mesh is already in world space.</summary>
+    public static IReadOnlySet<int> FacingDown(Mesh mesh, float overhangDegrees,
+        IReadOnlySet<int>? limitTo = null) =>
+        FacingDown(mesh, Matrix4x4.Identity, overhangDegrees, limitTo);
 
     /// <summary>Every face of the mesh that is not in <paramref name="faces"/>.</summary>
     public static IReadOnlySet<int> Invert(Mesh mesh, IReadOnlySet<int> faces)

@@ -829,14 +829,24 @@ public sealed class Document
         return prepared.Summary;
     }
 
+    /// <summary>
+    /// Selects every visible support element of the support target — the model being worked on —
+    /// or of the whole scene when there is no target. Select-all in Support mode means "all of
+    /// this model's supports": on a crowded plate, selecting another model's supports as well is
+    /// how a delete goes wrong.
+    /// </summary>
     public void SelectAllSupportElements()
     {
         _supportSelection.Clear();
+        var target = SupportTarget?.Id;
         foreach (var node in Supports.Nodes)
-            if (!node.Hidden) _supportSelection.Add(node.Id);
+            if (!node.Hidden && (target is null || node.Origin.ObjectId == target))
+                _supportSelection.Add(node.Id);
         foreach (var segment in Supports.Segments)
             if (!segment.Hidden && !Supports.GetNode(segment.NodeA).Hidden &&
-                !Supports.GetNode(segment.NodeB).Hidden) _supportSelection.Add(segment.Id);
+                !Supports.GetNode(segment.NodeB).Hidden &&
+                (target is null || Supports.OwningObjectId(segment.Id) == target))
+                _supportSelection.Add(segment.Id);
         SupportSelectionChanged?.Invoke();
     }
 

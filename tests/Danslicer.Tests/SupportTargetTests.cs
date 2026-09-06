@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Numerics;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
@@ -155,6 +155,48 @@ public class SupportTargetTests
         Assert.True(ViewportToolbarPolicy.CanSelectObjects(WorkspaceMode.Layout));
         Assert.True(ViewportToolbarPolicy.CanSelectObjects(WorkspaceMode.Support));
         Assert.False(ViewportToolbarPolicy.CanSelectObjects(WorkspaceMode.Slicing));
+    }
+
+    [Fact]
+    public void SelectAllTakesTheTargetsSupportsAndNotTheOtherModels()
+    {
+        // On a crowded plate, select-all reaching another model's supports is how a delete goes
+        // wrong. Select-all in Support mode means "all of THIS model's supports".
+        var doc = new Document();
+        var a = new SceneObject("a", Box(new(-5, -5, 5), new(5, 5, 15)));
+        var b = new SceneObject("b", Box(new(20, -5, 5), new(30, 5, 15)));
+        doc.AddObject(a);
+        doc.AddObject(b);
+        doc.GenerateSupports(a);
+        doc.GenerateSupports(b);
+        doc.Select(a);
+
+        doc.SelectAllSupportElements();
+
+        Assert.NotEmpty(doc.SupportSelection);
+        Assert.All(doc.SupportSelection,
+            id => Assert.Equal(a.Id, doc.Supports.OwningObjectId(id)));
+    }
+
+    [Fact]
+    public void WithNoTargetSelectAllStillTakesEverything()
+    {
+        var doc = new Document();
+        var a = new SceneObject("a", Box(new(-5, -5, 5), new(5, 5, 15)));
+        var b = new SceneObject("b", Box(new(20, -5, 5), new(30, 5, 15)));
+        doc.AddObject(a);
+        doc.AddObject(b);
+        doc.GenerateSupports(a);
+        doc.GenerateSupports(b);
+        doc.ClearSelection();
+
+        doc.SelectAllSupportElements();
+
+        var owners = doc.SupportSelection
+            .Select(id => doc.Supports.OwningObjectId(id))
+            .Distinct()
+            .ToList();
+        Assert.Equal(2, owners.Count);
     }
 
     [Fact]

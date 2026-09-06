@@ -11,7 +11,7 @@ public sealed class LayerRangeClipViewModelTests
     [Fact]
     public void TheRangeFollowsTheModelsAsTheyAreMovedInLayout()
     {
-        var viewModel = new MainViewModel { RegionBrushRadiusMm = 2 };
+        var viewModel = new MainViewModel();
         var box = new SceneObject("box", UnitBox());
         viewModel.Document.AddObject(box);
         var before = viewModel.SupportClip.MaximumZ;

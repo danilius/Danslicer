@@ -57,7 +57,8 @@ public partial class MainWindow : Window
             ViewModel?.PaintRegionFromFace(obj, triangle, erase);
         Viewport.RegionFaceHovered += (obj, triangle) => ViewModel?.HoverRegionFace(obj, triangle);
         Viewport.RegionStrokeStarted += (obj, erase) => ViewModel?.BeginStroke(obj, erase);
-        Viewport.RegionStrokeDab += (point, triangle) => ViewModel?.BrushStroke(point, triangle);
+        Viewport.RegionStrokeDab += (point, triangle, radius) =>
+            ViewModel?.BrushStroke(point, triangle, radius);
         Viewport.RegionStrokeEnded += () => ViewModel?.EndStroke();
         LayerView.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
         LayerView.LayerStepRequested += delta => ViewModel?.StepLayer(delta);
