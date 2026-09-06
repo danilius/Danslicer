@@ -26,8 +26,16 @@ public sealed class SliceResult
     public required ResinSettings ResinSettings { get; init; }
     public required IReadOnlyList<SlicedLayer> Layers { get; init; }
     public required float VolumeMl { get; init; }
-    /// <summary>224 x 168 RGB565 thumbnail for the printer's file browser.</summary>
+    /// <summary>RGB565 thumbnail for the printer's file browser, at the printer's preview size.</summary>
     public required byte[] Preview { get; init; }
+
+    /// <summary>
+    /// The size the preview was rendered at, taken from the printer. Carried on the result rather
+    /// than read from a constant by the writer, so the header can only ever describe the pixels
+    /// actually embedded beside it.
+    /// </summary>
+    public int PreviewWidth { get; init; } = PrinterDefinition.DefaultPreviewWidth;
+    public int PreviewHeight { get; init; } = PrinterDefinition.DefaultPreviewHeight;
     public required float MinX { get; init; }
     public required float MinY { get; init; }
     public required float MaxX { get; init; }
@@ -50,21 +58,19 @@ public static class Slicer
     /// drawn, so any failure here degrades to a blank preview rather than aborting the slice.
     /// </summary>
     private static byte[] RenderPreviewSafely(
-        IReadOnlyList<PreviewRenderer.RenderObject> objects, Supports.SupportGraph? supports)
+        IReadOnlyList<PreviewRenderer.RenderObject> objects, Supports.SupportGraph? supports,
+        int width, int height)
     {
         try
         {
-            return PreviewRenderer.Render(objects, supports, PreviewWidth, PreviewHeight);
+            return PreviewRenderer.Render(objects, supports, width, height);
         }
         catch (Exception ex) when (ex is ArithmeticException or ArgumentException
                                    or IndexOutOfRangeException or InvalidOperationException)
         {
-            return PreviewRenderer.Blank(PreviewWidth, PreviewHeight);
+            return PreviewRenderer.Blank(width, height);
         }
     }
-
-    public const int PreviewWidth = 224;
-    public const int PreviewHeight = 168;
 
     /// <summary>
     /// Slices all visible objects into layers, plus the support graph's analytic sections when one
@@ -211,7 +217,10 @@ public static class Slicer
             ResinSettings = resinSettings,
             Layers = layers,
             VolumeMl = (float)(volumeMm3 / 1000.0),
-            Preview = RenderPreviewSafely(previewObjects, supports),
+            Preview = RenderPreviewSafely(previewObjects, supports,
+                printer.PreviewWidth, printer.PreviewHeight),
+            PreviewWidth = printer.PreviewWidth,
+            PreviewHeight = printer.PreviewHeight,
             MinX = (float)(double.IsInfinity(minX) ? 0 : minX),
             MinY = (float)(double.IsInfinity(minY) ? 0 : minY),
             MaxX = (float)(double.IsInfinity(maxX) ? 0 : maxX),

@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json.Serialization;
 
 namespace Danslicer.Core.Printers;
@@ -20,6 +20,20 @@ public sealed record PrinterDefinition(
     uint FormatVersion)
 {
     public const string PhotonMonoXId = "anycubic-photon-mono-x";
+
+    /// <summary>The Photon Workshop PREVIEW block's size, and the default for every printer.
+    /// A definition that does not say otherwise — every one written before this existed —
+    /// produces byte-identical output.</summary>
+    public const int DefaultPreviewWidth = 224;
+    public const int DefaultPreviewHeight = 168;
+
+    /// <summary>
+    /// Size of the thumbnail embedded in the print file. Not positional: adding it to the
+    /// record's parameter list would rewrite every call site and every persisted definition for
+    /// a value almost nobody sets. Other printers want other sizes; this is where that lives.
+    /// </summary>
+    public int PreviewWidth { get; init; } = DefaultPreviewWidth;
+    public int PreviewHeight { get; init; } = DefaultPreviewHeight;
 
     [JsonIgnore]
     public Vector3 BuildVolume => new(DisplayWidthMm, DisplayHeightMm, ZTravelMm);
@@ -69,6 +83,8 @@ public sealed record PrinterDefinition(
             ResolutionX = ResolutionX > 0 ? ResolutionX : fallback.ResolutionX,
             ResolutionY = ResolutionY > 0 ? ResolutionY : fallback.ResolutionY,
             FormatVersion = FormatVersion > 0 ? FormatVersion : fallback.FormatVersion,
+            PreviewWidth = PreviewWidth > 0 ? PreviewWidth : DefaultPreviewWidth,
+            PreviewHeight = PreviewHeight > 0 ? PreviewHeight : DefaultPreviewHeight,
         };
     }
 
