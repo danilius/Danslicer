@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -123,6 +123,8 @@ public sealed class ViewportControl : OpenGlControlBase
     private Guid? _pendingClickSupport;
     private int _pendingClickCount;
     private bool _selectionMeshDirty = true;
+    private bool _regionOverlayDirty = true;
+    private readonly List<AuxMeshDraw> _regionOverlays = new();
     private readonly List<AuxMeshDraw> _combinedAuxMeshes = new();
     private readonly List<AuxMeshDraw> _clipCaps = new();
     private readonly Dictionary<SceneObject, (Matrix4x4 World, MeshSlicer.PreparedMesh Mesh)>
@@ -206,6 +208,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 _subscribed.SupportSelectionChanged -= Redraw;
                 _subscribed.SupportSelectionChanged -= MarkSelectionMeshDirty;
                 _subscribed.Supports.Changed -= MarkSupportMeshesDirty;
+                _subscribed.Changed -= MarkRegionOverlayDirty;
             }
             _subscribed = Document;
             _modal = null;
@@ -221,10 +224,14 @@ public sealed class ViewportControl : OpenGlControlBase
                 // the app for seconds after a marquee selection on a generated forest).
                 _subscribed.SupportSelectionChanged += MarkSelectionMeshDirty;
                 _subscribed.Supports.Changed += MarkSupportMeshesDirty;
+                // A region is object state, so it changes on paint, undo, project load and any
+                // object move — all of which raise Document.Changed.
+                _subscribed.Changed += MarkRegionOverlayDirty;
                 _modal = new ModalTransform(_subscribed, Camera);
             }
             _supportMeshesDirty = true;
             _selectionMeshDirty = true;
+            _regionOverlayDirty = true;
             _preparedClipMeshes.Clear();
             MarkClipCapsDirty();
             Redraw();
@@ -472,6 +479,7 @@ public sealed class ViewportControl : OpenGlControlBase
         _depthOverlay.Clear();
         if (_supportMeshesDirty) RebuildSupportMeshes();
         if (_selectionMeshDirty) RebuildSelectionMesh();
+        if (_regionOverlayDirty) RebuildRegionOverlays();
         if (_clipCapsDirty && !ClipDragging) RebuildClipCaps();
         _combinedAuxMeshes.Clear();
         IEnumerable<SupportMeshBatch> supportBatches = SupportDisplay.Mode == SupportDisplayMode.Transparent
@@ -479,6 +487,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 Vector3.DistanceSquared(Camera.Eye, batch.SortOrigin))
             : _supportMeshes;
         foreach (var batch in supportBatches) _combinedAuxMeshes.Add(batch.Draw);
+        _combinedAuxMeshes.AddRange(_regionOverlays);
         _combinedAuxMeshes.AddRange(_clipCaps);
         if (_islandMarkerMesh is { } markers)
             _combinedAuxMeshes.Add(new AuxMeshDraw(markers, new Vector3(1f, 0.03f, 0.03f), 1f));
@@ -1182,6 +1191,32 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         _selectionMeshDirty = true;
         Redraw();
+    }
+
+    private void MarkRegionOverlayDirty()
+    {
+        _regionOverlayDirty = true;
+        Redraw();
+    }
+
+    /// <summary>
+    /// Rebuilds the painted-region overlay for every visible object (DESIGN 8.3). Drawn as
+    /// depth-overlay aux meshes, so the tint sits exactly on the surface it belongs to instead of
+    /// z-fighting with it, and so both render paths get it from the same geometry.
+    /// </summary>
+    private void RebuildRegionOverlays()
+    {
+        _regionOverlayDirty = false;
+        _regionOverlays.Clear();
+        if (Document is not { } document) return;
+        foreach (var obj in document.Scene.Objects)
+        {
+            if (obj.RenderState == RenderState.Hidden || obj.Regions.IsEmpty) continue;
+            foreach (var (mesh, color) in Danslicer.Core.Supports.SupportRegionOverlay.Build(
+                         obj.Mesh, obj.Transform.ToMatrix(), obj.Regions))
+                _regionOverlays.Add(new AuxMeshDraw(mesh, color,
+                    Danslicer.Core.Supports.SupportRegionOverlay.Opacity, DepthOverlay: true));
+        }
     }
 
     /// <summary>Re-tessellates only the selected elements as a white highlight overlay.</summary>

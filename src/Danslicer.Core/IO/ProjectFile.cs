@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -312,6 +312,15 @@ public static class ProjectFile
         public Vector3Dto Scale { get; set; } = new() { X = 1, Y = 1, Z = 1 };
         public RenderState RenderState { get; set; }
 
+        /// <summary>Painted support region, face indices into this object's mesh (DESIGN 8.3).
+        /// Omitted when empty, so a project saved before regions existed loads as "every face"
+        /// and generates exactly as it always did.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<int>? RegionFaces { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<int>? KeepCleanFaces { get; set; }
+
         public static ObjectDto From(SceneObject obj, string mesh) => new()
         {
             Id = obj.Id,
@@ -321,12 +330,18 @@ public static class ProjectFile
             Rotation = QuaternionDto.From(obj.Transform.Rotation),
             Scale = Vector3Dto.From(obj.Transform.Scale),
             RenderState = obj.RenderState,
+            // Sorted so a saved project is stable byte-for-byte: a HashSet's order is not.
+            RegionFaces = obj.Regions.Faces.Count == 0 ? null : [.. obj.Regions.Faces.Order()],
+            KeepCleanFaces = obj.Regions.KeepCleanFaces.Count == 0
+                ? null
+                : [.. obj.Regions.KeepCleanFaces.Order()],
         };
 
         public SceneObject ToObject(Mesh mesh) => new(Name, mesh, Id)
         {
             Transform = new Transform(Translation.ToVector3(), Rotation.ToQuaternion(), Scale.ToVector3()),
             RenderState = RenderState,
+            Regions = ObjectSupportRegions.From(RegionFaces, KeepCleanFaces),
         };
     }
 
