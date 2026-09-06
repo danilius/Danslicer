@@ -488,6 +488,52 @@ public sealed class SupportLifecycleTests
         Assert.Same(display, SupportDisplayPolicy.ForWorkspace(display, isLayoutView: false));
     }
 
+    /// <summary>
+    /// User request 2026-09-06: individually hidden supports (Support mode's H) show in Layout
+    /// too. The graph's Hidden flags are not touched — Layout just draws through them — so
+    /// coming back to Support mode restores exactly what was hidden.
+    /// </summary>
+    [Fact]
+    public void IndividuallyHiddenElementsAreDrawnInLayoutButNotInSupportMode()
+    {
+        var graph = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new Vector3(0f, 0f, 5f), Hidden = true,
+        };
+        var plate = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            BaseShape = SupportBaseShape.Disc, Hidden = true,
+        };
+        graph.AddNode(tip);
+        graph.AddNode(plate);
+        var trunk = new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = plate.Id, NodeB = tip.Id, Hidden = true,
+        };
+        graph.AddSegment(trunk);
+
+        var config = new SupportDisplayConfig();
+        var inSupport = SupportDisplayPolicy.ForWorkspace(config, isLayoutView: false);
+        var inLayout = SupportDisplayPolicy.ForWorkspace(config, isLayoutView: true);
+
+        Assert.False(SupportDisplayPolicy.IsElementDisplayed(graph, trunk.Id, inSupport));
+        Assert.False(SupportDisplayPolicy.IsElementDisplayed(graph, tip.Id, inSupport));
+        Assert.True(SupportDisplayPolicy.IsElementDisplayed(graph, trunk.Id, inLayout));
+        Assert.True(SupportDisplayPolicy.IsElementDisplayed(graph, tip.Id, inLayout));
+        Assert.Empty(SupportDisplayPolicy.DisplayedElementIds(graph, inSupport));
+        Assert.Equal(3, SupportDisplayPolicy.DisplayedElementIds(graph, inLayout).Count());
+
+        // And the geometry actually reaches the viewport, not just the policy.
+        Assert.Empty(SupportRenderMesh.Build(graph));
+        Assert.NotEmpty(SupportRenderMesh.Build(graph, includeHidden: true));
+
+        // The flags themselves are untouched, so Support mode hides them again.
+        Assert.True(tip.Hidden);
+        Assert.True(trunk.Hidden);
+    }
+
     [Fact]
     public void LayoutLeavesSettingsThatOnlyMeanAnythingInSupportModeAlone()
     {

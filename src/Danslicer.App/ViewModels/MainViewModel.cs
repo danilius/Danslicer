@@ -316,7 +316,8 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Recomputes the highlight: after a move, or after the angle that shapes it changed.</summary>
     private void RefreshRegionHover()
     {
-        if (!RegionPickMode || RegionBrushMode || _hoverObject is not { } obj || _hoverTriangle < 0)
+        if (!RegionPickMode || RegionBrushMode || _hoverObject is not { } obj || _hoverTriangle < 0 ||
+            !SupportTargetPolicy.CanSupport(Document.SupportTarget, obj))
         {
             RegionHover = null;
             return;
@@ -328,11 +329,28 @@ public partial class MainViewModel : ViewModelBase
     partial void OnRegionPickModeChanged(bool value) => RefreshRegionHover();
     partial void OnRegionBrushModeChanged(bool value) => RefreshRegionHover();
 
+    /// <summary>
+    /// Selects <paramref name="obj"/> for painting, or refuses it. Support mode works on one
+    /// model (<see cref="SupportTargetPolicy"/>), and painting is no exception: with a target
+    /// already chosen, a stroke that strays onto a neighbour must not paint it and must not take
+    /// the target away by selecting it. With no target chosen, this is the click that picks one.
+    /// </summary>
+    private bool TakePaintTarget(SceneObject obj)
+    {
+        if (SupportTargetPolicy.RefusalMessage(Document.SupportTarget, obj) is { } refusal)
+        {
+            ViewportStatus = refusal;
+            return false;
+        }
+        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        return true;
+    }
+
     /// <summary>Click-to-grow: the picked face plus everything reachable across edges that turn
     /// by no more than <see cref="RegionDihedralDegrees"/>. Shift-click erases the same patch.</summary>
     public void PaintRegionFromFace(SceneObject obj, int triangle, bool erase)
     {
-        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        if (!TakePaintTarget(obj)) return;
         var patch = SupportRegionSelection.GrowByDihedral(obj.Mesh, [triangle], (float)RegionDihedralDegrees);
         EditRegion((_, current) =>
         {
@@ -367,7 +385,7 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public void BeginStroke(SceneObject obj, bool erase)
     {
-        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        if (!TakePaintTarget(obj)) return;
         _strokeObject = obj;
         _stroke = new SupportRegionStroke(obj.Regions, EditingKeepCleanRegion, erase);
     }

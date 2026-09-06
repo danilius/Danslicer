@@ -304,13 +304,37 @@ public class SupportRegionSelectionTests
         Assert.Empty(box.Regions.Faces);
     }
 
+    /// <summary>
+    /// User request 2026-09-06: painting must not select a different model. Support mode works on
+    /// one model, and a stroke straying onto a neighbour previously painted it AND took the
+    /// support target with it — losing the region the user was in the middle of painting.
+    /// </summary>
     [Fact]
-    public void PaintingRetargetsTheSupportTargetToTheClickedModel()
+    public void PaintingAnotherModelIsRefusedWhileASupportTargetIsChosen()
     {
         var (viewModel, box) = SupportedScene();
         var other = new SceneObject("other", Box(new Vector3(10, 0, 0), new Vector3(11, 1, 1)));
         viewModel.Document.AddObject(other);
         viewModel.SelectedObject = box;
+
+        viewModel.PaintRegionFromFace(other, triangle: 0, erase: false);
+        viewModel.BeginStroke(other, erase: false);
+        viewModel.BrushStroke(new Vector3(10.5f, 0.5f, 0f), triangle: 0, worldRadius: 5f);
+        viewModel.EndStroke();
+
+        Assert.Same(box, viewModel.SelectedObject);
+        Assert.Empty(other.Regions.Faces);
+        Assert.Empty(box.Regions.Faces);
+        Assert.Contains("not the support target", viewModel.ViewportStatus);
+    }
+
+    [Fact]
+    public void WithNoSupportTargetChosenPaintingPicksTheModelItIsGiven()
+    {
+        var (viewModel, box) = SupportedScene();
+        var other = new SceneObject("other", Box(new Vector3(10, 0, 0), new Vector3(11, 1, 1)));
+        viewModel.Document.AddObject(other);
+        viewModel.SelectedObject = null;
 
         viewModel.PaintRegionFromFace(other, triangle: 0, erase: false);
 

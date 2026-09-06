@@ -27,6 +27,7 @@ public static class SupportDisplayPolicy
             : display with
             {
                 Mode = SupportDisplayMode.Full,
+                ShowHiddenElements = true,
                 ShowTips = true,
                 ShowMiniSupports = true,
                 ShowBranches = true,
@@ -34,6 +35,13 @@ public static class SupportDisplayPolicy
                 ShowBases = true,
                 ShowBracing = true,
             };
+
+    /// <summary>
+    /// Whether an element's own Hidden flag currently hides it. Layout answers no to everything
+    /// (see <see cref="ForWorkspace"/>); Support mode answers with the flag itself.
+    /// </summary>
+    public static bool IsHiddenBy(bool hidden, SupportDisplayConfig display) =>
+        hidden && !display.ShowHiddenElements;
 
     public static bool ShowsMeshes(SupportDisplayConfig display) =>
         display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Tips or
@@ -76,8 +84,10 @@ public static class SupportDisplayPolicy
             SupportNodeType.Base => display.ShowBases &&
                 (display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent),
             SupportNodeType.Junction => graph.SegmentsAt(node.Id)
-                .Any(segment => !segment.Hidden && IsSegmentDisplayed(segment.Type, display) &&
-                    !graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA).Hidden),
+                .Any(segment => !IsHiddenBy(segment.Hidden, display) &&
+                    IsSegmentDisplayed(segment.Type, display) &&
+                    !IsHiddenBy(graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA)
+                        .Hidden, display)),
             _ => false,
         };
 
@@ -103,10 +113,11 @@ public static class SupportDisplayPolicy
         SupportDisplayConfig display, ViewportClipRange clip = default)
     {
         if (graph.TryGetNode(id, out var node))
-            return !node.Hidden && IsNodeDisplayed(graph, node, display, clip);
-        if (!graph.TryGetSegment(id, out var segment) || segment.Hidden ||
+            return !IsHiddenBy(node.Hidden, display) && IsNodeDisplayed(graph, node, display, clip);
+        if (!graph.TryGetSegment(id, out var segment) || IsHiddenBy(segment.Hidden, display) ||
             !IsSegmentDisplayed(graph, segment, display, clip)) return false;
-        return !graph.GetNode(segment.NodeA).Hidden && !graph.GetNode(segment.NodeB).Hidden;
+        return !IsHiddenBy(graph.GetNode(segment.NodeA).Hidden, display) &&
+               !IsHiddenBy(graph.GetNode(segment.NodeB).Hidden, display);
     }
 
     public static IEnumerable<Guid> DisplayedElementIds(SupportGraph graph,

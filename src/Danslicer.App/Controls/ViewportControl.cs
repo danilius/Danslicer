@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -514,10 +514,13 @@ public sealed class ViewportControl : OpenGlControlBase
             SupportNodeType? nodeType = null)
         {
             var sections = SupportSliceGeometry.SectionsAt(graph, z,
-                includeSegment: segment => segmentType == segment.Type && !segment.Hidden &&
-                    !graph.GetNode(segment.NodeA).Hidden && !graph.GetNode(segment.NodeB).Hidden &&
+                includeSegment: segment => segmentType == segment.Type &&
+                    !SupportDisplayPolicy.IsHiddenBy(segment.Hidden, SupportDisplay) &&
+                    !SupportDisplayPolicy.IsHiddenBy(graph.GetNode(segment.NodeA).Hidden, SupportDisplay) &&
+                    !SupportDisplayPolicy.IsHiddenBy(graph.GetNode(segment.NodeB).Hidden, SupportDisplay) &&
                     SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, SupportDisplay),
-                includeNode: node => nodeType == node.Type && !node.Hidden &&
+                includeNode: node => nodeType == node.Type &&
+                    !SupportDisplayPolicy.IsHiddenBy(node.Hidden, SupportDisplay) &&
                     NodeBelongsToCategory(node, segmentType));
             AddCap(ClipCapBuilder.Build(sections, z, face),
                 new Vector3(rgba.X, rgba.Y, rgba.Z), opacity);
@@ -781,23 +784,28 @@ public sealed class ViewportControl : OpenGlControlBase
             }
 
             // Region painting takes the click before support selection does: while it is armed
-            // the user is choosing faces, not support elements.
-            if (SupportSelectionMode && RegionPickMode && RegionBrushMode &&
-                PickSurface(m, out var brushTriangle, out var brushPoint, out _) is { } brushHit &&
-                brushTriangle >= 0)
+            // the user is choosing faces, not support elements — and only on the support target
+            // (PickSurface scopes to it). A click that misses is SWALLOWED rather than falling
+            // through to selection, which would hand the target to whatever was clicked instead;
+            // painting is a modal tool and must not change which model is being worked on.
+            if (SupportSelectionMode && RegionPickMode)
             {
-                _brushing = true;
-                RegionStrokeStarted?.Invoke(brushHit, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
-                RegionStrokeDab?.Invoke(brushPoint, brushTriangle, WorldRadiusAt(brushPoint));
-                e.Pointer.Capture(this);
-                e.Handled = true;
-                return;
-            }
-            if (SupportSelectionMode && RegionPickMode && PickFace(m, out var regionTriangle) is { } regionHit &&
-                regionTriangle >= 0)
-            {
-                RegionFacePicked?.Invoke(regionHit, regionTriangle,
-                    e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                if (RegionBrushMode)
+                {
+                    if (PickSurface(m, out var brushTriangle, out var brushPoint, out _) is { } brushHit &&
+                        brushTriangle >= 0)
+                    {
+                        _brushing = true;
+                        RegionStrokeStarted?.Invoke(brushHit, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                        RegionStrokeDab?.Invoke(brushPoint, brushTriangle, WorldRadiusAt(brushPoint));
+                        e.Pointer.Capture(this);
+                    }
+                }
+                else if (PickFace(m, out var regionTriangle) is { } regionHit && regionTriangle >= 0)
+                {
+                    RegionFacePicked?.Invoke(regionHit, regionTriangle,
+                        e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                }
                 e.Handled = true;
                 return;
             }
@@ -1079,6 +1087,17 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private SceneObject? PickFace(Vector2 mouse, out int triangle) => PickSurface(mouse, out triangle, out _, out _);
 
+    /// <summary>
+    /// While region painting is armed, the surface under the cursor is scoped to the support
+    /// target, exactly as generation and manual placement are (<see cref="SupportTargetPolicy"/>).
+    /// Without this a stroke that strayed onto a neighbouring model would paint it — and select
+    /// it, taking the target with it. With no target chosen every model is paintable, which is
+    /// how the first click picks one.
+    /// </summary>
+    private bool IsPaintable(SceneObject obj) =>
+        !(SupportSelectionMode && RegionPickMode) ||
+        SupportTargetPolicy.CanSupport(Document?.SupportTarget, obj);
+
     private void UpdateWaterline(Vector2 mouse)
     {
         if (SupportWaterline is not { Enabled: true, SupportModeActive: true } waterline)
@@ -1103,6 +1122,7 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var obj in Document.Scene.Objects)
         {
             if (obj.RenderState == RenderState.Hidden) continue;
+            if (!IsPaintable(obj)) continue;
             var world = obj.Transform.ToMatrix();
             if (!Matrix4x4.Invert(world, out var toLocal)) continue;
             var local = ray.Transform(toLocal);
@@ -1281,7 +1301,8 @@ public sealed class ViewportControl : OpenGlControlBase
         var bestScore = float.PositiveInfinity;
         foreach (var node in supports.Nodes)
         {
-            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Tip ||
+            if (SupportDisplayPolicy.IsHiddenBy(node.Hidden, SupportDisplay) ||
+                node.Type != Danslicer.Core.Supports.SupportNodeType.Tip ||
                 !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
             if (SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners)) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
@@ -1295,12 +1316,14 @@ public sealed class ViewportControl : OpenGlControlBase
 
         foreach (var segment in supports.Segments)
         {
-            if (segment.Hidden || !SupportDisplayPolicy.IsSegmentDisplayed(
+            if (SupportDisplayPolicy.IsHiddenBy(segment.Hidden, SupportDisplay) ||
+                !SupportDisplayPolicy.IsSegmentDisplayed(
                     supports, segment, SupportDisplay, ClipRange)) continue;
             if (SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenOwners)) continue;
             var a = supports.GetNode(segment.NodeA);
             var b = supports.GetNode(segment.NodeB);
-            if (a.Hidden || b.Hidden) continue;
+            if (SupportDisplayPolicy.IsHiddenBy(a.Hidden, SupportDisplay) ||
+                SupportDisplayPolicy.IsHiddenBy(b.Hidden, SupportDisplay)) continue;
             if (!ClipRange.TryClipSegment(a.Position, b.Position,
                     out var visibleA, out var visibleB) ||
                 Camera.WorldToScreen(visibleA, w, h) is not { } pa ||
@@ -1323,7 +1346,8 @@ public sealed class ViewportControl : OpenGlControlBase
         // radius in oblique views; the ordered samples cover the actual projected ellipse/conic.
         foreach (var node in supports.Nodes)
         {
-            if (node.Hidden || node.Type != Danslicer.Core.Supports.SupportNodeType.Base ||
+            if (SupportDisplayPolicy.IsHiddenBy(node.Hidden, SupportDisplay) ||
+                node.Type != Danslicer.Core.Supports.SupportNodeType.Base ||
                 !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
             if (SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners)) continue;
             if (Camera.WorldToScreen(node.Position, w, h) is not { } p) continue;
@@ -1474,7 +1498,8 @@ public sealed class ViewportControl : OpenGlControlBase
                         SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, display),
                     includeBase: node => componentNodes.Contains(node.Id) &&
                         !SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners) &&
-                        SupportDisplayPolicy.IsNodeDisplayed(supports, node, display));
+                        SupportDisplayPolicy.IsNodeDisplayed(supports, node, display),
+                    includeHidden: display.ShowHiddenElements);
                 if (parts.Count == 0) continue;
                 var origin = componentNodes.Select(id => supports.GetNode(id).Position)
                     .Aggregate(Vector3.Zero, (sum, point) => sum + point) / componentNodes.Count;
@@ -1489,7 +1514,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 !SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenOwners) &&
                 SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, display),
             includeBase: node => !SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners) &&
-                SupportDisplayPolicy.IsNodeDisplayed(supports, node, display));
+                SupportDisplayPolicy.IsNodeDisplayed(supports, node, display),
+            includeHidden: display.ShowHiddenElements);
         foreach (var part in visibleParts)
             AddSupportPart(part, part.Mesh.Bounds.Center, 1f);
     }
@@ -1530,12 +1556,14 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             foreach (var segment in supports.Segments)
             {
-                if (segment.Hidden || !SupportDisplayPolicy.IsSegmentDisplayed(
+                if (SupportDisplayPolicy.IsHiddenBy(segment.Hidden, SupportDisplay) ||
+                    !SupportDisplayPolicy.IsSegmentDisplayed(
                         supports, segment, SupportDisplay, ClipRange)) continue;
                 if (SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenOwners)) continue;
                 var a = supports.GetNode(segment.NodeA);
                 var b = supports.GetNode(segment.NodeB);
-                if (a.Hidden || b.Hidden) continue;
+                if (SupportDisplayPolicy.IsHiddenBy(a.Hidden, SupportDisplay) ||
+                    SupportDisplayPolicy.IsHiddenBy(b.Hidden, SupportDisplay)) continue;
                 var color = Document.IsSupportSelected(segment.Id)
                     ? SupportSelectedColor
                     : segment.Type switch
@@ -1555,7 +1583,8 @@ public sealed class ViewportControl : OpenGlControlBase
         if (!SupportDisplayPolicy.ShowsContactMarkers(SupportDisplay)) return;
         foreach (var node in supports.Nodes)
         {
-            if (node.Hidden || node.Type != SupportNodeType.Tip ||
+            if (SupportDisplayPolicy.IsHiddenBy(node.Hidden, SupportDisplay) ||
+                node.Type != SupportNodeType.Tip ||
                 !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
             if (SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners)) continue;
             var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipMarkerColor;

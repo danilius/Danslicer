@@ -174,6 +174,16 @@ public sealed record SupportDisplayConfig
     public bool ShowBases { get; init; } = true;
     public bool ShowBracing { get; init; } = true;
 
+    /// <summary>
+    /// Draw elements the user hid individually (Support mode's H) as if they were visible. Not a
+    /// setting and never persisted: <see cref="Danslicer.Core.Supports.SupportDisplayPolicy.ForWorkspace"/>
+    /// turns it on for Layout, where a model and its supports are one object being arranged and
+    /// a Support-mode working aid must not leave the arrangement looking wrong. The graph's own
+    /// Hidden flags are untouched, so returning to Support mode restores exactly what was hidden.
+    /// </summary>
+    [JsonIgnore]
+    public bool ShowHiddenElements { get; init; }
+
     internal SupportDisplayConfig Normalize() => Enum.IsDefined(Mode)
         ? this
         : this with { Mode = SupportDisplayMode.Full };
