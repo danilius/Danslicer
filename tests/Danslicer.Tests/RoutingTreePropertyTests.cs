@@ -197,5 +197,44 @@ namespace Danslicer.Tests
             Assert.Equal(tips.Count, result.UnroutedTips.Count);
             Assert.All(result.Failures, failure => Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason));
         }
+
+        [Fact]
+        public void TipJointsNeverBendMoreThanTheMemberAngle()
+        {
+            // Leaning contacts in every direction: whichever way a cone points, the member it
+            // hands over to at the ball turns by no more than the member angle.
+            var random = new Random(11);
+            var tips = new List<RoutingTip>();
+            for (var i = 0; i < 40; i++)
+            {
+                var position = new Vector3((float)(random.NextDouble() * 60 - 30),
+                    (float)(random.NextDouble() * 60 - 30), (float)(random.NextDouble() * 20 + 8));
+                var outward = Vector3.Normalize(new Vector3((float)(random.NextDouble() * 2 - 1),
+                    (float)(random.NextDouble() * 2 - 1), -(float)(random.NextDouble() * 0.9 + 0.1)));
+                tips.Add(new RoutingTip(position, -outward, 0.4f));
+            }
+            var router = new TreeSupportRouter(EmptyScene, GrowthRuleSet.Default);
+
+            foreach (var useBaseGrid in new[] { true, false })
+            {
+                var result = router.Route(tips, Options with { UseBaseGrid = useBaseGrid });
+                Assert.NotEmpty(result.Graph.Segments);
+                foreach (var tipSegment in result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Tip))
+                {
+                    var a = result.Graph.GetNode(tipSegment.NodeA);
+                    var b = result.Graph.GetNode(tipSegment.NodeB);
+                    var (tip, junction) = a.Type == SupportNodeType.Tip ? (a, b) : (b, a);
+                    var incoming = junction.Position - tip.Position;
+                    foreach (var next in result.Graph.SegmentsAt(junction.Id))
+                    {
+                        if (next.Id == tipSegment.Id) continue;
+                        var farId = next.NodeA == junction.Id ? next.NodeB : next.NodeA;
+                        var outgoing = result.Graph.GetNode(farId).Position - junction.Position;
+                        var bend = TreeSupportRouter.BendDegrees(incoming, outgoing);
+                        Assert.True(bend <= 45.02f, $"{next.Type} bends {bend}° at the ball (grid {useBaseGrid})");
+                    }
+                }
+            }
+        }
     }
 }

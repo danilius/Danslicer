@@ -83,6 +83,31 @@ Default angle for all angled elements: **45°**. Everything above is configurabl
 - **Configurability directive**: anything that can be configured should be exposed in the
   support configuration.
 
+## Cone orientation and joints (user decisions, 2026-09-07)
+
+Reference: the user's Blender drawings of a cone on a ball on a cylinder. Every joint
+between members is a sphere of the parent member's diameter (the capsule cap); the
+base is the one exception.
+
+- **The cone points along the contact's outward normal**, clamped to the member angle
+  (45° by default) from vertical. Fully vertical is always allowed.
+- **When the normal direction is blocked, or nothing can follow from it, the cone stands
+  up toward vertical** in the normal's own vertical plane (15° steps), and the whole
+  route is retried from each direction before the contact is refused. Only after
+  vertical does the router swing the cone around the vertical at the clamped angle.
+- **The bend at the ball is limited to the member angle.** The branch (or trunk) leaving
+  the cone's junction may turn by at most 45° from the cone's own axis, so a branch never
+  doubles back on the cone it grows from (the "Z" kink seen on the 2026-09-06 screen
+  test is gone). The branch that simply continues the cone's axis is offered first.
+- **A trunk may be raised to meet a member-angle branch.** When a nearby trunk's top is
+  too low, a shallower branch to its current top is tried first; only when that is
+  refused (range, bend, collision) is the trunk extended upward by a new segment to a
+  new top junction. Branches already on the trunk keep both their ends. A trunk whose
+  top carries its own cone tip is never raised, since the raise would run up inside
+  the cone. A branch can still attach anywhere below a trunk's top.
+- Mini-supports are set aside for now (they keep their own 75° limit) and will be
+  revisited.
+
 ## Mini-supports (user dictation, 2026-09-03 late night)
 
 Very fine support is important — teeth, barbs and other fine detail need it:

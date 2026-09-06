@@ -81,6 +81,15 @@ public sealed class TreeSupportRouter
     private const float SiblingBranchFusionDistance = 0.5f;
     private const float BranchDirectionPreferenceDiameters = 1f;
     private const float ProjectedBranchClearanceDiameters = 1f;
+    /// <summary>Slack on the bend limit so a nominally exact member-angle joint is never refused.</summary>
+    private const float BendToleranceDegrees = 0.01f;
+    /// <summary>Step by which a blocked tip direction stands up toward vertical.</summary>
+    private const float TipFallbackStepDegrees = 15f;
+    /// <summary>
+    /// Tip directions a contact is routed from before it is refused: the clamped normal, its
+    /// stand-up steps toward vertical, and vertical itself for a 45° normal.
+    /// </summary>
+    private const int TipDirectionAttempts = 4;
     private readonly ICollisionScene _obstacles;
     private readonly GrowthRuleSet _rules;
 
@@ -536,6 +545,11 @@ public sealed class TreeSupportRouter
         return branchEnd;
     }
 
+    /// <summary>
+    /// Routes one contact. The cone is tried pointing along its (angle-clamped) normal first;
+    /// when no branch or trunk can follow from that junction within the member angle, the whole
+    /// route is retried from the next tip direction, which stands the cone up toward vertical.
+    /// </summary>
     private bool RouteOne(RoutingTip tip, TreeRoutingOptions options, RouteState state,
         out RoutingFailureReason reason)
     {
@@ -549,23 +563,45 @@ public sealed class TreeSupportRouter
 
         var (branchTipDiameter, tipMemberLength) = TipMemberDimensions(
             tip, options.BranchDiameter, options.TipMemberLength);
-        var branchJunction = FindTipJunction(tip, options, state,
-            branchTipDiameter, tipMemberLength);
+        var (trunkTipDiameter, _) = TipMemberDimensions(
+            tip, options.TrunkDiameter, options.TipMemberLength);
+        var attempted = false;
+        foreach (var branchJunction in TipJunctionCandidates(tip, options, state,
+                     branchTipDiameter, tipMemberLength).Take(TipDirectionAttempts))
+        {
+            attempted = true;
+            if (TryRouteFromJunction(tip, branchJunction, branchTipDiameter, trunkTipDiameter,
+                    tipMemberLength, options, state, out reason)) return true;
+        }
+        if (!attempted)
+            reason = state.SeparationRejections > separationRejections
+                ? RoutingFailureReason.MemberCrossing
+                : RoutingFailureReason.ContactBlocked;
+        return false;
+    }
+
+    private bool TryRouteFromJunction(RoutingTip tip, Vector3 branchJunction,
+        float branchTipDiameter, float trunkTipDiameter, float tipMemberLength,
+        TreeRoutingOptions options, RouteState state, out RoutingFailureReason reason)
+    {
+        var separationRejections = state.SeparationRejections;
+        reason = RoutingFailureReason.NoClearStep;
 
         // Branch-first: an existing trunk gets first refusal, and a tip feeding that branch
         // tapers from the configured branch diameter.
-        if (options.PreferExistingTrunks && branchJunction is { } branchJ1 &&
-            branchJ1.Z > options.PlateZ + Epsilon &&
-            TryAttachToTrunk(tip, branchJ1, options, state, branchTipDiameter)) return true;
-
-        var (trunkTipDiameter, _) = TipMemberDimensions(
-            tip, options.TrunkDiameter, options.TipMemberLength);
-        var trunkJunction = MathF.Abs(trunkTipDiameter - branchTipDiameter) <= Epsilon
-            ? branchJunction
-            : FindTipJunction(tip, options, state, trunkTipDiameter, tipMemberLength);
+        if (options.PreferExistingTrunks && branchJunction.Z > options.PlateZ + Epsilon &&
+            TryAttachToTrunk(tip, branchJunction, options, state, branchTipDiameter)) return true;
 
         // A tip connected directly to a trunk (or directly to its base near the plate) tapers
-        // from the trunk setting, independently of BranchDiameter.
+        // from the trunk setting, independently of BranchDiameter: the same direction must
+        // also be clear for a member of that diameter.
+        var trunkJunction = MathF.Abs(trunkTipDiameter - branchTipDiameter) <= Epsilon ||
+                            (!state.HitsGenerated(tip.SurfacePoint, branchJunction,
+                                 trunkTipDiameter * 0.5f + state.Clearance.ModelDistance) &&
+                             !state.ViolatesMemberSeparation(tip.SurfacePoint, branchJunction,
+                                 trunkTipDiameter * 0.5f))
+            ? branchJunction
+            : (Vector3?)null;
         if (trunkJunction is { } trunkJ1)
         {
             if (trunkJ1.Z <= options.PlateZ + Epsilon)
@@ -588,37 +624,28 @@ public sealed class TreeSupportRouter
             }
         }
 
-        if (branchJunction is null)
-        {
-            reason = state.SeparationRejections > separationRejections
-                ? RoutingFailureReason.MemberCrossing
-                : RoutingFailureReason.ContactBlocked;
-            return false;
-        }
-
         // The straight candidate was handled with trunk-derived tip geometry above. Every
         // remaining candidate introduces a branch, so both it and its tip use branch settings.
-        var trunkTops = TrunkTopCandidates(
-            branchJunction.Value, options, state.AngleOffset).ToList();
+        var trunkTops = TrunkTopCandidates(branchJunction, options, state.AngleOffset,
+            TipMemberDirection(tip.SurfacePoint, branchJunction)).ToList();
         foreach (var candidate in trunkTops)
         {
             var trunkTop = candidate.Top;
-            if (Vector2.DistanceSquared(new(branchJunction.Value.X, branchJunction.Value.Y),
+            if (Vector2.DistanceSquared(new(branchJunction.X, branchJunction.Y),
                     new(trunkTop.X, trunkTop.Y)) <= Epsilon * Epsilon) continue;
-            if (!BranchIsClear(branchJunction.Value, trunkTop, options, state))
+            if (!BranchIsClear(branchJunction, trunkTop, options, state))
                 continue;
             if (!TrunkIsClear(trunkTop, options, state)) continue;
             if (state.ProposedMembersViolateSeparation(tip.SurfacePoint,
-                    branchJunction.Value, branchTipDiameter * 0.5f, trunkTop,
+                    branchJunction, branchTipDiameter * 0.5f, trunkTop,
                     new Vector3(trunkTop.X, trunkTop.Y, options.PlateZ),
                     options.TrunkDiameter * 0.5f)) continue;
-            EmitSupport(tip, trunkTop, branchJunction.Value, tipOnly: false,
+            EmitSupport(tip, trunkTop, branchJunction, tipOnly: false,
                 options, state, branchTipDiameter);
             return true;
         }
-        if (!options.PreferExistingTrunks && branchJunction is { } fallbackJ1 &&
-            fallbackJ1.Z > options.PlateZ + Epsilon &&
-            TryAttachToTrunk(tip, fallbackJ1, options, state, branchTipDiameter)) return true;
+        if (!options.PreferExistingTrunks && branchJunction.Z > options.PlateZ + Epsilon &&
+            TryAttachToTrunk(tip, branchJunction, options, state, branchTipDiameter)) return true;
         var straightGridCandidateWasBlocked = options.UseBaseGrid &&
                                               trunkJunction is { } straightJunction &&
                                               straightJunction.Z > options.PlateZ + Epsilon &&
@@ -775,22 +802,60 @@ public sealed class TreeSupportRouter
             : Vector2.UnitX;
         yield return Direction(lateral, angle);
 
-        // Fan around the vertical at the same angle, then straight down as a last resort.
+        // The cone should point along the normal. When that is blocked it stays in the normal's
+        // vertical plane and stands up step by step; fully vertical is always acceptable.
+        foreach (var shallower in ShallowerAngles(angle))
+            yield return Direction(lateral, shallower);
+        yield return -Vector3.UnitZ;
+
+        // Only then swing around the vertical at the clamped angle, as a last resort.
         for (var index = 1; index < options.BranchDirections; index++)
         {
             var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
             var rotated = new Vector2(MathF.Cos(theta), MathF.Sin(theta));
             yield return Direction(rotated, angle);
         }
-        yield return -Vector3.UnitZ;
 
         static Vector3 Direction(Vector2 lateral, float angle) => Vector3.Normalize(
             new Vector3(lateral * MathF.Sin(angle), -MathF.Cos(angle)));
     }
 
+    /// <summary>Angles (radians) strictly between <paramref name="angle"/> and vertical, steepest first.</summary>
+    private static IEnumerable<float> ShallowerAngles(float angle)
+    {
+        var step = TipFallbackStepDegrees * MathF.PI / 180f;
+        for (var candidate = MathF.Floor((angle - 1e-4f) / step) * step;
+             candidate > 1e-4f; candidate -= step)
+            yield return candidate;
+    }
+
+    /// <summary>Unit direction a tip member travels from its contact to its junction.</summary>
+    private static Vector3 TipMemberDirection(Vector3 contact, Vector3 junction)
+    {
+        var delta = junction - contact;
+        return delta.LengthSquared() > Epsilon * Epsilon ? Vector3.Normalize(delta) : -Vector3.UnitZ;
+    }
+
     /// <summary>
-    /// One 45° (member-angle) branch descending from the junction onto an earlier trunk of this
-    /// run. Nearest trunk first; the trunk segment is split at the attachment point.
+    /// The bend at a joint, in degrees: the angle between the direction one member arrives and the
+    /// direction the next member leaves. Zero means the members are collinear.
+    /// </summary>
+    internal static float BendDegrees(Vector3 incoming, Vector3 outgoing)
+    {
+        if (incoming.LengthSquared() <= Epsilon * Epsilon ||
+            outgoing.LengthSquared() <= Epsilon * Epsilon) return 0f;
+        var dot = Vector3.Dot(Vector3.Normalize(incoming), Vector3.Normalize(outgoing));
+        return MathF.Acos(Math.Clamp(dot, -1f, 1f)) * 180f / MathF.PI;
+    }
+
+    /// <summary>
+    /// One member-angle branch descending from the junction onto an earlier trunk of this run.
+    /// The bend at the ball between the cone tip and the branch may not exceed the member
+    /// angle, so a branch never doubles back on the cone it grows from. A trunk whose top is too
+    /// low for a member-angle branch first offers a shallower branch at its top; only when that
+    /// is refused is the trunk raised, by a new segment above its top, to meet a member-angle
+    /// branch. Existing branches on the trunk are untouched. Nearest trunk first; the trunk
+    /// segment is split at the attachment point.
     /// </summary>
     private bool TryAttachToTrunk(RoutingTip tip, Vector3 j1, TreeRoutingOptions options,
         RouteState state, float tipMemberDiameter)
@@ -799,44 +864,31 @@ public sealed class TreeSupportRouter
         var maxBranches = branchRule is { Enabled: true } ? branchRule.MaxBranchesPerTrunk : int.MaxValue;
         var maxAngle = options.MaxMemberAngleDegrees * MathF.PI / 180f;
         var tanAngle = MathF.Tan(maxAngle);
-        var lean = new Vector2(j1.X - tip.SurfacePoint.X, j1.Y - tip.SurfacePoint.Y);
-        var leanDirection = lean.LengthSquared() > Epsilon * Epsilon
-            ? Vector2.Normalize(lean)
-            : Vector2.Zero;
+        var tipDirection = TipMemberDirection(tip.SurfacePoint, j1);
         var candidates = new List<ExistingTrunkCandidate>();
         foreach (var trunk in state.Trunks)
         {
             if (trunk.BranchCount >= maxBranches) continue;
             var hDist = Vector2.Distance(new(j1.X, j1.Y), trunk.Xy);
+            if (hDist <= Epsilon) continue; // the junction is on the trunk line; the drop handles it
             // A hair steeper than the exact member angle, so float rounding in the lean rule
             // can never clamp (and thereby reject) a nominally-exact 45° branch.
             var highestAngleLimitedZ = j1.Z -
                                        (tanAngle > Epsilon ? hDist / tanAngle : 0f) - 1e-3f;
-            // Use the highest point the existing trunk can offer without exceeding the angle.
-            // This is the shortest viable branch; a shorter trunk therefore receives a shallower
-            // branch at its top instead of being discarded outright.
-            var attachZ = MathF.Min(highestAngleLimitedZ, trunk.TopZ);
-            if (attachZ < options.PlateZ + options.BaseHeight + Epsilon) continue;
-            if (hDist <= Epsilon) continue; // the junction is on the trunk line; the drop handles it
-            var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
-            var branchLength = Vector3.Distance(j1, attach);
-            if (branchLength > options.ExistingTrunkBranchRange + Epsilon) continue;
-
-            var towardTrunk = Vector2.Normalize(trunk.Xy - new Vector2(j1.X, j1.Y));
-            var alignmentPenalty = leanDirection == Vector2.Zero
-                ? 0f
-                : (1f - Vector2.Dot(leanDirection, towardTrunk)) * options.BranchDiameter *
-                  BranchDirectionPreferenceDiameters;
-            candidates.Add(new ExistingTrunkCandidate(
-                trunk, attach, branchLength, branchLength + alignmentPenalty));
+            // The highest point the trunk offers within the angle is the shortest viable branch.
+            AddCandidate(trunk, MathF.Min(highestAngleLimitedZ, trunk.TopZ), raisesTrunk: false);
+            if (highestAngleLimitedZ > trunk.TopZ + Epsilon)
+                AddCandidate(trunk, highestAngleLimitedZ, raisesTrunk: true);
         }
 
-        foreach (var candidate in candidates.OrderBy(item => item.Score)
-                     .ThenBy(item => item.Length).ThenBy(item => item.Trunk.BaseNodeId))
+        foreach (var candidate in candidates.OrderBy(item => item.RaisesTrunk ? 1 : 0)
+                     .ThenBy(item => item.Score).ThenBy(item => item.Length)
+                     .ThenBy(item => item.Trunk.BaseNodeId))
         {
             var trunk = candidate.Trunk;
             var attach = candidate.Attach;
             var attachZ = attach.Z;
+            if (candidate.RaisesTrunk && !TrunkRaiseIsClear(trunk, attachZ, state)) continue;
             // The spec's member angle governs branch geometry here; the lean rule's step-router
             // clamps (including its tighter near-tip angle) do not apply to tree anatomy.
             var branchRadius = options.BranchDiameter * 0.5f;
@@ -846,16 +898,27 @@ public sealed class TreeSupportRouter
                     branchRadius + state.Clearance.ModelDistance, trunk,
                     SiblingBranchFusionDistance,
                     options.BranchDiameter * ProjectedBranchClearanceDiameters)) continue;
-            var targetSegment = trunk.SegmentCovering(attachZ, state.Graph).Segment;
-            var sharedNode = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
-                ? trunk.TopNodeId
-                : (Guid?)null;
-            if (state.ViolatesMemberSeparation(j1, attach, branchRadius,
-                    null, sharedNode, [targetSegment.Id])) continue;
+            var attachesAtTop = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f;
+            if (candidate.RaisesTrunk)
+            {
+                // The raised section will join the branch at the new top: the trunk's own
+                // segments are not separate members to keep clear of.
+                if (state.ViolatesMemberSeparation(j1, attach, branchRadius,
+                        null, null, trunk.SegmentIds)) continue;
+            }
+            else
+            {
+                var targetSegment = trunk.SegmentCovering(attachZ, state.Graph).Segment;
+                var sharedNode = attachesAtTop ? trunk.TopNodeId : (Guid?)null;
+                if (state.ViolatesMemberSeparation(j1, attach, branchRadius,
+                        null, sharedNode, [targetSegment.Id])) continue;
+            }
 
-            var attachNode = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
-                ? state.Graph.GetNode(trunk.TopNodeId)
-                : SplitTrunk(trunk, attachZ, state);
+            var attachNode = candidate.RaisesTrunk
+                ? RaiseTrunk(trunk, attachZ, options, state)
+                : attachesAtTop
+                    ? state.Graph.GetNode(trunk.TopNodeId)
+                    : SplitTrunk(trunk, attachZ, state);
             var tipNode = EmitTipMember(tip, j1, options, state, tipMemberDiameter);
             var branch = state.AddSegment(SupportSegmentType.Branch, tipNode.Junction, attachNode,
                 options.BranchDiameter, options.Origin);
@@ -865,6 +928,55 @@ public sealed class TreeSupportRouter
             return true;
         }
         return false;
+
+        void AddCandidate(TrunkRecord trunk, float attachZ, bool raisesTrunk)
+        {
+            if (attachZ < options.PlateZ + options.BaseHeight + Epsilon) return;
+            var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
+            var branchLength = Vector3.Distance(j1, attach);
+            if (branchLength > options.ExistingTrunkBranchRange + Epsilon) return;
+            var bend = BendDegrees(tipDirection, attach - j1);
+            if (bend > options.MaxMemberAngleDegrees + BendToleranceDegrees) return;
+            // Among reachable trunks, the one the cone already points toward wins near ties.
+            var bendPenalty = options.MaxMemberAngleDegrees > 0
+                ? bend / options.MaxMemberAngleDegrees * options.BranchDiameter *
+                  BranchDirectionPreferenceDiameters
+                : 0f;
+            candidates.Add(new ExistingTrunkCandidate(trunk, attach, branchLength,
+                branchLength + bendPenalty, raisesTrunk));
+        }
+    }
+
+    /// <summary>
+    /// A trunk may be raised only through clear space: the model, other supports and the
+    /// separation rule all apply to the new section. The trunk's own branches meet it at its
+    /// current top and are not obstacles; anything else standing on that top (a cone tip fed
+    /// straight by the trunk) is, so such a trunk is never raised into its own tip.
+    /// </summary>
+    private bool TrunkRaiseIsClear(TrunkRecord trunk, float newTopZ, RouteState state)
+    {
+        var oldTop = state.Graph.GetNode(trunk.TopNodeId).Position;
+        var newTop = new Vector3(trunk.Xy.X, trunk.Xy.Y, newTopZ);
+        var radius = trunk.SegmentCovering(trunk.TopZ, state.Graph).Segment.Diameter * 0.5f;
+        var own = trunk.SegmentIds.Concat(trunk.BranchSegmentIds).ToList();
+        return state.Clearance.PillarIsClear(_obstacles, oldTop, newTop, radius, Excluding(own)) &&
+               !state.HitsGenerated(oldTop, newTop, radius + state.Clearance.ModelDistance, own) &&
+               !state.ViolatesMemberSeparation(oldTop, newTop, radius, trunk.TopNodeId, null, own);
+    }
+
+    /// <summary>Extends a trunk above its top with a new vertical segment ending at a new top junction.</summary>
+    private static SupportNode RaiseTrunk(TrunkRecord trunk, float newTopZ,
+        TreeRoutingOptions options, RouteState state)
+    {
+        var oldTop = state.Graph.GetNode(trunk.TopNodeId);
+        var diameter = trunk.SegmentCovering(trunk.TopZ, state.Graph).Segment.Diameter;
+        var newTop = state.NewNode(SupportNodeType.Junction,
+            new Vector3(trunk.Xy.X, trunk.Xy.Y, newTopZ), options.Origin);
+        state.Graph.AddNode(newTop);
+        var extension = state.AddSegment(SupportSegmentType.Trunk, newTop, oldTop, diameter,
+            options.Origin);
+        trunk.Raise(newTop, extension.Id);
+        return newTop;
     }
 
     /// <summary>
@@ -872,12 +984,19 @@ public sealed class TreeSupportRouter
     /// restores the deterministic branch fan used before bases were constrained to a grid.
     /// </summary>
     private static IEnumerable<TrunkTopCandidate> TrunkTopCandidates(Vector3 j1,
-        TreeRoutingOptions options,
-        float angleOffset)
+        TreeRoutingOptions options, float angleOffset, Vector3? tipDirection = null)
     {
+        // With a tip direction, the bend at the ball is limited to the member angle and the
+        // branch that simply continues the cone's own axis is offered first at every length.
+        var maxBend = options.MaxMemberAngleDegrees + BendToleranceDegrees;
+        var continuation = tipDirection is { } direction && direction.Z < -Epsilon &&
+                           new Vector2(direction.X, direction.Y).LengthSquared() >
+                           Epsilon * Epsilon
+            ? direction
+            : (Vector3?)null;
         if (!options.UseBaseGrid)
         {
-            yield return new TrunkTopCandidate(j1, 0f, 0f);
+            yield return new TrunkTopCandidate(j1, 0f, 0f, Bend(-Vector3.UnitZ));
             var angles = new[]
             {
                 MathF.Min(options.MaxMemberAngleDegrees, 15f),
@@ -890,19 +1009,27 @@ public sealed class TreeSupportRouter
             for (var step = 1; step <= options.BranchLengthSteps; step++)
             {
                 var length = options.MaxBranchLength * step / options.BranchLengthSteps;
+                if (continuation is { } along)
+                {
+                    var end = j1 + along * length;
+                    if (end.Z > options.PlateZ + options.BaseHeight + Epsilon)
+                        yield return new TrunkTopCandidate(end, length, LeanDegrees(along), 0f);
+                }
                 foreach (var angleDegrees in angles)
                 {
                     var freeAngle = angleDegrees * MathF.PI / 180f;
                     for (var index = 0; index < options.BranchDirections; index++)
                     {
                         var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
-                        var direction = new Vector3(
+                        var fanDirection = new Vector3(
                             MathF.Cos(theta) * MathF.Sin(freeAngle),
                             MathF.Sin(theta) * MathF.Sin(freeAngle),
                             -MathF.Cos(freeAngle));
-                        var end = j1 + direction * length;
+                        var bend = Bend(fanDirection);
+                        if (bend > maxBend) continue;
+                        var end = j1 + fanDirection * length;
                         if (end.Z > options.PlateZ + options.BaseHeight + Epsilon)
-                            yield return new TrunkTopCandidate(end, length, angleDegrees);
+                            yield return new TrunkTopCandidate(end, length, angleDegrees, bend);
                     }
                 }
             }
@@ -928,14 +1055,24 @@ public sealed class TreeSupportRouter
                 if (length > options.MaxBranchLength + Epsilon) continue;
                 var drop = horizontal <= Epsilon ? 0 : horizontal / MathF.Tan(candidateAngle);
                 var top = new Vector3(xy, j1.Z - drop);
+                var bend = Bend(top - j1);
+                if (bend > maxBend) continue;
                 if (top.Z > options.PlateZ + options.BaseHeight + Epsilon)
-                    candidates.Add(new TrunkTopCandidate(top, length, candidateDegrees));
+                    candidates.Add(new TrunkTopCandidate(top, length, candidateDegrees, bend));
             }
         }
         foreach (var candidate in candidates.OrderBy(item => item.Length)
+                     .ThenBy(item => item.BendDegrees)
                      .ThenBy(item => item.AngleDegrees)
                      .ThenBy(item => item.Top.X).ThenBy(item => item.Top.Y))
             yield return candidate;
+
+        float Bend(Vector3 branchDirection) => tipDirection is { } incoming
+            ? BendDegrees(incoming, branchDirection)
+            : 0f;
+
+        static float LeanDegrees(Vector3 direction) => MathF.Atan2(
+            new Vector2(direction.X, direction.Y).Length(), MathF.Abs(direction.Z)) * 180f / MathF.PI;
     }
 
     private static bool IsOnBaseGrid(Vector3 point, TreeRoutingOptions options)
@@ -1128,8 +1265,8 @@ public sealed class TreeSupportRouter
     private sealed class TrunkRecord
     {
         public Vector2 Xy { get; }
-        public float TopZ { get; }
-        public Guid TopNodeId { get; }
+        public float TopZ { get; private set; }
+        public Guid TopNodeId { get; private set; }
         public Guid BaseNodeId { get; }
         public int BranchCount { get; set; }
         public List<Guid> SegmentIds { get; }
@@ -1172,6 +1309,14 @@ public sealed class TreeSupportRouter
             throw new InvalidOperationException($"No trunk segment covers z = {z}.");
         }
 
+        /// <summary>Records a new segment above the old top, ending at <paramref name="newTop"/>.</summary>
+        public void Raise(SupportNode newTop, Guid segmentId)
+        {
+            TopZ = newTop.Position.Z;
+            TopNodeId = newTop.Id;
+            SegmentIds.Add(segmentId);
+        }
+
         public void ReplaceSegment(Guid old, Guid upper, Guid lower)
         {
             SegmentIds.Remove(old);
@@ -1181,10 +1326,10 @@ public sealed class TreeSupportRouter
     }
 
     private readonly record struct ExistingTrunkCandidate(TrunkRecord Trunk, Vector3 Attach,
-        float Length, float Score);
+        float Length, float Score, bool RaisesTrunk = false);
 
     private readonly record struct TrunkTopCandidate(Vector3 Top, float Length,
-        float AngleDegrees);
+        float AngleDegrees, float BendDegrees);
 
     /// <summary>Mutable per-run bookkeeping shared by the routing helpers.</summary>
     private sealed class RouteState
