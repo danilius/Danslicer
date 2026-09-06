@@ -1349,6 +1349,8 @@ public sealed class ViewportControl : OpenGlControlBase
 
         var display = SupportDisplay;
         if (!SupportDisplayPolicy.ShowsMeshes(display)) return;
+        // A hidden model takes its supports with it, here and in the slicer.
+        var hiddenOwners = SupportOwnerVisibility.HiddenObjectIds(Document.Scene.Objects);
 
         if (display.Mode == SupportDisplayMode.Transparent)
         {
@@ -1362,8 +1364,10 @@ public sealed class ViewportControl : OpenGlControlBase
                         componentNodes.Contains(brace.NodeA)) segmentIds.Add(brace.Id);
                 var parts = SupportRenderMesh.Build(supports,
                     includeSegment: segment => segmentIds.Contains(segment.Id) &&
+                        !SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenOwners) &&
                         SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, display),
                     includeBase: node => componentNodes.Contains(node.Id) &&
+                        !SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners) &&
                         SupportDisplayPolicy.IsNodeDisplayed(supports, node, display));
                 if (parts.Count == 0) continue;
                 var origin = componentNodes.Select(id => supports.GetNode(id).Position)
@@ -1376,8 +1380,10 @@ public sealed class ViewportControl : OpenGlControlBase
         // Built without selection state: the selection is a separate small overlay mesh.
         var visibleParts = SupportRenderMesh.Build(supports,
             includeSegment: segment =>
+                !SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenOwners) &&
                 SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, display),
-            includeBase: node => SupportDisplayPolicy.IsNodeDisplayed(supports, node, display));
+            includeBase: node => !SupportOwnerVisibility.IsOwnedByHidden(node, hiddenOwners) &&
+                SupportDisplayPolicy.IsNodeDisplayed(supports, node, display));
         foreach (var part in visibleParts)
             AddSupportPart(part, part.Mesh.Bounds.Center, 1f);
     }

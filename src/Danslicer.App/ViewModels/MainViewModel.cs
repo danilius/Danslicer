@@ -192,6 +192,18 @@ public partial class MainViewModel : ViewModelBase
         set { if (value) ViewMode = WorkspaceMode.Slicing; }
     }
 
+    /// <summary>
+    /// Shows or hides one model from the Objects list, in Layout and in Support mode alike. The
+    /// list is the only way to hide a model in Support mode, where H means "hide support
+    /// elements"; Layout's H on the selection is unaffected.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleObjectVisibility(SceneObject? obj)
+    {
+        if (obj is null) return;
+        Document.SetObjectHidden(obj, obj.RenderState != RenderState.Hidden);
+    }
+
     // ----- Support regions (DESIGN 8.3 stage 2) -----
 
     /// <summary>Dihedral limit for click-to-grow, in degrees. Live: changing it and clicking

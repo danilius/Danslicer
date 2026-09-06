@@ -1105,6 +1105,22 @@ public sealed class Document
             Execute(new SetSupportHiddenCommand(Supports, entries, "Hide unselected supports"));
     }
 
+    /// <summary>
+    /// Shows or hides one object, with its supports following it (they are filtered by ownership
+    /// at draw and slice time — see <see cref="SupportOwnerVisibility"/> — so nothing about them
+    /// is stored here and the user's own element-level hiding survives untouched). One undo step.
+    /// </summary>
+    public void SetObjectHidden(SceneObject obj, bool hidden)
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+        var target = hidden ? RenderState.Hidden : RenderState.Normal;
+        if (obj.RenderState == target) return;
+        // A hidden object cannot stay selected: it is not on screen to act on.
+        if (hidden && _selection.Remove(obj)) SelectionChanged?.Invoke();
+        Execute(new SetRenderStateCommand(obj, target,
+            hidden ? $"Hide {obj.Name}" : $"Show {obj.Name}"));
+    }
+
     /// <summary>Returns every hidden object to normal. One undo step.</summary>
     public void UnhideAll()
     {

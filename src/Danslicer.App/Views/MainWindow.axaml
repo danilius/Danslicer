@@ -446,7 +446,18 @@
                                          Background="Transparent">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" FontSize="12" />
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <!-- One-way: the box shows the model's state, and
+                                                     the command is what changes it, so an undo
+                                                     moves the tick back with the model. -->
+                                                <CheckBox IsChecked="{Binding IsVisible, Mode=OneWay}"
+                                                          Margin="0,0,6,0" MinWidth="0"
+                                                          ToolTip.Tip="Show or hide this model, with its supports"
+                                                          Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ToggleObjectVisibilityCommand}"
+                                                          CommandParameter="{Binding}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>

@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Numerics;
 using Danslicer.Core.IO;
 using Danslicer.Core.Geometry;
@@ -85,6 +85,9 @@ public static class Slicer
         resinSettings = (resinSettings ?? ResinSettings.Default).Normalize();
         var prepared = new List<MeshSlicer.PreparedMesh>();
         var previewObjects = new List<PreviewRenderer.RenderObject>();
+        // A hidden model is not printed, and neither are its supports: resin holding up something
+        // that is not there would be worse than nothing. See SupportOwnerVisibility.
+        var hiddenObjectIds = Supports.SupportOwnerVisibility.HiddenObjectIds(objects);
         foreach (var obj in objects)
         {
             if (obj.RenderState == RenderState.Hidden) continue;
@@ -104,6 +107,8 @@ public static class Slicer
             foreach (var segment in supports.Segments)
             {
                 if (segment.Disabled) continue;
+                if (Supports.SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenObjectIds))
+                    continue;
                 var top = Math.Max(supports.GetNode(segment.NodeA).Position.Z, supports.GetNode(segment.NodeB).Position.Z)
                           + segment.Diameter * 0.5;
                 if (top > maxZ) maxZ = top;
@@ -162,7 +167,11 @@ public static class Slicer
 
                 var loops = MeshSlicer.ChainSegments(worker.Segments);
                 if (supports is not null)
-                    loops.AddRange(Supports.SupportSliceGeometry.SectionsAt(supports, z));
+                    loops.AddRange(Supports.SupportSliceGeometry.SectionsAt(supports, z,
+                        includeSegment: segment => !Supports.SupportOwnerVisibility.IsOwnedByHidden(
+                            supports, segment.Id, hiddenObjectIds),
+                        includeNode: node => !Supports.SupportOwnerVisibility.IsOwnedByHidden(
+                            node, hiddenObjectIds)));
                 var polygons = MeshSlicer.Finish(loops, settings.XyCompensation);
                 var lit = worker.Rasterizer.Rasterize(polygons, worker.Pixels);
 
