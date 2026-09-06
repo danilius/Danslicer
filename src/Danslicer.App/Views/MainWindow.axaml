@@ -339,6 +339,7 @@
                                           IsVisible="{Binding IsModelView}"
                                           SupportSelectionMode="{Binding IsSupportView}"
                                           RegionPickMode="{Binding RegionPickMode}"
+                                          RegionBrushMode="{Binding RegionBrushMode}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
                                           SupportDisplay="{Binding EffectiveSupportDisplay}"
                                           ClipRange="{Binding ViewportClipRange}"
@@ -483,6 +484,15 @@
                                                   IsChecked="{Binding RegionPickMode, Mode=TwoWay}"
                                                   HorizontalAlignment="Stretch"
                                                   ToolTip.Tip="Click a face to add its patch to the region; Shift-click erases it" />
+                                    <CheckBox Content="Brush (drag to paint)"
+                                              IsChecked="{Binding RegionBrushMode, Mode=TwoWay}"
+                                              ToolTip.Tip="With painting armed, drag to paint a stroke; Shift-drag erases. One undo per stroke." />
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                        <TextBlock Text="Brush radius" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionBrushRadiusMm, Mode=TwoWay}"
+                                            ToolTip.Tip="Millimetres on the surface" />
+                                    </Grid>
                                     <CheckBox Content="Edit keep-clean region"
                                               IsChecked="{Binding EditingKeepCleanRegion, Mode=TwoWay}"
                                               ToolTip.Tip="Operations edit the keep-clean faces instead of the supported faces" />

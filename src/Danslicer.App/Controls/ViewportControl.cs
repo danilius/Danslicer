@@ -55,6 +55,9 @@ public sealed class ViewportControl : OpenGlControlBase
     public static readonly StyledProperty<bool> RegionPickModeProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(RegionPickMode));
 
+    public static readonly StyledProperty<bool> RegionBrushModeProperty =
+        AvaloniaProperty.Register<ViewportControl, bool>(nameof(RegionBrushMode));
+
     public static readonly StyledProperty<bool> SelectThroughSupportsProperty =
         AvaloniaProperty.Register<ViewportControl, bool>(nameof(SelectThroughSupports));
 
@@ -173,6 +176,21 @@ public sealed class ViewportControl : OpenGlControlBase
     /// erase — belongs to the view model that owns the region edit.
     /// </summary>
     public bool RegionPickMode { get => GetValue(RegionPickModeProperty); set => SetValue(RegionPickModeProperty, value); }
+
+    /// <summary>
+    /// With <see cref="RegionPickMode"/>, a press-and-drag paints with the brush instead of
+    /// growing a patch from a single click. The two are different tools over the same region.
+    /// </summary>
+    public bool RegionBrushMode { get => GetValue(RegionBrushModeProperty); set => SetValue(RegionBrushModeProperty, value); }
+
+    /// <summary>A brush stroke began on this object; the flag is true for an erasing stroke.</summary>
+    public event Action<SceneObject, bool>? RegionStrokeStarted;
+
+    /// <summary>One dab: a world-space surface point and the triangle under it.</summary>
+    public event Action<Vector3, int>? RegionStrokeDab;
+
+    /// <summary>The stroke ended and should be committed as one undo step.</summary>
+    public event Action? RegionStrokeEnded;
 
     /// <summary>
     /// The object and triangle index under a region-painting click, and whether the click was an
@@ -709,6 +727,17 @@ public sealed class ViewportControl : OpenGlControlBase
 
             // Region painting takes the click before support selection does: while it is armed
             // the user is choosing faces, not support elements.
+            if (SupportSelectionMode && RegionPickMode && RegionBrushMode &&
+                PickSurface(m, out var brushTriangle, out var brushPoint, out _) is { } brushHit &&
+                brushTriangle >= 0)
+            {
+                _brushing = true;
+                RegionStrokeStarted?.Invoke(brushHit, e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+                RegionStrokeDab?.Invoke(brushPoint, brushTriangle);
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                return;
+            }
             if (SupportSelectionMode && RegionPickMode && PickFace(m, out var regionTriangle) is { } regionHit &&
                 regionTriangle >= 0)
             {
@@ -818,7 +847,13 @@ public sealed class ViewportControl : OpenGlControlBase
         var dy = (float)(pos.Y - _lastPointer.Y);
         _lastPointer = pos;
 
-        if (_orbiting)
+        if (_brushing)
+        {
+            if (PickSurface(MouseVector(e), out var triangle, out var point, out _) is not null &&
+                triangle >= 0) RegionStrokeDab?.Invoke(point, triangle);
+            Redraw();
+        }
+        else if (_orbiting)
         {
             Camera.Orbit(dx, dy);
             Redraw();
@@ -878,6 +913,14 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_brushing)
+        {
+            _brushing = false;
+            e.Pointer.Capture(null);
+            RegionStrokeEnded?.Invoke();
+            e.Handled = true;
+            return;
+        }
         if (_orbiting || _panning)
         {
             _orbiting = _panning = false;
@@ -1002,6 +1045,8 @@ public sealed class ViewportControl : OpenGlControlBase
     // ----- Lay flat on face -----
 
     private bool _layFlatPick;
+    /// <summary>True between a brush press and its release: every move in between is a dab.</summary>
+    private bool _brushing;
 
     /// <summary>Arms lay-flat: the next left click on a face lays the object on it.</summary>
     public void BeginLayFlatPick()
