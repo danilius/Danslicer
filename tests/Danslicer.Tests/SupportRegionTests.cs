@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -191,18 +191,15 @@ public sealed class SupportRegionTests
     }
 
     [Fact]
-    public void GeneratingWithNoRegionMatchesGeneratingWithEveryFacePaintedExplicitly()
+    public void GeneratingWithNoRegionIsDeterministicAndUsesNoPaintedGrid()
     {
-        // The stronger form of the compatibility guard: run generation both ways and compare the
-        // actual output, not just the face set handed in. If the region plumbing perturbed
-        // anything — ordering, sampling, seeding — this catches it.
-        var (unpainted, plainBox) = FloatingBox();
-        var (painted, paintedBox) = FloatingBox();
-        painted.SetSupportRegions(paintedBox, ObjectSupportRegions.From(
-            Enumerable.Range(0, paintedBox.Mesh.TriangleCount), null));
+        // The compatibility guard in its strongest form: an unpainted object runs the overhang
+        // sampler, exactly as before painting existed, and repeats itself run for run.
+        var (first, firstBox) = FloatingBox();
+        var (second, secondBox) = FloatingBox();
 
-        var a = Document.ComputeSupportGeneration(unpainted.CaptureSupportGeneration(plainBox));
-        var b = Document.ComputeSupportGeneration(painted.CaptureSupportGeneration(paintedBox));
+        var a = Document.ComputeSupportGeneration(first.CaptureSupportGeneration(firstBox));
+        var b = Document.ComputeSupportGeneration(second.CaptureSupportGeneration(secondBox));
 
         Assert.NotEmpty(a.Nodes);
         Assert.Equal(a.Nodes.Count, b.Nodes.Count);
@@ -212,6 +209,38 @@ public sealed class SupportRegionTests
             Assert.Equal(left.Type, right.Type);
             Assert.Equal(left.Position, right.Position);
         }
+    }
+
+    /// <summary>
+    /// Painting is an explicit instruction, so a painted region is deliberately NOT the same as
+    /// no region: it switches placement to the even grid (user request 2026-09-06). On this box
+    /// the painted underside is flat, so the contacts land on one lattice with an even pitch in
+    /// both axes instead of the Poisson scatter an unpainted object gets.
+    /// </summary>
+    [Fact]
+    public void PaintingTheUndersideProducesAnEvenGridRatherThanTheOverhangScatter()
+    {
+        var (document, box) = FloatingBox();
+        document.SetSupportRegions(box, ObjectSupportRegions.From([0, 1], null));
+        document.SupportSettings.RegionGridVerticalPitchMm = 4f;
+        document.SupportSettings.RegionGridHorizontalPitchMm = 4f;
+
+        var prepared = Document.ComputeSupportGeneration(document.CaptureSupportGeneration(box));
+
+        var tips = prepared.Nodes.Where(node => node.Type == SupportNodeType.Tip)
+            .Select(node => node.Position).ToList();
+        Assert.NotEmpty(tips);
+        Assert.All(tips, tip => Assert.Equal(10f, tip.Z, 3));
+
+        // The 16 x 16 underside carries a complete 4 x 4 lattice at the 4 mm pitch. Islands and
+        // local minima still add their own required contacts — they are what the grid cannot be
+        // allowed to miss — so this asserts the grid is complete, not that nothing else exists.
+        float[] expected = [-6f, -2f, 2f, 6f];
+        var lattice = tips
+            .Where(tip => expected.Any(x => MathF.Abs(tip.X - x) < 1e-3f) &&
+                          expected.Any(y => MathF.Abs(tip.Y - y) < 1e-3f))
+            .ToList();
+        Assert.Equal(16, lattice.Count);
     }
 
     [Fact]

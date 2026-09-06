@@ -267,6 +267,18 @@
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportIslandSpacingMm, Mode=TwoWay}" />
                 </Grid>
+                <!-- Painted regions only: the even grid replaces overhang sampling there, and
+                     vertical rows are the axis that has to stay even. -->
+                <Grid Tag="supports placement painted region grid vertical row pitch mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Painted row pitch (Z)" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
+                                   Value="{Binding SupportRegionGridVerticalPitchMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports placement painted region grid horizontal along surface pitch mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Painted row spacing" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
+                                   Value="{Binding SupportRegionGridHorizontalPitchMm, Mode=TwoWay}" />
+                </Grid>
                 <Grid Tag="supports placement overhang angle degrees threshold" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Overhang angle °" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="90" Increment="1" FormatString="0"

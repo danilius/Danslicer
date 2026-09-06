@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Danslicer.Core.Commands;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -358,6 +358,37 @@ public sealed class Document
     }
 
     /// <summary>Clears an object's region, returning it to "every face" — today's behaviour.</summary>
+    /// <summary>
+    /// Swaps in geometry freshly read from the object's source file, keeping its name, id,
+    /// transform and place in the scene — the "the model changed in CAD, pick it up" button in
+    /// the object list. Placement is re-applied, so an auto-dropped object re-seats if the new
+    /// geometry has a different lowest point.
+    ///
+    /// <para>The new mesh is different geometry, so anything indexed against the old one goes
+    /// with it in the SAME undo step: the painted region (face indices) and this object's
+    /// supports (contacts on faces that may no longer exist). One undo puts the old mesh, its
+    /// region and its supports all back.</para>
+    ///
+    /// <para>Reading the file is the caller's job, so that file errors are reported where the
+    /// user clicked rather than thrown out of the document.</para>
+    /// </summary>
+    public void ReloadObject(SceneObject obj, Mesh mesh)
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+        ArgumentNullException.ThrowIfNull(mesh);
+        var name = $"Update {obj.Name} from file";
+        var commands = new List<IDocumentCommand>
+        {
+            new SetMeshTransformCommand(obj, obj.Mesh, obj.Transform, mesh,
+                ApplyPlacement(mesh, obj.Transform), name),
+        };
+        if (!obj.Regions.IsEmpty)
+            commands.Add(new SetSupportRegionsCommand(obj, ObjectSupportRegions.Empty, name));
+        var supportNodes = AssociatedSupportNodeIds(obj).ToHashSet();
+        if (supportNodes.Count > 0) commands.Add(DiscardSupportsCommand(supportNodes, name));
+        Execute(new CompositeCommand(name, commands));
+    }
+
     public void ClearSupportRegions(SceneObject obj) =>
         SetSupportRegions(obj, ObjectSupportRegions.Empty, "Clear support region");
 
@@ -472,6 +503,8 @@ public sealed class Document
                 // The painted region indexes faces of the mesh, which the copy shares, so it
                 // stays meaningful. Regions are immutable, so the instance can be shared.
                 Regions = original.Regions,
+                // Same mesh, same file: the copy's update button reloads what the original's does.
+                SourcePath = original.SourcePath,
             };
             var requested = original.Transform with
             {
@@ -954,6 +987,15 @@ public sealed class Document
                 MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
                 MiniSupportClusterDistanceMm = request.Settings.MiniSupportClusterDistance,
                 FineFeatureMaxAreaMm2 = request.Settings.FineFeatureMaxAreaMm2,
+                // Only a PAINTED region switches to the even surface grid; with nothing painted
+                // this stays null and generation is unchanged.
+                RegionGrid = request.Regions.Faces.Count > 0
+                    ? new RegionGridOptions
+                    {
+                        VerticalPitchMm = request.Settings.RegionGridVerticalPitchMm,
+                        HorizontalPitchMm = request.Settings.RegionGridHorizontalPitchMm,
+                    }
+                    : null,
             },
             new TreeRoutingOptions
             {

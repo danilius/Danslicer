@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports;
 
@@ -53,6 +53,14 @@ public sealed class SceneObject : INotifyPropertyChanged
     /// makes the edit undoable.
     /// </summary>
     public ObjectSupportRegions Regions { get; set; } = ObjectSupportRegions.Empty;
+
+    /// <summary>
+    /// The file this object was imported from, when it came from one. Kept so the object list's
+    /// update button can re-read it after the model has been edited in CAD, and saved with the
+    /// project so that still works in a later session. Null for anything with no file behind it
+    /// (a duplicate, a mirrored copy, a project written before this existed).
+    /// </summary>
+    public string? SourcePath { get; set; }
 
     public SceneObject(string name, Mesh mesh, Guid? id = null)
     {

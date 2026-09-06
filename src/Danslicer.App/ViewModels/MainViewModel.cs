@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -89,7 +89,9 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>
     /// The support display config the viewport actually draws with: the user's chosen display
-    /// mode, demoted from transparent to opaque while Layout is active. Every consumer binds THIS
+    /// mode in Support mode, and full visibility while Layout is active — Layout arranges models
+    /// with their supports, so a Support-mode working aid (hidden, tips only, transparent, …)
+    /// must not follow the user across. Every consumer binds THIS
     /// rather than the raw config, so the two render paths and picking cannot disagree — see
     /// <see cref="SupportDisplayPolicy.ForWorkspace"/>.
     /// </summary>
@@ -204,6 +206,30 @@ public partial class MainViewModel : ViewModelBase
         Document.SetObjectHidden(obj, obj.RenderState != RenderState.Hidden);
     }
 
+    /// <summary>
+    /// Re-reads one model's file from disk and swaps the new geometry in — the update button
+    /// beside each entry in the Objects list, for when the model has been changed in CAD. The
+    /// object keeps its name, transform and place in the scene; its painted region and its
+    /// supports are indexed against the old mesh, so they go, and one undo brings all three
+    /// back together.
+    /// </summary>
+    [RelayCommand]
+    private void ReloadObject(SceneObject? obj)
+    {
+        if (obj?.SourcePath is not { Length: > 0 } path) return;
+        try
+        {
+            var mesh = MeshFile.Read(path);
+            Document.ReloadObject(obj, mesh);
+            ViewportStatus = $"Updated {obj.Name} from {System.IO.Path.GetFileName(path)}.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                       InvalidDataException or NotSupportedException)
+        {
+            ViewportStatus = $"Could not update {obj.Name}: {ex.Message}";
+        }
+    }
+
     // ----- Support regions (DESIGN 8.3 stage 2) -----
 
     /// <summary>Dihedral limit for click-to-grow, in degrees. Live: changing it re-computes the
@@ -290,7 +316,8 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Recomputes the highlight: after a move, or after the angle that shapes it changed.</summary>
     private void RefreshRegionHover()
     {
-        if (!RegionPickMode || RegionBrushMode || _hoverObject is not { } obj || _hoverTriangle < 0)
+        if (!RegionPickMode || RegionBrushMode || _hoverObject is not { } obj || _hoverTriangle < 0 ||
+            !SupportTargetPolicy.CanSupport(Document.SupportTarget, obj))
         {
             RegionHover = null;
             return;
@@ -302,11 +329,28 @@ public partial class MainViewModel : ViewModelBase
     partial void OnRegionPickModeChanged(bool value) => RefreshRegionHover();
     partial void OnRegionBrushModeChanged(bool value) => RefreshRegionHover();
 
+    /// <summary>
+    /// Selects <paramref name="obj"/> for painting, or refuses it. Support mode works on one
+    /// model (<see cref="SupportTargetPolicy"/>), and painting is no exception: with a target
+    /// already chosen, a stroke that strays onto a neighbour must not paint it and must not take
+    /// the target away by selecting it. With no target chosen, this is the click that picks one.
+    /// </summary>
+    private bool TakePaintTarget(SceneObject obj)
+    {
+        if (SupportTargetPolicy.RefusalMessage(Document.SupportTarget, obj) is { } refusal)
+        {
+            ViewportStatus = refusal;
+            return false;
+        }
+        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        return true;
+    }
+
     /// <summary>Click-to-grow: the picked face plus everything reachable across edges that turn
     /// by no more than <see cref="RegionDihedralDegrees"/>. Shift-click erases the same patch.</summary>
     public void PaintRegionFromFace(SceneObject obj, int triangle, bool erase)
     {
-        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        if (!TakePaintTarget(obj)) return;
         var patch = SupportRegionSelection.GrowByDihedral(obj.Mesh, [triangle], (float)RegionDihedralDegrees);
         EditRegion((_, current) =>
         {
@@ -341,7 +385,7 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     public void BeginStroke(SceneObject obj, bool erase)
     {
-        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        if (!TakePaintTarget(obj)) return;
         _strokeObject = obj;
         _stroke = new SupportRegionStroke(obj.Regions, EditingKeepCleanRegion, erase);
     }
@@ -789,9 +833,17 @@ public partial class MainViewModel : ViewModelBase
     public void ImportMesh(string path)
     {
         var mesh = MeshFile.Read(path);
-        var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), mesh);
+        var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), mesh)
+        {
+            SourcePath = System.IO.Path.GetFullPath(path),
+        };
         var b = mesh.Bounds;
-        obj.Transform = Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, -b.Min.Z) };
+        // Centred on the plate in XY; the height is the placement mode's business, so an import
+        // lands exactly where Auto Drop (or the raise-above-plate offset) says it should, instead
+        // of being seated by a rule of its own that the first transform would then overrule.
+        // With placement off the model keeps the height it was authored at.
+        obj.Transform = Document.ApplyPlacement(obj,
+            Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, 0f) });
         Document.AddObject(obj);
     }
 

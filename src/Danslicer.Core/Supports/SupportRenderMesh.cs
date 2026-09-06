@@ -116,19 +116,23 @@ public static class SupportRenderMesh
     /// Builds render meshes for every visible segment of <paramref name="graph"/>, grouped by
     /// (kind, selected, disabled). <paramref name="isSelected"/> may be null when nothing is.
     /// </summary>
+    /// <param name="includeHidden">Draws elements the user hid individually. Layout passes true
+    /// (see <see cref="SupportDisplayPolicy.ForWorkspace"/>); Support mode leaves them out.</param>
     public static IReadOnlyList<SupportRenderPart> Build(SupportGraph graph,
         Func<Guid, bool>? isSelected = null,
         Func<SupportSegment, bool>? includeSegment = null,
-        Func<SupportNode, bool>? includeBase = null)
+        Func<SupportNode, bool>? includeBase = null,
+        bool includeHidden = false)
     {
         var builders = new Dictionary<(SupportRenderKind Kind, bool Selected, bool Disabled), MeshBuilder>();
 
         foreach (var segment in graph.Segments)
         {
-            if (segment.Hidden || !(includeSegment?.Invoke(segment) ?? true)) continue;
+            if (segment.Hidden && !includeHidden) continue;
+            if (!(includeSegment?.Invoke(segment) ?? true)) continue;
             var a = graph.GetNode(segment.NodeA);
             var b = graph.GetNode(segment.NodeB);
-            if (a.Hidden || b.Hidden) continue;
+            if (!includeHidden && (a.Hidden || b.Hidden)) continue;
 
             var kind = segment.Type switch
             {
@@ -152,7 +156,7 @@ public static class SupportRenderMesh
 
         foreach (var node in graph.Nodes)
         {
-            if (node.Hidden || node.Type != SupportNodeType.Base ||
+            if ((node.Hidden && !includeHidden) || node.Type != SupportNodeType.Base ||
                 !(includeBase?.Invoke(node) ?? true)) continue;
             if (node.BaseShape == SupportBaseShape.None) continue;
             var key = (SupportRenderKind.Base, isSelected?.Invoke(node.Id) ?? false, node.Disabled);

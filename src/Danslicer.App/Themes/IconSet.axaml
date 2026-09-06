@@ -21,4 +21,6 @@
 
     <!-- Close: a diagonal cross. -->
     <StreamGeometry x:Key="IconClose">M3.4,2.3 L8,6.9 L12.6,2.3 L13.7,3.4 L9.1,8 L13.7,12.6 L12.6,13.7 L8,9.1 L3.4,13.7 L2.3,12.6 L6.9,8 L2.3,3.4 Z</StreamGeometry>
+    <!-- Update from file: an arrow curving back on itself over an open gap. -->
+    <StreamGeometry x:Key="IconReload">M8,2.2 A5.8,5.8 0 1 1 2.4,9.4 L4,9 A4.2,4.2 0 1 0 8,3.8 Z M8,0.4 L11,2.6 L8,4.8 Z</StreamGeometry>
 </ResourceDictionary>

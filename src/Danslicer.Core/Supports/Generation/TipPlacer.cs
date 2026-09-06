@@ -62,6 +62,23 @@ public static class TipPlacer
         var placedGrid = new PointGrid(MathF.Min(spacing, minSpacing));
         var accepted = new List<TipCandidate>();
 
+        // A painted region is sampled as an even surface grid, and it goes first: islands and
+        // local minima then dedup against it, so the rows the user asked for stay intact instead
+        // of being broken up by opportunistic contacts landing between them.
+        if (parameters.RegionGrid is { } regionGrid)
+        {
+            foreach (var candidate in RegionGridSampler.Sample(mesh, region, parameters))
+            {
+                if (ViolatesKeepClean(candidate.FaceIndex, candidate.Point, keepClean, keepCleanBvh,
+                        keepCleanDistance)) continue;
+                if (IsOnPlate(candidate.Point, parameters)) continue;
+                if (graphGrid.AnyWithin(candidate.Point, RegionGridDedup(regionGrid))) continue;
+                if (placedGrid.AnyWithin(candidate.Point, RegionGridDedup(regionGrid))) continue;
+                placedGrid.Add(candidate.Point);
+                accepted.Add(candidate);
+            }
+        }
+
         var miniContactRadius = parameters.MiniSupportTipDiameterMm * 0.5f;
         var miniIslandFloor = MathF.PI * miniContactRadius * miniContactRadius;
         var requestedMiniMax = float.IsFinite(parameters.MiniIslandMaxAreaMm2)
@@ -106,9 +123,13 @@ public static class TipPlacer
 
         var patchArea = features.OverhangPatchArea(region, parameters);
         var rng = new Random(seed);
-        var samples = parameters.Grid is not null
-            ? CollectGridSamples(mesh, bvh, region, parameters, features, patchArea, graphGrid, minSpacing, spacing)
-            : CollectOverhangSamples(mesh, region, parameters, features, patchArea, rng, graphGrid, minSpacing, spacing);
+        // The painted grid IS the distribution for a painted region; overhang sampling would only
+        // scatter extra contacts between its rows.
+        var samples = parameters.RegionGrid is not null
+            ? (IReadOnlyList<TipCandidate>)Array.Empty<TipCandidate>()
+            : parameters.Grid is not null
+                ? CollectGridSamples(mesh, bvh, region, parameters, features, patchArea, graphGrid, minSpacing, spacing)
+                : CollectOverhangSamples(mesh, region, parameters, features, patchArea, rng, graphGrid, minSpacing, spacing);
         foreach (var sample in samples
                      .OrderByDescending(s => s.Score)
                      .ThenBy(s => s.Point.X)
@@ -167,6 +188,13 @@ public static class TipPlacer
         return FineFeatureMiniClassifier.Apply(clustered, parameters);
     }
 
+    /// <summary>
+    /// Radius at which a painted-grid contact swallows a neighbouring one: half the tighter of
+    /// the two pitches, the same value <see cref="RegionGridSampler"/> uses internally.
+    /// </summary>
+    private static float RegionGridDedup(RegionGridOptions grid) =>
+        MathF.Min(MathF.Max(grid.VerticalPitchMm, 1e-3f), MathF.Max(grid.HorizontalPitchMm, 1e-3f)) * 0.5f;
+
     private static void TryAcceptRequired(
         HashSet<int>? keepClean,
         TriangleBvh? keepCleanBvh,
@@ -190,6 +218,10 @@ public static class TipPlacer
         var effectiveSpacing = strategy is TipStrategy.Island or TipStrategy.MiniIsland
             ? MathF.Min(minSpacing, MathF.Max(parameters.IslandSpacingMm, 1e-4f))
             : minSpacing;
+        // Under a painted grid an island landing on top of a row point is already supported by
+        // it, so the island exemption is widened to the grid's own dedup radius.
+        if (parameters.RegionGrid is { } regionGrid)
+            effectiveSpacing = MathF.Max(effectiveSpacing, RegionGridDedup(regionGrid));
         if (graphGrid.AnyWithin(point, effectiveSpacing)) return;
         if (placedGrid.AnyWithin(point, effectiveSpacing)) return;
 

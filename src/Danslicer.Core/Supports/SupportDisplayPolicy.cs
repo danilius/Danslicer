@@ -1,4 +1,4 @@
-﻿using Danslicer.Core.Config;
+using Danslicer.Core.Config;
 
 namespace Danslicer.Core.Supports;
 
@@ -10,9 +10,11 @@ public static class SupportDisplayPolicy
 {
     /// <summary>
     /// The display config as a given workspace should actually see it. In Layout a model and its
-    /// supports are one object being arranged, so supports draw solid there: the transparent mode
-    /// is demoted to Full. Nothing else about the config changes, so every "which parts are shown"
-    /// answer below is unaffected.
+    /// supports are one object being arranged, so supports are ALWAYS drawn in full there: every
+    /// reduced mode (hidden, tips only, contact points, lines, transparent) is a Support-mode
+    /// working aid and is demoted to Full, and the per-part toggles come back on with it.
+    /// Switching to Layout must never leave a supported model looking bare, whatever the user
+    /// last set while working on its supports.
     ///
     /// <para>Both render paths and the picking code must be handed the SAME value from this
     /// method rather than each deciding for itself — that is the whole point of routing it
@@ -20,9 +22,26 @@ public static class SupportDisplayPolicy
     /// disagree about what the user is looking at.</para>
     /// </summary>
     public static SupportDisplayConfig ForWorkspace(SupportDisplayConfig display, bool isLayoutView) =>
-        isLayoutView && display.Mode == SupportDisplayMode.Transparent
-            ? display with { Mode = SupportDisplayMode.Full }
-            : display;
+        !isLayoutView
+            ? display
+            : display with
+            {
+                Mode = SupportDisplayMode.Full,
+                ShowHiddenElements = true,
+                ShowTips = true,
+                ShowMiniSupports = true,
+                ShowBranches = true,
+                ShowTrunks = true,
+                ShowBases = true,
+                ShowBracing = true,
+            };
+
+    /// <summary>
+    /// Whether an element's own Hidden flag currently hides it. Layout answers no to everything
+    /// (see <see cref="ForWorkspace"/>); Support mode answers with the flag itself.
+    /// </summary>
+    public static bool IsHiddenBy(bool hidden, SupportDisplayConfig display) =>
+        hidden && !display.ShowHiddenElements;
 
     public static bool ShowsMeshes(SupportDisplayConfig display) =>
         display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Tips or
@@ -65,8 +84,10 @@ public static class SupportDisplayPolicy
             SupportNodeType.Base => display.ShowBases &&
                 (display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent),
             SupportNodeType.Junction => graph.SegmentsAt(node.Id)
-                .Any(segment => !segment.Hidden && IsSegmentDisplayed(segment.Type, display) &&
-                    !graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA).Hidden),
+                .Any(segment => !IsHiddenBy(segment.Hidden, display) &&
+                    IsSegmentDisplayed(segment.Type, display) &&
+                    !IsHiddenBy(graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA)
+                        .Hidden, display)),
             _ => false,
         };
 
@@ -92,10 +113,11 @@ public static class SupportDisplayPolicy
         SupportDisplayConfig display, ViewportClipRange clip = default)
     {
         if (graph.TryGetNode(id, out var node))
-            return !node.Hidden && IsNodeDisplayed(graph, node, display, clip);
-        if (!graph.TryGetSegment(id, out var segment) || segment.Hidden ||
+            return !IsHiddenBy(node.Hidden, display) && IsNodeDisplayed(graph, node, display, clip);
+        if (!graph.TryGetSegment(id, out var segment) || IsHiddenBy(segment.Hidden, display) ||
             !IsSegmentDisplayed(graph, segment, display, clip)) return false;
-        return !graph.GetNode(segment.NodeA).Hidden && !graph.GetNode(segment.NodeB).Hidden;
+        return !IsHiddenBy(graph.GetNode(segment.NodeA).Hidden, display) &&
+               !IsHiddenBy(graph.GetNode(segment.NodeB).Hidden, display);
     }
 
     public static IEnumerable<Guid> DisplayedElementIds(SupportGraph graph,
