@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 
 namespace Danslicer.Core.Supports;
 
@@ -211,6 +211,22 @@ public sealed class SupportGraph
     public SupportSegment GetSegment(Guid id) => _segments[id];
     public bool TryGetNode(Guid id, out SupportNode node) => _nodes.TryGetValue(id, out node!);
     public bool TryGetSegment(Guid id, out SupportSegment segment) => _segments.TryGetValue(id, out segment!);
+
+    /// <summary>
+    /// The scene object a support element belongs to, node or segment, or null for one that
+    /// belongs to no object. A segment carries its own origin, but a segment built by joining
+    /// onto an existing tree can be tagged before its owner is known, so its endpoints are the
+    /// fallback: a member between two of an object's nodes is that object's member.
+    /// </summary>
+    public Guid? OwningObjectId(Guid elementId)
+    {
+        if (TryGetNode(elementId, out var node)) return node.Origin.ObjectId;
+        if (!TryGetSegment(elementId, out var segment)) return null;
+        if (segment.Origin.ObjectId is { } owner) return owner;
+        return TryGetNode(segment.NodeA, out var a) && a.Origin.ObjectId is { } fromA
+            ? fromA
+            : TryGetNode(segment.NodeB, out var b) ? b.Origin.ObjectId : null;
+    }
 
     public void AddNode(SupportNode node)
     {

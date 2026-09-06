@@ -117,6 +117,45 @@ public sealed class SupportLifecycleTests
         Assert.True(SupportTransformRule.MapsContactsExactly(before, after));
     }
 
+    // ----- Layout: a model and its supports are one thing -----
+
+    [Fact]
+    public void EverySupportElementKnowsWhichModelItBelongsTo()
+    {
+        // What Layout clicking needs: any part of a support answers "which model is this?", so
+        // a click anywhere on it can select the model.
+        var (document, box) = SupportedBox();
+
+        foreach (var node in document.Supports.Nodes)
+            Assert.Equal(box.Id, document.Supports.OwningObjectId(node.Id));
+        foreach (var segment in document.Supports.Segments)
+            Assert.Equal(box.Id, document.Supports.OwningObjectId(segment.Id));
+    }
+
+    [Fact]
+    public void AnUnknownElementBelongsToNoModel()
+    {
+        var (document, _) = SupportedBox();
+
+        Assert.Null(document.Supports.OwningObjectId(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void SupportsOfTwoModelsAreToldApart()
+    {
+        var (document, first) = SupportedBox("first");
+        var second = new SceneObject("second", Box(new Vector3(20, -5, 8), new Vector3(30, 5, 14)));
+        document.AddObject(second);
+        Assert.True(document.AddManualSupport(second, new Vector3(25, 0, 8), -Vector3.UnitZ));
+
+        foreach (var node in document.Supports.Nodes)
+        {
+            var owner = document.Supports.OwningObjectId(node.Id);
+            Assert.True(owner == first.Id || owner == second.Id);
+            Assert.Equal(node.Origin.ObjectId, owner);
+        }
+    }
+
     // ----- Duplicate -----
 
     [Fact]

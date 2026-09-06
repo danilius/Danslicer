@@ -542,10 +542,13 @@ public sealed class ViewportControl : OpenGlControlBase
             var px = (int)(pick.Mouse.X * scaling);
             var py = height - 1 - (int)(pick.Mouse.Y * scaling);
             if (_renderer.TryPickObject(px, py, out var hit))
-                ApplyObjectClick(hit, pick.Additive);
+                // Support geometry is not in the ID buffer, so a click that lands on a support
+                // reads as empty space there. Ask the CPU pick before believing it.
+                ApplyObjectClick(hit ?? SupportOwnerAt(pick.Mouse, float.PositiveInfinity), pick.Additive);
             else
                 // The frame fell back to the classic path; pick the CPU way instead.
-                ApplyObjectClick(PickObject(pick.Mouse), pick.Additive);
+                ApplyObjectClick(PickObject(pick.Mouse) ??
+                    SupportOwnerAt(pick.Mouse, float.PositiveInfinity), pick.Additive);
         }
     }
 
@@ -730,6 +733,14 @@ public sealed class ViewportControl : OpenGlControlBase
 
             var hitObj = PickSurface(m, out _, out var surfacePoint, out _);
             var objDistance = hitObj is null ? float.PositiveInfinity : Vector3.Distance(Camera.Eye, surfacePoint);
+            if (!SupportSelectionMode && SupportOwnerAt(m, objDistance) is { } ownerByClick)
+            {
+                // Outside Support mode a model and its supports are one thing, so clicking any
+                // part of the support selects the model it belongs to.
+                ApplyObjectClick(ownerByClick, additive);
+                e.Handled = true;
+                return;
+            }
             if (SupportSelectionMode)
             {
                 // Every LMB press arms a marquee, wherever it starts (Blender box select);
@@ -1080,6 +1091,21 @@ public sealed class ViewportControl : OpenGlControlBase
     /// and sit on segments), then segments. Returns its camera distance for depth arbitration
     /// against a surface hit.
     /// </summary>
+    /// <summary>
+    /// The model owning the support element under <paramref name="mouse"/>, when one is nearer
+    /// than <paramref name="objectDistance"/>. Layout treats a model and its supports as one
+    /// object: there is no support selection there, so a click on a support means the model.
+    /// </summary>
+    private SceneObject? SupportOwnerAt(Vector2 mouse, float objectDistance)
+    {
+        if (Document is null) return null;
+        if (PickSupportElement(mouse, out var supportDistance) is not { } element) return null;
+        if (supportDistance > objectDistance + 0.5f) return null;
+        return Document.Supports.OwningObjectId(element) is { } objectId
+            ? Document.Scene.Objects.FirstOrDefault(obj => obj.Id == objectId)
+            : null;
+    }
+
     private Guid? PickSupportElement(Vector2 mouse, out float cameraDistance)
     {
         cameraDistance = float.PositiveInfinity;
