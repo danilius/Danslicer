@@ -21,7 +21,10 @@
     <SolidColorBrush x:Key="AppTextFaint" Color="#9AA0A6" />
     <Color x:Key="AppAccentColor">#FFB35C</Color>
     <SolidColorBrush x:Key="AppAccent" Color="{StaticResource AppAccentColor}" />
-    <SolidColorBrush x:Key="AppPopupBackground" Color="#F523262A" />
+    <SolidColorBrush x:Key="AppPopupBackground" Color="#F515171A" />
+    <!-- Pop-outs float over the viewport, so they need an edge that reads against a
+         light model as well as a dark one. Pure black is the only colour that does. -->
+    <SolidColorBrush x:Key="AppPopupBorder" Color="#000000" />
 
     <!-- FluentTheme overrides. Application.Resources is checked ahead of Application.Styles
          (where FluentTheme lives), so plain keys here win over the theme's own Dark-variant
@@ -71,7 +74,15 @@
 
     <SolidColorBrush x:Key="CheckBoxBackgroundUnchecked" Color="#17191C" />
     <SolidColorBrush x:Key="CheckBoxBorderBrushUnchecked" Color="#7A858F" />
-    <SolidColorBrush x:Key="CheckBoxBackgroundChecked" Color="{StaticResource AppAccentColor}" />
+    <!-- The ACCENT belongs to the tick box (CheckBoxCheckBackgroundFill*), not to the
+         control, whose background covers the label too. Painting it accent when checked
+         put a coloured slab behind every ticked option. Same background either way. -->
+    <SolidColorBrush x:Key="CheckBoxBackgroundChecked" Color="#17191C" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundCheckedPointerOver" Color="#17191C" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundCheckedPressed" Color="#17191C" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundIndeterminate" Color="#17191C" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundIndeterminatePointerOver" Color="#17191C" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundIndeterminatePressed" Color="#17191C" />
     <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
     <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#1B1D20" />
     <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#E0E3E7" />

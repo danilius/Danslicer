@@ -86,6 +86,13 @@
             <Setter Property="Width" Value="19" />
             <Setter Property="Height" Value="19" />
         </Style>
+        <!-- Every viewport pop-out panel: one dark ground and one pure-black edge, so the
+             panel reads as a separate surface floating over the model. -->
+        <Style Selector="Border.viewportPopup">
+            <Setter Property="Background" Value="{DynamicResource AppPopupBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppPopupBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
         <Style Selector="Button.popupClose">
             <Setter Property="Width" Value="22" />
             <Setter Property="Height" Value="22" />
@@ -331,6 +338,8 @@
                 <controls:ViewportControl x:Name="Viewport" Document="{Binding Document}"
                                           IsVisible="{Binding IsModelView}"
                                           SupportSelectionMode="{Binding IsSupportView}"
+                                          RegionPickMode="{Binding RegionPickMode}"
+                                          RegionBrushMode="{Binding RegionBrushMode}"
                                           SelectThroughSupports="{Binding SelectThroughSupports}"
                                           SupportDisplay="{Binding EffectiveSupportDisplay}"
                                           ClipRange="{Binding ViewportClipRange}"
@@ -359,10 +368,10 @@
                         ToolTip.Tip="Viewport layer isolation only — slicing and support generation are unaffected">
                     <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto">
                         <StackPanel>
-                            <TextBlock Text="High" Classes="label" HorizontalAlignment="Center" />
+                            <TextBlock Text="Top layer" Classes="label" HorizontalAlignment="Center" />
                             <controls:ExpressionBox Width="60"
                                 Text="{Binding SupportClip.UpperField.Text, Mode=TwoWay}"
-                                ToolTip.Tip="Upper visible height (expressions accepted)" />
+                                ToolTip.Tip="Highest visible layer number (expressions accepted)" />
                         </StackPanel>
                         <controls:LayerRangeSlider Grid.Row="1" Orientation="Vertical"
                                                    HorizontalAlignment="Stretch"
@@ -374,10 +383,10 @@
                                                    IsDragging="{Binding SupportClip.IsDragging, Mode=TwoWay}"
                                                    ToolTip.Tip="Drag either end to clip the Support viewport from below or above" />
                         <StackPanel Grid.Row="2">
-                            <TextBlock Text="Low" Classes="label" HorizontalAlignment="Center" />
+                            <TextBlock Text="Bottom layer" Classes="label" HorizontalAlignment="Center" />
                             <controls:ExpressionBox Width="60"
                                 Text="{Binding SupportClip.LowerField.Text, Mode=TwoWay}"
-                                ToolTip.Tip="Lower visible height (expressions accepted)" />
+                                ToolTip.Tip="Lowest visible layer number (expressions accepted); layer 1 is the first layer above the plate" />
                         </StackPanel>
                         <Button Grid.Row="3" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
                                 Margin="0,7,0,0" Padding="6,2"
@@ -417,7 +426,7 @@
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="ObjectsPopupContent" Width="240" MaxHeight="520" Padding="10"
-                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Objects" Classes="section" Margin="0" />
@@ -454,7 +463,7 @@
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="SupportsPopupContent" Width="340" MaxHeight="700" Padding="10"
-                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Supports" Classes="section" Margin="0" />
@@ -466,6 +475,50 @@
                                 <Button DockPanel.Dock="Top" Content="Generate Supports"
                                         Command="{Binding GenerateSupportsScopedCommand}"
                                         HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+                                <!-- Support regions (DESIGN 8.3). Painting decides WHERE generation
+                                     may place contacts; the operations themselves live in
+                                     SupportRegionSelection and are pure set maths. -->
+                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <TextBlock Text="Region" Classes="section" Margin="0,0,0,4" />
+                                    <ToggleButton x:Name="RegionPaintToggle" Content="Paint faces (click)"
+                                                  IsChecked="{Binding RegionPickMode, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch"
+                                                  ToolTip.Tip="Click a face to add its patch to the region; Shift-click erases it" />
+                                    <CheckBox Content="Brush (drag to paint)"
+                                              IsChecked="{Binding RegionBrushMode, Mode=TwoWay}"
+                                              ToolTip.Tip="With painting armed, drag to paint a stroke; Shift-drag erases. One undo per stroke." />
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                        <TextBlock Text="Brush radius" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionBrushRadiusMm, Mode=TwoWay}"
+                                            ToolTip.Tip="Millimetres on the surface" />
+                                    </Grid>
+                                    <CheckBox Content="Edit keep-clean region"
+                                              IsChecked="{Binding EditingKeepCleanRegion, Mode=TwoWay}"
+                                              ToolTip.Tip="Operations edit the keep-clean faces instead of the supported faces" />
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                        <TextBlock Text="Patch angle" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionDihedralDegrees, Mode=TwoWay}"
+                                            ToolTip.Tip="Click-to-grow crosses an edge while the faces turn by no more than this" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,4">
+                                        <TextBlock Text="Down angle" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionOverhangDegrees, Mode=TwoWay}"
+                                            ToolTip.Tip="Measured from vertical, as generation measures it: 0 is a wall, 90 a flat underside" />
+                                    </Grid>
+                                    <Button Content="Select faces pointing down"
+                                            Command="{Binding SelectFacingDownRegionCommand}"
+                                            HorizontalAlignment="Stretch" />
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <Button Content="Invert" Command="{Binding InvertRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Grow" Command="{Binding GrowRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Shrink" Command="{Binding ShrinkRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Connected" Command="{Binding ConnectedRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Clear" Command="{Binding ClearRegionCommand}" Margin="0,0,4,4" />
+                                    </WrapPanel>
+                                </StackPanel>
                                 <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                                     <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
                                 </ScrollViewer>
@@ -486,7 +539,7 @@
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="IslandDetectionPopupContent" Width="360" MaxHeight="700" Padding="10"
-                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Island Detection" Classes="section" Margin="0" />
@@ -555,7 +608,7 @@
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="VisibilityPopupContent" Width="300" Padding="10"
-                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Visibility" Classes="section" Margin="0" />
@@ -596,7 +649,7 @@
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="RaftsPopupContent" Width="240" Padding="10"
-                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="Rafts" Classes="section" Margin="0" />
@@ -624,7 +677,7 @@
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
                         <Border x:Name="ViewSettingsPopupContent" Width="235" Padding="10"
-                                Background="{DynamicResource AppPopupBackground}" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                                     <TextBlock Text="View" Classes="section" Margin="0" />

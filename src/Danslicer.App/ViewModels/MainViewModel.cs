@@ -164,8 +164,8 @@ public partial class MainViewModel : ViewModelBase
         ViewportToolbarPolicy.IsAvailable(ViewportTool.UvtoolsCheck, ViewMode);
 
     /// <summary>
-    /// Object rows remain useful context in Support and Slicing, but only Layout owns object
-    /// selection. Disabling the list prevents it from fighting those modes' selection models.
+    /// Object rows are live wherever an object selection means something: Layout arranges the
+    /// selected model, Support supports it. Slicing has no object-level operations.
     /// </summary>
     public bool IsObjectListSelectionEnabled => ViewportToolbarPolicy.CanSelectObjects(ViewMode);
 
@@ -191,6 +191,150 @@ public partial class MainViewModel : ViewModelBase
         get => ViewMode == WorkspaceMode.Slicing;
         set { if (value) ViewMode = WorkspaceMode.Slicing; }
     }
+
+    // ----- Support regions (DESIGN 8.3 stage 2) -----
+
+    /// <summary>Dihedral limit for click-to-grow, in degrees. Live: changing it and clicking
+    /// again is the whole interaction, since the operation keeps no state between clicks.</summary>
+    [ObservableProperty]
+    public partial double RegionDihedralDegrees { get; set; } = 30;
+
+    /// <summary>Threshold for "select what faces down", in generation's convention: measured from
+    /// vertical, strict greater-than. Defaults to the support settings' own overhang angle so the
+    /// two agree unless the user deliberately parts them.</summary>
+    [ObservableProperty]
+    public partial double RegionOverhangDegrees { get; set; } = 45;
+
+    /// <summary>Which of the two face sets the operations edit: the support region, or the
+    /// keep-clean region that overrides it.</summary>
+    [ObservableProperty]
+    public partial bool EditingKeepCleanRegion { get; set; }
+
+    /// <summary>While set, a viewport click paints faces instead of selecting supports.</summary>
+    [ObservableProperty]
+    public partial bool RegionPickMode { get; set; }
+
+    public string RegionSetName => EditingKeepCleanRegion ? "keep-clean region" : "support region";
+
+    /// <summary>
+    /// Applies a set operation to the region being edited, as one undoable step.
+    ///
+    /// <para><b>Empty means two different things, deliberately.</b> To GENERATION an empty support
+    /// region means "every face" — the compatibility guard from stage 1. To these EDITING
+    /// operations it means the literal empty set, because a user who inverts an unpainted object
+    /// expects to end up with every face painted, not with a no-op. The two readings agree on
+    /// what actually gets supported, which is what matters: painting every face explicitly and
+    /// painting nothing at all generate the same supports.</para>
+    /// </summary>
+    private void EditRegion(Func<Mesh, IReadOnlySet<int>, IReadOnlySet<int>> operation, string name)
+    {
+        if (SelectedObject is not { } obj) return;
+        var regions = obj.Regions;
+        var current = EditingKeepCleanRegion ? regions.KeepCleanFaces : regions.Faces;
+        var next = operation(obj.Mesh, current);
+        Document.SetSupportRegions(obj, EditingKeepCleanRegion
+            ? ObjectSupportRegions.From(regions.Faces, next)
+            : ObjectSupportRegions.From(next, regions.KeepCleanFaces), name);
+        ViewportStatus = $"{name}: {next.Count} of {obj.Mesh.TriangleCount} faces in the {RegionSetName}.";
+    }
+
+    /// <summary>Click-to-grow: the picked face plus everything reachable across edges that turn
+    /// by no more than <see cref="RegionDihedralDegrees"/>. Shift-click erases the same patch.</summary>
+    public void PaintRegionFromFace(SceneObject obj, int triangle, bool erase)
+    {
+        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        var patch = SupportRegionSelection.GrowByDihedral(obj.Mesh, [triangle], (float)RegionDihedralDegrees);
+        EditRegion((_, current) =>
+        {
+            var next = new HashSet<int>(current);
+            if (erase) next.ExceptWith(patch);
+            else next.UnionWith(patch);
+            return next;
+        }, erase ? "Erase region patch" : "Paint region patch");
+    }
+
+    /// <summary>While set, a painting drag lays a brush stroke instead of growing a patch from
+    /// one click.</summary>
+    [ObservableProperty]
+    public partial bool RegionBrushMode { get; set; }
+
+    /// <summary>Brush radius in millimetres, adjustable while painting.</summary>
+    [ObservableProperty]
+    public partial double RegionBrushRadiusMm { get; set; } = 2;
+
+    private SupportRegionStroke? _stroke;
+    private SceneObject? _strokeObject;
+
+    /// <summary>
+    /// Starts a brush stroke on <paramref name="obj"/>. Every dab until <see cref="EndStroke"/>
+    /// belongs to this one stroke, and the whole stroke is one undo step: the dabs update the
+    /// object's region directly so the paint appears under the cursor, and the undoable edit is
+    /// committed once, at the end, from where the region stood when the stroke began.
+    /// </summary>
+    public void BeginStroke(SceneObject obj, bool erase)
+    {
+        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        _strokeObject = obj;
+        _stroke = new SupportRegionStroke(obj.Regions, EditingKeepCleanRegion, erase);
+    }
+
+    /// <summary>One dab of the brush, centred on a surface point on a picked face.</summary>
+    public void BrushStroke(Vector3 surfacePoint, int triangle)
+    {
+        if (_stroke is null || _strokeObject is not { } obj) return;
+        // The stroke works in the object's own space, because that is where its faces live.
+        if (!Matrix4x4.Invert(obj.Transform.ToMatrix(), out var worldToLocal)) return;
+        var local = Vector3.Transform(surfacePoint, worldToLocal);
+        var scale = obj.Transform.Scale;
+        var localRadius = (float)RegionBrushRadiusMm /
+            MathF.Max(MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y)), MathF.Abs(scale.Z));
+        if (!_stroke.Add(SupportRegionBrush.FacesWithin(obj.Mesh, local, localRadius, triangle))) return;
+        // Live feedback only — not an undoable edit. EndStroke commits the whole stroke.
+        obj.Regions = _stroke.Apply();
+        Document.NotifyTransientChange();
+    }
+
+    /// <summary>Commits the stroke as a single undoable edit, or drops it if it painted nothing.</summary>
+    public void EndStroke()
+    {
+        var stroke = _stroke;
+        var obj = _strokeObject;
+        _stroke = null;
+        _strokeObject = null;
+        if (stroke is null || obj is null) return;
+        var painted = stroke.Apply();
+        // Rewind to the pre-stroke region first: SetSupportRegions is what records the undo, and
+        // it can only record a change it actually performs.
+        obj.Regions = stroke.Before;
+        Document.SetSupportRegions(obj, painted,
+            stroke.Erasing ? "Erase support region" : "Paint support region");
+        ViewportStatus = stroke.Touched.Count == 0
+            ? "Brush: nothing painted."
+            : $"Brush: {stroke.Touched.Count} faces {(stroke.Erasing ? "erased from" : "added to")} the {RegionSetName}.";
+    }
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void SelectFacingDownRegion() => EditRegion(
+        (mesh, _) => SupportRegionSelection.FacingDown(mesh, (float)RegionOverhangDegrees),
+        "Select faces pointing down");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void InvertRegion() => EditRegion(SupportRegionSelection.Invert, "Invert region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void GrowRegion() => EditRegion(SupportRegionSelection.Grow, "Grow region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ShrinkRegion() => EditRegion(SupportRegionSelection.Shrink, "Shrink region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ConnectedRegion() => EditRegion(
+        (mesh, current) => SupportRegionSelection.Connected(mesh, current), "Select connected");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ClearRegion() => EditRegion((_, _) => new HashSet<int>(), "Clear region");
+
+    private bool HasRegionTarget() => SelectedObject is not null;
 
     partial void OnViewModeChanged(WorkspaceMode value)
     {
@@ -479,7 +623,20 @@ public partial class MainViewModel : ViewModelBase
         GenerateSupportsCommand.NotifyCanExecuteChanged();
         GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
         DetectIslandsCommand.NotifyCanExecuteChanged();
+        NotifyRegionCommands();
     }
+
+    private void NotifyRegionCommands()
+    {
+        SelectFacingDownRegionCommand.NotifyCanExecuteChanged();
+        InvertRegionCommand.NotifyCanExecuteChanged();
+        GrowRegionCommand.NotifyCanExecuteChanged();
+        ShrinkRegionCommand.NotifyCanExecuteChanged();
+        ConnectedRegionCommand.NotifyCanExecuteChanged();
+        ClearRegionCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnEditingKeepCleanRegionChanged(bool value) => OnPropertyChanged(nameof(RegionSetName));
 
     partial void OnAutoDropEnabledChanged(bool value)
     {
@@ -510,6 +667,9 @@ public partial class MainViewModel : ViewModelBase
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         SliceCommand.NotifyCanExecuteChanged();
+        // Layer height first: the clip boxes read in layer numbers, so a print-settings change
+        // has to reach them before the bounds do.
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z);
 
         // Geometry changed: the slice no longer matches the scene.
@@ -567,6 +727,7 @@ public partial class MainViewModel : ViewModelBase
     public void NewProject()
     {
         Document.Clear();
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z, reset: true);
         SelectedObject = null;
         LastSlice = null;
@@ -584,6 +745,7 @@ public partial class MainViewModel : ViewModelBase
     {
         var loaded = ProjectFile.Load(path);
         Document.ReplaceWith(loaded.Document);
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z,
             reset: true);
         PrintSettings.Refresh();
@@ -602,8 +764,19 @@ public partial class MainViewModel : ViewModelBase
         return loaded.ViewState;
     }
 
-    private Aabb VisiblePrintBounds() => Document.Scene.WorldBounds.Union(
-        SupportRenderMesh.VisibleBounds(Document.Supports));
+    /// <summary>
+    /// The Z range the clip slider spans: the combined bounding box of the models on the plate,
+    /// hidden ones excluded, recomputed from the live transforms every time the document changes,
+    /// so moving a model in Layout moves the numbers with it.
+    ///
+    /// <para>Supports are deliberately NOT included. They reach down to the plate and out beyond
+    /// the models, so unioning them stretched the range past anything the user could point at and
+    /// made the layer numbers unrelatable to the models they were reading. Nothing disappears as
+    /// a result: a range sitting at both extremes does not clip at all
+    /// (<see cref="ViewportClipRange.IsClipping"/>), so supports outside the model range are
+    /// hidden only once the user actually drags a handle — which is what the tool is for.</para>
+    /// </summary>
+    private Aabb VisiblePrintBounds() => Document.Scene.WorldBounds;
 
     /// <summary>
     /// Rebuilds the slicing choices after Preferences changes. A project-embedded definition is
