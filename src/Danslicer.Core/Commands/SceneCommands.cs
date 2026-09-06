@@ -1,5 +1,6 @@
-using Danslicer.Core.Geometry;
+﻿using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
+using Danslicer.Core.Supports;
 
 namespace Danslicer.Core.Commands;
 
@@ -107,4 +108,30 @@ public sealed class SetRenderStateCommand : IDocumentCommand
     public string Name { get; }
     public void Execute() => _object.RenderState = _after;
     public void Undo() => _object.RenderState = _before;
+}
+
+/// <summary>
+/// Replaces an object's painted support region (DESIGN 8.3 stage 1). Regions are a document
+/// edit like any other, so painting, clearing and marking keep-clean all undo in one step —
+/// which is what stages 2 and 3 need when a brush stroke or a grow operation lands as a single
+/// set replacement rather than a stream of per-face edits.
+/// </summary>
+public sealed class SetSupportRegionsCommand : IDocumentCommand
+{
+    private readonly SceneObject _object;
+    private readonly ObjectSupportRegions _before;
+    private readonly ObjectSupportRegions _after;
+
+    public SetSupportRegionsCommand(SceneObject obj, ObjectSupportRegions after,
+        string name = "Edit support region")
+    {
+        _object = obj;
+        _before = obj.Regions;
+        _after = after;
+        Name = name;
+    }
+
+    public string Name { get; }
+    public void Execute() => _object.Regions = _after;
+    public void Undo() => _object.Regions = _before;
 }

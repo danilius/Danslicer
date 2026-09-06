@@ -24,7 +24,13 @@ public readonly record struct SupportPositionSnapshot(Vector3 Position, Vector3 
 public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
 public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot Target,
     IReadOnlyList<SceneMeshSnapshot> SceneMeshes, SupportGraph ExistingSupports, int Seed,
-    SupportConfig Settings, SupportGenerationScope Scope = SupportGenerationScope.Full);
+    SupportConfig Settings, SupportGenerationScope Scope = SupportGenerationScope.Full)
+{
+    /// <summary>The object's painted region, captured with the rest of the mutable state so a
+    /// background generation is not affected by painting that happens while it runs. Empty means
+    /// every face, which is what an unpainted object has always done.</summary>
+    public ObjectSupportRegions Regions { get; init; } = ObjectSupportRegions.Empty;
+}
 
 public sealed record IslandDetectionRequest(SceneMeshSnapshot Target,
     SupportGraph ExistingSupports, float LayerHeightMm, SupportConfig Settings);
@@ -112,6 +118,7 @@ public sealed class Document
         {
             Transform = obj.Transform,
             RenderState = obj.RenderState,
+            Regions = obj.Regions,
         }));
         Supports.ReplaceWith(source.Supports.Nodes.Select(node => node.Clone()),
             source.Supports.Segments.Select(segment => segment.Clone()));
@@ -308,6 +315,24 @@ public sealed class Document
 
         Execute(new CompositeCommand(name, commands));
     }
+
+    /// <summary>
+    /// Replaces an object's painted support region as one undo step (DESIGN 8.3 stage 1). The
+    /// selection tools of stages 2 and 3 are expected to compute a whole new face set and hand
+    /// it here, so a brush stroke or a grow is one undo, not one per face.
+    /// </summary>
+    public void SetSupportRegions(SceneObject obj, ObjectSupportRegions regions,
+        string name = "Edit support region")
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+        ArgumentNullException.ThrowIfNull(regions);
+        if (regions.Equals(obj.Regions)) return;
+        Execute(new SetSupportRegionsCommand(obj, regions, name));
+    }
+
+    /// <summary>Clears an object's region, returning it to "every face" — today's behaviour.</summary>
+    public void ClearSupportRegions(SceneObject obj) =>
+        SetSupportRegions(obj, ObjectSupportRegions.Empty, "Clear support region");
 
     /// <summary>Ids of every support node owned by <paramref name="obj"/>. Segments are not listed:
     /// <see cref="RemoveSupportElementsCommand"/> pulls in each node's attached segments itself.</summary>
@@ -762,7 +787,10 @@ public sealed class Document
         var scene = Scene.Objects.Select(o => new SceneMeshSnapshot(o.Mesh, o.Transform.ToMatrix())).ToList();
         return new SupportGenerationRequest(obj.Id,
             new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), scene, CloneGraph(Supports), seed,
-            SupportSettings with { }, scope);
+            SupportSettings with { }, scope)
+        {
+            Regions = obj.Regions,
+        };
     }
 
     public IslandDetectionRequest CaptureIslandDetection(SceneObject obj) => new(
@@ -788,7 +816,10 @@ public sealed class Document
     {
         cancellationToken.ThrowIfCancellationRequested();
         var worldMesh = TransformMesh(request.Target);
-        var region = Enumerable.Range(0, worldMesh.TriangleCount).ToHashSet();
+        // No painted region is the same set this line has always produced — every face — so an
+        // unpainted object generates bit-identically to before regions existed. Keep-clean is
+        // subtracted here AND passed to the tip placer, which also enforces its distance rule.
+        var region = request.Regions.EffectiveFaces(worldMesh.TriangleCount);
         var origin = new SupportOrigin(request.ObjectId, 1, request.ObjectId);
         var meshes = new BvhCollisionScene();
         foreach (var snapshot in request.SceneMeshes)
@@ -853,7 +884,11 @@ public sealed class Document
                 Seed = request.Seed,
                 Origin = origin,
             }, rules,
-            obstacles, request.ExistingSupports, seed: request.Seed, progress: progress,
+            obstacles, request.ExistingSupports,
+            keepCleanFaces: request.Regions.KeepCleanFaces.Count > 0
+                ? request.Regions.KeepCleanFaces
+                : null,
+            seed: request.Seed, progress: progress,
             scope: request.Scope);
         cancellationToken.ThrowIfCancellationRequested();
 
