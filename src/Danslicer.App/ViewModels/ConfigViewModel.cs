@@ -726,6 +726,21 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.IslandSpacingMm = Clamp(value, 0.01f, 1000f, 0.5f));
     }
 
+    /// <summary>Row pitch of the painted-region grid, in Z — the axis that matters most on a
+    /// painted wall, so it is its own setting rather than sharing <see cref="SupportSpacing"/>.</summary>
+    public float SupportRegionGridVerticalPitchMm
+    {
+        get => Supports.RegionGridVerticalPitchMm;
+        set => Update(() => Supports.RegionGridVerticalPitchMm = Clamp(value, 0.01f, 1000f, 2.5f));
+    }
+
+    /// <summary>Spacing along each painted-region row, measured along the surface.</summary>
+    public float SupportRegionGridHorizontalPitchMm
+    {
+        get => Supports.RegionGridHorizontalPitchMm;
+        set => Update(() => Supports.RegionGridHorizontalPitchMm = Clamp(value, 0.01f, 1000f, 2.5f));
+    }
+
     public float SupportOverhangAngleDegrees
     {
         get => Supports.OverhangAngleDegrees;

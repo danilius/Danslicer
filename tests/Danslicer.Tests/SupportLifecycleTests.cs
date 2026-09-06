@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -436,13 +436,13 @@ public sealed class SupportLifecycleTests
         Assert.Equal(supportsBefore, document.Supports.Nodes.Count);
     }
 
-    // ----- Layout opacity -----
+    // ----- Layout visibility -----
 
     [Fact]
-    public void LayoutShowsSupportsOpaqueButSupportModeKeepsTheChosenMode()
+    public void LayoutShowsSupportsInFullButSupportModeKeepsTheChosenMode()
     {
         // Not a setting: in Layout a model and its supports are one object being arranged, so
-        // the supports are solid there whatever the display mode says.
+        // the supports are drawn whatever the display mode says.
         var transparent = new SupportDisplayConfig { Mode = SupportDisplayMode.Transparent };
 
         var inLayout = SupportDisplayPolicy.ForWorkspace(transparent, isLayoutView: true);
@@ -452,31 +452,53 @@ public sealed class SupportLifecycleTests
         Assert.Equal(SupportDisplayMode.Transparent, inSupport.Mode);
     }
 
+    /// <summary>
+    /// User request 2026-09-06: reducing supports to tips, or switching parts of them off, is a
+    /// Support-mode working aid. Layout must show them in full regardless — including the
+    /// per-part toggles, or every part being switched off would survive the switch as supports
+    /// that are still invisible in Layout.
+    /// </summary>
+    [Theory]
+    [InlineData(SupportDisplayMode.Tips)]
+    [InlineData(SupportDisplayMode.Lines)]
+    [InlineData(SupportDisplayMode.ContactPoints)]
+    [InlineData(SupportDisplayMode.Transparent)]
+    public void EveryReducedModeBecomesFullVisibilityInLayout(SupportDisplayMode mode)
+    {
+        var display = new SupportDisplayConfig
+        {
+            Mode = mode,
+            ShowTips = false,
+            ShowBranches = false,
+            ShowTrunks = false,
+            ShowMiniSupports = false,
+            ShowBases = false,
+            ShowBracing = false,
+        };
+
+        var inLayout = SupportDisplayPolicy.ForWorkspace(display, isLayoutView: true);
+
+        Assert.Equal(SupportDisplayMode.Full, inLayout.Mode);
+        Assert.True(SupportDisplayPolicy.ShowsMeshes(inLayout));
+        Assert.All(Enum.GetValues<SupportSegmentType>(),
+            type => Assert.True(SupportDisplayPolicy.IsSegmentDisplayed(type, inLayout)));
+        Assert.True(inLayout.ShowBases);
+
+        // Support mode is untouched: the user's working view is theirs.
+        Assert.Same(display, SupportDisplayPolicy.ForWorkspace(display, isLayoutView: false));
+    }
+
     [Fact]
-    public void ForcingOpacityChangesOnlyTheModeAndLeavesEveryOtherDisplayChoiceAlone()
+    public void LayoutLeavesSettingsThatOnlyMeanAnythingInSupportModeAlone()
     {
         var display = new SupportDisplayConfig
         {
             Mode = SupportDisplayMode.Transparent,
-            ShowTips = false,
-            ShowBases = false,
             ShowContactPointsInTransparent = false,
         };
 
-        var forced = SupportDisplayPolicy.ForWorkspace(display, isLayoutView: true);
+        var inLayout = SupportDisplayPolicy.ForWorkspace(display, isLayoutView: true);
 
-        Assert.Equal(display with { Mode = SupportDisplayMode.Full }, forced);
-    }
-
-    [Theory]
-    [InlineData(SupportDisplayMode.Full)]
-    [InlineData(SupportDisplayMode.Lines)]
-    [InlineData(SupportDisplayMode.Tips)]
-    [InlineData(SupportDisplayMode.ContactPoints)]
-    public void ModesOtherThanTransparentPassThroughLayoutUnchanged(SupportDisplayMode mode)
-    {
-        var display = new SupportDisplayConfig { Mode = mode };
-
-        Assert.Same(display, SupportDisplayPolicy.ForWorkspace(display, isLayoutView: true));
+        Assert.False(inLayout.ShowContactPointsInTransparent);
     }
 }

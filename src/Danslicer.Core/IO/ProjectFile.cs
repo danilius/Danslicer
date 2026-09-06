@@ -1,4 +1,4 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -321,6 +321,11 @@ public static class ProjectFile
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<int>? KeepCleanFaces { get; set; }
 
+        /// <summary>File the object was imported from, for the object list's update button.
+        /// Omitted when there is none, so older projects load unchanged.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? SourcePath { get; set; }
+
         public static ObjectDto From(SceneObject obj, string mesh) => new()
         {
             Id = obj.Id,
@@ -335,6 +340,7 @@ public static class ProjectFile
             KeepCleanFaces = obj.Regions.KeepCleanFaces.Count == 0
                 ? null
                 : [.. obj.Regions.KeepCleanFaces.Order()],
+            SourcePath = obj.SourcePath,
         };
 
         public SceneObject ToObject(Mesh mesh) => new(Name, mesh, Id)
@@ -342,6 +348,7 @@ public static class ProjectFile
             Transform = new Transform(Translation.ToVector3(), Rotation.ToQuaternion(), Scale.ToVector3()),
             RenderState = RenderState,
             Regions = ObjectSupportRegions.From(RegionFaces, KeepCleanFaces),
+            SourcePath = SourcePath,
         };
     }
 

@@ -112,6 +112,16 @@ public sealed record TipPlacementParameters
     public GridRoutingOptions? Grid { get; init; }
 
     /// <summary>
+    /// Set only when the object carries a PAINTED support region. It replaces overhang sampling
+    /// (and <see cref="Grid"/> projection) with <see cref="RegionGridSampler"/>: an even grid
+    /// over the painted surface, ignoring <see cref="OverhangAngleDegrees"/>, because painting a
+    /// face is an explicit instruction to support it. Islands and local minima still run, but
+    /// they dedup against the grid so they cannot break up its rows.
+    /// <para>Null for an unpainted object, which therefore generates exactly as before.</para>
+    /// </summary>
+    public RegionGridOptions? RegionGrid { get; init; }
+
+    /// <summary>
     /// Minimum Euclidean distance to any keep-clean face. Zero (default) is membership only:
     /// a candidate on an allowed face is kept even if it shares an edge with a keep-clean face.
     /// Positive values drop candidates whose closest point on the keep-clean subset is nearer

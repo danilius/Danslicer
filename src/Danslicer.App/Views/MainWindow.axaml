@@ -1,4 +1,4 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
@@ -449,7 +449,7 @@
                                          Background="Transparent">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid ColumnDefinitions="Auto,*">
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
                                                 <!-- One-way: the box shows the model's state, and
                                                      the command is what changes it, so an undo
                                                      moves the tick back with the model. -->
@@ -460,6 +460,15 @@
                                                           CommandParameter="{Binding}" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12"
                                                            VerticalAlignment="Center" />
+                                                <!-- Only for models that came from a file: re-read
+                                                     it after the model was edited elsewhere. -->
+                                                <Button Grid.Column="2" Classes="popupClose" Margin="6,0,0,0"
+                                                        IsVisible="{Binding SourcePath, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                        ToolTip.Tip="{Binding SourcePath, StringFormat='Update from file: {0}'}"
+                                                        Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ReloadObjectCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <PathIcon Data="{DynamicResource IconReload}" />
+                                                </Button>
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>

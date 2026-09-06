@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
@@ -252,6 +252,16 @@ public sealed record SupportConfig
 
     public float Spacing { get; set; } = 2.5f;
     public float IslandSpacingMm { get; set; } = 0.5f;
+
+    /// <summary>
+    /// Row pitch of the painted-region grid, in Z. Rows are the axis the user cares about most,
+    /// so this is separate from <see cref="Spacing"/> and from the horizontal pitch. Only used
+    /// where a support region has been painted.
+    /// </summary>
+    public float RegionGridVerticalPitchMm { get; set; } = 2.5f;
+
+    /// <summary>Spacing along each painted-region row, measured along the surface.</summary>
+    public float RegionGridHorizontalPitchMm { get; set; } = 2.5f;
     public float OverhangAngleDegrees { get; set; } = 45f;
     public float MinIslandAreaMm2 { get; set; } = 0.1f;
 
@@ -304,6 +314,8 @@ public sealed record SupportConfig
         BaseConeHeight = NonNegative(BaseConeHeight);
         Spacing = Positive(Spacing, 2.5f);
         IslandSpacingMm = Positive(IslandSpacingMm, 0.5f);
+        RegionGridVerticalPitchMm = Positive(RegionGridVerticalPitchMm, 2.5f);
+        RegionGridHorizontalPitchMm = Positive(RegionGridHorizontalPitchMm, 2.5f);
         OverhangAngleDegrees = float.IsFinite(OverhangAngleDegrees)
             ? Math.Clamp(OverhangAngleDegrees, 0f, 90f) : 45f;
         MinIslandAreaMm2 = NonNegative(MinIslandAreaMm2);

@@ -24,6 +24,11 @@ public enum TipStrategy
     /// region face. XY matches the bases the grid router will choose.
     /// </summary>
     GridProjection,
+    /// <summary>
+    /// A contact from the painted-region grid (<see cref="RegionGridSampler"/>): even rows in Z,
+    /// even arc length along each row. Only produced when a region has actually been painted.
+    /// </summary>
+    RegionGrid,
 }
 
 /// <summary>

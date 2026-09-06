@@ -1,4 +1,4 @@
-﻿using Danslicer.Core.Config;
+using Danslicer.Core.Config;
 
 namespace Danslicer.Core.Supports;
 
@@ -10,9 +10,11 @@ public static class SupportDisplayPolicy
 {
     /// <summary>
     /// The display config as a given workspace should actually see it. In Layout a model and its
-    /// supports are one object being arranged, so supports draw solid there: the transparent mode
-    /// is demoted to Full. Nothing else about the config changes, so every "which parts are shown"
-    /// answer below is unaffected.
+    /// supports are one object being arranged, so supports are ALWAYS drawn in full there: every
+    /// reduced mode (hidden, tips only, contact points, lines, transparent) is a Support-mode
+    /// working aid and is demoted to Full, and the per-part toggles come back on with it.
+    /// Switching to Layout must never leave a supported model looking bare, whatever the user
+    /// last set while working on its supports.
     ///
     /// <para>Both render paths and the picking code must be handed the SAME value from this
     /// method rather than each deciding for itself — that is the whole point of routing it
@@ -20,9 +22,18 @@ public static class SupportDisplayPolicy
     /// disagree about what the user is looking at.</para>
     /// </summary>
     public static SupportDisplayConfig ForWorkspace(SupportDisplayConfig display, bool isLayoutView) =>
-        isLayoutView && display.Mode == SupportDisplayMode.Transparent
-            ? display with { Mode = SupportDisplayMode.Full }
-            : display;
+        !isLayoutView
+            ? display
+            : display with
+            {
+                Mode = SupportDisplayMode.Full,
+                ShowTips = true,
+                ShowMiniSupports = true,
+                ShowBranches = true,
+                ShowTrunks = true,
+                ShowBases = true,
+                ShowBracing = true,
+            };
 
     public static bool ShowsMeshes(SupportDisplayConfig display) =>
         display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Tips or
