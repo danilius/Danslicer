@@ -1,4 +1,4 @@
-using System.Windows.Input;
+﻿using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Danslicer.Core;
@@ -15,16 +15,59 @@ public sealed class LayerRangeClipViewModel : ObservableObject
     private double _maximumZ = 1;
     private double _lowerZ;
     private double _upperZ = 1;
+    private double _layerHeightMm = 0.05;
     private bool _active;
     private bool _isDragging;
 
     public LayerRangeClipViewModel()
     {
-        LowerField = new NumericField("Lower", UnitKind.Length, "0.###", value => LowerZ = value);
-        UpperField = new NumericField("Upper", UnitKind.Length, "0.###", value => UpperZ = value);
+        // The boxes are layer numbers, not millimetres: a clip plane is a place in the print,
+        // and "1288" is a thing you can find in the sliced preview in a way "64.412" is not.
+        LowerField = new NumericField("Lower", UnitKind.Scalar, "0",
+            value => LowerZ = ZOfLayer(value, _layerHeightMm), suffix: "");
+        UpperField = new NumericField("Upper", UnitKind.Scalar, "0",
+            value => UpperZ = ZOfLayer(value, _layerHeightMm), suffix: "");
         ResetCommand = new RelayCommand(Reset);
         RefreshFields();
     }
+
+    /// <summary>
+    /// The print's layer height, which turns a clip height into a layer number. Set from the
+    /// document's print settings; a change re-labels the boxes without moving the planes.
+    /// </summary>
+    public double LayerHeightMm
+    {
+        get => _layerHeightMm;
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0 ||
+                Math.Abs(_layerHeightMm - value) <= Epsilon) return;
+            _layerHeightMm = value;
+            RefreshFields();
+            OnPropertyChanged(nameof(LowerLayer));
+            OnPropertyChanged(nameof(UpperLayer));
+        }
+    }
+
+    /// <summary>
+    /// The layer a height falls in, numbering the first printed layer above the plate as 1: layer
+    /// n occupies (n-1)h to nh, so a plane at exactly nh is the top of layer n. Heights below the
+    /// plate give zero or negative numbers rather than being hidden — a model dragged under the
+    /// plate is the user's business, and the panel should say so plainly.
+    /// </summary>
+    /// <remarks>The tolerance is a ten-thousandth of a LAYER, not of a millimetre: heights
+    /// arrive as float bounds, whose noise at 64 mm is larger than a millimetre epsilon would
+    /// absorb, and rounding a plane sitting exactly on a layer boundary up to the next layer
+    /// reads as an off-by-one to anyone comparing with the sliced preview.</remarks>
+    public static int LayerAt(double z, double layerHeightMm) =>
+        layerHeightMm <= 0 ? 0 : (int)Math.Ceiling(z / layerHeightMm - 1e-4);
+
+    /// <summary>The height of the top of a layer: the inverse of <see cref="LayerAt"/>.</summary>
+    public static double ZOfLayer(double layer, double layerHeightMm) =>
+        layerHeightMm <= 0 ? 0 : layer * layerHeightMm;
+
+    public int LowerLayer => LayerAt(_lowerZ, _layerHeightMm);
+    public int UpperLayer => LayerAt(_upperZ, _layerHeightMm);
 
     public event Action? Changed;
 
@@ -117,15 +160,23 @@ public sealed class LayerRangeClipViewModel : ObservableObject
 
         _lowerZ = lower;
         _upperZ = upper;
-        if (lowerChanged || forceNotify) OnPropertyChanged(nameof(LowerZ));
-        if (upperChanged || forceNotify) OnPropertyChanged(nameof(UpperZ));
+        if (lowerChanged || forceNotify)
+        {
+            OnPropertyChanged(nameof(LowerZ));
+            OnPropertyChanged(nameof(LowerLayer));
+        }
+        if (upperChanged || forceNotify)
+        {
+            OnPropertyChanged(nameof(UpperZ));
+            OnPropertyChanged(nameof(UpperLayer));
+        }
         RefreshFields();
         Changed?.Invoke();
     }
 
     private void RefreshFields()
     {
-        LowerField.SetValue(_lowerZ);
-        UpperField.SetValue(_upperZ);
+        LowerField.SetValue(LayerAt(_lowerZ, _layerHeightMm));
+        UpperField.SetValue(LayerAt(_upperZ, _layerHeightMm));
     }
 }

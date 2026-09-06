@@ -1,4 +1,4 @@
-using Danslicer.App.ViewModels;
+﻿using Danslicer.App.ViewModels;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Supports;
@@ -8,6 +8,75 @@ namespace Danslicer.Tests;
 
 public sealed class LayerRangeClipViewModelTests
 {
+    [Fact]
+    public void TheBoxesReadInLayerNumbersNotMillimetres()
+    {
+        var model = new LayerRangeClipViewModel { LayerHeightMm = 0.05 };
+        model.RefreshBounds(new Aabb(new Vector3(0, 0, 0), new Vector3(1, 1, 64.4f)), 100,
+            reset: true);
+
+        // 64.4 mm at 0.05 mm layers is layer 1288, which is what the box should say.
+        Assert.Equal("1288", model.UpperField.Text);
+        Assert.Equal("0", model.LowerField.Text);
+        Assert.Equal(1288, model.UpperLayer);
+    }
+
+    [Fact]
+    public void TypingALayerNumberMovesThePlaneToThatLayersTop()
+    {
+        var model = new LayerRangeClipViewModel { LayerHeightMm = 0.05 };
+        model.RefreshBounds(new Aabb(new Vector3(0, 0, 0), new Vector3(1, 1, 100)), 100,
+            reset: true);
+
+        model.LowerField.Text = "200";
+
+        Assert.Equal(10.0, model.LowerZ, 6); // 200 * 0.05 mm
+        Assert.Equal(200, model.LowerLayer);
+    }
+
+    [Fact]
+    public void GeometryBelowThePlateReadsAsZeroOrNegativeLayers()
+    {
+        // A model dragged under the plate is the user's business; the panel says so plainly
+        // rather than pretending the range starts at layer 1.
+        var model = new LayerRangeClipViewModel { LayerHeightMm = 0.05 };
+        model.RefreshBounds(new Aabb(new Vector3(0, 0, -21.118f), new Vector3(1, 1, 92.107f)), 100,
+            reset: true);
+
+        Assert.Equal(-422, model.LowerLayer); // -21.118 / 0.05, rounded toward the plate
+        Assert.Equal(1843, model.UpperLayer);
+    }
+
+    [Fact]
+    public void LayerNumberingPutsTheFirstPrintedLayerAtOne()
+    {
+        const double h = 0.05;
+
+        Assert.Equal(0, LayerRangeClipViewModel.LayerAt(0, h));      // the plate itself
+        Assert.Equal(1, LayerRangeClipViewModel.LayerAt(h, h));      // top of the first layer
+        Assert.Equal(1, LayerRangeClipViewModel.LayerAt(h / 2, h));  // inside the first layer
+        Assert.Equal(2, LayerRangeClipViewModel.LayerAt(h * 1.5, h));
+
+        // Round trip: the top of layer n is layer n again.
+        foreach (var layer in new[] { 1, 2, 37, 1288 })
+            Assert.Equal(layer,
+                LayerRangeClipViewModel.LayerAt(LayerRangeClipViewModel.ZOfLayer(layer, h), h));
+    }
+
+    [Fact]
+    public void ChangingTheLayerHeightRelabelsWithoutMovingThePlanes()
+    {
+        var model = new LayerRangeClipViewModel { LayerHeightMm = 0.05 };
+        model.RefreshBounds(new Aabb(new Vector3(0, 0, 0), new Vector3(1, 1, 10)), 100,
+            reset: true);
+        Assert.Equal("200", model.UpperField.Text);
+
+        model.LayerHeightMm = 0.1;
+
+        Assert.Equal(10, model.UpperZ); // the plane has not moved
+        Assert.Equal("100", model.UpperField.Text);
+    }
+
     [Fact]
     public void BoundsTrackUntouchedEndpointsAndKeepInteriorWorldHeights()
     {

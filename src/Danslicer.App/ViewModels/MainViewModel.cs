@@ -510,6 +510,9 @@ public partial class MainViewModel : ViewModelBase
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         SliceCommand.NotifyCanExecuteChanged();
+        // Layer height first: the clip boxes read in layer numbers, so a print-settings change
+        // has to reach them before the bounds do.
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z);
 
         // Geometry changed: the slice no longer matches the scene.
@@ -567,6 +570,7 @@ public partial class MainViewModel : ViewModelBase
     public void NewProject()
     {
         Document.Clear();
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z, reset: true);
         SelectedObject = null;
         LastSlice = null;
@@ -584,6 +588,7 @@ public partial class MainViewModel : ViewModelBase
     {
         var loaded = ProjectFile.Load(path);
         Document.ReplaceWith(loaded.Document);
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z,
             reset: true);
         PrintSettings.Refresh();
