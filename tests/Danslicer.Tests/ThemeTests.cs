@@ -86,6 +86,42 @@ public sealed class ThemeTests : IDisposable
     }
 
     [Fact]
+    public void TickingACheckBoxDoesNotRecolourItsLabel()
+    {
+        // The tick says a box is checked. Colouring the label as well made every enabled option
+        // in a pop-out shout at the user, and left the accent meaning two different things.
+        string[] labelStates =
+        [
+            "CheckBoxForegroundUnchecked", "CheckBoxForegroundUncheckedPointerOver",
+            "CheckBoxForegroundUncheckedPressed", "CheckBoxForegroundChecked",
+            "CheckBoxForegroundCheckedPointerOver", "CheckBoxForegroundCheckedPressed",
+            "CheckBoxForegroundIndeterminate", "CheckBoxForegroundIndeterminatePointerOver",
+            "CheckBoxForegroundIndeterminatePressed",
+        ];
+
+        foreach (var fileName in ThemeFiles)
+        {
+            var colours = labelStates.Select(key => ColorOf(fileName, key)).Distinct().ToList();
+            Assert.Single(colours);
+            // And it is a text colour, not the accent.
+            Assert.NotEqual(ColorOf(fileName, "AppAccent"), colours[0]);
+        }
+    }
+
+    /// <summary>The Color attribute of one brush resource, for comparing palette entries.</summary>
+    private static string ColorOf(string fileName, string key)
+    {
+        var text = File.ReadAllText(Path.Combine(ThemesDir, fileName));
+        var match = Regex.Match(text,
+            "<SolidColorBrush x:Key=\"" + Regex.Escape(key) + "\" Color=\"([^\"]+)\"");
+        Assert.True(match.Success, $"{fileName} does not define {key}");
+        var colour = match.Groups[1].Value;
+        return colour.StartsWith("{StaticResource ") && colour.EndsWith("Color}")
+            ? colour[16..^1] // e.g. {StaticResource AppAccentColor} -> AppAccentColor
+            : colour;
+    }
+
+    [Fact]
     public void EveryThemeMergesTheSharedIconSet()
     {
         foreach (var fileName in ThemeFiles)

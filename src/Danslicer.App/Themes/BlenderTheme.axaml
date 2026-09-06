@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="https://github.com/avaloniaui"
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Blender: the "BLENDER-LIKE" panel from the user's mockup sheet. Deliberately different
          from Carbide, which is also Blender-leaning: this one is a lighter, bluer grey with
@@ -78,6 +78,17 @@
     <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
     <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#20252A" />
     <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#E8EAED" />
+    <!-- A ticked box is shown by the tick, not by recolouring its label: label colour
+         is for state the label itself carries (disabled), and using it for checked made
+         every enabled option shout. Same text colour checked or not. -->
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPointerOver" Color="#E8EAED" />
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPressed" Color="#E8EAED" />
+    <SolidColorBrush x:Key="CheckBoxForegroundChecked" Color="#E8EAED" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPointerOver" Color="#E8EAED" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPressed" Color="#E8EAED" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminate" Color="#E8EAED" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePointerOver" Color="#E8EAED" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePressed" Color="#E8EAED" />
 
     <SolidColorBrush x:Key="TextControlBackground" Color="#1E2226" />
     <SolidColorBrush x:Key="TextControlForeground" Color="#E8EAED" />

@@ -1,4 +1,4 @@
-using Danslicer.Core.Config;
+﻿using Danslicer.Core.Config;
 
 namespace Danslicer.Core.Supports;
 
@@ -9,9 +9,9 @@ namespace Danslicer.Core.Supports;
 public static class SupportDisplayPolicy
 {
     /// <summary>
-    /// The display config as a given workspace should actually see it. Layout may force supports
-    /// opaque (<see cref="ViewportConfig.OpaqueSupportsInLayout"/>) by demoting the transparent
-    /// mode to Full; nothing else about the config changes, so every "which parts are shown"
+    /// The display config as a given workspace should actually see it. In Layout a model and its
+    /// supports are one object being arranged, so supports draw solid there: the transparent mode
+    /// is demoted to Full. Nothing else about the config changes, so every "which parts are shown"
     /// answer below is unaffected.
     ///
     /// <para>Both render paths and the picking code must be handed the SAME value from this
@@ -19,9 +19,8 @@ public static class SupportDisplayPolicy
     /// through here, and it is why transparency-driven draw ordering and hit testing cannot
     /// disagree about what the user is looking at.</para>
     /// </summary>
-    public static SupportDisplayConfig ForWorkspace(SupportDisplayConfig display, bool isLayoutView,
-        bool opaqueSupportsInLayout) =>
-        isLayoutView && opaqueSupportsInLayout && display.Mode == SupportDisplayMode.Transparent
+    public static SupportDisplayConfig ForWorkspace(SupportDisplayConfig display, bool isLayoutView) =>
+        isLayoutView && display.Mode == SupportDisplayMode.Transparent
             ? display with { Mode = SupportDisplayMode.Full }
             : display;
 

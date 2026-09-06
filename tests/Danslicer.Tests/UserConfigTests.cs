@@ -1,4 +1,4 @@
-using Danslicer.Core;
+﻿using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
@@ -131,7 +131,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0f, loaded.Placement.HeightMm);
         Assert.Equal(SupportDisplayMode.Full, loaded.Viewport.SupportDisplay.Mode);
         Assert.True(loaded.Viewport.CapInterior);
-        Assert.Equal(ClipCapStyle.Sliced, loaded.Viewport.CapStyle);
+        Assert.Equal(ClipCapStyle.Painted, loaded.Viewport.CapStyle); // painted caps are the standard
         Assert.True(loaded.Viewport.SupportDisplay.ShowTips);
         Assert.True(loaded.Viewport.SupportDisplay.ShowMiniSupports);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBranches);

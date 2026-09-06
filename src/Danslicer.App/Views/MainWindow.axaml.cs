@@ -1,4 +1,4 @@
-using System.Windows.Input;
+﻿using System.Windows.Input;
 using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia.Controls;
@@ -522,9 +522,9 @@ public partial class MainWindow : Window
     private void SyncRenderPathMenu()
     {
         var viewport = AppConfig.Current.Viewport;
+        // Classic is only ever reached by the automatic fallback after a GL failure, so the
+        // shading switches follow it rather than a user choice.
         var deferred = viewport.RenderPath == RenderPathMode.Deferred;
-        DeferredRenderingMenuItem.IsChecked = deferred;
-        // The shading and effect switches only affect the deferred composite pass.
         ShadingMenuItem.IsEnabled = deferred;
         ShadingStudioMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.Studio;
         ShadingClayMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapClay;
@@ -555,7 +555,6 @@ public partial class MainWindow : Window
         try
         {
             PopShading.ItemsSource ??= new[] { "Studio", "MatCap Clay", "MatCap Metal", "MatCap Pearl" };
-            PopDeferred.IsChecked = deferred;
             PopShading.SelectedIndex = Array.IndexOf(ShadingOrder, viewport.Shading);
             PopShading.IsEnabled = deferred;
             PopCavity.IsChecked = viewport.CavityEnabled;
@@ -599,19 +598,6 @@ public partial class MainWindow : Window
         AppConfig.Save();
         SyncRenderPathMenu();
         Viewport.RequestRedraw();
-    }
-
-    private void OnToggleDeferredRenderingClick(object? sender, RoutedEventArgs e)
-    {
-        var viewport = AppConfig.Current.Viewport;
-        viewport.RenderPath = viewport.RenderPath == RenderPathMode.Deferred
-            ? RenderPathMode.Classic
-            : RenderPathMode.Deferred;
-        // A Painted clip-cap style resolves differently per render path (exact CPU caps on
-        // Classic, screen-space caps on Deferred); this toggle bypasses the ViewportControl
-        // property change notification that normally triggers that re-resolution.
-        Viewport.NotifyRenderPathChanged();
-        ApplyRenderPathChange();
     }
 
     private void OnShadingClick(object? sender, RoutedEventArgs e)

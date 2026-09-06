@@ -62,7 +62,6 @@ public partial class MainViewModel : ViewModelBase
     public LayerRangeClipViewModel SupportClip { get; } = new();
     public HoverWaterlineViewModel SupportWaterline { get; } = new();
     public ViewportClipRange ViewportClipRange => SupportClip.Range;
-    public IReadOnlyList<ClipCapStyle> ClipCapStyles { get; } = Enum.GetValues<ClipCapStyle>();
 
     public bool CapInterior
     {
@@ -88,28 +87,14 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    public bool OpaqueSupportsInLayout
-    {
-        get => AppConfig.Current.Viewport.OpaqueSupportsInLayout;
-        set
-        {
-            if (value == AppConfig.Current.Viewport.OpaqueSupportsInLayout) return;
-            AppConfig.Current.Viewport.OpaqueSupportsInLayout = value;
-            AppConfig.Save();
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(EffectiveSupportDisplay));
-        }
-    }
-
     /// <summary>
     /// The support display config the viewport actually draws with: the user's chosen display
-    /// mode, demoted from transparent to opaque while Layout is active if they have asked for
-    /// that. Every consumer binds THIS rather than the raw config, so the two render paths and
-    /// picking cannot disagree — see <see cref="SupportDisplayPolicy.ForWorkspace"/>.
+    /// mode, demoted from transparent to opaque while Layout is active. Every consumer binds THIS
+    /// rather than the raw config, so the two render paths and picking cannot disagree — see
+    /// <see cref="SupportDisplayPolicy.ForWorkspace"/>.
     /// </summary>
     public SupportDisplayConfig EffectiveSupportDisplay => SupportDisplayPolicy.ForWorkspace(
-        AppConfig.Current.Viewport.SupportDisplay, ViewMode == WorkspaceMode.Layout,
-        AppConfig.Current.Viewport.OpaqueSupportsInLayout);
+        AppConfig.Current.Viewport.SupportDisplay, ViewMode == WorkspaceMode.Layout);
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
     public ModeScopedCommand DuplicateScopedCommand { get; }

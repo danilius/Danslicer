@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="https://github.com/avaloniaui"
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Techy: the near-black, thin-outline proposal from the user's mockup sheet. Chrome sits
          darker than Classic and controls read as OUTLINED rather than filled — low-contrast
@@ -78,6 +78,17 @@
     <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
     <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#14161A" />
     <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#F0F4F8" />
+    <!-- A ticked box is shown by the tick, not by recolouring its label: label colour
+         is for state the label itself carries (disabled), and using it for checked made
+         every enabled option shout. Same text colour checked or not. -->
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPointerOver" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPressed" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="CheckBoxForegroundChecked" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPointerOver" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPressed" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminate" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePointerOver" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePressed" Color="#F0F4F8" />
 
     <SolidColorBrush x:Key="TextControlBackground" Color="#15171A" />
     <SolidColorBrush x:Key="TextControlForeground" Color="#F0F4F8" />

@@ -177,9 +177,9 @@
                 <Separator />
                 <MenuItem Header="Toggle _Perspective/Orthographic" Click="OnToggleProjectionClick" InputGesture="D5" />
                 <Separator />
-                <!-- Check states mirror the persisted viewport config; see SyncRenderPathMenu. -->
-                <MenuItem x:Name="DeferredRenderingMenuItem" Header="_Deferred Rendering (preview)"
-                          ToggleType="CheckBox" Click="OnToggleDeferredRenderingClick" />
+                <!-- Check states mirror the persisted viewport config; see SyncRenderPathMenu.
+                     Deferred is the renderer, not a choice: it left preview on 2026-09-06 and
+                     the config value survives only as the automatic fallback for a GL failure. -->
                 <MenuItem x:Name="ShadingMenuItem" Header="Sha_ding">
                     <MenuItem x:Name="ShadingStudioMenuItem" Header="_Studio Lights" ToggleType="Radio"
                               GroupName="ViewportShading" Click="OnShadingClick" Tag="Studio" />
@@ -384,9 +384,6 @@
                         <CheckBox Grid.Row="4" Content="Cap interior" IsChecked="{Binding CapInterior}"
                                   Margin="0,7,0,0"
                                   ToolTip.Tip="Close clipped model and support interiors with viewport-only faces" />
-                        <ComboBox Grid.Row="5" ItemsSource="{Binding ClipCapStyles}"
-                                  SelectedItem="{Binding CapStyle}" Margin="0,5,0,0"
-                                  ToolTip.Tip="Sliced is exact; Painted is reserved for the deferred-renderer follow-up" />
                     </Grid>
                 </Border>
 
@@ -635,8 +632,6 @@
                                         <PathIcon Data="{DynamicResource IconClose}" />
                                     </Button>
                                 </Grid>
-                                <CheckBox x:Name="PopDeferred" Content="Deferred rendering"
-                                          Click="OnToggleDeferredRenderingClick" />
                                 <Grid ColumnDefinitions="80,*" Margin="0,2,0,2">
                                     <TextBlock Text="Shading" Classes="label" VerticalAlignment="Center" />
                                     <ComboBox x:Name="PopShading" Grid.Column="1"
@@ -654,9 +649,6 @@
                                 <CheckBox Content="Hover waterline"
                                           IsChecked="{Binding SupportWaterline.Enabled, Mode=TwoWay}"
                                           IsVisible="{Binding IsSupportView}" />
-                                <CheckBox Content="Opaque supports in Layout"
-                                          ToolTip.Tip="Draw supports solid while arranging the plate, even when the support display mode is Transparent"
-                                          IsChecked="{Binding OpaqueSupportsInLayout, Mode=TwoWay}" />
                                 <ToggleButton Content="Select Through" Margin="0,4,0,0"
                                               IsChecked="{Binding SelectThroughSupports, Mode=TwoWay}"
                                               IsVisible="{Binding IsSupportView}" />

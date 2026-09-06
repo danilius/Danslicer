@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="https://github.com/avaloniaui"
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Classic: today's look, tokenized. This is the DEFAULT theme — every hex here is the
          value MainWindow/ConfigWindow/etc. used inline before the {DynamicResource} sweep, so
@@ -75,6 +75,17 @@
     <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
     <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#1B1D20" />
     <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#E0E3E7" />
+    <!-- A ticked box is shown by the tick, not by recolouring its label: label colour
+         is for state the label itself carries (disabled), and using it for checked made
+         every enabled option shout. Same text colour checked or not. -->
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPointerOver" Color="#E0E3E7" />
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPressed" Color="#E0E3E7" />
+    <SolidColorBrush x:Key="CheckBoxForegroundChecked" Color="#E0E3E7" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPointerOver" Color="#E0E3E7" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPressed" Color="#E0E3E7" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminate" Color="#E0E3E7" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePointerOver" Color="#E0E3E7" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePressed" Color="#E0E3E7" />
 
     <SolidColorBrush x:Key="TextControlBackground" Color="#17191C" />
     <SolidColorBrush x:Key="TextControlForeground" Color="#E0E3E7" />

@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="https://github.com/avaloniaui"
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Slate: a cheap third option once the token plumbing existed — same flat, Blender-leaning
          structure as Carbide but a cooler blue-grey neutral and a desaturated blue accent instead
@@ -74,6 +74,17 @@
     <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
     <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#1A1D21" />
     <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#E4E8EC" />
+    <!-- A ticked box is shown by the tick, not by recolouring its label: label colour
+         is for state the label itself carries (disabled), and using it for checked made
+         every enabled option shout. Same text colour checked or not. -->
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPointerOver" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPressed" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundChecked" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPointerOver" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPressed" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminate" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePointerOver" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePressed" Color="#E4E8EC" />
 
     <SolidColorBrush x:Key="TextControlBackground" Color="#20242A" />
     <SolidColorBrush x:Key="TextControlForeground" Color="#E4E8EC" />

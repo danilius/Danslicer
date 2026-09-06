@@ -439,29 +439,17 @@ public sealed class SupportLifecycleTests
     // ----- Layout opacity -----
 
     [Fact]
-    public void LayoutShowsSupportsOpaqueByDefaultButSupportModeKeepsTheChosenMode()
+    public void LayoutShowsSupportsOpaqueButSupportModeKeepsTheChosenMode()
     {
-        Assert.True(new ViewportConfig().OpaqueSupportsInLayout);
+        // Not a setting: in Layout a model and its supports are one object being arranged, so
+        // the supports are solid there whatever the display mode says.
         var transparent = new SupportDisplayConfig { Mode = SupportDisplayMode.Transparent };
 
-        var inLayout = SupportDisplayPolicy.ForWorkspace(transparent,
-            isLayoutView: true, opaqueSupportsInLayout: true);
-        var inSupport = SupportDisplayPolicy.ForWorkspace(transparent,
-            isLayoutView: false, opaqueSupportsInLayout: true);
+        var inLayout = SupportDisplayPolicy.ForWorkspace(transparent, isLayoutView: true);
+        var inSupport = SupportDisplayPolicy.ForWorkspace(transparent, isLayoutView: false);
 
         Assert.Equal(SupportDisplayMode.Full, inLayout.Mode);
         Assert.Equal(SupportDisplayMode.Transparent, inSupport.Mode);
-    }
-
-    [Fact]
-    public void TurningTheLayoutOpacitySettingOffRestoresOneModeEverywhere()
-    {
-        var transparent = new SupportDisplayConfig { Mode = SupportDisplayMode.Transparent };
-
-        var inLayout = SupportDisplayPolicy.ForWorkspace(transparent,
-            isLayoutView: true, opaqueSupportsInLayout: false);
-
-        Assert.Equal(SupportDisplayMode.Transparent, inLayout.Mode);
     }
 
     [Fact]
@@ -475,8 +463,7 @@ public sealed class SupportLifecycleTests
             ShowContactPointsInTransparent = false,
         };
 
-        var forced = SupportDisplayPolicy.ForWorkspace(display,
-            isLayoutView: true, opaqueSupportsInLayout: true);
+        var forced = SupportDisplayPolicy.ForWorkspace(display, isLayoutView: true);
 
         Assert.Equal(display with { Mode = SupportDisplayMode.Full }, forced);
     }
@@ -490,32 +477,6 @@ public sealed class SupportLifecycleTests
     {
         var display = new SupportDisplayConfig { Mode = mode };
 
-        Assert.Same(display, SupportDisplayPolicy.ForWorkspace(display,
-            isLayoutView: true, opaqueSupportsInLayout: true));
-    }
-
-    [Fact]
-    public void TheLayoutOpacitySettingRoundTripsThroughTheConfigFile()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "danslicer-lifecycle-tests",
-            Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        try
-        {
-            var path = Path.Combine(dir, "config.json");
-            new UserConfig { Viewport = new ViewportConfig { OpaqueSupportsInLayout = false } }
-                .Save(path);
-
-            Assert.False(UserConfig.Load(path).Viewport.OpaqueSupportsInLayout);
-
-            // A config written before this setting existed must default to the new behaviour.
-            var legacy = Path.Combine(dir, "legacy.json");
-            File.WriteAllText(legacy, """{ "Viewport": { "OverhangAngleDegrees": 30 } }""");
-            Assert.True(UserConfig.Load(legacy).Viewport.OpaqueSupportsInLayout);
-        }
-        finally
-        {
-            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
-        }
+        Assert.Same(display, SupportDisplayPolicy.ForWorkspace(display, isLayoutView: true));
     }
 }

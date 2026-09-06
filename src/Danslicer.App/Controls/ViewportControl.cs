@@ -1309,7 +1309,6 @@ public sealed class ViewportControl : OpenGlControlBase
     }
 
     private const float TransparentSupportOpacity = 0.28f;
-    private const float OutsideSupportModeOpacity = 0.45f;
 
     private void AddSupportParts(IEnumerable<SupportRenderPart> parts, Vector3 sortOrigin,
         float opacity)
@@ -1331,8 +1330,7 @@ public sealed class ViewportControl : OpenGlControlBase
         _supportMeshes.Add(new SupportMeshBatch(new AuxMeshDraw(
             part.Mesh,
             new Vector3(color.X, color.Y, color.Z),
-            opacity * (SupportSelectionMode ? 1f : OutsideSupportModeOpacity) *
-                (part.Disabled ? DisabledSupportOpacity : 1f)), sortOrigin));
+            opacity * (part.Disabled ? DisabledSupportOpacity : 1f)), sortOrigin));
     }
 
     private void AppendSupportLines(List<OverlayLine> lines)
@@ -1360,7 +1358,6 @@ public sealed class ViewportControl : OpenGlControlBase
                     };
                 if (segment.Disabled || a.Disabled || b.Disabled)
                     color.W *= DisabledSupportOpacity;
-                if (!SupportSelectionMode) color.W *= OutsideSupportModeOpacity;
                 lines.Add(new OverlayLine(a.Position, b.Position, color));
             }
         }
@@ -1371,7 +1368,6 @@ public sealed class ViewportControl : OpenGlControlBase
             if (node.Hidden || node.Type != SupportNodeType.Tip ||
                 !SupportDisplayPolicy.IsNodeDisplayed(supports, node, SupportDisplay, ClipRange)) continue;
             var color = Document.IsSupportSelected(node.Id) ? SupportSelectedColor : TipMarkerColor;
-            if (!SupportSelectionMode) color.W *= OutsideSupportModeOpacity;
             var p = node.Position;
             if (SupportDisplay.Mode is SupportDisplayMode.ContactPoints or
                 SupportDisplayMode.Transparent)
