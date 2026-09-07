@@ -1347,7 +1347,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private void RefreshLineGesturePreview()
     {
         if (Document is null || _lineGesture is not { } gesture) return;
-        _linePreview = gesture.Preview(Document.GuidedPlacementParameters(), Document.Supports);
+        _linePreview = gesture.Preview(Document.GuidedPlacementParameters(), Document.GuidedExistingSupports());
         UpdateStatus();
         Redraw();
     }
@@ -1375,7 +1375,7 @@ public sealed class ViewportControl : OpenGlControlBase
             CancelLineGesture();
             return;
         }
-        var candidates = gesture.Preview(Document.GuidedPlacementParameters(), Document.Supports);
+        var candidates = gesture.Preview(Document.GuidedPlacementParameters(), Document.GuidedExistingSupports());
         string status;
         if (candidates.Count == 0)
         {

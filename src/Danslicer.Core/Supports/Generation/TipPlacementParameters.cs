@@ -97,6 +97,12 @@ public sealed record TipPlacementParameters
     public RegionGridOptions? RegionGrid { get; init; }
 
     /// <summary>
+    /// Guided placement only: how close a guided tip may come to a tip already in the document
+    /// when the gesture is existing-aware. Null falls back to <see cref="MinSpacingMm"/>.
+    /// </summary>
+    public float? ExistingTipClearanceMm { get; init; }
+
+    /// <summary>
     /// Minimum Euclidean distance to any keep-clean face. Zero (default) is membership only:
     /// a candidate on an allowed face is kept even if it shares an edge with a keep-clean face.
     /// Positive values drop candidates whose closest point on the keep-clean subset is nearer

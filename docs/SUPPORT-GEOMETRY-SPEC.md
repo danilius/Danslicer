@@ -234,6 +234,19 @@ Keys, all Support mode only:
 - **Stamp.** One click drops a small cluster at pitch around the point (the manual
   replacement for the removed mini clusters).
 
+### Existing supports (user decision, 2026-09-07 screen test)
+
+A guided gesture **ignores existing supports by default**: every sampled tip is placed and
+routed as if no other support existed, exactly as free mode routes. Whether a gesture
+defers to what is already there is the user's explicit choice, never the tool's — the
+screen test that decided this laid an edge of supports, then an edge beside it, and got two
+tips because the rest were refused for colliding with the first edge's members.
+
+The panel setting "Guided tools ignore existing" (default on) turns this off. When off the
+gesture is existing-aware: no guided tip lands within "Guided tip clearance" (default
+2.5 mm) of an existing tip, and routing treats existing supports as obstacles and trunks to
+share, as generation does.
+
 ### Surface path definition (decision)
 
 A path between two surface points is the contour of the mesh cut by the **vertical plane

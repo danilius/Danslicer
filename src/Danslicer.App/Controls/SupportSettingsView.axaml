@@ -107,6 +107,17 @@
                           Content="Independent supports (ignore existing)"
                           ToolTip.Tip="Manual T placements ignore other supports but still avoid models"
                           IsChecked="{Binding SupportIndependentManualSupports, Mode=TwoWay}" Margin="0,4" />
+                <CheckBox Tag="supports guided line polygon edge ignore existing"
+                          Content="Guided tools ignore existing"
+                          ToolTip.Tip="Line (L), polygon (P) and edge (E) place every tip and route as if no other support existed. Untick to keep clear of existing tips and route around existing supports."
+                          IsChecked="{Binding SupportGuidedIgnoreExistingSupports, Mode=TwoWay}" Margin="0,4" />
+                <Grid Tag="supports guided existing tip clearance distance mm" ColumnDefinitions="170,*" Margin="0,2"
+                      IsEnabled="{Binding !SupportGuidedIgnoreExistingSupports}">
+                    <TextBlock Text="Guided tip clearance" Classes="label"
+                               ToolTip.Tip="When guided tools respect existing supports: no guided tip closer than this to an existing tip" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.1" Maximum="100" Increment="0.5" FormatString="0.##"
+                                   Value="{Binding SupportGuidedExistingClearanceMm, Mode=TwoWay}" />
+                </Grid>
                 <Grid Tag="supports members existing trunk branch range mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Existing trunk range" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"

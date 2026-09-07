@@ -13,9 +13,12 @@ public static class GuidedTipPlacement
 {
     /// <summary>
     /// One candidate per sample, its inward normal taken from the sample's face. A sample within
-    /// <see cref="TipPlacementParameters.MinSpacingMm"/> of an existing tip is dropped — that is
-    /// how a line started on an existing tip does not put a second cone on the same spot — and
-    /// so is one that close to a candidate already taken from the same gesture.
+    /// <see cref="TipPlacementParameters.MinSpacingMm"/> of a candidate already taken from the
+    /// same gesture is dropped. When <paramref name="existing"/> is given the gesture is
+    /// existing-aware: a sample within <see cref="TipPlacementParameters.ExistingTipClearanceMm"/>
+    /// of a tip already in the document is dropped too. Pass null to ignore existing supports,
+    /// which is the default (user decision 2026-09-07): whether a gesture defers to what is
+    /// already there is the user's explicit choice, never the tool's.
     /// </summary>
     public static IReadOnlyList<TipCandidate> Candidates(Mesh mesh,
         IReadOnlyList<(Vector3 Point, int Face)> samples, TipPlacementParameters parameters,
@@ -28,12 +31,14 @@ public static class GuidedTipPlacement
         // itself; a hair of tolerance keeps rounding from dropping every second one.
         var minSpacing = MathF.Max(0f, parameters.MinSpacingMm - 1e-3f);
         var minSpacingSquared = minSpacing * minSpacing;
+        var clearance = MathF.Max(0f, (parameters.ExistingTipClearanceMm ?? parameters.MinSpacingMm) - 1e-3f);
+        var clearanceSquared = clearance * clearance;
         var taken = new List<Vector3>();
         var result = new List<TipCandidate>(samples.Count);
         foreach (var (point, face) in samples)
         {
             if ((uint)face >= (uint)mesh.TriangleCount) continue;
-            if (existingTips.Any(tip => Vector3.DistanceSquared(tip, point) < minSpacingSquared)) continue;
+            if (existingTips.Any(tip => Vector3.DistanceSquared(tip, point) < clearanceSquared)) continue;
             if (taken.Any(tip => Vector3.DistanceSquared(tip, point) < minSpacingSquared)) continue;
             taken.Add(point);
             result.Add(new TipCandidate(point, -mesh.FaceNormals[face], parameters.TipDiameterMm,

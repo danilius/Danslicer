@@ -822,8 +822,12 @@ public sealed class Document
         if (candidates.Count == 0 || !SupportTargetPolicy.CanSupport(SupportTarget, obj)) return 0;
         var settings = SupportSettings with { };
         var first = candidates[0].Point;
+        // Ignoring existing supports is the user's explicit choice (2026-09-07): by default a
+        // guided gesture routes as if alone, so a second edge beside a supported one is not
+        // refused for colliding with the first.
         var (router, options) = ManualRouting(obj, settings,
-            HashCode.Combine(first.X, first.Y, first.Z, candidates.Count, Supports.NodeCount));
+            HashCode.Combine(first.X, first.Y, first.Z, candidates.Count, Supports.NodeCount),
+            ignoreExisting: settings.GuidedIgnoreExistingSupports);
         var tips = candidates.Select(c => new RoutingTip(c.Point, c.InwardNormal, c.TipDiameter, obj.Id,
             TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter,
             PenetrationDepth: c.PenetrationDepth, TipNormalLeadIn: c.TipNormalLeadIn)).ToList();
@@ -848,13 +852,25 @@ public sealed class Document
         TipNormalLeadInMm = 0f,
         SpacingMm = SupportSettings.Spacing,
         MinSpacingMm = SupportSettings.Spacing,
+        ExistingTipClearanceMm = SupportSettings.GuidedExistingClearanceMm,
     };
 
-    /// <summary>The router and options a manual placement uses, shared by T and the guided tools.</summary>
+    /// <summary>
+    /// The supports a guided gesture should keep clear of: none by default, the document's when
+    /// the user has made guided placement existing-aware.
+    /// </summary>
+    public SupportGraph? GuidedExistingSupports() =>
+        SupportSettings.GuidedIgnoreExistingSupports ? null : Supports;
+
+    /// <summary>
+    /// The router and options a manual placement uses, shared by T and the guided tools.
+    /// <paramref name="ignoreExisting"/> routes as if no other support existed, as the
+    /// independent-manual setting does for T.
+    /// </summary>
     private (TreeSupportRouter Router, TreeRoutingOptions Options) ManualRouting(SceneObject obj,
-        SupportConfig settings, int seed)
+        SupportConfig settings, int seed, bool ignoreExisting = false)
     {
-        var independent = settings.IndependentManualSupports;
+        var independent = settings.IndependentManualSupports || ignoreExisting;
         // With the base grid off every support is routed as if alone (user decision
         // 2026-09-07), so other supports are not obstacles either.
         ICollisionScene obstacles = independent || !settings.UseBaseGrid

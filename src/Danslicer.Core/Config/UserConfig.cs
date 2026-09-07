@@ -224,6 +224,16 @@ public sealed record SupportConfig
     /// existing supports. Automatic generation is unaffected.
     /// </summary>
     public bool IndependentManualSupports { get; set; }
+    /// <summary>
+    /// Guided placement (line, polygon, edge) ignores the supports already in the document: it
+    /// neither skips a tip near an existing one nor routes around existing members (user
+    /// decision 2026-09-07: a second edge next to a supported one placed two tips). Off makes
+    /// guided placement existing-aware, keeping <see cref="GuidedExistingClearanceMm"/> from
+    /// existing tips and routing around existing supports.
+    /// </summary>
+    public bool GuidedIgnoreExistingSupports { get; set; } = true;
+    /// <summary>Existing-aware guided placement: no guided tip lands closer than this to an existing tip.</summary>
+    public float GuidedExistingClearanceMm { get; set; } = 2.5f;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     public bool UseBaseGrid { get; set; } = true;
@@ -286,6 +296,7 @@ public sealed record SupportConfig
         MaxBranchLength = Positive(MaxBranchLength, 8f);
         ExistingTrunkBranchRange = Positive(ExistingTrunkBranchRange, 8f);
         MinMemberSeparationMm = NonNegative(MinMemberSeparationMm);
+        GuidedExistingClearanceMm = Positive(GuidedExistingClearanceMm, 2.5f);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;
