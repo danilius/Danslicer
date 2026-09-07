@@ -14,7 +14,8 @@ internal static class MiniTipClusterer
     public static IReadOnlyList<TipCandidate> Apply(IReadOnlyList<TipCandidate> candidates,
         TipPlacementParameters parameters)
     {
-        if (candidates.Count < MinimumClusterSize ||
+        if (!parameters.EnableMiniSupports ||
+            candidates.Count < MinimumClusterSize ||
             !float.IsFinite(parameters.MiniSupportClusterDistanceMm) ||
             parameters.MiniSupportClusterDistanceMm <= 0)
             return candidates;

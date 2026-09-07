@@ -142,6 +142,10 @@ base is the one exception.
   and no existing trunk can be joined, the support is routed as in free mode, its base
   standing wherever the trunk falls. (User, 2026-09-07: refusing a contact whose trunk
   could drop straight under it is absurd.)
+- **Density clusters are off with minis.** The tree generator forced the crowded-contact
+  cluster pass on regardless of the mini switch, and that pass never checked it, so three
+  close regular contacts still became a fan of minis on one carrier (the last "multi tip"
+  of the 2026-09-07 screen test). Clusters now run only when minis are enabled.
 - **A refused contact never becomes a mini.** The old "retry refused regular tips as
   minis" fallback is forced off in generation and manual placement, whatever a saved
   config says: with its checkbox gone, a saved `true` kept producing fans of minis in the

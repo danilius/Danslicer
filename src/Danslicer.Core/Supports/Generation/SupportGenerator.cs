@@ -85,9 +85,12 @@ public static class SupportGenerator
         IProgress<SupportGenerationProgress>? progress = null,
         SupportGenerationScope scope = SupportGenerationScope.Full)
     {
+        // Density clusters are a mini-support feature: crowded regular contacts become a fan
+        // of minis on one carrier. They run only when minis are enabled at all (they were
+        // forced on here, which kept producing mini fans after minis were set aside).
         var effectivePlacement = placement with
         {
-            EnableMiniTipClusters = true,
+            EnableMiniTipClusters = placement.EnableMiniSupports,
             MiniSupportMaxTipsPerCluster = routing.MiniSupportMaxFanPerBranchEnd,
         };
         var candidates = ContactFaceFilter.Apply(
