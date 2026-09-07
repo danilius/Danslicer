@@ -83,6 +83,92 @@ Default angle for all angled elements: **45°**. Everything above is configurabl
 - **Configurability directive**: anything that can be configured should be exposed in the
   support configuration.
 
+## Cone orientation and joints (user decisions, 2026-09-07)
+
+Reference: the user's Blender drawings of a cone on a ball on a cylinder. Every joint
+between members is a sphere of the parent member's diameter (the capsule cap); the
+base is the one exception.
+
+- **The cone points along the contact's outward normal**, clamped to the member angle
+  (45° by default) from vertical. Fully vertical is always allowed.
+- **A normal steeper than 45° simply gets a 45° cone** (user drawing 2026-09-07: a
+  tilted block on a vertical trunk, cone at 45°). When that direction is blocked, or
+  nothing can follow from it, the cone goes vertical and the whole route is retried;
+  only after vertical does the router swing the cone around the vertical at 45°.
+- **The bend at the ball is limited to the member angle.** The branch (or trunk) leaving
+  the cone's junction may turn by at most 45° from the cone's own axis, so a branch never
+  doubles back on the cone it grows from (the "Z" kink seen on the 2026-09-06 screen
+  test is gone). The branch that simply continues the cone's axis is offered first.
+- **A trunk may be raised to meet a member-angle branch.** When a nearby trunk's top is
+  too low, a shallower branch to its current top is tried first; only when that is
+  refused (range, bend, collision) is the trunk extended upward by a new segment to a
+  new top junction. Branches already on the trunk keep both their ends. A trunk whose
+  top carries its own cone tip is never raised, since the raise would run up inside
+  the cone. A branch can still attach anywhere below a trunk's top.
+- **The cone is the whole tip member, and its base is the ball's diameter.** One taper
+  from the contact radius to the radius of the sphere it grows from, base ring at that
+  sphere's centre, so the base simply rotates about the sphere's centre (user drawing
+  2026-09-07). There is no separate neck: the old "cone length" that tapered to the tip
+  member's own diameter is gone from the panel, and "Cone length" now names the tip
+  member length. The ring keeps the few-percent draw-in over a short buried run that
+  stops its rim showing through the ball's facets.
+- **One cone per ball, and cones keep their bases apart.** A tip member is kept clear of
+  other supports by its base radius (the ball's), not by its narrow neck, and there is no
+  short stub member for crowded contacts: a contact that cannot take a whole cone is
+  refused (user screen test 2026-09-07: stub cones piled up on one ball as a fan).
+- **No stub branches.** A junction within half a cone length of a trunk axis, or of a grid
+  drop line, is first offered a snap onto that line: the cone is re-aimed at it with its
+  configured length (at most 30° off its normal) and lands on the trunk directly, splitting
+  the trunk or raising it as needed. A trunk top already carrying a cone is never shared.
+  Only when the snap is impossible may a branch bridge the gap, and never a branch that
+  starts within one branch radius of the line it descends to: that would be shorter than
+  its own ball.
+- **Nearer base beats farther trunk.** Grid mode joins an existing trunk only when its
+  branch is at most half a grid pitch longer than the branch a fresh trunk at the nearest
+  free lattice point would need (user screen test 2026-09-07: a 7 mm branch reached past a
+  free lattice point 2 mm away). Free mode still joins any reachable trunk when the
+  preference is on, as before.
+- **Free mode: every tip is a whole support, blind to the others** (user decision
+  2026-09-07, after a second tip joined a first tip's branch end). With the base grid off a
+  contact never joins another support and never avoids one, existing or new, even if they
+  collide; other supports are not obstacles for it. Sharing trunks, snapping onto them and
+  keeping members apart are grid-mode behaviours.
+- **Supports may touch each other.** A cone is checked against other supports as the
+  frustum it is (two capsules), and no member keeps the model clearance from another
+  member: supports that meet fuse. The optional member-separation setting is the one
+  rule that keeps members apart. (User screen test 2026-09-07: a manual cone between two
+  generated ones was refused as "no clear path".)
+- **The grid is a preference, not a reason to refuse.** When no lattice point is reachable
+  and no existing trunk can be joined, the support is routed as in free mode, its base
+  standing wherever the trunk falls. (User, 2026-09-07: refusing a contact whose trunk
+  could drop straight under it is absurd.)
+- **Density clusters are off with minis.** The tree generator forced the crowded-contact
+  cluster pass on regardless of the mini switch, and that pass never checked it, so three
+  close regular contacts still became a fan of minis on one carrier (the last "multi tip"
+  of the 2026-09-07 screen test). Clusters now run only when minis are enabled.
+- **A refused contact never becomes a mini.** The old "retry refused regular tips as
+  minis" fallback is forced off in generation and manual placement, whatever a saved
+  config says: with its checkbox gone, a saved `true` kept producing fans of minis in the
+  viewport that vanished on reload (user screen test 2026-09-07).
+- **Saved mini supports are dropped on load** together with a carrier branch left holding
+  nothing: drawn with the new geometry, a cluster of three thin rods looked like a fan of
+  three full cones on one ball.
+- **Existing supports count at full size.** Supports already in the document (an earlier
+  generation, manual placements) are seeded into later routing with each cone at the radius
+  of its ball, so a later pass cannot crowd them; the saved project from before this
+  change still shows its old mini fans until regenerated.
+- **One member draws each joint's ball.** In the viewport the widest member at a node
+  (trunk before branch, then lowest id) draws the ball; the others tuck their end caps
+  inside it, so no two surfaces coincide and the seams no longer flicker.
+- **A cone is straight.** The normal lead-in (a short run along the contact normal before
+  bending toward the junction) is set to zero in generation and manual placement and its
+  setting is gone from the panel (user screen test 2026-09-07: a bent cone is wrong).
+- **Mini-supports are removed for now** (user decision 2026-09-07): generation never
+  classifies a contact as a mini, and the mini settings are gone from the support
+  panel. Islands at or above the minimum area get regular cone tips; smaller ones are
+  ignored as before minis existed. The mini code, its configuration fields and the CLI
+  options remain for when they return.
+
 ## Mini-supports (user dictation, 2026-09-03 late night)
 
 Very fine support is important — teeth, barbs and other fine detail need it:

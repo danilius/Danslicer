@@ -61,11 +61,6 @@
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportTipDiameter, Mode=TwoWay}" />
                 </Grid>
-                <Grid Tag="supports tip cone length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Cone length" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
-                                   Value="{Binding SupportConeLength, Mode=TwoWay}" />
-                </Grid>
                 <Grid Tag="supports tip ball snap diameter none zero mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Ball diameter (0 = none)" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
@@ -75,11 +70,6 @@
                     <TextBlock Text="Penetration depth" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportPenetrationDepth, Mode=TwoWay}" />
-                </Grid>
-                <Grid Tag="supports tip surface normal lead in bend mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Normal lead-in" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
-                                   Value="{Binding SupportTipNormalLeadInMm, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
         </Expander>
@@ -102,7 +92,7 @@
                                    Value="{Binding SupportMemberAngleDegrees, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members tip member length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Tip member length" Classes="label" />
+                    <TextBlock Text="Cone length" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportTipMemberLength, Mode=TwoWay}" />
                 </Grid>
@@ -195,63 +185,6 @@
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportReinforceRingDiameterMultiplier, Mode=TwoWay}" />
                 </Grid>
-            </StackPanel>
-        </Expander>
-
-        <Expander Header="Mini" IsExpanded="True">
-            <StackPanel Margin="8,2,0,6">
-                <Grid Tag="supports mini rod diameter mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Rod diameter" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
-                                   Value="{Binding SupportMiniSupportDiameter, Mode=TwoWay}" />
-                </Grid>
-                <Grid Tag="supports mini contact tip diameter mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Contact tip diameter" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
-                                   Value="{Binding SupportMiniSupportTipDiameter, Mode=TwoWay}" />
-                </Grid>
-                <Grid Tag="supports mini cone length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Cone length" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
-                                   Value="{Binding SupportMiniSupportConeLength, Mode=TwoWay}" />
-                </Grid>
-                <Grid Tag="supports mini maximum length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max length" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
-                                   Value="{Binding SupportMiniSupportMaxLength, Mode=TwoWay}" />
-                </Grid>
-                <Grid Tag="supports mini maximum lean angle degrees" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max angle from vertical" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="89" Increment="1" FormatString="0.#"
-                                   Value="{Binding SupportMiniSupportMaxAngleDegrees, Mode=TwoWay}" />
-                </Grid>
-                <Grid Tag="supports mini maximum fan per branch end count" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max fan per branch end" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="100" Increment="1" FormatString="0"
-                                   Value="{Binding SupportMiniSupportMaxFanPerBranchEnd, Mode=TwoWay}" />
-                </Grid>
-                <Grid Tag="supports mini cluster crowding distance mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Cluster distance" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.05" FormatString="0.##"
-                                   Value="{Binding SupportMiniSupportClusterDistance, Mode=TwoWay}" />
-                </Grid>
-                <Grid Tag="supports fine feature maximum local cross section square mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max fine feature area mm²" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.1" FormatString="0.###"
-                                   Value="{Binding SupportFineFeatureMaxAreaMm2, Mode=TwoWay}" />
-                </Grid>
-                <CheckBox Tag="supports fine feature mini fallback regular cone"
-                          Content="Retry failed fine minis as regular"
-                          IsChecked="{Binding SupportFineFeatureMinisFallBackToRegular, Mode=TwoWay}"
-                          Margin="0,4" />
-                <Grid Tag="supports mini island maximum classification area square mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max mini island area mm²" Classes="label" />
-                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.01" FormatString="0.###"
-                                   Value="{Binding SupportMiniIslandMaxAreaMm2, Mode=TwoWay}" />
-                </Grid>
-                <CheckBox Tag="supports mini fallback refused regular structural downgrade"
-                          Content="Retry refused regular tips as minis"
-                          IsChecked="{Binding SupportRefusedTipsFallBackToMini, Mode=TwoWay}" Margin="0,4" />
             </StackPanel>
         </Expander>
 

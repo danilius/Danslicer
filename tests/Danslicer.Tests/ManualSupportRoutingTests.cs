@@ -189,10 +189,13 @@ public sealed class ManualSupportRoutingTests
     [Fact]
     public void InRangeManualSupportBranchesOntoTheExistingTrunk()
     {
+        // Grid mode: the first support's trunk stands on the lattice origin; the second's
+        // junction has no lattice point of its own within reach and joins that trunk.
         var (document, box) = FloatingBoxDocument();
         document.SupportSettings = new SupportConfig
         {
-            UseBaseGrid = false,
+            UseBaseGrid = true,
+            BaseGridPitch = 20f,
             IndependentManualSupports = false,
         };
         Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
@@ -278,7 +281,7 @@ public sealed class ManualSupportRoutingTests
     public void MiniOnlyManualRouteFansFromAnExistingBranchEnd()
     {
         var (document, box) = FloatingBoxDocument();
-        document.SupportSettings = new SupportConfig { UseBaseGrid = false };
+        document.SupportSettings = new SupportConfig { UseBaseGrid = true, BaseGridPitch = 20f };
         Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
         Assert.True(document.AddManualSupport(box, new Vector3(4, 0, 8), -Vector3.UnitZ));
         var branchEnd = document.Supports.Segments
@@ -297,7 +300,8 @@ public sealed class ManualSupportRoutingTests
                 box.Id, MiniSupportOnly: true),
         }, new TreeRoutingOptions
         {
-            UseBaseGrid = false,
+            UseBaseGrid = true,
+            BaseGridPitch = 20f,
             Origin = SupportOrigin.ManualFor(box.Id),
         }, document.Supports);
 
@@ -312,7 +316,7 @@ public sealed class ManualSupportRoutingTests
     public void AttachedManualTipHasSaneComponentVisibilityAndDeletion()
     {
         var (document, box) = FloatingBoxDocument();
-        document.SupportSettings = new SupportConfig { UseBaseGrid = false };
+        document.SupportSettings = new SupportConfig { UseBaseGrid = true, BaseGridPitch = 20f };
         Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
         Assert.True(document.AddManualSupport(box, new Vector3(4, 0, 8), -Vector3.UnitZ));
         var attachedTip = document.Supports.Nodes.Single(node =>

@@ -50,14 +50,17 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
-    public void BranchEnvelopeWithoutAGridPointReportsItsOwnRefusalReason()
+    public void TipBeyondEveryGridPointGetsABaseOffTheGrid()
     {
+        // No lattice point is within branch reach; rather than refuse, the trunk drops straight
+        // from the junction and the base leaves the grid (user decision 2026-09-07).
         var result = Route(new[] { new RoutingTip(new(10, 10, 10), Vector3.UnitZ, 0.4f) },
             new TreeRoutingOptions { BaseGridPitch = 20f, MaxBranchLength = 8f });
 
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason);
-        Assert.Empty(result.Graph.Nodes);
+        Assert.Empty(result.Failures);
+        var supportBase = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
+        Assert.Equal(new Vector3(10, 10, 0), supportBase.Position);
+        Assert.DoesNotContain(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
     }
 
     [Fact]
@@ -154,12 +157,21 @@ public sealed class RoutingTreeTests
     [Fact]
     public void NearTiedExistingTrunksPreferTheTipsLeanDirection()
     {
+        // Grid mode (pitch 5): trunks at x = -5 and x = 5. The leaning tip's own drop line at
+        // the origin is blocked by a shelf and branches to fresh trunks are disabled, so it
+        // must join one of the two; the bend rule picks the one its cone points toward.
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-2, -2, 5), new(1.5f, -2, 5), new(1.5f, 2, 5));
+        scene.AddTriangle(new(-2, -2, 5), new(1.5f, 2, 5), new(-2, 2, 5));
         var result = Route(new[]
         {
             new RoutingTip(new(-5, 0, 14), Vector3.UnitZ, 0.4f),
             new RoutingTip(new(5, 0, 13), Vector3.UnitZ, 0.4f),
             new RoutingTip(new(-2, 0, 10), Vector3.Normalize(new Vector3(-1, 0, 1)), 0.4f),
-        }, new TreeRoutingOptions { UseBaseGrid = false });
+        }, new TreeRoutingOptions
+        {
+            UseBaseGrid = true, BaseGridPitch = 5f, MaxBranchLength = 0.001f,
+        }, scene);
 
         Assert.Empty(result.Failures);
         var leanedTip = result.Graph.Nodes.Single(node =>
@@ -436,13 +448,13 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
-    public void RefusedRegularTipsOnlyFallBackToMiniWhenExplicitlyEnabled()
+    public void TipThatCannotReachTheGridIsRoutedOffGridInsteadOfDowngradedToAMini()
     {
         var tips = new[]
         {
             // Creates a reachable grid trunk and a branch end at (5, 0, 12).
             new RoutingTip(new(5, 0, 14), Vector3.UnitZ, 0.4f),
-            // Its own junction cannot reach the 20 mm grid, but its contact can reach that end.
+            // Its own junction cannot reach the 20 mm grid.
             new RoutingTip(new(9, 0, 12.2f), Vector3.UnitZ, 0.4f),
         };
         var options = new TreeRoutingOptions
@@ -456,13 +468,15 @@ public sealed class RoutingTreeTests
         var honest = Route(tips, options);
         var downgraded = Route(tips, options with { RefusedTipsFallBackToMini = true });
 
-        var failure = Assert.Single(honest.Failures);
-        Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason);
+        // The off-grid last resort routes it as a regular cone, so the mini downgrade (set
+        // aside anyway) never engages.
+        Assert.Empty(honest.Failures);
+        Assert.Empty(downgraded.Failures);
         Assert.DoesNotContain(honest.Graph.Segments,
             segment => segment.Type == SupportSegmentType.MiniSupport);
-        Assert.Empty(downgraded.Failures);
-        Assert.Single(downgraded.Graph.Segments,
+        Assert.DoesNotContain(downgraded.Graph.Segments,
             segment => segment.Type == SupportSegmentType.MiniSupport);
+        Assert.Equal(2, honest.Graph.Segments.Count(s => s.Type == SupportSegmentType.Tip));
     }
 
     [Fact]
@@ -826,21 +840,97 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
-    public void RoughContactFallsBackToAShortTipMember()
+    public void RoughContactIsRefusedRatherThanGivenAStubCone()
     {
-        // Every full-length departure is blocked near the contact (spiky terrain, e.g. teeth);
-        // the short-member fallback must still get the support off the surface and route.
+        // Every full-length departure is blocked near the contact (spiky terrain, e.g. teeth).
+        // A cone is the whole tip member; there is no short stub to fall back to, so the
+        // contact is refused honestly.
         var contact = new Vector3(0, 0, 10);
         var result = new TreeSupportRouter(new NearContactBlockScene(contact),
             GrowthRuleSet.Default).Route(
             new[] { new RoutingTip(contact, Vector3.UnitZ, 0.4f) }, new TreeRoutingOptions());
 
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
+        Assert.Empty(result.Graph.Segments);
+    }
+
+    [Fact]
+    public void NeighbouringConesKeepTheirBasesApart()
+    {
+        // Two contacts on one 45 degree underside whose members run parallel 1.06 mm apart:
+        // their necks would clear, but their bases are as wide as the balls they grow from
+        // (1.2 mm), so the second cone would overlap the first. It is refused instead of
+        // fanning off one ball.
+        var outward = Vector3.Normalize(new Vector3(1, 0, -1));
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 12), -outward, 0.4f),
+            new RoutingTip(new(0.75f, 0, 11.25f), -outward, 0.4f),
+        }, new TreeRoutingOptions { UseBaseGrid = true });
+
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
+        Assert.Single(result.Graph.Segments, s => s.Type == SupportSegmentType.Tip);
+    }
+
+    [Fact]
+    public void ExistingConeKeepsItsBaseRadiusAgainstLaterPasses()
+    {
+        // A cone already in the document (from an earlier generation or a manual placement)
+        // is as wide as its ball; a later grid-mode pass must not crowd it as if it were only
+        // its neck.
+        var first = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { UseBaseGrid = true });
+        Assert.Empty(first.Failures);
+
+        var second = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default)
+            .Route(new[] { new RoutingTip(new(1.1f, 0, 10), Vector3.UnitZ, 0.4f) },
+                new TreeRoutingOptions { UseBaseGrid = true }, first.Graph);
+
+        var failure = Assert.Single(second.Failures);
+        Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
+    }
+
+    [Fact]
+    public void JunctionNearATrunkAxisLandsTheConeOnTheTrunk()
+    {
+        // The second tip's junction would sit 0.4 mm beside the first trunk. Instead of a stub
+        // branch shorter than its own ball, the cone is re-aimed onto the trunk axis and the
+        // trunk is split where it lands.
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(0.4f, 0, 10), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions { BaseGridPitch = 10f });
+
         Assert.Empty(result.Failures);
-        var tipNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Tip);
+        Assert.DoesNotContain(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
+        Assert.Single(result.BasePositions);
+        var tipNode = result.Graph.Nodes.Single(n => n.Type == SupportNodeType.Tip && n.Position.X == 0.4f);
         var member = Assert.Single(result.Graph.SegmentsAt(tipNode.Id));
-        var otherId = member.NodeA == tipNode.Id ? member.NodeB : member.NodeA;
-        var length = Vector3.Distance(tipNode.Position, result.Graph.GetNode(otherId).Position);
-        Assert.True(length < 1f, $"expected a short tip member, got {length} mm");
+        var junction = result.Graph.GetNode(member.NodeA == tipNode.Id ? member.NodeB : member.NodeA);
+        Assert.Equal(0f, junction.Position.X, 4);
+        Assert.Equal(10 - MathF.Sqrt(4 - 0.16f), junction.Position.Z, 3);
+        Assert.Contains(result.Graph.SegmentsAt(junction.Id), s => s.Type == SupportSegmentType.Trunk);
+        Assert.Equal(2, result.Graph.Segments.Count(s => s.Type == SupportSegmentType.Trunk));
+    }
+
+    [Fact]
+    public void JunctionNearAGridDropLineSnapsOntoIt()
+    {
+        // Grid mode, junction 0.4 mm off the lattice point: the cone is re-aimed at the drop
+        // line and the trunk falls straight from it, with no stub branch in between.
+        var result = Route(new[] { new RoutingTip(new(0.4f, 0, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { BaseGridPitch = 10f });
+
+        Assert.Empty(result.Failures);
+        Assert.DoesNotContain(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
+        var supportBase = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
+        Assert.Equal(Vector3.Zero, supportBase.Position);
+        var junction = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Junction);
+        Assert.Equal(0f, junction.Position.X, 4);
+        Assert.Equal(10 - MathF.Sqrt(4 - 0.16f), junction.Position.Z, 3);
     }
 
     /// <summary>Blocks any queried capsule lying wholly in the slab just below the contact.</summary>
@@ -978,5 +1068,166 @@ public sealed class RoutingTreeTests
             else
                 Assert.True(lean <= 45.01f, $"{segment.Type} leans {lean}°");
         }
+    }
+
+    /// <summary>The largest bend, in degrees, at any joint between a tip member and the members below it.</summary>
+    private static float MaxTipJointBend(SupportGraph graph)
+    {
+        var worst = 0f;
+        foreach (var tipSegment in graph.Segments.Where(s => s.Type == SupportSegmentType.Tip))
+        {
+            var a = graph.GetNode(tipSegment.NodeA);
+            var b = graph.GetNode(tipSegment.NodeB);
+            var (tip, junction) = a.Type == SupportNodeType.Tip ? (a, b) : (b, a);
+            var incoming = junction.Position - tip.Position;
+            foreach (var next in graph.SegmentsAt(junction.Id))
+            {
+                if (next.Id == tipSegment.Id) continue;
+                var farId = next.NodeA == junction.Id ? next.NodeB : next.NodeA;
+                var outgoing = graph.GetNode(farId).Position - junction.Position;
+                if (outgoing.Z > 1e-6f) continue; // the parent trunk passing through upward
+                worst = MathF.Max(worst, TreeSupportRouter.BendDegrees(incoming, outgoing));
+            }
+        }
+        return worst;
+    }
+
+    [Fact]
+    public void FreeModeGivesEveryTipItsOwnSupportBlindToTheOthers()
+    {
+        // Grid off: two contacts a millimetre apart each get tip, trunk and base of their own,
+        // colliding or not, and a later manual pass ignores what is there just the same.
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(1, 0, 10), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions { UseBaseGrid = false });
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(2, result.BasePositions.Count);
+        Assert.DoesNotContain(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
+
+        var later = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default)
+            .Route(new[] { new RoutingTip(new(0.5f, 0, 10), Vector3.UnitZ, 0.4f) },
+                new TreeRoutingOptions { UseBaseGrid = false }, result.Graph);
+        Assert.Empty(later.Failures);
+        Assert.Equal(3, later.Graph.Nodes.Count(n => n.Type == SupportNodeType.Base));
+    }
+
+    [Fact]
+    public void BranchNeverDoublesBackOnTheConeItGrowsFrom()
+    {
+        // The only existing trunk lies behind a tip that leans the other way: joining it would
+        // fold the branch 90° back at the ball, so the tip must take its own support instead.
+        var result = Route(new[]
+        {
+            new RoutingTip(new(-5, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(-2, 0, 10), Vector3.Normalize(new Vector3(-1, 0, 1)), 0.4f),
+        }, new TreeRoutingOptions { UseBaseGrid = false });
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(2, result.BasePositions.Count);
+        Assert.True(MaxTipJointBend(result.Graph) <= 45.01f);
+    }
+
+    [Fact]
+    public void FreeBranchFanContinuesTheConeAxisWhenTheDropIsBlocked()
+    {
+        // A shelf under the tip's junction blocks the vertical drop; the branch that simply
+        // carries on along the cone's own axis is preferred to any swing around the vertical.
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-1.5f, -1.5f, 5), new(1.7f, -1.5f, 5), new(1.7f, 1.5f, 5));
+        scene.AddTriangle(new(-1.5f, -1.5f, 5), new(1.7f, 1.5f, 5), new(-1.5f, 1.5f, 5));
+        var outward = Vector3.Normalize(new Vector3(1, 0, -1));
+
+        var result = Route(new[] { new RoutingTip(new(0, 0, 10), -outward, 0.4f) },
+            new TreeRoutingOptions { UseBaseGrid = false }, scene);
+
+        Assert.Empty(result.Failures);
+        var branch = Assert.Single(result.Graph.Segments,
+            segment => segment.Type == SupportSegmentType.Branch);
+        var a = result.Graph.GetNode(branch.NodeA).Position;
+        var b = result.Graph.GetNode(branch.NodeB).Position;
+        var (high, low) = a.Z >= b.Z ? (a, b) : (b, a);
+        var direction = Vector3.Normalize(low - high);
+        Assert.Equal(outward.X, direction.X, 3);
+        Assert.Equal(outward.Z, direction.Z, 3);
+        Assert.Equal(0f, MaxTipJointBend(result.Graph), 2);
+    }
+
+    [Fact]
+    public void BlockedTipDirectionFallsBackToVertical()
+    {
+        // A small obstacle sits exactly where the 45° tip member would end. Rather than swing
+        // around the vertical at 45°, the tip goes straight down.
+        // The 45° member of a 2 mm tip ends at (1.414, 0, 8.586); the sphere sits just within
+        // the member's clearance of that end and clear of the 30° member and its trunk.
+        var scene = new LinearCollisionScene();
+        scene.AddSphere(new Vector3(2.003f, 0, 9.038f), 0.3f);
+        var outward = Vector3.Normalize(new Vector3(1, 0, -1));
+
+        var result = Route(new[] { new RoutingTip(new(0, 0, 10), -outward, 0.4f) },
+            new TreeRoutingOptions { UseBaseGrid = false }, scene);
+
+        Assert.Empty(result.Failures);
+        var tipNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Tip);
+        var member = Assert.Single(result.Graph.SegmentsAt(tipNode.Id));
+        var otherId = member.NodeA == tipNode.Id ? member.NodeB : member.NodeA;
+        var delta = result.Graph.GetNode(otherId).Position - tipNode.Position;
+        var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
+            * 180 / MathF.PI;
+        Assert.Equal(0f, lean, 2);
+    }
+
+    [Fact]
+    public void ShortTrunkIsRaisedToMeetAMemberAngleBranchWithoutMovingItsBranches()
+    {
+        // The first tip builds a trunk at the grid origin whose top is at z = 9. The second
+        // tip's shallow branch to that top is over the range; raising the trunk lets a 45°
+        // branch join at z ≈ 9.4 while the first branch keeps both of its ends.
+        var result = Route(new[]
+        {
+            new RoutingTip(new(3, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(-2.5f, 0, 13.9f), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions { BaseGridPitch = 10f, ExistingTrunkBranchRange = 3.6f });
+
+        Assert.Empty(result.Failures);
+        Assert.Single(result.BasePositions);
+        var trunks = result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Trunk).ToList();
+        Assert.Equal(2, trunks.Count);
+        var topZ = trunks.SelectMany(s => new[] { s.NodeA, s.NodeB })
+            .Select(id => result.Graph.GetNode(id).Position.Z).Max();
+        Assert.Equal(9.399f, topZ, 2);
+
+        var branches = result.Graph.Segments.Where(s => s.Type == SupportSegmentType.Branch)
+            .Select(s => (A: result.Graph.GetNode(s.NodeA).Position,
+                B: result.Graph.GetNode(s.NodeB).Position))
+            .ToList();
+        Assert.Equal(2, branches.Count);
+        Assert.Contains(branches, branch =>
+            (branch.A == new Vector3(3, 0, 12) && branch.B == new Vector3(0, 0, 9)) ||
+            (branch.B == new Vector3(3, 0, 12) && branch.A == new Vector3(0, 0, 9)));
+        Assert.Contains(branches, branch =>
+            MathF.Abs(MathF.Min(branch.A.Z, branch.B.Z) - 9.399f) < 0.01f);
+        Assert.True(MaxTipJointBend(result.Graph) <= 45.01f);
+    }
+
+    [Fact]
+    public void TrunkIsNeverRaisedIntoTheConeTipStandingOnIt()
+    {
+        // The first trunk's top is the junction of its own cone tip. A second tip that could
+        // only join by raising that trunk must not: the raise would run up inside the cone.
+        // With no lattice point reachable it gets a base of its own off the grid instead.
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 11), Vector3.UnitZ, 0.4f, IsIslandPriority: true),
+            new RoutingTip(new(-2.5f, 0, 13.9f), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions { BaseGridPitch = 10f, ExistingTrunkBranchRange = 3.6f });
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(2, result.BasePositions.Count);
+        Assert.DoesNotContain(result.Graph.Nodes, n => n.Type != SupportNodeType.Tip &&
+            n.Position.X == 0 && n.Position.Y == 0 && n.Position.Z > 9.01f);
+        Assert.True(MaxTipJointBend(result.Graph) <= 45.01f);
     }
 }

@@ -196,7 +196,9 @@ public sealed class RoutingCollisionTests
         var scene = new LinearCollisionScene();
         scene.AddSupportGraph(graph);
         Assert.Equal(0, scene.SphereCount);
-        Assert.Equal(1, scene.CapsuleCount);
+        // The cone contributes one capsule per body section (its taper and the base draw-in).
+        Assert.Equal(TipBodyGeometry.Sections(tip, junction, 0.6f, embedContact: false).Count,
+            scene.CapsuleCount);
     }
 
     [Fact]

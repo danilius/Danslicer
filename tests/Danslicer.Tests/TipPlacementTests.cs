@@ -59,6 +59,8 @@ public class TipPlacementTests
             TipStrategy.Island, 99));
         var parameters = TipPlacementParameters.Default with
         {
+            // Density clusters are a mini-support feature and run only with minis enabled.
+            EnableMiniSupports = true,
             EnableMiniTipClusters = true,
             MiniSupportClusterDistanceMm = 1.25f,
             MiniSupportMaxTipsPerCluster = 4,

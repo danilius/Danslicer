@@ -62,11 +62,10 @@ public sealed class BvhCollisionScene : ICollisionScene
         {
             var a = graph.GetNode(segment.NodeA);
             var b = graph.GetNode(segment.NodeB);
-            if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other) &&
-                tip.TipNormalLeadIn > 0)
+            if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
             {
+                // A cone's sections carry its real envelope, up to the ball it grows from.
                 foreach (var section in TipBodyGeometry.Sections(tip, other,
-                             segment.Diameter * 0.5f,
                              SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f,
                              embedContact: false))
                     AddCapsule(section.Start, section.End,

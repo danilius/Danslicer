@@ -649,7 +649,6 @@
                                 <WrapPanel Margin="0,2,0,4"
                                            IsEnabled="{Binding SupportSettings.IsSupportElementVisibilityAvailable}">
                                     <CheckBox Content="Tips" IsChecked="{Binding SupportSettings.ShowSupportTips}" Margin="0,0,8,0" />
-                                    <CheckBox Content="Minis" IsChecked="{Binding SupportSettings.ShowMiniSupports}" Margin="0,0,8,0" />
                                     <CheckBox Content="Branches" IsChecked="{Binding SupportSettings.ShowSupportBranches}" Margin="0,0,8,0" />
                                     <CheckBox Content="Trunks" IsChecked="{Binding SupportSettings.ShowSupportTrunks}" Margin="0,0,8,0" />
                                     <CheckBox Content="Bases" IsChecked="{Binding SupportSettings.ShowSupportBases}" Margin="0,0,8,0" />

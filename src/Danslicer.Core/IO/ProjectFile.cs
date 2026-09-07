@@ -106,6 +106,28 @@ public static class ProjectFile
         }
     }
 
+    /// <summary>
+    /// Mini supports are set aside (user decision 2026-09-07). A saved mini rod would now draw
+    /// as a full-size cone, and a cluster of them as a fan of cones off one ball, so they are
+    /// dropped on load together with any carrier branch left holding nothing.
+    /// </summary>
+    internal static void StripMiniSupports(SupportGraph graph)
+    {
+        foreach (var mini in graph.Segments
+                     .Where(segment => segment.Type == SupportSegmentType.MiniSupport).ToList())
+        {
+            var a = graph.GetNode(mini.NodeA);
+            var b = graph.GetNode(mini.NodeB);
+            var (tip, carrier) = a.Type == SupportNodeType.Tip ? (a, b) : (b, a);
+            graph.RemoveSegment(mini.Id);
+            if (graph.SegmentsAt(tip.Id).Count == 0) graph.RemoveNode(tip.Id);
+            // A branch end that fed only minis is now a bare ball on a stalk: drop the stalk too.
+            if (graph.SegmentsAt(carrier.Id).Count == 1 &&
+                graph.SegmentsAt(carrier.Id)[0].Type == SupportSegmentType.Branch)
+                graph.RemoveNode(carrier.Id);
+        }
+    }
+
     public static ProjectLoadResult Load(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -159,6 +181,7 @@ public static class ProjectFile
             document.Supports.AddNode(node.ToNode());
         foreach (var segment in manifest.SupportGraph.Segments)
             document.Supports.AddSegment(segment.ToSegment());
+        StripMiniSupports(document.Supports);
         document.History.Clear();
 
         return new ProjectLoadResult(document, (manifest.ViewState ?? new ViewStateDto()).ToViewState());

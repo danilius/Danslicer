@@ -107,6 +107,42 @@ public class SupportRenderMeshTests
     }
 
     [Fact]
+    public void OnlyOneMemberDrawsTheBallAtAJoint()
+    {
+        // A branch meeting a trunk of the same diameter: the trunk owns the ball, and the
+        // branch's cap at that node is tucked inside it, so no two surfaces coincide.
+        var graph = new SupportGraph();
+        var baseNode = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        var joint = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 10) };
+        var end = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(3, 0, 13) };
+        graph.AddNode(baseNode);
+        graph.AddNode(joint);
+        graph.AddNode(end);
+        graph.AddSegment(new SupportSegment
+            { Type = SupportSegmentType.Trunk, NodeA = joint.Id, NodeB = baseNode.Id, Diameter = 1.2f });
+        graph.AddSegment(new SupportSegment
+            { Type = SupportSegmentType.Branch, NodeA = joint.Id, NodeB = end.Id, Diameter = 1.2f });
+
+        var parts = SupportRenderMesh.Build(graph);
+        var trunk = Assert.Single(parts, part => part.Kind == SupportRenderKind.Trunk).Mesh;
+        var branch = Assert.Single(parts, part => part.Kind == SupportRenderKind.Branch).Mesh;
+        Assert.Equal(SupportRenderMesh.TrianglesPerCapsule, trunk.TriangleCount);
+        Assert.Equal(SupportRenderMesh.TrianglesPerCapsule + 2 * SupportRenderMesh.RadialSegments,
+            branch.TriangleCount);
+        AssertClosed(branch);
+
+        // Every branch vertex on the joint side of the node lies strictly inside the ball.
+        var axis = Vector3.Normalize(end.Position - joint.Position);
+        var capSide = branch.Positions
+            .Where(position => Vector3.Dot(position - joint.Position, axis) <= 1e-5f)
+            .Select(position => Vector3.Distance(position, joint.Position))
+            .ToList();
+        Assert.NotEmpty(capSide);
+        Assert.True(capSide.Max() <= 0.6f * 0.94f + 1e-4f,
+            $"a tucked cap reaches {capSide.Max()} from the joint");
+    }
+
+    [Fact]
     public void ZeroLengthSegmentBecomesAClosedSphere()
     {
         var graph = new SupportGraph();
@@ -199,7 +235,8 @@ public class SupportRenderMeshTests
 
         var part = Assert.Single(SupportRenderMesh.Build(graph));
         Assert.Equal(SupportRenderKind.Tip, part.Kind);
-        // Three-ring closed body (contact, cone base, junction) plus the contact sphere.
+        // Three-ring closed body (contact, inset start, junction) plus the contact sphere: the
+        // whole member is one taper to the ball's radius.
         Assert.Equal(6 * SupportRenderMesh.RadialSegments
             + SupportRenderMesh.TrianglesPerSphere, part.Mesh.TriangleCount);
         AssertClosed(part.Mesh);
@@ -208,20 +245,28 @@ public class SupportRenderMeshTests
     [Theory]
     [InlineData(SupportSegmentType.Trunk, 0.8f)]
     [InlineData(SupportSegmentType.Branch, 1.6f)]
-    public void ConeTipJunctionRingMatchesItsParentMember(SupportSegmentType parentType,
+    public void ConeTipBaseRingMatchesTheBallItSitsOn(SupportSegmentType parentType,
         float parentDiameter)
     {
         var graph = ConeTipWithParent(parentType, parentDiameter);
+        var parentRadius = parentDiameter * 0.5f;
 
         var tipPart = Assert.Single(SupportRenderMesh.Build(graph),
             part => part.Kind == SupportRenderKind.Tip);
-        var junctionRadius = tipPart.Mesh.Positions
-            .Where(position => MathF.Abs(position.Z - 5f) < 1e-4f)
-            .Max(position => new Vector2(position.X, position.Y).Length());
 
-        Assert.Equal(parentDiameter * 0.5f, junctionRadius, 3);
+        // The base ring sits at the centre of the parent's cap ball and carries all but the few
+        // percent that keep its rim off that ball's facets, which lie a cosine inside the
+        // analytic surface. Any more and the ring shows through as a disc.
+        var baseRadius = RadiusAtZ(tipPart.Mesh, 5f);
+        Assert.Equal(parentRadius * 0.94f, baseRadius, 3);
+        Assert.True(baseRadius < parentRadius * MathF.Cos(MathF.PI / SupportRenderMesh.RadialSegments),
+            "the tip's base ring stands proud of the ball it sits on");
         Assert.Equal(5f, tipPart.Mesh.Bounds.Min.Z, 3);
     }
+
+    private static float RadiusAtZ(Mesh mesh, float z) => mesh.Positions
+        .Where(position => MathF.Abs(position.Z - z) < 1e-4f)
+        .Max(position => new Vector2(position.X, position.Y).Length());
 
     [Fact]
     public void ConeTipBallReplacesTheContactSphere()

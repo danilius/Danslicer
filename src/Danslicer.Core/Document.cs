@@ -791,7 +791,9 @@ public sealed class Document
         if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return false;
         var settings = SupportSettings with { };
         var independent = settings.IndependentManualSupports;
-        ICollisionScene obstacles = independent
+        // With the base grid off every support is routed as if alone (user decision
+        // 2026-09-07), so other supports are not obstacles either.
+        ICollisionScene obstacles = independent || !settings.UseBaseGrid
             ? MeshObstacles()
             : new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
         var rules = GrowthRuleSet.FromConfig(settings);
@@ -799,7 +801,8 @@ public sealed class Document
         var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
             TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
             BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth,
-            TipNormalLeadIn: settings.TipNormalLeadInMm);
+            // A cone is straight (user decision 2026-09-07): no normal lead-in bend.
+            TipNormalLeadIn: 0f);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
         var options = new TreeRoutingOptions
@@ -820,7 +823,9 @@ public sealed class Document
             MiniSupportMaxAngleDegrees = settings.MiniSupportMaxAngleDegrees,
             MiniSupportMaxFanPerBranchEnd = settings.MiniSupportMaxFanPerBranchEnd,
             FineFeatureMinisFallBackToRegular = settings.FineFeatureMinisFallBackToRegular,
-            RefusedTipsFallBackToMini = settings.RefusedTipsFallBackToMini,
+            // Mini supports are set aside (2026-09-07): a refused contact stays refused rather
+            // than becoming a mini fanning off a branch end, whatever a saved config says.
+            RefusedTipsFallBackToMini = false,
             UseBaseGrid = settings.UseBaseGrid,
             BaseGridPitch = settings.BaseGridPitch,
             BaseShape = settings.BaseShape,
@@ -959,8 +964,10 @@ public sealed class Document
             cancellationToken.ThrowIfCancellationRequested();
             meshes.AddMesh(snapshot.Mesh, snapshot.Transform);
         }
+        // With the base grid off every support is routed as if alone (user decision
+        // 2026-09-07), so existing supports are not obstacles either.
         var supportObstacles = new LinearCollisionScene();
-        supportObstacles.AddSupportGraph(request.ExistingSupports);
+        if (request.Settings.UseBaseGrid) supportObstacles.AddSupportGraph(request.ExistingSupports);
         var obstacles = new CompositeCollisionScene(meshes, supportObstacles);
         var rules = GrowthRuleSet.FromConfig(request.Settings);
         // Spec-shaped generation: cone tips on trunk/branch trees with disc bases. The capsule
@@ -973,7 +980,8 @@ public sealed class Document
                 ConeLengthMm = request.Settings.ConeLength,
                 BallDiameterMm = request.Settings.BallDiameter,
                 PenetrationDepthMm = request.Settings.PenetrationDepth,
-                TipNormalLeadInMm = request.Settings.TipNormalLeadInMm,
+                // A cone is straight (user decision 2026-09-07): no normal lead-in bend.
+                TipNormalLeadInMm = 0f,
                 SpacingMm = request.Settings.Spacing,
                 MinSpacingMm = request.Settings.Spacing,
                 IslandSpacingMm = request.Settings.IslandSpacingMm,
@@ -981,12 +989,13 @@ public sealed class Document
                 MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
                 MaxContactFaceAngleDegrees = request.Settings.MaxContactFaceAngleDegrees,
                 RequireContactSeesPlate = request.Settings.RequireContactSeesPlate,
-                EnableMiniSupports = true,
-                MiniIslandMaxAreaMm2 = request.Settings.MiniIslandMaxAreaMm2,
-                MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
-                MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
-                MiniSupportClusterDistanceMm = request.Settings.MiniSupportClusterDistance,
-                FineFeatureMaxAreaMm2 = request.Settings.FineFeatureMaxAreaMm2,
+                // Mini supports are set aside (user decision 2026-09-07): every island at or
+                // above the minimum area gets a regular cone tip, and no contact is converted
+                // to a mini by crowding or fineness. The mini code and its settings stay for
+                // when they return.
+                EnableMiniSupports = false,
+                EnableMiniTipClusters = false,
+                FineFeatureMaxAreaMm2 = 0f,
                 // Only a PAINTED region switches to the even surface grid; with nothing painted
                 // this stays null and generation is unchanged.
                 RegionGrid = request.Regions.Faces.Count > 0
@@ -1015,7 +1024,10 @@ public sealed class Document
                 MiniSupportMaxFanPerBranchEnd = request.Settings.MiniSupportMaxFanPerBranchEnd,
                 FineFeatureMinisFallBackToRegular =
                     request.Settings.FineFeatureMinisFallBackToRegular,
-                RefusedTipsFallBackToMini = request.Settings.RefusedTipsFallBackToMini,
+                // Mini supports are set aside (2026-09-07): a refused contact stays refused
+                // rather than becoming a mini fanning off a branch end, whatever a saved
+                // config says. (Their checkbox is gone, but the saved value lived on.)
+                RefusedTipsFallBackToMini = false,
                 UseBaseGrid = request.Settings.UseBaseGrid,
                 BaseGridPitch = request.Settings.BaseGridPitch,
                 BaseShape = request.Settings.BaseShape,
