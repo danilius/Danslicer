@@ -11,6 +11,10 @@ public enum ViewportTool
     Visibility,
     Rafts,
     UvtoolsCheck,
+    /// <summary>Layout: the object's transform fields, formerly the right-hand panel (user, 2026-09-08).</summary>
+    Transform,
+    /// <summary>Support: a button for every guided-placement key (user rule 2026-09-08).</summary>
+    Guided,
 }
 
 public enum ViewportPopupCloseTrigger
@@ -26,12 +30,13 @@ public enum ViewportPopupCloseTrigger
 public static class ViewportToolbarPolicy
 {
     private static readonly IReadOnlyList<ViewportTool> ObjectTools =
-        [ViewportTool.Objects];
+        [ViewportTool.Objects, ViewportTool.Transform];
 
     private static readonly IReadOnlyList<ViewportTool> SupportTools =
     [
         ViewportTool.Objects,
         ViewportTool.Supports,
+        ViewportTool.Guided,
         ViewportTool.IslandSupport,
         ViewportTool.IslandDetection,
         ViewportTool.Visibility,

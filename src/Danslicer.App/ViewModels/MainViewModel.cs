@@ -151,7 +151,8 @@ public partial class MainViewModel : ViewModelBase
         nameof(ViewportTools), nameof(IsObjectListSelectionEnabled), nameof(IsObjectsToolVisible),
         nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
         nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible),
-        nameof(IsUvtoolsCheckToolVisible), nameof(EffectiveSupportDisplay))]
+        nameof(IsUvtoolsCheckToolVisible), nameof(IsTransformToolVisible), nameof(IsGuidedToolVisible),
+        nameof(EffectiveSupportDisplay))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
@@ -164,6 +165,8 @@ public partial class MainViewModel : ViewModelBase
     public bool IsRaftsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Rafts, ViewMode);
     public bool IsUvtoolsCheckToolVisible =>
         ViewportToolbarPolicy.IsAvailable(ViewportTool.UvtoolsCheck, ViewMode);
+    public bool IsTransformToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Transform, ViewMode);
+    public bool IsGuidedToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Guided, ViewMode);
 
     /// <summary>
     /// Object rows are live wherever an object selection means something: Layout arranges the

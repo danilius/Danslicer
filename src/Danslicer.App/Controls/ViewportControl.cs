@@ -1249,6 +1249,50 @@ public sealed class ViewportControl : OpenGlControlBase
     /// from that tip's contact, so a line can extend a support already placed. Returns a status
     /// message when the gesture cannot start.
     /// </summary>
+    /// <summary>Which guided placement tool a toolbar button starts (user rule 2026-09-08: every key has a button).</summary>
+    public enum GuidedTool { Line, Polygon, Edge, Ring, Contour, Densify, Thin }
+
+    /// <summary>
+    /// Starts a guided tool from the toolbar, exactly as its key would from the cursor's last
+    /// position. Densify and thin run at once; the others begin their gesture and take focus so
+    /// the next click lands in the viewport.
+    /// </summary>
+    public void StartGuidedTool(GuidedTool tool)
+    {
+        if (Document is null || !SupportSelectionMode) return;
+        var mouse = new Vector2((float)_lastPointer.X, (float)_lastPointer.Y);
+        string? status = tool switch
+        {
+            GuidedTool.Line => BeginLineGesture(mouse),
+            GuidedTool.Polygon => BeginLineGesture(mouse, GuidedKind.Polygon),
+            GuidedTool.Edge => BeginLineGesture(mouse, GuidedKind.Edge),
+            GuidedTool.Ring => BeginLineGesture(mouse, GuidedKind.Ring),
+            GuidedTool.Contour => BeginLineGesture(mouse, GuidedKind.Contour),
+            GuidedTool.Densify => DensifyStatus(),
+            GuidedTool.Thin => ThinStatus(),
+            _ => null,
+        };
+        Focus();
+        UpdateStatus();
+        if (status is not null) StatusText = status;
+        Redraw();
+    }
+
+    private string DensifyStatus()
+    {
+        var placed = Document!.DensifyTips(out var refused);
+        return placed + refused == 0
+            ? "Densify: nothing to add (needs two or more tips)"
+            : refused == 0 ? $"Densify: {placed} placed"
+            : $"Densify: {placed} of {placed + refused} placed · {refused} had no clear path";
+    }
+
+    private string ThinStatus()
+    {
+        var removed = Document!.ThinTips();
+        return removed == 0 ? "Thin: nothing to remove (needs two or more tips)" : $"Thin: {removed} removed";
+    }
+
     private enum GuidedKind { Line, Polygon, Edge, Ring, Contour }
 
     private string? BeginLineGesture(Vector2 mouse, GuidedKind kind = GuidedKind.Line)
@@ -2048,21 +2092,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.R when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Ring); break;
                 case Key.C when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Contour); break;
                 // Densify / thin the selected tips (all of the target's when nothing is selected).
-                case Key.D when !ctrl && shift && SupportSelectionMode:
-                {
-                    var removed = Document.ThinTips();
-                    statusAfterUpdate = removed == 0 ? "Thin: nothing to remove (needs two or more tips)" : $"Thin: {removed} removed";
-                    break;
-                }
-                case Key.D when !ctrl && SupportSelectionMode:
-                {
-                    var placed = Document.DensifyTips(out var refused);
-                    statusAfterUpdate = placed + refused == 0
-                        ? "Densify: nothing to add (needs two or more tips)"
-                        : refused == 0 ? $"Densify: {placed} placed"
-                        : $"Densify: {placed} of {placed + refused} placed · {refused} had no clear path";
-                    break;
-                }
+                case Key.D when !ctrl && shift && SupportSelectionMode: statusAfterUpdate = ThinStatus(); break;
+                case Key.D when !ctrl && SupportSelectionMode: statusAfterUpdate = DensifyStatus(); break;
                 case Key.Escape when _marqueeStart is not null:
                     _marqueeStart = null;
                     _pendingClickSupport = null;
