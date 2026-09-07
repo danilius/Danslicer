@@ -128,6 +128,18 @@ base is the one exception.
   free lattice point would need (user screen test 2026-09-07: a 7 mm branch reached past a
   free lattice point 2 mm away). Free mode still joins any reachable trunk when the
   preference is on, as before.
+- **Supports may touch each other.** A cone is checked against other supports as the
+  frustum it is (two capsules), and no member keeps the model clearance from another
+  member: supports that meet fuse. The optional member-separation setting is the one
+  rule that keeps members apart. (User screen test 2026-09-07: a manual cone between two
+  generated ones was refused as "no clear path".)
+- **The grid is a preference, not a reason to refuse.** When no lattice point is reachable
+  and no existing trunk can be joined, the support is routed as in free mode, its base
+  standing wherever the trunk falls. (User, 2026-09-07: refusing a contact whose trunk
+  could drop straight under it is absurd.)
+- **Saved mini supports are dropped on load** together with a carrier branch left holding
+  nothing: drawn with the new geometry, a cluster of three thin rods looked like a fan of
+  three full cones on one ball.
 - **Existing supports count at full size.** Supports already in the document (an earlier
   generation, manual placements) are seeded into later routing with each cone at the radius
   of its ball, so a later pass cannot crowd them; the saved project from before this

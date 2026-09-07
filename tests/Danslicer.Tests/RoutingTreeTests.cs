@@ -50,14 +50,17 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
-    public void BranchEnvelopeWithoutAGridPointReportsItsOwnRefusalReason()
+    public void TipBeyondEveryGridPointGetsABaseOffTheGrid()
     {
+        // No lattice point is within branch reach; rather than refuse, the trunk drops straight
+        // from the junction and the base leaves the grid (user decision 2026-09-07).
         var result = Route(new[] { new RoutingTip(new(10, 10, 10), Vector3.UnitZ, 0.4f) },
             new TreeRoutingOptions { BaseGridPitch = 20f, MaxBranchLength = 8f });
 
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason);
-        Assert.Empty(result.Graph.Nodes);
+        Assert.Empty(result.Failures);
+        var supportBase = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
+        Assert.Equal(new Vector3(10, 10, 0), supportBase.Position);
+        Assert.DoesNotContain(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
     }
 
     [Fact]
@@ -436,13 +439,13 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
-    public void RefusedRegularTipsOnlyFallBackToMiniWhenExplicitlyEnabled()
+    public void TipThatCannotReachTheGridIsRoutedOffGridInsteadOfDowngradedToAMini()
     {
         var tips = new[]
         {
             // Creates a reachable grid trunk and a branch end at (5, 0, 12).
             new RoutingTip(new(5, 0, 14), Vector3.UnitZ, 0.4f),
-            // Its own junction cannot reach the 20 mm grid, but its contact can reach that end.
+            // Its own junction cannot reach the 20 mm grid.
             new RoutingTip(new(9, 0, 12.2f), Vector3.UnitZ, 0.4f),
         };
         var options = new TreeRoutingOptions
@@ -456,13 +459,15 @@ public sealed class RoutingTreeTests
         var honest = Route(tips, options);
         var downgraded = Route(tips, options with { RefusedTipsFallBackToMini = true });
 
-        var failure = Assert.Single(honest.Failures);
-        Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason);
+        // The off-grid last resort routes it as a regular cone, so the mini downgrade (set
+        // aside anyway) never engages.
+        Assert.Empty(honest.Failures);
+        Assert.Empty(downgraded.Failures);
         Assert.DoesNotContain(honest.Graph.Segments,
             segment => segment.Type == SupportSegmentType.MiniSupport);
-        Assert.Empty(downgraded.Failures);
-        Assert.Single(downgraded.Graph.Segments,
+        Assert.DoesNotContain(downgraded.Graph.Segments,
             segment => segment.Type == SupportSegmentType.MiniSupport);
+        Assert.Equal(2, honest.Graph.Segments.Count(s => s.Type == SupportSegmentType.Tip));
     }
 
     [Fact]
@@ -845,8 +850,9 @@ public sealed class RoutingTreeTests
     public void NeighbouringConesKeepTheirBasesApart()
     {
         // Two contacts on one 45 degree underside whose members run parallel 1.06 mm apart:
-        // their necks would clear, but their bases are as wide as the balls they grow from, so
-        // the second cone would overlap the first. It is refused instead of fanning off one ball.
+        // their necks would clear, but their bases are as wide as the balls they grow from
+        // (1.2 mm), so the second cone would overlap the first. It is refused instead of
+        // fanning off one ball.
         var outward = Vector3.Normalize(new Vector3(1, 0, -1));
         var result = Route(new[]
         {
@@ -869,7 +875,7 @@ public sealed class RoutingTreeTests
         Assert.Empty(first.Failures);
 
         var second = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default)
-            .Route(new[] { new RoutingTip(new(1.35f, 0, 10), Vector3.UnitZ, 0.4f) },
+            .Route(new[] { new RoutingTip(new(1.1f, 0, 10), Vector3.UnitZ, 0.4f) },
                 new TreeRoutingOptions { UseBaseGrid = false }, first.Graph);
 
         var failure = Assert.Single(second.Failures);
@@ -1179,16 +1185,15 @@ public sealed class RoutingTreeTests
     {
         // The first trunk's top is the junction of its own cone tip. A second tip that could
         // only join by raising that trunk must not: the raise would run up inside the cone.
-        // With nothing else reachable it is refused rather than routed through the cone.
+        // With no lattice point reachable it gets a base of its own off the grid instead.
         var result = Route(new[]
         {
             new RoutingTip(new(0, 0, 11), Vector3.UnitZ, 0.4f, IsIslandPriority: true),
             new RoutingTip(new(-2.5f, 0, 13.9f), Vector3.UnitZ, 0.4f),
         }, new TreeRoutingOptions { BaseGridPitch = 10f, ExistingTrunkBranchRange = 3.6f });
 
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal(new Vector3(-2.5f, 0, 13.9f), failure.Tip.SurfacePoint);
-        Assert.Single(result.Graph.Segments, s => s.Type == SupportSegmentType.Trunk);
+        Assert.Empty(result.Failures);
+        Assert.Equal(2, result.BasePositions.Count);
         Assert.DoesNotContain(result.Graph.Nodes, n => n.Type != SupportNodeType.Tip &&
             n.Position.X == 0 && n.Position.Y == 0 && n.Position.Z > 9.01f);
         Assert.True(MaxTipJointBend(result.Graph) <= 45.01f);

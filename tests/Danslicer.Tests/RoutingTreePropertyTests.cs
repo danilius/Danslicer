@@ -181,7 +181,7 @@ namespace Danslicer.Tests
         }
 
         [Fact]
-        public void GridModeRefusesOffLatticeStraightDropsWhenBranchesDisabled()
+        public void OffLatticeStraightDropsLeaveTheGridWhenBranchesAreDisabled()
         {
             var options = new TreeRoutingOptions { Seed = 7, PlateZ = 0f, MaxBranchLength = 0.001f, UseBaseGrid = true, BaseGridPitch = 20f };
             var tips = new List<RoutingTip>();
@@ -194,8 +194,14 @@ namespace Danslicer.Tests
             var router = new TreeSupportRouter(EmptyScene, GrowthRuleSet.Default);
             var result = router.Route(tips, options);
 
-            Assert.Equal(tips.Count, result.UnroutedTips.Count);
-            Assert.All(result.Failures, failure => Assert.Equal(RoutingFailureReason.NoReachableGridPoint, failure.Reason));
+            // With no branch to reach a lattice point, each contact gets a trunk straight
+            // under its junction (or joins a neighbour's) rather than a refusal (user
+            // decision 2026-09-07).
+            Assert.Empty(result.Failures);
+            Assert.Equal(tips.Count, result.Graph.Segments.Count(s => s.Type == SupportSegmentType.Tip));
+            Assert.Contains(result.Graph.Nodes, n => n.Type == SupportNodeType.Base &&
+                (MathF.Abs(n.Position.X / 20f - MathF.Round(n.Position.X / 20f)) > 1e-3f ||
+                 MathF.Abs(n.Position.Y / 20f - MathF.Round(n.Position.Y / 20f)) > 1e-3f));
         }
 
         [Fact]

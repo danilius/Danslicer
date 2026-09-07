@@ -501,8 +501,7 @@ public sealed class TreeSupportRouter
             var radius = options.BranchDiameter * 0.5f;
             if (!state.Clearance.PillarIsClear(_obstacles, position, candidate.Attach, radius,
                     Excluding(trunk.SegmentIds.Concat(trunk.BranchSegmentIds)))) continue;
-            if (state.HitsGeneratedForTrunkAttachment(position, candidate.Attach,
-                    radius + state.Clearance.ModelDistance, trunk,
+            if (state.HitsGeneratedForTrunkAttachment(position, candidate.Attach, radius, trunk,
                     SiblingBranchFusionDistance,
                     options.BranchDiameter * ProjectedBranchClearanceDiameters)) continue;
             var targetSegment = trunk.SegmentCovering(candidate.Attach.Z, state.Graph).Segment;
@@ -592,9 +591,28 @@ public sealed class TreeSupportRouter
                     tipMemberLength, options, state, out reason)) return true;
         }
         if (!anyClear)
+        {
             reason = state.SeparationRejections > separationRejections
                 ? RoutingFailureReason.MemberCrossing
                 : RoutingFailureReason.ContactBlocked;
+            return false;
+        }
+        if (!options.UseBaseGrid) return false;
+
+        // Last resort: a base off the grid. Refusing a contact because every lattice point is
+        // out of reach, while a trunk could stand right under the junction, reads as absurd on
+        // screen (user, 2026-09-07); the grid is a preference, not a reason to refuse.
+        var offGrid = options with { UseBaseGrid = false };
+        var gridReason = reason;
+        foreach (var candidate in TipJunctionCandidates(tip, offGrid, state,
+                     branchTipDiameter, offGrid.BranchDiameter, tipMemberLength)
+                     .Take(TipDirectionAttempts))
+        {
+            if (!candidate.Clear) continue;
+            if (TryRouteFromJunction(tip, candidate.End, branchTipDiameter, trunkTipDiameter,
+                    tipMemberLength, offGrid, state, out _)) return true;
+        }
+        reason = gridReason;
         return false;
     }
 
@@ -626,8 +644,8 @@ public sealed class TreeSupportRouter
         var trunkMemberRadius = MathF.Max(trunkTipDiameter, options.TrunkDiameter) * 0.5f;
         var trunkJunction = MathF.Abs(trunkTipDiameter - branchTipDiameter) <= Epsilon &&
                             MathF.Abs(options.TrunkDiameter - options.BranchDiameter) <= Epsilon ||
-                            (!state.HitsGenerated(tip.SurfacePoint, branchJunction,
-                                 trunkMemberRadius + state.Clearance.ModelDistance) &&
+                            (!TipMemberHitsSupports(tip, branchJunction, trunkMemberRadius, state,
+                                 null) &&
                              !state.ViolatesMemberSeparation(tip.SurfacePoint, branchJunction,
                                  trunkMemberRadius))
             ? branchJunction
@@ -762,8 +780,8 @@ public sealed class TreeSupportRouter
             var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) +
                                 state.Clearance.ModelDistance;
             if (!ContactMemberIsClear(tip.SurfacePoint, candidate, contactRadius)) continue;
-            if (state.HitsGenerated(tip.SurfacePoint, candidate,
-                    tipMemberDiameter * 0.5f + state.Clearance.ModelDistance)) continue;
+            if (state.HitsGenerated(tip.SurfacePoint, candidate, tipMemberDiameter * 0.5f))
+                continue;
             if (state.ViolatesMemberSeparation(tip.SurfacePoint, candidate,
                     tipMemberDiameter * 0.5f)) continue;
             if (BaseIsClear(candidate, options, state)) return candidate;
@@ -785,7 +803,6 @@ public sealed class TreeSupportRouter
     {
         var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) + state.Clearance.ModelDistance;
         var bodyRadius = TipBodyRadius(tipMemberDiameter, parentDiameter);
-        var memberRadius = bodyRadius + state.Clearance.ModelDistance;
         var directions = includeBaseRelocationFan
             ? TipToBaseDirections(tip, options, state.AngleOffset)
             : TipDirections(tip, options, state.AngleOffset);
@@ -796,7 +813,7 @@ public sealed class TreeSupportRouter
                 : tipMemberLength;
             var end = tip.SurfacePoint + direction * length;
             if (!ContactMemberIsClear(tip.SurfacePoint, end, contactRadius)) continue;
-            var clear = !state.HitsGenerated(tip.SurfacePoint, end, memberRadius) &&
+            var clear = !TipMemberHitsSupports(tip, end, bodyRadius, state, null) &&
                         !state.ViolatesMemberSeparation(tip.SurfacePoint, end, bodyRadius);
             yield return (end, clear);
         }
@@ -864,10 +881,25 @@ public sealed class TreeSupportRouter
         var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) + state.Clearance.ModelDistance;
         var bodyRadius = TipBodyRadius(tipMemberDiameter, parentDiameter);
         return ContactMemberIsClear(tip.SurfacePoint, junction, contactRadius) &&
-               !state.HitsGenerated(tip.SurfacePoint, junction,
-                   bodyRadius + state.Clearance.ModelDistance, excludeSegments) &&
+               !TipMemberHitsSupports(tip, junction, bodyRadius, state, excludeSegments) &&
                !state.ViolatesMemberSeparation(tip.SurfacePoint, junction, bodyRadius,
                    null, null, excludeSegments);
+    }
+
+    /// <summary>
+    /// Whether a cone from the contact to <paramref name="junction"/> runs into another support.
+    /// The cone is checked as the frustum it is, in two halves, and may touch a neighbour:
+    /// supports that meet simply fuse, so the model clearance does not apply between them
+    /// (user screen test 2026-09-07: a manual cone between two generated ones was refused).
+    /// </summary>
+    private static bool TipMemberHitsSupports(RoutingTip tip, Vector3 junction, float baseRadius,
+        RouteState state, IReadOnlyCollection<Guid>? excludeSegments)
+    {
+        var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f);
+        var mid = (tip.SurfacePoint + junction) * 0.5f;
+        return state.HitsGenerated(tip.SurfacePoint, mid, (contactRadius + baseRadius) * 0.5f,
+                   excludeSegments) ||
+               state.HitsGenerated(mid, junction, baseRadius, excludeSegments);
     }
 
     /// <summary>
@@ -1001,8 +1033,7 @@ public sealed class TreeSupportRouter
             var branchRadius = options.BranchDiameter * 0.5f;
             if (!state.Clearance.PillarIsClear(_obstacles, j1, attach, branchRadius,
                     Excluding(trunk.SegmentIds.Concat(trunk.BranchSegmentIds)))) continue;
-            if (state.HitsGeneratedForTrunkAttachment(j1, attach,
-                    branchRadius + state.Clearance.ModelDistance, trunk,
+            if (state.HitsGeneratedForTrunkAttachment(j1, attach, branchRadius, trunk,
                     SiblingBranchFusionDistance,
                     options.BranchDiameter * ProjectedBranchClearanceDiameters)) continue;
             var attachesAtTop = MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f;
@@ -1098,8 +1129,8 @@ public sealed class TreeSupportRouter
         RoutingUtilities.ApplyContact(contact, tip);
         ClampLeadInToClearPath(contact, junction);
         state.Graph.AddNode(contact);
-        state.AddSegment(SupportSegmentType.Tip, contact, attachNode, tipMemberDiameter,
-            options.Origin, TipBodyRadius(tipMemberDiameter, trunkDiameter));
+        state.AddTipMember(contact, attachNode, tipMemberDiameter, options.Origin,
+            TipBodyRadius(tipMemberDiameter, trunkDiameter));
         return true;
     }
 
@@ -1116,7 +1147,7 @@ public sealed class TreeSupportRouter
         var radius = trunk.SegmentCovering(trunk.TopZ, state.Graph).Segment.Diameter * 0.5f;
         var own = trunk.SegmentIds.Concat(trunk.BranchSegmentIds).ToList();
         return state.Clearance.PillarIsClear(_obstacles, oldTop, newTop, radius, Excluding(own)) &&
-               !state.HitsGenerated(oldTop, newTop, radius + state.Clearance.ModelDistance, own) &&
+               !state.HitsGenerated(oldTop, newTop, radius, own) &&
                !state.ViolatesMemberSeparation(oldTop, newTop, radius, trunk.TopNodeId, null, own);
     }
 
@@ -1266,8 +1297,9 @@ public sealed class TreeSupportRouter
         IReadOnlyCollection<Guid>? excludeSegments = null)
     {
         if (!state.Clearance.PillarIsClear(_obstacles, start, end, physicalRadius)) return false;
-        return !state.HitsGenerated(start, end,
-                   physicalRadius + state.Clearance.ModelDistance, excludeSegments) &&
+        // Supports that meet fuse; the model clearance is not a gap between members. The
+        // optional member-separation rule is the one that keeps members apart.
+        return !state.HitsGenerated(start, end, physicalRadius, excludeSegments) &&
                !state.ViolatesMemberSeparation(start, end, physicalRadius,
                    null, null, excludeSegments);
     }
@@ -1312,8 +1344,8 @@ public sealed class TreeSupportRouter
         state.Graph.AddNode(contact);
         var junction = state.NewNode(SupportNodeType.Junction, j1, options.Origin);
         state.Graph.AddNode(junction);
-        state.AddSegment(SupportSegmentType.Tip, contact, junction,
-            tipMemberDiameter, options.Origin, TipBodyRadius(tipMemberDiameter, parentDiameter));
+        state.AddTipMember(contact, junction, tipMemberDiameter, options.Origin,
+            TipBodyRadius(tipMemberDiameter, parentDiameter));
         return (contact, junction);
     }
 
@@ -1380,8 +1412,8 @@ public sealed class TreeSupportRouter
             RoutingUtilities.ApplyContact(contact, tip);
             state.Graph.AddNode(contact);
             state.Graph.AddNode(baseNode);
-            state.AddSegment(SupportSegmentType.Tip, contact, baseNode,
-                tipMemberDiameter, options.Origin);
+            state.AddTipMember(contact, baseNode, tipMemberDiameter, options.Origin,
+                tipMemberDiameter * 0.5f);
             return;
         }
 
@@ -1528,14 +1560,19 @@ public sealed class TreeSupportRouter
                 var a = Graph.GetNode(segment.NodeA);
                 var b = Graph.GetNode(segment.NodeB);
                 if (a.Disabled || b.Disabled) continue;
-                // An existing cone tip occupies the radius of the ball it grows from, exactly
+                // An existing cone tip occupies its frustum up to the ball it grows from, exactly
                 // as a freshly routed one does; seeding it at its neck let new cones crowd it.
-                var radius = SupportSliceGeometry.TryConeTip(a, b, out _, out _)
-                    ? MathF.Max(segment.Diameter,
-                        SupportSliceGeometry.TipJunctionDiameter(Graph, segment)) * 0.5f
-                    : segment.Diameter * 0.5f;
+                if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
+                {
+                    AddTipCapsules(tip, other, segment.Id,
+                        MathF.Max(0.025f, tip.TipDiameter * 0.5f),
+                        MathF.Max(segment.Diameter,
+                            SupportSliceGeometry.TipJunctionDiameter(Graph, segment)) * 0.5f);
+                    continue;
+                }
                 _capsules.Add(new GeneratedCapsule(a.Position, b.Position,
-                    radius, segment.Id, segment.Type, segment.NodeA, segment.NodeB));
+                    segment.Diameter * 0.5f, segment.Id, segment.Type,
+                    segment.NodeA, segment.NodeB));
             }
 
             var trunkNodes = new HashSet<Guid>();
@@ -1599,12 +1636,41 @@ public sealed class TreeSupportRouter
             _miniFanCounts[nodeId] = MiniFanCount(nodeId) + 1;
 
         /// <summary>
-        /// Adds a member. <paramref name="occupiedRadius"/> is the radius later members must keep
-        /// clear of when it differs from the member's nominal one: a cone tip's base is as wide
-        /// as the ball it grows from.
+        /// Adds a cone tip member from <paramref name="contact"/> to <paramref name="junction"/>.
+        /// Later members must keep clear of the cone's real envelope: the frustum from the
+        /// contact radius to <paramref name="baseRadius"/>, recorded as two capsules.
         /// </summary>
+        public SupportSegment AddTipMember(SupportNode contact, SupportNode junction,
+            float diameter, SupportOrigin origin, float baseRadius)
+        {
+            var segment = new SupportSegment
+            {
+                Id = NextUnusedId(), Type = SupportSegmentType.Tip, NodeA = contact.Id,
+                NodeB = junction.Id, Diameter = diameter, Origin = origin,
+            };
+            Graph.AddSegment(segment);
+            AddTipCapsules(contact, junction, segment.Id,
+                MathF.Max(0.025f, contact.TipDiameter * 0.5f), baseRadius);
+            var delta = junction.Position - contact.Position;
+            var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
+                * 180 / MathF.PI;
+            if (delta.LengthSquared() > Epsilon * Epsilon) MaxLean = MathF.Max(MaxLean, lean);
+            return segment;
+        }
+
+        private void AddTipCapsules(SupportNode contact, SupportNode junction, Guid segmentId,
+            float contactRadius, float baseRadius)
+        {
+            var mid = (contact.Position + junction.Position) * 0.5f;
+            _capsules.Add(new GeneratedCapsule(contact.Position, mid,
+                (contactRadius + baseRadius) * 0.5f, segmentId, SupportSegmentType.Tip,
+                contact.Id, junction.Id));
+            _capsules.Add(new GeneratedCapsule(mid, junction.Position, baseRadius, segmentId,
+                SupportSegmentType.Tip, contact.Id, junction.Id));
+        }
+
         public SupportSegment AddSegment(SupportSegmentType type, SupportNode a, SupportNode b,
-            float diameter, SupportOrigin origin, float? occupiedRadius = null)
+            float diameter, SupportOrigin origin)
         {
             var segment = new SupportSegment
             {
@@ -1613,7 +1679,7 @@ public sealed class TreeSupportRouter
             };
             Graph.AddSegment(segment);
             _capsules.Add(new GeneratedCapsule(a.Position, b.Position,
-                occupiedRadius ?? diameter * 0.5f, segment.Id, type, a.Id, b.Id));
+                diameter * 0.5f, segment.Id, type, a.Id, b.Id));
             var delta = b.Position - a.Position;
             var lean = MathF.Atan2(new Vector2(delta.X, delta.Y).Length(), MathF.Abs(delta.Z))
                 * 180 / MathF.PI;
