@@ -10,9 +10,10 @@ namespace Danslicer.Tests;
 public sealed class ViewportToolbarTests
 {
     [Fact]
-    public void LayoutModeShowsOnlyObjects()
+    public void LayoutModeShowsObjectsAndTransform()
     {
-        Assert.Equal([ViewportTool.Objects],
+        // Transform replaced the right-hand panel in Layout (user decision 2026-09-08).
+        Assert.Equal([ViewportTool.Objects, ViewportTool.Transform],
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Layout));
     }
 
@@ -27,7 +28,7 @@ public sealed class ViewportToolbarTests
     public void SupportModeShowsTheCompleteContextualToolSet()
     {
         Assert.Equal(
-            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.IslandSupport,
+            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.Guided, ViewportTool.IslandSupport,
                 ViewportTool.IslandDetection, ViewportTool.Visibility, ViewportTool.Rafts],
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Support));
     }

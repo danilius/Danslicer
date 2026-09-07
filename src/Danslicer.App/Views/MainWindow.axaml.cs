@@ -40,7 +40,7 @@ public partial class MainWindow : Window
             WorkspaceMode.Slicing);
         _viewportPopups = new ViewportPopupGroup(
             _objectsPopupState, _supportsPopupState, _islandDetectionPopupState,
-            _visibilityPopupState, _raftsPopupState);
+            _visibilityPopupState, _raftsPopupState, _transformPopupState, _guidedPopupState);
         InitializeComponent();
         Configuration.WindowStatePersistence.Track(this, "main",
             rightPanel: WorkspaceGrid.ColumnDefinitions[2],
@@ -94,6 +94,8 @@ public partial class MainWindow : Window
     private readonly ViewportPopupState _islandDetectionPopupState = new(ViewportTool.IslandDetection);
     private readonly ViewportPopupState _visibilityPopupState = new(ViewportTool.Visibility);
     private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
+    private readonly ViewportPopupState _transformPopupState = new(ViewportTool.Transform);
+    private readonly ViewportPopupState _guidedPopupState = new(ViewportTool.Guided);
     // Declared after the states it groups: field initializers run in declaration order.
     private readonly ViewportPopupGroup _viewportPopups;
     private readonly DispatcherTimer _uvtoolsAvailabilityTimer = new()
@@ -124,7 +126,10 @@ public partial class MainWindow : Window
     {
         var splitterColumn = WorkspaceGrid.ColumnDefinitions[1];
         var rightPanelColumn = WorkspaceGrid.ColumnDefinitions[2];
-        var showRightPanel = ViewModel?.ViewMode != WorkspaceMode.Support;
+        // Only Slicing keeps the right-hand panel (printer, resin, print, slice). Layout's
+        // transform fields moved into the Transform pop-out (user decision 2026-09-08) and
+        // Support mode never had anything there.
+        var showRightPanel = ViewModel?.ViewMode == WorkspaceMode.Slicing;
         if (!showRightPanel)
         {
             var currentWidth = rightPanelColumn.ActualWidth >= 220
@@ -173,6 +178,24 @@ public partial class MainWindow : Window
     private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_raftsPopupState);
 
+    private void OnTransformToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(_transformPopupState);
+
+    private void OnGuidedToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(_guidedPopupState);
+
+    /// <summary>
+    /// A guided-tool button (user rule 2026-09-08: every key has a button). The button's Tag
+    /// names the tool; the pop-out stays open so the next tool is one click away, and the
+    /// viewport takes focus so the gesture's clicks and keys land there.
+    /// </summary>
+    private void OnGuidedToolButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string name } ||
+            !Enum.TryParse<ViewportControl.GuidedTool>(name, out var tool)) return;
+        Viewport.StartGuidedTool(tool);
+    }
+
     private void OnViewSettingsClick(object? sender, RoutedEventArgs e)
     {
         SyncViewSettingsPopup();
@@ -210,6 +233,8 @@ public partial class MainWindow : Window
         ApplyViewportPopupState(_islandDetectionPopupState, IslandDetectionToolPopup);
         ApplyViewportPopupState(_visibilityPopupState, VisibilityToolPopup);
         ApplyViewportPopupState(_raftsPopupState, RaftsToolPopup);
+        ApplyViewportPopupState(_transformPopupState, TransformToolPopup);
+        ApplyViewportPopupState(_guidedPopupState, GuidedToolPopup);
     }
 
     private void ApplyViewportPopupState(ViewportPopupState state, Popup popup) =>
@@ -224,6 +249,8 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(sender, IslandDetectionToolPopup) => IslandDetectionPopupContent,
             _ when ReferenceEquals(sender, VisibilityToolPopup) => VisibilityPopupContent,
             _ when ReferenceEquals(sender, RaftsToolPopup) => RaftsPopupContent,
+            _ when ReferenceEquals(sender, TransformToolPopup) => TransformPopupContent,
+            _ when ReferenceEquals(sender, GuidedToolPopup) => GuidedPopupContent,
             _ when ReferenceEquals(sender, ViewSettingsPopup) => ViewSettingsPopupContent,
             _ => null,
         };
@@ -242,6 +269,8 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(sender, IslandDetectionPopupContent) => IslandDetectionToolPopup,
             _ when ReferenceEquals(sender, VisibilityPopupContent) => VisibilityToolPopup,
             _ when ReferenceEquals(sender, RaftsPopupContent) => RaftsToolPopup,
+            _ when ReferenceEquals(sender, TransformPopupContent) => TransformToolPopup,
+            _ when ReferenceEquals(sender, GuidedPopupContent) => GuidedToolPopup,
             _ when ReferenceEquals(sender, ViewSettingsPopupContent) => ViewSettingsPopup,
             _ => null,
         };
@@ -272,6 +301,12 @@ public partial class MainWindow : Window
     private void OnRaftsPopupCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(_raftsPopupState, RaftsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
+    private void OnTransformPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_transformPopupState, TransformToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnGuidedPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_guidedPopupState, GuidedToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
     private void CloseViewportPopup(
         ViewportPopupState state, Popup popup, ViewportPopupCloseTrigger trigger)
     {
@@ -288,6 +323,8 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(popup, IslandDetectionToolPopup) => _islandDetectionPopupState,
             _ when ReferenceEquals(popup, VisibilityToolPopup) => _visibilityPopupState,
             _ when ReferenceEquals(popup, RaftsToolPopup) => _raftsPopupState,
+            _ when ReferenceEquals(popup, TransformToolPopup) => _transformPopupState,
+            _ when ReferenceEquals(popup, GuidedToolPopup) => _guidedPopupState,
             _ => null,
         };
         if (state is not null)

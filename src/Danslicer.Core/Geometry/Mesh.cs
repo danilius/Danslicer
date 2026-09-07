@@ -78,6 +78,15 @@ public sealed class Mesh
         }
     }
 
+    /// <summary>
+    /// The mesh moved by <see cref="SeatTranslation"/>: XY centred on the origin, lowest point at
+    /// Z = 0. Files are authored anywhere (the roof gripper sits 3 m from its origin), and an
+    /// object whose mesh keeps that offset shows it in every position field (user report
+    /// 2026-09-08: "coordinates are probably in pixels"); baking it in at import makes the
+    /// transform's translation the model's actual place on the plate.
+    /// </summary>
+    public Mesh Seated() => Translated(SeatTranslation);
+
     /// <summary>New mesh with every vertex shifted by <paramref name="delta"/>. Shares indices.</summary>
     public Mesh Translated(Vector3 delta)
     {

@@ -14,7 +14,7 @@
         <DataTemplate x:Key="PrinterFieldTemplate" x:DataType="vm:NumericField">
             <Grid ColumnDefinitions="130,*,52" Margin="0,2">
                 <TextBlock Text="{Binding Label}" Classes="label" />
-                <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay}" />
+                <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                 <TextBlock Grid.Column="2" Text="{Binding Suffix}" Classes="label" Margin="6,0,0,0" />
             </Grid>
         </DataTemplate>
