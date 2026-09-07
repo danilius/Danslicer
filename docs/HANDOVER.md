@@ -4,8 +4,7 @@
 
 **Single-session night (Claude implementing directly, user screen-testing live).** main is
 `3b09e69`, pushed; 798 tests green; the app runs from
-`src\Danslicer.Appin\Debug
-et10.0\Danslicer.App.exe`. Two branches merged tonight:
+`src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe`. Two branches merged tonight:
 `align-branch-with-cone-tip` (`b9e6507`, 10 commits) and `remove-mini-supports` (`3b09e69`).
 Every rule below is a user decision recorded in `docs/SUPPORT-GEOMETRY-SPEC.md`, section
 "Cone orientation and joints (user decisions, 2026-09-07)" — read that section before touching
@@ -46,7 +45,7 @@ addenda below: the 2026-09-03 mini-support dictation is superseded.
   was removed, then the density-cluster pass forced on in `SupportGenerator.GenerateTree`.
   The tell: save + reopen made them vanish (the loader dropped minis). Probes that use the
   project's saved settings do not see what the viewport does with the user config.
-- Test subject is now `test filesoof gripper T2 single and tilted cube.danslicer` (user:
+- Test subject is now `test files\roof gripper T2 single and tilted cube.danslicer` (user:
   the drogon was steering the algorithm too much). Reference numbers, fresh generation, grid
   on: roof gripper 30 routed / 4 refused, cube 45 / 4, no stubs, no shared balls; grid off:
   34 / 0 and 49 / 0.
