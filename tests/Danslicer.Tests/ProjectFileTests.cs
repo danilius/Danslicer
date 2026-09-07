@@ -85,6 +85,54 @@ public sealed class ProjectFileTests
     }
 
     [Fact]
+    public void OldProjectWithRemovedMiniRodsLoadsWithoutThem()
+    {
+        // Mini supports were removed on 2026-09-07; a file written before that may still hold
+        // a "miniSupport" segment fanning from a branch end. It loads with the rod, its tip,
+        // and the branch end that carried nothing else dropped (a trunk top or base left with
+        // nothing on it would go too; here the base still carries a real tip).
+        using var file = new TemporaryProject();
+        ProjectFile.Save(file.Path, CompleteDocument(sharedMesh: false), new ProjectViewState());
+        var branchEndId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var rodTipId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        RewriteManifest(file.Path, root =>
+        {
+            var nodes = root["supportGraph"]!["nodes"]!.AsArray();
+            var segments = root["supportGraph"]!["segments"]!.AsArray();
+            var branchEnd = nodes[0]!.DeepClone().AsObject();
+            branchEnd["id"] = branchEndId;
+            branchEnd["type"] = "junction";
+            var rodTip = nodes[0]!.DeepClone().AsObject();
+            rodTip["id"] = rodTipId;
+            rodTip["type"] = "tip";
+            nodes.Add(branchEnd);
+            nodes.Add(rodTip);
+            var branch = segments[0]!.DeepClone().AsObject();
+            branch["id"] = Guid.Parse("66666666-6666-6666-6666-666666666666");
+            branch["type"] = "branch";
+            branch["nodeA"] = Guid.Parse("22222222-2222-2222-2222-222222222222");
+            branch["nodeB"] = branchEndId;
+            var mini = segments[0]!.DeepClone().AsObject();
+            mini["id"] = Guid.Parse("77777777-7777-7777-7777-777777777777");
+            mini["type"] = "miniSupport";
+            mini["nodeA"] = branchEndId;
+            mini["nodeB"] = rodTipId;
+            segments.Add(branch);
+            segments.Add(mini);
+        });
+
+        var loaded = ProjectFile.Load(file.Path).Document;
+
+        // The base the carrier branch hung from still holds a trunk with a real tip, so that
+        // support stays; only the mini's rod, tip and carrier are gone.
+        Assert.Equal(2, loaded.Supports.NodeCount);
+        Assert.False(loaded.Supports.TryGetNode(branchEndId, out _));
+        Assert.False(loaded.Supports.TryGetNode(rodTipId, out _));
+        var segment = Assert.Single(loaded.Supports.Segments);
+        Assert.Equal(SupportSegmentType.Trunk, segment.Type);
+    }
+
+    [Fact]
     public void TooNewMajorVersionHasClearRejectionMessage()
     {
         using var file = new TemporaryProject();

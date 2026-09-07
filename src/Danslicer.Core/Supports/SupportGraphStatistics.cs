@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Danslicer.Core.Supports;
 
 /// <summary>Small analytic measurements used by diagnostics and the support-preset preview.</summary>
-public sealed record SupportGraphStatistics(int MiniCount, int BaseCount, float MaxLeanDegrees,
+public sealed record SupportGraphStatistics(int BaseCount, float MaxLeanDegrees,
     double EstimatedVolumeMm3)
 {
     public static SupportGraphStatistics Calculate(SupportGraph graph)
@@ -48,8 +48,6 @@ public sealed record SupportGraphStatistics(int MiniCount, int BaseCount, float 
         }
 
         return new SupportGraphStatistics(
-            graph.Segments.Count(segment => !segment.Disabled &&
-                segment.Type == SupportSegmentType.MiniSupport),
             graph.Nodes.Count(node => !node.Disabled && node.Type == SupportNodeType.Base),
             maxLean,
             volume);

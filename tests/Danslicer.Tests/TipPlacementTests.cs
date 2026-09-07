@@ -24,7 +24,6 @@ public class TipPlacementTests
         MinSpacingMm = minSpacing,
         OverhangAngleDegrees = overhang,
         MinIslandAreaMm2 = minIsland,
-        FineFeatureMaxAreaMm2 = 0f,
         LayerHeightMm = layer,
         EdgePreference = edge,
         ForceEdgePlacement = forceEdges,
@@ -50,90 +49,6 @@ public class TipPlacementTests
     }
 
     [Fact]
-    public void CrowdedIslandAndRegularContactsFormDeterministicBoundedMiniClusters()
-    {
-        var contacts = Enumerable.Range(0, 6).Select(index => new TipCandidate(
-            new Vector3(index * 0.2f, 0, 10), Vector3.UnitZ, 0.4f, index + 1,
-            index < 3 ? TipStrategy.Island : TipStrategy.Overhang, index)).ToList();
-        contacts.Add(new TipCandidate(new Vector3(20, 0, 10), Vector3.UnitZ, 0.4f, 1,
-            TipStrategy.Island, 99));
-        var parameters = TipPlacementParameters.Default with
-        {
-            // Density clusters are a mini-support feature and run only with minis enabled.
-            EnableMiniSupports = true,
-            EnableMiniTipClusters = true,
-            MiniSupportClusterDistanceMm = 1.25f,
-            MiniSupportMaxTipsPerCluster = 4,
-            MiniSupportTipDiameterMm = 0.23f,
-            MiniSupportConeLengthMm = 0.9f,
-        };
-
-        var forward = MiniTipClusterer.Apply(contacts, parameters)
-            .OrderBy(candidate => candidate.Point.X).ToList();
-        var reverse = MiniTipClusterer.Apply(contacts.AsEnumerable().Reverse().ToList(), parameters)
-            .OrderBy(candidate => candidate.Point.X).ToList();
-
-        Assert.Equal(forward, reverse);
-        var clustered = forward.Where(candidate => candidate.MiniClusterId is not null).ToList();
-        Assert.Equal(6, clustered.Count);
-        Assert.Equal([2, 4], clustered.GroupBy(candidate => candidate.MiniClusterId)
-            .Select(group => group.Count()).Order().ToArray());
-        Assert.All(clustered, candidate =>
-        {
-            Assert.Equal(TipStrategy.MiniCluster, candidate.Strategy);
-            Assert.Equal(0.23f, candidate.TipDiameter);
-            Assert.Equal(SupportTipShape.Cone, candidate.TipShape);
-            Assert.Equal(0.9f, candidate.ConeLength);
-            Assert.NotNull(candidate.MiniClusterCenter);
-            Assert.NotNull(candidate.MiniClusterSourceStrategy);
-        });
-        Assert.Equal(3, clustered.Count(candidate =>
-            candidate.MiniClusterSourceStrategy == TipStrategy.Island));
-        Assert.Equal(3, clustered.Count(candidate =>
-            candidate.MiniClusterSourceStrategy == TipStrategy.Overhang));
-        Assert.Null(forward[^1].MiniClusterId);
-        Assert.Null(forward[^1].MiniClusterSourceStrategy);
-    }
-
-    [Fact]
-    public void TeethCombKeepsEveryDeduplicatedIslandContactWhenClustering()
-    {
-        var mesh = Meshes.Merge(Enumerable.Range(0, 6)
-            .Select(index => Meshes.Box(0.4f, 0.4f, 3,
-                new Vector3(index * 0.8f, 0, 5)))
-            .ToArray());
-        var parameters = P(minIsland: 0.1f) with
-        {
-            EnableMiniSupports = true,
-            EnableMiniTipClusters = false,
-            MiniIslandMaxAreaMm2 = 0.1f,
-            IslandSpacingMm = 0.5f,
-            MiniSupportClusterDistanceMm = 1.25f,
-            MiniSupportMaxTipsPerCluster = 4,
-        };
-
-        var before = Place(mesh, parameters);
-        var beforeIslands = before.Where(candidate => candidate.Strategy == TipStrategy.Island)
-            .OrderBy(candidate => candidate.Point.X).ToList();
-        var after = Place(mesh, parameters with
-        {
-            EnableMiniTipClusters = true,
-            FineFeatureMaxAreaMm2 = 1f,
-        });
-        var afterIslands = after.Where(candidate =>
-                candidate.MiniClusterSourceStrategy == TipStrategy.Island)
-            .OrderBy(candidate => candidate.Point.X).ToList();
-
-        Assert.Equal(6, beforeIslands.Count);
-        Assert.Equal(beforeIslands.Count, afterIslands.Count);
-        Assert.Equal(beforeIslands.Select(candidate => candidate.Point),
-            afterIslands.Select(candidate => candidate.Point));
-        Assert.Equal(before.Count, after.Count);
-        Assert.DoesNotContain(after, candidate =>
-            candidate.MiniClusterSourceStrategy == TipStrategy.MiniIsland);
-    }
-
-    [Fact]
     public void AdjacentIslandsEachKeepTheirOwnTip()
     {
         // Two floating teeth 2 mm apart: separate newborn islands closer than MinSpacingMm.
@@ -147,63 +62,6 @@ public class TipPlacementTests
             .Where(c => c.Strategy == TipStrategy.Island).ToList();
 
         Assert.Equal(2, islands.Count);
-    }
-
-    [Fact]
-    public void SubThresholdIslandIsHandedToMiniSupportPassWithFineContactGeometry()
-    {
-        var mesh = Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5));
-        var parameters = P(minIsland: 0.1f) with
-        {
-            EnableMiniSupports = true,
-            MiniSupportTipDiameterMm = 0.23f,
-            MiniSupportConeLengthMm = 0.9f,
-        };
-
-        var mini = Assert.Single(Place(mesh, parameters),
-            candidate => candidate.Strategy == TipStrategy.MiniIsland);
-        Assert.Equal(0.23f, mini.TipDiameter);
-        Assert.Equal(SupportTipShape.Cone, mini.TipShape);
-        Assert.Equal(0.9f, mini.ConeLength);
-    }
-
-    [Fact]
-    public void MiniIslandMaximumAreaIsIndependentFromRegularIslandThreshold()
-    {
-        var mesh = Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5));
-        var parameters = P(minIsland: 0.2f) with
-        {
-            EnableMiniSupports = true,
-            MiniIslandMaxAreaMm2 = 0.05f,
-        };
-
-        var bandIsland = Place(mesh, parameters);
-
-        Assert.DoesNotContain(bandIsland,
-            candidate => candidate.Strategy == TipStrategy.MiniIsland);
-        Assert.Contains(bandIsland,
-            candidate => candidate.Strategy == TipStrategy.Island);
-        Assert.Contains(Place(mesh, parameters with { MiniIslandMaxAreaMm2 = 0.1f }),
-            candidate => candidate.Strategy == TipStrategy.MiniIsland);
-    }
-
-    [Fact]
-    public void MiniIslandMaximumAreaNormalizesToItsPhysicalAndRegularBounds()
-    {
-        var mesh = Meshes.Box(0.25f, 0.25f, 3, new Vector3(0, 0, 5));
-        var parameters = P(minIsland: 0.1f) with
-        {
-            EnableMiniSupports = true,
-            MiniSupportTipDiameterMm = 0.25f,
-        };
-
-        var belowFootprint = Place(mesh, parameters with { MiniIslandMaxAreaMm2 = 0f });
-        var aboveRegular = Place(mesh, parameters with { MiniIslandMaxAreaMm2 = 10f });
-
-        Assert.DoesNotContain(belowFootprint,
-            candidate => candidate.Strategy == TipStrategy.MiniIsland);
-        Assert.Contains(aboveRegular,
-            candidate => candidate.Strategy == TipStrategy.MiniIsland);
     }
 
     [Fact]
@@ -515,66 +373,6 @@ public class TipPlacementTests
         Assert.InRange(tip.Point.X, -0.3f, 0.3f);
         Assert.InRange(tip.Point.Y, -0.3f, 0.3f);
         Assert.True(tip.Point.Z < 6f, $"spike tip should be near z=5, got {tip.Point.Z}");
-    }
-
-    [Fact]
-    public void FineDownwardSpikeGetsOneMemberMiniCluster()
-    {
-        var mesh = Meshes.DownwardSpike();
-        var parameters = P(spacing: 5f, minSpacing: 1f, overhang: 20f) with
-        {
-            EnableMiniSupports = true,
-            EnableMiniTipClusters = true,
-            FineFeatureMaxAreaMm2 = 1f,
-        };
-
-        var mini = Assert.Single(Place(mesh, parameters), candidate => candidate.IsFineFeatureMini);
-
-        Assert.Equal(TipStrategy.MiniCluster, mini.Strategy);
-        Assert.Equal(TipStrategy.LocalMinimum, mini.MiniClusterSourceStrategy);
-        Assert.Equal(mini.Point, mini.MiniClusterCenter);
-        Assert.InRange(mini.FineFeatureAreaMm2!.Value, 0.5f, 0.8f);
-        Assert.Equal(parameters.TipDiameterMm, mini.FallbackTipDiameter);
-        Assert.Equal(parameters.TipShape, mini.FallbackTipShape);
-        Assert.Equal(parameters.ConeLengthMm, mini.FallbackConeLength);
-        Assert.Equal(parameters.BallDiameterMm, mini.FallbackBallDiameter);
-    }
-
-    [Fact]
-    public void FatIsolatedFeatureKeepsItsRegularCone()
-    {
-        var mesh = Meshes.FloatingBox(2, 2, 3, z: 5);
-        var parameters = P(minIsland: 0.1f) with
-        {
-            EnableMiniSupports = true,
-            EnableMiniTipClusters = true,
-            FineFeatureMaxAreaMm2 = 1f,
-        };
-
-        var island = Assert.Single(Place(mesh, parameters), candidate =>
-            candidate.Strategy == TipStrategy.Island);
-
-        Assert.False(island.IsFineFeatureMini);
-        Assert.InRange(island.FineFeatureAreaMm2!.Value, 3.9f, 4.1f);
-    }
-
-    [Fact]
-    public void FineIslandConversionPreservesRequiredIslandCoverage()
-    {
-        var mesh = Meshes.FloatingBox(0.5f, 0.5f, 3, z: 5);
-        var parameters = P(minIsland: 0.1f) with
-        {
-            EnableMiniSupports = true,
-            EnableMiniTipClusters = true,
-            MiniIslandMaxAreaMm2 = 0.1f,
-            FineFeatureMaxAreaMm2 = 1f,
-        };
-
-        var candidate = Assert.Single(Place(mesh, parameters));
-
-        Assert.True(candidate.IsFineFeatureMini);
-        Assert.Equal(TipStrategy.Island, candidate.MiniClusterSourceStrategy);
-        Assert.NotNull(candidate.MiniClusterId);
     }
 
     private static bool IsRequired(TipCandidate c) =>

@@ -115,7 +115,7 @@ public sealed class SupportDisplayPolicyEdgeTests
         var segments = new[]
         {
             Segment(SupportSegmentType.Tip, nodes[0], nodes[2]),
-            Segment(SupportSegmentType.MiniSupport, nodes[1], nodes[2]),
+            Segment(SupportSegmentType.Tip, nodes[1], nodes[2]),
             Segment(SupportSegmentType.Branch, nodes[2], nodes[3]),
             Segment(SupportSegmentType.Trunk, nodes[3], nodes[5]),
             Segment(SupportSegmentType.Bracing, nodes[3], nodes[4]),

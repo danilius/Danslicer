@@ -55,11 +55,6 @@ internal static class RoutingUtilities
                     IsCritical = false,
                     IsObjectLowest = false,
                     IsRegionLowest = false,
-                    // A reinforcement ring is its own set of ordinary structural contacts, not
-                    // additional members of the seed's density cluster.
-                    MiniSupportOnly = false,
-                    MiniClusterId = null,
-                    MiniClusterCenter = null,
                 });
             }
         }
@@ -89,10 +84,7 @@ internal static class RoutingUtilities
     private static IReadOnlyList<RoutingTip> SelectSeeds(IReadOnlyList<RoutingTip> tips,
         ReinforceSeedSelector selector)
     {
-        // Density clusters already replace one structural contact with a fine fan. Keep
-        // reinforcement independent by choosing an ordinary contact whenever one exists.
-        var eligible = tips.Where(tip => tip.MiniClusterId is null).ToList();
-        if (eligible.Count == 0) eligible = tips.ToList();
+        var eligible = tips.ToList();
         if (selector == ReinforceSeedSelector.CriticalTips)
             return eligible.Where(tip => tip.IsCritical).ToList();
 

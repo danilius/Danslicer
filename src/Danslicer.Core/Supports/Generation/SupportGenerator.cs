@@ -85,18 +85,10 @@ public static class SupportGenerator
         IProgress<SupportGenerationProgress>? progress = null,
         SupportGenerationScope scope = SupportGenerationScope.Full)
     {
-        // Density clusters are a mini-support feature: crowded regular contacts become a fan
-        // of minis on one carrier. They run only when minis are enabled at all (they were
-        // forced on here, which kept producing mini fans after minis were set aside).
-        var effectivePlacement = placement with
-        {
-            EnableMiniTipClusters = placement.EnableMiniSupports,
-            MiniSupportMaxTipsPerCluster = routing.MiniSupportMaxFanPerBranchEnd,
-        };
         var candidates = ContactFaceFilter.Apply(
-            ScopeCandidates(TipPlacer.Place(mesh, regionFaces, effectivePlacement,
+            ScopeCandidates(TipPlacer.Place(mesh, regionFaces, placement,
                 existingGraph, keepCleanFaces, seed), scope),
-            mesh, effectivePlacement);
+            mesh, placement);
         progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
 
         var lowestRegion = candidates.OrderBy(candidate => candidate.Point.Z)
@@ -108,15 +100,8 @@ public static class SupportGenerator
             IsRegionLowest: lowestRegion is { } lowest && c.Equals(lowest),
             TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter,
             PenetrationDepth: c.PenetrationDepth,
-            MiniSupportOnly: c.Strategy is TipStrategy.MiniIsland or TipStrategy.MiniCluster,
-            MiniClusterId: c.MiniClusterId, MiniClusterCenter: c.MiniClusterCenter,
             IsIslandOrigin: IsIslandCandidate(c),
             IsIslandPriority: IsIslandCandidate(c),
-            IsFineFeatureMini: c.IsFineFeatureMini,
-            FallbackTipDiameter: c.FallbackTipDiameter,
-            FallbackTipShape: c.FallbackTipShape,
-            FallbackConeLength: c.FallbackConeLength,
-            FallbackBallDiameter: c.FallbackBallDiameter,
             TipNormalLeadIn: c.TipNormalLeadIn));
 
         var router = new TreeSupportRouter(obstacles, rules);
@@ -127,8 +112,7 @@ public static class SupportGenerator
     }
 
     public static bool IsIslandCandidate(TipCandidate candidate) =>
-        candidate.Strategy is TipStrategy.Island or TipStrategy.MiniIsland ||
-        candidate.MiniClusterSourceStrategy is TipStrategy.Island or TipStrategy.MiniIsland;
+        candidate.Strategy is TipStrategy.Island;
 
     private static IReadOnlyList<TipCandidate> ScopeCandidates(
         IReadOnlyList<TipCandidate> candidates, SupportGenerationScope scope) =>
