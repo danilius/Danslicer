@@ -790,6 +790,70 @@ public sealed class Document
         // into the status line from SupportTargetPolicy.
         if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return false;
         var settings = SupportSettings with { };
+        var (router, options) = ManualRouting(obj, settings,
+            HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount));
+        var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
+            TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
+            BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth,
+            // A cone is straight (user decision 2026-09-07): no normal lead-in bend.
+            TipNormalLeadIn: 0f);
+        var result = router.Route(new[] { tip }, options, Supports);
+        if (result.UnroutedTips.Count > 0)
+        {
+            failureReason = result.Failures.Single().Reason;
+            return false;
+        }
+
+        failureReason = null;
+        Execute(new ApplySupportGraphEditCommand(Supports, result.Edit));
+        return true;
+    }
+
+    /// <summary>
+    /// Places every candidate of a guided gesture (SUPPORT-GEOMETRY-SPEC "Guided tip placement")
+    /// as manual supports in one undo step, routed exactly as a T-placed support is. Candidates
+    /// the router refuses are skipped and counted, never silently dropped: the caller reports
+    /// "n of m placed". Returns the number placed.
+    /// </summary>
+    public int PlaceGuidedTips(SceneObject obj, IReadOnlyList<TipCandidate> candidates,
+        string undoName, out int refused)
+    {
+        refused = 0;
+        if (candidates.Count == 0 || !SupportTargetPolicy.CanSupport(SupportTarget, obj)) return 0;
+        var settings = SupportSettings with { };
+        var first = candidates[0].Point;
+        var (router, options) = ManualRouting(obj, settings,
+            HashCode.Combine(first.X, first.Y, first.Z, candidates.Count, Supports.NodeCount));
+        var tips = candidates.Select(c => new RoutingTip(c.Point, c.InwardNormal, c.TipDiameter, obj.Id,
+            TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter,
+            PenetrationDepth: c.PenetrationDepth, TipNormalLeadIn: c.TipNormalLeadIn)).ToList();
+        var result = router.Route(tips, options, Supports);
+        refused = result.UnroutedTips.Count;
+        var placed = tips.Count - refused;
+        if (placed > 0) Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, undoName));
+        return placed;
+    }
+
+    /// <summary>
+    /// The placement parameters a guided gesture samples with: the manual-support anatomy from
+    /// the current settings, cone-shaped and straight, at the profile's spacing.
+    /// </summary>
+    public TipPlacementParameters GuidedPlacementParameters() => TipPlacementParameters.Default with
+    {
+        TipDiameterMm = SupportSettings.TipDiameter,
+        TipShape = SupportTipShape.Cone,
+        ConeLengthMm = SupportSettings.ConeLength,
+        BallDiameterMm = SupportSettings.BallDiameter,
+        PenetrationDepthMm = SupportSettings.PenetrationDepth,
+        TipNormalLeadInMm = 0f,
+        SpacingMm = SupportSettings.Spacing,
+        MinSpacingMm = SupportSettings.Spacing,
+    };
+
+    /// <summary>The router and options a manual placement uses, shared by T and the guided tools.</summary>
+    private (TreeSupportRouter Router, TreeRoutingOptions Options) ManualRouting(SceneObject obj,
+        SupportConfig settings, int seed)
+    {
         var independent = settings.IndependentManualSupports;
         // With the base grid off every support is routed as if alone (user decision
         // 2026-09-07), so other supports are not obstacles either.
@@ -798,11 +862,6 @@ public sealed class Document
             : new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
         var rules = GrowthRuleSet.FromConfig(settings);
         var router = new TreeSupportRouter(obstacles, rules);
-        var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
-            TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
-            BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth,
-            // A cone is straight (user decision 2026-09-07): no normal lead-in bend.
-            TipNormalLeadIn: 0f);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
         var options = new TreeRoutingOptions
@@ -822,19 +881,10 @@ public sealed class Document
             BaseDiameter = settings.BaseDiameter,
             BaseHeight = settings.BaseHeight,
             BaseConeHeight = settings.BaseConeHeight,
-            Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
+            Seed = seed,
             Origin = SupportOrigin.ManualFor(obj.Id),
         };
-        var result = router.Route(new[] { tip }, options, Supports);
-        if (result.UnroutedTips.Count > 0)
-        {
-            failureReason = result.Failures.Single().Reason;
-            return false;
-        }
-
-        failureReason = null;
-        Execute(new ApplySupportGraphEditCommand(Supports, result.Edit));
-        return true;
+        return (router, options);
     }
 
     private LinearCollisionScene SupportObstacles()

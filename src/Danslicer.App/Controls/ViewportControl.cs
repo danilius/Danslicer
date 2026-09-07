@@ -341,6 +341,8 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (SupportWaterline is { } waterline)
                 waterline.SupportModeActive = SupportSelectionMode;
+            // A guided gesture is Support-mode only; leaving the mode abandons it.
+            if (!SupportSelectionMode && _lineGesture is not null) CancelLineGesture();
             _supportMeshesDirty = true;
             // The region overlay is Support-mode only, so a mode change rebuilds it too.
             MarkRegionOverlayDirty();
@@ -589,6 +591,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 1f, DepthOverlay: true));
         AppendSupportLines(_depthOverlay);
         AppendBrushCursor(_overlay);
+        AppendLineGesture(_depthOverlay, _overlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         if (!SupportSelectionMode) UpdateGizmo();
         // Hide the gizmo during keyboard-driven modals; keep it while dragging a handle.
@@ -737,6 +740,19 @@ public sealed class ViewportControl : OpenGlControlBase
             if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) _panning = true;
             else _orbiting = true;
             e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
+        if (_lineGesture is not null)
+        {
+            // A click adds a vertex; the second click of a double-click places the line.
+            if (props.IsLeftButtonPressed)
+            {
+                if (e.ClickCount >= 2) CommitLineGesture();
+                else LineGestureAddVertex(MouseVector(e));
+            }
+            else if (props.IsRightButtonPressed) CancelLineGesture();
             e.Handled = true;
             return;
         }
@@ -960,6 +976,10 @@ public sealed class ViewportControl : OpenGlControlBase
             var dragged = PointDistance(marqueeStart, pos) >= MarqueeClickThresholdPixels;
             MarqueeRect = dragged ? new Rect(marqueeStart, pos).Normalize() : null;
         }
+        else if (_lineGesture is not null)
+        {
+            UpdateLineGestureCursor(MouseVector(e));
+        }
         else if (_tipDrag is not null)
         {
             UpdateTipDrag(MouseVector(e));
@@ -988,7 +1008,7 @@ public sealed class ViewportControl : OpenGlControlBase
         }
 
         if (!_orbiting && !_panning && _marqueeStart is null && _tipDrag is null &&
-            _modal is not { IsActive: true })
+            _lineGesture is null && _modal is not { IsActive: true })
         {
             var cubeHover = HitViewCube(pos);
             if (cubeHover != _viewCubeHover)
@@ -1077,6 +1097,15 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
+        // During a guided gesture the wheel steps the pitch (Blender modal style), not the zoom.
+        if (_lineGesture is { } gesture && e.Delta.Y != 0)
+        {
+            gesture.StepPitch(e.Delta.Y > 0 ? 1 : -1);
+            _linePitchInput = "";
+            RefreshLineGesturePreview();
+            e.Handled = true;
+            return;
+        }
         Camera.Zoom((float)e.Delta.Y);
         Redraw();
         e.Handled = true;
@@ -1193,6 +1222,211 @@ public sealed class ViewportControl : OpenGlControlBase
                 ? "Support: contact is too tight to the surface"
                 : "Support: no clear path to the plate from here";
         return null;
+    }
+
+    // ----- Guided line of supports (L in Support mode) -----
+    // SUPPORT-GEOMETRY-SPEC "Guided tip placement": the gesture itself is pure Core state
+    // (SurfaceLineGesture); this is the modal host — picks in, overlay and status out, and one
+    // batch placement on commit.
+
+    private static readonly Vector4 LineRouteColor = new(0.35f, 0.9f, 1f, 0.95f);
+    private static readonly Vector4 LineChordColor = new(1f, 0.3f, 0.3f, 0.95f);
+    private static readonly Vector4 LineGhostTipColor = new(0.7f, 1f, 0.4f, 1f);
+    private const int LineBridgeSamples = 32;
+
+    private Danslicer.Core.Supports.Guided.IGuidedGesture? _lineGesture;
+    private SceneObject? _lineTarget;
+    private IReadOnlyList<TipCandidate> _linePreview = Array.Empty<TipCandidate>();
+    private string _linePitchInput = "";
+
+    /// <summary>
+    /// Starts the line gesture on the support target. With one tip selected the line starts
+    /// from that tip's contact, so a line can extend a support already placed. Returns a status
+    /// message when the gesture cannot start.
+    /// </summary>
+    private string? BeginLineGesture(Vector2 mouse, bool polygon = false)
+    {
+        if (Document is null) return null;
+        if (Document.SupportTarget is not { } target)
+            return "Guided placement: choose the model to support first (Objects pop-out)";
+        var world = target.Transform.ToMatrix();
+        var worldMesh = new Mesh(
+            target.Mesh.Positions.Select(p => Vector3.Transform(p, world)).ToArray(),
+            (int[])target.Mesh.Indices.Clone());
+        _lineTarget = target;
+        var pitch = Document.SupportSettings.Spacing;
+        _lineGesture = polygon
+            ? new Danslicer.Core.Supports.Guided.SurfacePolygonGesture(worldMesh, pitch)
+            : new Danslicer.Core.Supports.Guided.SurfaceLineGesture(worldMesh, pitch);
+        _linePitchInput = "";
+
+        if (SelectedTip() is { } tipId)
+        {
+            var tip = Document.Supports.GetNode(tipId);
+            if (tip.ContactObjectId is null || tip.ContactObjectId == target.Id)
+            {
+                _lineGesture.SetCursor(tip.Position,
+                    Danslicer.Core.Supports.Guided.SurfacePath.NearestFace(worldMesh, tip.Position));
+                _lineGesture.AddVertex();
+            }
+        }
+        UpdateLineGestureCursor(mouse);
+        return null;
+    }
+
+    private void UpdateLineGestureCursor(Vector2 mouse)
+    {
+        if (_lineGesture is not { } gesture || _lineTarget is not { } target) return;
+        var hit = PickSurface(mouse, out var face, out var point, out _);
+        if (hit is null || hit.Id != target.Id || face < 0)
+        {
+            gesture.ClearCursor();
+        }
+        else
+        {
+            gesture.SetCursor(point, face);
+            // The vertical-plane path failed: bridge along what the user sees on screen.
+            if (gesture.CursorPathIsChord && gesture.Vertices.Count > 0)
+                gesture.SetCursor(point, face, ScreenBridge(gesture.Vertices[^1], mouse, point, face));
+        }
+        RefreshLineGesturePreview();
+    }
+
+    /// <summary>
+    /// Fallback path from the last vertex to the cursor: the screen-space segment between them,
+    /// picked back onto the target at even steps. Null when too little of it lands on the model.
+    /// </summary>
+    private Danslicer.Core.Supports.Guided.SurfacePath? ScreenBridge((Vector3 Point, int Face) from,
+        Vector2 mouse, Vector3 to, int toFace)
+    {
+        if (_lineTarget is not { } target) return null;
+        var w = (float)Bounds.Width;
+        var h = (float)Bounds.Height;
+        if (Camera.WorldToScreen(from.Point, w, h) is not { } start) return null;
+        var points = new List<Vector3> { from.Point };
+        var faces = new List<int> { from.Face };
+        var length = 0f;
+        for (var i = 1; i < LineBridgeSamples; i++)
+        {
+            var screen = Vector2.Lerp(start, mouse, i / (float)LineBridgeSamples);
+            var hit = PickSurface(screen, out var face, out var point, out _);
+            if (hit is null || hit.Id != target.Id || face < 0) continue;
+            length += Vector3.Distance(points[^1], point);
+            points.Add(point);
+            faces.Add(face);
+        }
+        if (points.Count < 2) return null;
+        length += Vector3.Distance(points[^1], to);
+        points.Add(to);
+        faces.Add(toFace);
+        return new Danslicer.Core.Supports.Guided.SurfacePath(points, faces, length);
+    }
+
+    private void LineGestureAddVertex(Vector2 mouse)
+    {
+        if (_lineGesture is not { } gesture) return;
+        UpdateLineGestureCursor(mouse);
+        gesture.AddVertex();
+        RefreshLineGesturePreview();
+    }
+
+    private void RefreshLineGesturePreview()
+    {
+        if (Document is null || _lineGesture is not { } gesture) return;
+        _linePreview = gesture.Preview(Document.GuidedPlacementParameters(), Document.Supports);
+        UpdateStatus();
+        Redraw();
+    }
+
+    private void TypeLinePitch(char c)
+    {
+        if (c == '.' && _linePitchInput.Contains('.')) return;
+        _linePitchInput += c;
+        ApplyLinePitchInput();
+    }
+
+    private void ApplyLinePitchInput()
+    {
+        if (_lineGesture is not { } gesture) return;
+        if (float.TryParse(_linePitchInput, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var pitch) && pitch > 0)
+            gesture.SetPitch(pitch);
+        RefreshLineGesturePreview();
+    }
+
+    private void CommitLineGesture()
+    {
+        if (Document is null || _lineGesture is not { } gesture || _lineTarget is not { } target)
+        {
+            CancelLineGesture();
+            return;
+        }
+        var candidates = gesture.Preview(Document.GuidedPlacementParameters(), Document.Supports);
+        string status;
+        if (candidates.Count == 0)
+        {
+            status = $"{gesture.Name}: nothing to place";
+        }
+        else
+        {
+            var placed = Document.PlaceGuidedTips(target, candidates, gesture.Name, out var refused);
+            status = refused == 0
+                ? $"{gesture.Name}: {placed} placed"
+                : $"{gesture.Name}: {placed} of {placed + refused} placed · {refused} had no clear path";
+        }
+        EndLineGesture();
+        StatusText = status;
+    }
+
+    private void CancelLineGesture()
+    {
+        EndLineGesture();
+        UpdateStatus();
+    }
+
+    private void EndLineGesture()
+    {
+        _lineGesture = null;
+        _lineTarget = null;
+        _linePreview = Array.Empty<TipCandidate>();
+        _linePitchInput = "";
+        Redraw();
+    }
+
+    /// <summary>The route (depth-tested, so the far side hides) and the ghost tips it would place.</summary>
+    private void AppendLineGesture(List<OverlayLine> depthLines, List<OverlayLine> lines)
+    {
+        if (_lineGesture is not { } gesture) return;
+        foreach (var path in gesture.Route())
+        {
+            // A chord has left the surface: draw it red and through everything so it is seen.
+            // A surface path between two different faces always has a crossing point, so a
+            // two-point path across faces can only be a chord.
+            var chord = path.Points.Count == 2 && path.Faces[0] != path.Faces[1];
+            var target = chord ? lines : depthLines;
+            var colour = chord ? LineChordColor : LineRouteColor;
+            for (var i = 0; i + 1 < path.Points.Count; i++)
+                target.Add(new OverlayLine(path.Points[i], path.Points[i + 1], colour));
+        }
+        foreach (var candidate in _linePreview)
+        {
+            var p = candidate.Point;
+            var size = ContactMarkerHalfSize(p);
+            depthLines.Add(new OverlayLine(p - Camera.Right * size, p + Camera.Right * size, LineGhostTipColor));
+            depthLines.Add(new OverlayLine(p - Camera.Up * size, p + Camera.Up * size, LineGhostTipColor));
+            // A short stub along the inward normal shows which way the cone would point.
+            depthLines.Add(new OverlayLine(p, p - candidate.InwardNormal * size * 2f, LineGhostTipColor));
+        }
+        foreach (var (point, _) in gesture.Vertices)
+        {
+            var size = ContactMarkerHalfSize(point) * 1.5f;
+            var right = Camera.Right * size;
+            var up = Camera.Up * size;
+            depthLines.Add(new OverlayLine(point - right - up, point + right - up, LineRouteColor));
+            depthLines.Add(new OverlayLine(point + right - up, point + right + up, LineRouteColor));
+            depthLines.Add(new OverlayLine(point + right + up, point - right + up, LineRouteColor));
+            depthLines.Add(new OverlayLine(point - right + up, point - right - up, LineRouteColor));
+        }
     }
 
     // ----- Tip move (G with a single tip selected) -----
@@ -1706,6 +1940,35 @@ public sealed class ViewportControl : OpenGlControlBase
             return;
         }
 
+        if (_lineGesture is { } lineGesture)
+        {
+            switch (e.Key)
+            {
+                case Key.Enter: case Key.Space: CommitLineGesture(); break;
+                case Key.Escape: CancelLineGesture(); break;
+                // Backspace edits a typed pitch first, then the route; with nothing left, it cancels.
+                case Key.Back when _linePitchInput.Length > 0:
+                    _linePitchInput = _linePitchInput[..^1];
+                    ApplyLinePitchInput();
+                    break;
+                case Key.Back when lineGesture.HasVertices:
+                    lineGesture.RemoveLastVertex();
+                    RefreshLineGesturePreview();
+                    break;
+                case Key.Back: CancelLineGesture(); break;
+                case Key.OemPeriod: case Key.Decimal: TypeLinePitch('.'); break;
+                case >= Key.D0 and <= Key.D9: TypeLinePitch((char)('0' + (e.Key - Key.D0))); break;
+                case >= Key.NumPad0 and <= Key.NumPad9: TypeLinePitch((char)('0' + (e.Key - Key.NumPad0))); break;
+                default: handled = false; break;
+            }
+            if (handled)
+            {
+                UpdateStatus();
+                e.Handled = true;
+            }
+            return;
+        }
+
         if (_modal.IsActive)
         {
             switch (e.Key)
@@ -1762,6 +2025,9 @@ public sealed class ViewportControl : OpenGlControlBase
                 // Manual support under the cursor (Support mode only), routed around the model.
                 // (Shift+T's blind straight drop was removed 2026-09-03 at the user's request.)
                 case Key.T when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = TryAddSupport(mouse); break;
+                // Guided line of supports (SUPPORT-GEOMETRY-SPEC "Guided tip placement").
+                case Key.L when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse); break;
+                case Key.P when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, polygon: true); break;
                 case Key.Escape when _marqueeStart is not null:
                     _marqueeStart = null;
                     _pendingClickSupport = null;
@@ -1812,6 +2078,16 @@ public sealed class ViewportControl : OpenGlControlBase
             StatusText = _modal.StatusText;
             return;
         }
+        if (_lineGesture is { } lineGesture)
+        {
+            var pitch = _linePitchInput.Length > 0 ? $"{_linePitchInput}_" : $"{lineGesture.PitchMm:0.0}";
+            var tips = _linePreview.Count == 1 ? "1 tip" : $"{_linePreview.Count} tips";
+            var offSurface = lineGesture.CursorPathIsChord ||
+                lineGesture is Danslicer.Core.Supports.Guided.SurfacePolygonGesture { ClosingPathIsChord: true };
+            var surface = offSurface ? " · OFF SURFACE" : "";
+            StatusText = $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  LMB add point · double-click/Enter place · Backspace remove point · wheel/digits pitch · RMB/Esc cancel";
+            return;
+        }
         if (_tipDrag is not null)
         {
             StatusText = "Move tip: drag over the surface · LMB/Enter confirm · RMB/Esc cancel";
@@ -1833,7 +2109,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

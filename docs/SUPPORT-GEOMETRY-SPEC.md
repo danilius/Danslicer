@@ -174,6 +174,90 @@ carry mini segments load with those members dropped.
 - Working goal: the low-res drogon is the canonical push-until-well-supported test
   subject for auto + manual support quality.
 
+## Guided tip placement (user discussion, 2026-09-07)
+
+Semi-automated placement sits between one-click manual tips and whole-region generation:
+the user describes *where* with a few clicks and the tool fills in the tips. DESIGN 8.8
+"Support lines" is the first of these; this section generalises it.
+
+### One pipeline, many gestures
+
+Every guided tool is the same three stages with a different first stage:
+
+1. **Candidates.** A pure Core function turns the gesture (a mesh, a few surface points, a
+   pitch) into a list of `TipCandidate`s on the support target. No viewport, no document.
+2. **Preview.** While the gesture is live the candidates are drawn as ghost tips (existing
+   preview shapes); nothing is routed and nothing enters the graph.
+3. **Commit.** On confirmation all candidates are routed as one batch through the existing
+   generation path and land as **one undo step**. Candidates that cannot be routed are
+   skipped and counted: the status line says "10 of 12 placed", never a silent drop.
+
+The support target policy is checked once, when the gesture begins. The object under the
+first click is the contact object for the whole gesture; picks on any other object are
+ignored while the gesture is live, exactly as a tip drag ignores them.
+
+### Modal tools, Blender style
+
+Each gesture is one modal tool with Begin / Update / Commit / Cancel and a preview it
+exposes; the viewport hosts one active tool at a time instead of a fresh set of drag
+fields per interaction (the existing tip drag is the model and becomes the first such tool).
+Keys, all Support mode only:
+
+- Left click adds a point or confirms; Enter confirms; Escape and right click cancel the
+  whole gesture; Backspace removes the last point of a multi-point gesture.
+- Pitch is adjustable during the gesture: scroll wheel steps it, typed digits set it
+  (Blender modal numeric input). Default pitch is the profile's `SpacingMm`.
+- The status line shows the tool, the candidate count and the current pitch.
+- The first point may snap to an existing tip: clicking on a displayed tip starts the
+  gesture from that tip's contact, so a line can extend a support already placed.
+
+### The tools
+
+- **Line / polyline.** First click anchors; the cursor rubber-bands a surface path from the
+  last vertex; each click adds a vertex; Enter or double-click finishes. Tips at pitch along
+  the whole path, the anchor included. A straight line is the one-vertex case.
+- **Polygon fill.** Three or more vertices closed by Enter. The closed loop of surface paths
+  bounds a face set (the enclosed edge-connected patch, at face granularity like painting)
+  which goes straight into `RegionGridSampler`. Pitch is the sampler's spacing.
+- **Stroke.** Drag freehand; tips at pitch along the dragged path. The region brush's
+  gesture with tips as output.
+- **Ring.** Click a centre, drag a radius; tips on the circumference at pitch.
+- **Contour.** Drag to choose a height; tips along the target's surface contour at that Z.
+- **Edge follow.** Click near a crease (dihedral above the sharp-edge angle in
+  `MeshFeatures`) and tips track the feature line at pitch in both directions until it ends
+  or turns sharper than a limit. Overhang edges are where supports matter most.
+- **Overhang perimeter.** Click an overhang patch; tips around its boundary at pitch.
+- **Array / mirror.** Selected tips repeated along a direction, or mirrored across the
+  model's midplane, each copy re-picked onto the surface.
+- **Densify / thin.** Selected tips along a line group get midpoints inserted or every
+  second tip removed.
+- **Stamp.** One click drops a small cluster at pitch around the point (the manual
+  replacement for the removed mini clusters).
+
+### Surface path definition (decision)
+
+A path between two surface points is the contour of the mesh cut by the **vertical plane
+through the two points**, walked from one to the other along the connected piece that
+contains both. It is surface-true, deterministic, and lives in Core where it is testable.
+Only when that plane cut yields no connected contour between the points (the two lie on
+patches the plane does not join) does the tool fall back to projecting the screen-space
+segment onto the surface with the pick ray at many samples. The path follows the mesh
+across folds and never bleeds through a wall, for the same reason the region brush does
+not: it is built from edge-connected faces.
+
+Sampling at pitch is by arc length from the anchor, so the anchor always carries a tip and
+the last tip may be short of the end by less than one pitch; the end vertex gets a tip only
+when it is at least `MinSpacingMm` from the previous one.
+
+### Build order
+
+1. Line / polyline, because the surface path is the primitive the polygon, ring and stroke
+   reuse, and the modal-tool host it introduces carries every later tool.
+2. Polygon fill, mostly composition of the path with the painting pipeline.
+3. Edge follow, the highest print value but needing crease tracing.
+4. Stroke, ring, contour.
+5. Array, mirror, densify, thin, stamp.
+
 ## Still open
 
 - Embedding depth: assumed measured along the tip axis past the contact point.
