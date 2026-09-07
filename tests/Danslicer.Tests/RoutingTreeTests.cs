@@ -826,21 +826,78 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
-    public void RoughContactFallsBackToAShortTipMember()
+    public void RoughContactIsRefusedRatherThanGivenAStubCone()
     {
-        // Every full-length departure is blocked near the contact (spiky terrain, e.g. teeth);
-        // the short-member fallback must still get the support off the surface and route.
+        // Every full-length departure is blocked near the contact (spiky terrain, e.g. teeth).
+        // A cone is the whole tip member; there is no short stub to fall back to, so the
+        // contact is refused honestly.
         var contact = new Vector3(0, 0, 10);
         var result = new TreeSupportRouter(new NearContactBlockScene(contact),
             GrowthRuleSet.Default).Route(
             new[] { new RoutingTip(contact, Vector3.UnitZ, 0.4f) }, new TreeRoutingOptions());
 
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
+        Assert.Empty(result.Graph.Segments);
+    }
+
+    [Fact]
+    public void NeighbouringConesKeepTheirBasesApart()
+    {
+        // Two contacts on one 45 degree underside whose members run parallel 1.06 mm apart:
+        // their necks would clear, but their bases are as wide as the balls they grow from, so
+        // the second cone would overlap the first. It is refused instead of fanning off one ball.
+        var outward = Vector3.Normalize(new Vector3(1, 0, -1));
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 12), -outward, 0.4f),
+            new RoutingTip(new(0.75f, 0, 11.25f), -outward, 0.4f),
+        }, new TreeRoutingOptions { UseBaseGrid = false });
+
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
+        Assert.Single(result.Graph.Segments, s => s.Type == SupportSegmentType.Tip);
+    }
+
+    [Fact]
+    public void JunctionNearATrunkAxisLandsTheConeOnTheTrunk()
+    {
+        // The second tip's junction would sit 0.4 mm beside the first trunk. Instead of a stub
+        // branch shorter than its own ball, the cone is re-aimed onto the trunk axis and the
+        // trunk is split where it lands.
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 14), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(0.4f, 0, 10), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions { BaseGridPitch = 10f });
+
         Assert.Empty(result.Failures);
-        var tipNode = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Tip);
+        Assert.DoesNotContain(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
+        Assert.Single(result.BasePositions);
+        var tipNode = result.Graph.Nodes.Single(n => n.Type == SupportNodeType.Tip && n.Position.X == 0.4f);
         var member = Assert.Single(result.Graph.SegmentsAt(tipNode.Id));
-        var otherId = member.NodeA == tipNode.Id ? member.NodeB : member.NodeA;
-        var length = Vector3.Distance(tipNode.Position, result.Graph.GetNode(otherId).Position);
-        Assert.True(length < 1f, $"expected a short tip member, got {length} mm");
+        var junction = result.Graph.GetNode(member.NodeA == tipNode.Id ? member.NodeB : member.NodeA);
+        Assert.Equal(0f, junction.Position.X, 4);
+        Assert.Equal(10 - MathF.Sqrt(4 - 0.16f), junction.Position.Z, 3);
+        Assert.Contains(result.Graph.SegmentsAt(junction.Id), s => s.Type == SupportSegmentType.Trunk);
+        Assert.Equal(2, result.Graph.Segments.Count(s => s.Type == SupportSegmentType.Trunk));
+    }
+
+    [Fact]
+    public void JunctionNearAGridDropLineSnapsOntoIt()
+    {
+        // Grid mode, junction 0.4 mm off the lattice point: the cone is re-aimed at the drop
+        // line and the trunk falls straight from it, with no stub branch in between.
+        var result = Route(new[] { new RoutingTip(new(0.4f, 0, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { BaseGridPitch = 10f });
+
+        Assert.Empty(result.Failures);
+        Assert.DoesNotContain(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
+        var supportBase = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Base);
+        Assert.Equal(Vector3.Zero, supportBase.Position);
+        var junction = Assert.Single(result.Graph.Nodes, n => n.Type == SupportNodeType.Junction);
+        Assert.Equal(0f, junction.Position.X, 4);
+        Assert.Equal(10 - MathF.Sqrt(4 - 0.16f), junction.Position.Z, 3);
     }
 
     /// <summary>Blocks any queried capsule lying wholly in the slab just below the contact.</summary>
@@ -995,6 +1052,7 @@ public sealed class RoutingTreeTests
                 if (next.Id == tipSegment.Id) continue;
                 var farId = next.NodeA == junction.Id ? next.NodeB : next.NodeA;
                 var outgoing = graph.GetNode(farId).Position - junction.Position;
+                if (outgoing.Z > 1e-6f) continue; // the parent trunk passing through upward
                 worst = MathF.Max(worst, TreeSupportRouter.BendDegrees(incoming, outgoing));
             }
         }

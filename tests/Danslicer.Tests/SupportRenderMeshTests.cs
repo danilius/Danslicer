@@ -107,6 +107,42 @@ public class SupportRenderMeshTests
     }
 
     [Fact]
+    public void OnlyOneMemberDrawsTheBallAtAJoint()
+    {
+        // A branch meeting a trunk of the same diameter: the trunk owns the ball, and the
+        // branch's cap at that node is tucked inside it, so no two surfaces coincide.
+        var graph = new SupportGraph();
+        var baseNode = new SupportNode { Type = SupportNodeType.Base, Position = Vector3.Zero };
+        var joint = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 10) };
+        var end = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(3, 0, 13) };
+        graph.AddNode(baseNode);
+        graph.AddNode(joint);
+        graph.AddNode(end);
+        graph.AddSegment(new SupportSegment
+            { Type = SupportSegmentType.Trunk, NodeA = joint.Id, NodeB = baseNode.Id, Diameter = 1.2f });
+        graph.AddSegment(new SupportSegment
+            { Type = SupportSegmentType.Branch, NodeA = joint.Id, NodeB = end.Id, Diameter = 1.2f });
+
+        var parts = SupportRenderMesh.Build(graph);
+        var trunk = Assert.Single(parts, part => part.Kind == SupportRenderKind.Trunk).Mesh;
+        var branch = Assert.Single(parts, part => part.Kind == SupportRenderKind.Branch).Mesh;
+        Assert.Equal(SupportRenderMesh.TrianglesPerCapsule, trunk.TriangleCount);
+        Assert.Equal(SupportRenderMesh.TrianglesPerCapsule + 2 * SupportRenderMesh.RadialSegments,
+            branch.TriangleCount);
+        AssertClosed(branch);
+
+        // Every branch vertex on the joint side of the node lies strictly inside the ball.
+        var axis = Vector3.Normalize(end.Position - joint.Position);
+        var capSide = branch.Positions
+            .Where(position => Vector3.Dot(position - joint.Position, axis) <= 1e-5f)
+            .Select(position => Vector3.Distance(position, joint.Position))
+            .ToList();
+        Assert.NotEmpty(capSide);
+        Assert.True(capSide.Max() <= 0.6f * 0.94f + 1e-4f,
+            $"a tucked cap reaches {capSide.Max()} from the joint");
+    }
+
+    [Fact]
     public void ZeroLengthSegmentBecomesAClosedSphere()
     {
         var graph = new SupportGraph();

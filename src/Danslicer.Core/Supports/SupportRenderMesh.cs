@@ -126,6 +126,7 @@ public static class SupportRenderMesh
     {
         var builders = new Dictionary<(SupportRenderKind Kind, bool Selected, bool Disabled), MeshBuilder>();
 
+        var capOwners = CapOwners(graph);
         foreach (var segment in graph.Segments)
         {
             if (segment.Hidden && !includeHidden) continue;
@@ -151,7 +152,9 @@ public static class SupportRenderMesh
                 AppendConeTip(builder, tip, other,
                     SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f);
             else
-                AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
+                AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f,
+                    tuckCapA: capOwners.GetValueOrDefault(a.Id) != segment.Id,
+                    tuckCapB: capOwners.GetValueOrDefault(b.Id) != segment.Id);
         }
 
         foreach (var node in graph.Nodes)
@@ -183,6 +186,7 @@ public static class SupportRenderMesh
     {
         var builder = new MeshBuilder();
         var any = false;
+        var capOwners = CapOwners(graph);
         foreach (var segment in graph.Segments)
         {
             if (segment.Hidden || !isSelected(segment.Id) ||
@@ -194,7 +198,9 @@ public static class SupportRenderMesh
                 AppendConeTip(builder, tip, other,
                     SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f);
             else
-                AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f);
+                AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f,
+                    tuckCapA: capOwners.GetValueOrDefault(a.Id) != segment.Id,
+                    tuckCapB: capOwners.GetValueOrDefault(b.Id) != segment.Id);
             any = true;
         }
         foreach (var node in graph.Nodes)
@@ -335,6 +341,24 @@ public static class SupportRenderMesh
     /// A zero-length segment degenerates to a sphere.
     /// </summary>
     public static void AppendCapsule(MeshBuilder builder, Vector3 a, Vector3 b, float radius)
+        => AppendCapsule(builder, a, b, radius, tuckCapA: false, tuckCapB: false);
+
+    /// <summary>
+    /// How far short of the node a tucked end starts drawing in, as a fraction of the radius,
+    /// and how much of the radius its cap keeps. The cap ends up wholly inside the ball the
+    /// joint's owner draws, so the two never share a surface; the draw-in pierces that ball on
+    /// a clean line instead of lying on it.
+    /// </summary>
+    private const float TuckedCapRun = 0.25f;
+    private const float TuckedCapScale = 0.94f;
+
+    /// <summary>
+    /// Capsule with either end cap optionally tucked inside the joint's ball. At a node where
+    /// several members meet, exactly one draws the ball; the others tuck (see
+    /// <see cref="CapOwners"/>), which removes the flicker of coincident caps.
+    /// </summary>
+    public static void AppendCapsule(MeshBuilder builder, Vector3 a, Vector3 b, float radius,
+        bool tuckCapA, bool tuckCapB)
     {
         if (radius <= 0) return;
         var axis = b - a;
@@ -347,29 +371,72 @@ public static class SupportRenderMesh
 
         var w = axis / length;
         var (u, v) = OrthonormalFrame(w);
+        var run = MathF.Min(radius * TuckedCapRun, length * 0.5f);
+        var scaleA = tuckCapA ? TuckedCapScale : 1f;
+        var scaleB = tuckCapB ? TuckedCapScale : 1f;
 
         // Rings from the bottom pole (at a - w r) to the top pole (at b + w r): CapStacks rings on
         // the lower hemisphere ending at a's equator, the equator again at b, then CapStacks - 1
-        // rings on the upper hemisphere. Ring angle phi runs pole to equator.
-        var rings = new int[2 * CapStacks][];
+        // rings on the upper hemisphere. Ring angle phi runs pole to equator. A tucked end adds a
+        // full-radius ring a short run into the member, so the body draws in to the smaller cap.
+        var rings = new List<int[]>(2 * CapStacks + 2);
         for (int k = 1; k <= CapStacks; k++)
         {
             var phi = k * (MathF.PI / 2f) / CapStacks;
-            var ringRadius = radius * MathF.Sin(phi);
-            var drop = radius * MathF.Cos(phi);
-            rings[k - 1] = AddRing(builder, a - w * drop, u, v, ringRadius);
+            var ringRadius = radius * scaleA * MathF.Sin(phi);
+            var drop = radius * scaleA * MathF.Cos(phi);
+            rings.Add(AddRing(builder, a - w * drop, u, v, ringRadius));
         }
+        if (tuckCapA) rings.Add(AddRing(builder, a + w * run, u, v, radius));
+        if (tuckCapB) rings.Add(AddRing(builder, b - w * run, u, v, radius));
         for (int k = CapStacks; k >= 1; k--)
         {
             var phi = k * (MathF.PI / 2f) / CapStacks;
-            var ringRadius = radius * MathF.Sin(phi);
-            var rise = radius * MathF.Cos(phi);
-            rings[2 * CapStacks - k] = AddRing(builder, b + w * rise, u, v, ringRadius);
+            var ringRadius = radius * scaleB * MathF.Sin(phi);
+            var rise = radius * scaleB * MathF.Cos(phi);
+            rings.Add(AddRing(builder, b + w * rise, u, v, ringRadius));
         }
 
-        var bottomPole = builder.AddVertex(a - w * radius);
-        var topPole = builder.AddVertex(b + w * radius);
-        StitchShell(builder, rings, bottomPole, topPole);
+        var bottomPole = builder.AddVertex(a - w * radius * scaleA);
+        var topPole = builder.AddVertex(b + w * radius * scaleB);
+        StitchShell(builder, rings.ToArray(), bottomPole, topPole);
+    }
+
+    /// <summary>
+    /// For every node, the one capsule member that draws the joint's ball: the widest, then a
+    /// trunk over a branch over anything else, then the lowest id. Cone tips never own a ball;
+    /// theirs is the parent's.
+    /// </summary>
+    internal static Dictionary<Guid, Guid> CapOwners(SupportGraph graph)
+    {
+        var owners = new Dictionary<Guid, Guid>();
+        var best = new Dictionary<Guid, (float Diameter, int Rank, Guid Id)>();
+        foreach (var segment in graph.Segments)
+        {
+            var a = graph.GetNode(segment.NodeA);
+            var b = graph.GetNode(segment.NodeB);
+            if (SupportSliceGeometry.TryConeTip(a, b, out _, out _)) continue;
+            var rank = segment.Type switch
+            {
+                SupportSegmentType.Trunk => 0,
+                SupportSegmentType.Branch => 1,
+                _ => 2,
+            };
+            foreach (var nodeId in new[] { segment.NodeA, segment.NodeB })
+            {
+                var candidate = (segment.Diameter, rank, segment.Id);
+                if (!best.TryGetValue(nodeId, out var current) ||
+                    candidate.Diameter > current.Diameter + 1e-6f ||
+                    MathF.Abs(candidate.Diameter - current.Diameter) <= 1e-6f &&
+                    (candidate.rank < current.Rank ||
+                     candidate.rank == current.Rank && candidate.Id.CompareTo(current.Id) < 0))
+                {
+                    best[nodeId] = candidate;
+                    owners[nodeId] = segment.Id;
+                }
+            }
+        }
+        return owners;
     }
 
     /// <summary>Appends a closed UV sphere.</summary>

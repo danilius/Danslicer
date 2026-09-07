@@ -230,6 +230,9 @@ namespace Danslicer.Tests
                         if (next.Id == tipSegment.Id) continue;
                         var farId = next.NodeA == junction.Id ? next.NodeB : next.NodeA;
                         var outgoing = result.Graph.GetNode(farId).Position - junction.Position;
+                        // A trunk continuing upward past a mid-trunk landing is the parent
+                        // passing through, not a member the cone hands over to.
+                        if (outgoing.Z > 1e-6f) continue;
                         var bend = TreeSupportRouter.BendDegrees(incoming, outgoing);
                         Assert.True(bend <= 45.02f, $"{next.Type} bends {bend}° at the ball (grid {useBaseGrid})");
                     }

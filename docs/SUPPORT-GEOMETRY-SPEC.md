@@ -112,6 +112,17 @@ base is the one exception.
   member's own diameter is gone from the panel, and "Cone length" now names the tip
   member length. The ring keeps the few-percent draw-in over a short buried run that
   stops its rim showing through the ball's facets.
+- **One cone per ball, and cones keep their bases apart.** A tip member is kept clear of
+  other supports by its base radius (the ball's), not by its narrow neck, and there is no
+  short stub member for crowded contacts: a contact that cannot take a whole cone is
+  refused (user screen test 2026-09-07: stub cones piled up on one ball as a fan).
+- **No stub branches.** A junction within one branch radius of a trunk axis, or of a grid
+  drop line, is snapped onto that line: the cone is re-aimed at it with its configured
+  length (at most a few degrees off its normal) and lands on the trunk directly, splitting
+  the trunk or raising it as needed. A trunk top already carrying a cone is never shared.
+- **One member draws each joint's ball.** In the viewport the widest member at a node
+  (trunk before branch, then lowest id) draws the ball; the others tuck their end caps
+  inside it, so no two surfaces coincide and the seams no longer flicker.
 - **A cone is straight.** The normal lead-in (a short run along the contact normal before
   bending toward the junction) is set to zero in generation and manual placement and its
   setting is gone from the panel (user screen test 2026-09-07: a bent cone is wrong).
