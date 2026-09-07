@@ -1,5 +1,66 @@
 # Danslicer handover
 
+## STATE 2026-09-07 ~11:00 — READ FIRST (supersedes everything below)
+
+**Single-session night (Claude implementing directly, user screen-testing live).** main is
+`3b09e69`, pushed; 798 tests green; the app runs from
+`src\Danslicer.Appin\Debug
+et10.0\Danslicer.App.exe`. Two branches merged tonight:
+`align-branch-with-cone-tip` (`b9e6507`, 10 commits) and `remove-mini-supports` (`3b09e69`).
+Every rule below is a user decision recorded in `docs/SUPPORT-GEOMETRY-SPEC.md`, section
+"Cone orientation and joints (user decisions, 2026-09-07)" — read that section before touching
+`TreeSupportRouter.cs` or `TipBodyGeometry.cs`.
+
+**What the support anatomy is now (user's Blender drawings: cone, sphere, cylinder):**
+- A cone tip is the whole tip member: one taper from the contact radius to the radius of the
+  ball it grows from, base ring at that ball's centre. No neck, no normal lead-in bend; the
+  "Cone length" row in the panel is the tip member length. Straight cones only.
+- The cone points along the contact normal, clamped to 45° from vertical; when that direction
+  is blocked or nothing can follow from it, the route is retried with the cone vertical.
+- One cone per ball. The member leaving a cone's junction bends at most 45° from the cone's
+  axis (no Z-kinks); the branch continuing the cone's axis is offered first. Cones keep their
+  full base radius clear of each other (checked as a frustum, touching allowed; no model
+  clearance margin between supports; the member-separation setting is the only gap rule).
+- No stub branches: a junction within half a cone length of a trunk axis or grid drop line is
+  snapped onto it (cone re-aimed ≤30°, trunk split or raised); a branch never starts within a
+  branch radius of the line it descends to. A trunk carrying its own cone is never raised.
+- Grid mode joins an existing trunk only when its branch is at most half a grid pitch longer
+  than a fresh trunk's would need; when no lattice point is reachable at all, the base leaves
+  the grid rather than refusing.
+- Free mode (grid off): every tip is a whole support of its own, blind to every other support,
+  existing or new, collisions allowed; other supports are not obstacles for it.
+- Viewport: one member draws each joint's ball, the others tuck their caps inside it (no seam
+  flicker).
+
+**Mini supports are REMOVED** (user: "not worth dealing with right now"). Member type,
+placement (mini islands, density clusters, fine-feature minis), the refused-tip downgrade,
+router paths, settings, CLI flags (`--fine-feature-*`) and 23 tests are gone. Old project
+files still carrying `"miniSupport"` segments load with those members dropped, plus the branch
+end / trunk / base left holding nothing (`ProjectFile.DropMiniSupportRemnants`). Stale mini
+properties in `%AppData%\Danslicer\config.json` are ignored. Do not resurrect from the
+addenda below: the 2026-09-03 mini-support dictation is superseded.
+
+**Lessons from tonight (do not repeat):**
+- Three separate "fan of tips on one ball" reports were all mini supports: saved ones from an
+  old file, then the refused-tip→mini fallback still on in the user config after its checkbox
+  was removed, then the density-cluster pass forced on in `SupportGenerator.GenerateTree`.
+  The tell: save + reopen made them vanish (the loader dropped minis). Probes that use the
+  project's saved settings do not see what the viewport does with the user config.
+- Test subject is now `test filesoof gripper T2 single and tilted cube.danslicer` (user:
+  the drogon was steering the algorithm too much). Reference numbers, fresh generation, grid
+  on: roof gripper 30 routed / 4 refused, cube 45 / 4, no stubs, no shared balls; grid off:
+  34 / 0 and 49 / 0.
+- Throwaway probe tests (`tests\Danslicer.Tests\Zz*Probe.cs`) were the fastest way to see
+  routing on real files; always delete them before committing.
+- `dotnet test --no-build` after a failed build reports stale green: check the build first.
+- Kill the running app before building (`taskkill /IM Danslicer.App.exe /F`); the user may be
+  running the exe themselves — ask before killing when they are present.
+
+**Open / next:** the five branches over 6 mm left on the roof gripper in grid mode were not
+chased (nearer lattice points lose to some check; instrument `TryRouteFromJunction` to see
+which). Manual placement midway between generated contacts still fails where two cones cannot
+both fit (1.25 mm from a neighbour), which is correct. Merging is the user's call per merge.
+
 ## SUPERVISOR HANDOVER 2026-09-04 ~afternoon — READ FIRST (supersedes everything below)
 
 **You are the new supervisor session (non-Fable model; the user ran out of weekly
