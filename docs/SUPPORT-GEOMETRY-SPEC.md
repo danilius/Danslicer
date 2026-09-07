@@ -219,10 +219,15 @@ Keys, all Support mode only:
 - **Polygon fill.** Three or more vertices closed by Enter. The closed loop of surface paths
   bounds a face set (the enclosed edge-connected patch, at face granularity like painting)
   which goes straight into `RegionGridSampler`. Pitch is the sampler's spacing.
-- **Stroke.** Drag freehand; tips at pitch along the dragged path. The region brush's
-  gesture with tips as output.
-- **Ring.** Click a centre, drag a radius; tips on the circumference at pitch.
-- **Contour.** Drag to choose a height; tips along the target's surface contour at that Z.
+- **Ring** (R). Click a centre, move to set the radius, click to place; tips on the
+  circumference at pitch. The circle is drawn in the tangent plane of the centre's face and
+  each point projected to the nearest surface point, so on a curved underside the ring hugs
+  the surface (decision 2026-09-07).
+- **Contour** (C). Hover to choose a height — the cursor's own height on the surface — and
+  click to place; tips along the target's contour at that Z, on faces with a downward
+  component only (a vertical wall gets none, as with the polygon grid), each connected run
+  spaced on its own.
+- Stroke (freehand drag) was dropped from the list on 2026-09-07 (user decision).
 - **Edge follow.** Click near a crease (dihedral above the sharp-edge angle in
   `MeshFeatures`) and tips track the feature line at pitch in both directions until it ends
   or turns sharper than a limit. Overhang edges are where supports matter most.
@@ -264,11 +269,11 @@ when it is at least `MinSpacingMm` from the previous one.
 
 ### Build order
 
-1. Line / polyline, because the surface path is the primitive the polygon, ring and stroke
+1. Line / polyline, because the surface path is the primitive the polygon and ring
    reuse, and the modal-tool host it introduces carries every later tool.
 2. Polygon fill, mostly composition of the path with the painting pipeline.
 3. Edge follow, the highest print value but needing crease tracing.
-4. Stroke, ring, contour.
+4. Ring, contour.
 5. Array, mirror, densify, thin, stamp.
 
 ## Still open

@@ -749,9 +749,9 @@ public sealed class ViewportControl : OpenGlControlBase
             // A click adds a vertex; the second click of a double-click places the line.
             if (props.IsLeftButtonPressed)
             {
-                if (_lineGesture.PlacesOnClick)
+                UpdateLineGestureCursor(MouseVector(e));
+                if (_lineGesture.ReadyToPlace)
                 {
-                    UpdateLineGestureCursor(MouseVector(e));
                     if (_lineGesture.AddVertex()) CommitLineGesture();
                 }
                 else if (e.ClickCount >= 2) CommitLineGesture();
@@ -1249,7 +1249,7 @@ public sealed class ViewportControl : OpenGlControlBase
     /// from that tip's contact, so a line can extend a support already placed. Returns a status
     /// message when the gesture cannot start.
     /// </summary>
-    private enum GuidedKind { Line, Polygon, Edge }
+    private enum GuidedKind { Line, Polygon, Edge, Ring, Contour }
 
     private string? BeginLineGesture(Vector2 mouse, GuidedKind kind = GuidedKind.Line)
     {
@@ -1267,6 +1267,8 @@ public sealed class ViewportControl : OpenGlControlBase
             GuidedKind.Polygon => new Danslicer.Core.Supports.Guided.SurfacePolygonGesture(worldMesh, pitch),
             GuidedKind.Edge => new Danslicer.Core.Supports.Guided.CreaseFollowGesture(worldMesh, pitch,
                 Document.GuidedPlacementParameters().SharpEdgeDegrees),
+            GuidedKind.Ring => new Danslicer.Core.Supports.Guided.SurfaceRingGesture(worldMesh, pitch),
+            GuidedKind.Contour => new Danslicer.Core.Supports.Guided.ContourGesture(worldMesh, pitch),
             _ => new Danslicer.Core.Supports.Guided.SurfaceLineGesture(worldMesh, pitch),
         };
         _linePitchInput = "";
@@ -2043,6 +2045,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.L when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse); break;
                 case Key.P when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Polygon); break;
                 case Key.E when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Edge); break;
+                case Key.R when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Ring); break;
+                case Key.C when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Contour); break;
                 case Key.Escape when _marqueeStart is not null:
                     _marqueeStart = null;
                     _pendingClickSupport = null;
@@ -2100,9 +2104,7 @@ public sealed class ViewportControl : OpenGlControlBase
             var offSurface = lineGesture.CursorPathIsChord ||
                 lineGesture is Danslicer.Core.Supports.Guided.SurfacePolygonGesture { ClosingPathIsChord: true };
             var surface = offSurface ? " · OFF SURFACE" : "";
-            StatusText = lineGesture.PlacesOnClick
-                ? $"{lineGesture.Name}: {(_linePreview.Count == 0 ? "hover near a sharp edge" : tips)} · pitch {pitch} mm  ·  LMB place · wheel/digits pitch · RMB/Esc cancel"
-                : $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  LMB add point · double-click/Enter place · Backspace remove point · wheel/digits pitch · RMB/Esc cancel";
+            StatusText = $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  {lineGesture.Hint} · wheel/digits pitch · RMB/Esc cancel";
             return;
         }
         if (_tipDrag is not null)
@@ -2126,7 +2128,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

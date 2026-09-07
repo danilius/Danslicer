@@ -116,7 +116,7 @@ public sealed class GuidedEdgeFollowTests
         Assert.Equal(new[] { 0f, 2.5f, 5f, 7.5f, 10f },
             tips.Select(t => MathF.Round(t.Point.X, 3)).OrderBy(x => x).ToArray());
         Assert.All(tips, t => Assert.True(t.InwardNormal.Z > 0));
-        Assert.True(gesture.PlacesOnClick);
+        Assert.True(gesture.ReadyToPlace);
         Assert.True(gesture.AddVertex());
         Assert.Equal(2, gesture.Route().Count);
     }
