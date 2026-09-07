@@ -228,6 +228,35 @@ public sealed class GuidedTipPlacementTests
     }
 
     [Fact]
+    public void SamplesRoundABendAreNotMistakenForDuplicates()
+    {
+        // Two legs at 90°, sampled 2.5 mm apart along the surface: the tip just past the corner
+        // is 1.77 mm from the one just before it in a straight line, yet both must stay (the
+        // roof gripper's fillets lost a tip each way when the radius was the pitch).
+        var mesh = UnitBox();
+        var legs = new List<SurfacePath>
+        {
+            SurfacePath.Chord(new Vector3(-4, 4, 0), 0, new Vector3(-4, -1, 0), 0),
+            SurfacePath.Chord(new Vector3(-4, -1, 0), 0, new Vector3(1, -1, 0), 1),
+        };
+        var samples = SurfacePath.SampleAtPitch(legs, 2.5f, 2.5f);
+
+        var candidates = GuidedTipPlacement.Candidates(mesh, samples, Parameters(2.5f));
+
+        Assert.Equal(samples.Count, candidates.Count);
+    }
+
+    [Fact]
+    public void TheSamePointSampledTwiceIsOneCandidate()
+    {
+        var mesh = UnitBox();
+        var candidates = GuidedTipPlacement.Candidates(mesh,
+            [(new Vector3(-2, 2, 0), 0), (new Vector3(-2, 2, 0), 0), (new Vector3(-2, 2.5f, 0), 0)],
+            Parameters(2.5f));
+        Assert.Single(candidates);
+    }
+
+    [Fact]
     public void WithNoExistingGraphNothingIsDropped()
     {
         var mesh = UnitBox();

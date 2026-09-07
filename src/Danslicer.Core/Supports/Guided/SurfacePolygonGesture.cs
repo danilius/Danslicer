@@ -90,9 +90,14 @@ public sealed class SurfacePolygonGesture : IGuidedGesture
         {
             RegionGrid = new RegionGridOptions { VerticalPitchMm = PitchMm, HorizontalPitchMm = PitchMm },
         });
-        var samples = new List<(Vector3 Point, int Face)>(boundary);
-        samples.AddRange(grid.Where(c => inside(c.Point)).Select(c => (c.Point, c.FaceIndex)));
-        return GuidedTipPlacement.Candidates(_mesh, samples, parameters, existing);
+        // The boundary first, at its own spacing along the loop; then the grid, which keeps a
+        // full spacing from the boundary tips so the edge row is not doubled.
+        var edge = GuidedTipPlacement.Candidates(_mesh, boundary, parameters, existing);
+        var fill = GuidedTipPlacement.Candidates(_mesh,
+            grid.Where(c => inside(c.Point)).Select(c => (c.Point, c.FaceIndex)).ToList(),
+            parameters, existing, duplicateRadiusMm: parameters.MinSpacingMm,
+            keepClearOf: edge.Select(c => c.Point).ToList());
+        return edge.Concat(fill).ToList();
     }
 
     /// <summary>The cursor is a corner of its own when it sits away from the last clicked one.</summary>

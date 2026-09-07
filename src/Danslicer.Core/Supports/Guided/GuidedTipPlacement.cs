@@ -22,24 +22,28 @@ public static class GuidedTipPlacement
     /// </summary>
     public static IReadOnlyList<TipCandidate> Candidates(Mesh mesh,
         IReadOnlyList<(Vector3 Point, int Face)> samples, TipPlacementParameters parameters,
-        SupportGraph? existing = null)
+        SupportGraph? existing = null, float? duplicateRadiusMm = null,
+        IReadOnlyList<Vector3>? keepClearOf = null)
     {
         var existingTips = existing?.Nodes
             .Where(node => node.Type == SupportNodeType.Tip)
             .Select(node => node.Position).ToList() ?? [];
-        // Samples sit exactly one pitch apart, and the pitch is usually the minimum spacing
-        // itself; a hair of tolerance keeps rounding from dropping every second one.
-        var minSpacing = MathF.Max(0f, parameters.MinSpacingMm - 1e-3f);
-        var minSpacingSquared = minSpacing * minSpacing;
+        // Samples are spaced along the surface, so around a bend two of them are closer in a
+        // straight line than the pitch (a 30° fillet on the roof gripper left a 5 mm gap when
+        // the radius was the pitch itself). The duplicate radius is therefore only ever meant
+        // to fold together the same point sampled twice — a shared origin, a polygon corner —
+        // and defaults to half the spacing, less a hair for rounding.
+        var duplicate = MathF.Max(0f, (duplicateRadiusMm ?? parameters.MinSpacingMm * 0.5f) - 1e-3f);
+        var duplicateSquared = duplicate * duplicate;
         var clearance = MathF.Max(0f, (parameters.ExistingTipClearanceMm ?? parameters.MinSpacingMm) - 1e-3f);
         var clearanceSquared = clearance * clearance;
-        var taken = new List<Vector3>();
+        var taken = new List<Vector3>(keepClearOf ?? []);
         var result = new List<TipCandidate>(samples.Count);
         foreach (var (point, face) in samples)
         {
             if ((uint)face >= (uint)mesh.TriangleCount) continue;
             if (existingTips.Any(tip => Vector3.DistanceSquared(tip, point) < clearanceSquared)) continue;
-            if (taken.Any(tip => Vector3.DistanceSquared(tip, point) < minSpacingSquared)) continue;
+            if (taken.Any(tip => Vector3.DistanceSquared(tip, point) < duplicateSquared)) continue;
             taken.Add(point);
             result.Add(new TipCandidate(point, -mesh.FaceNormals[face], parameters.TipDiameterMm,
                 Score: 5f, TipStrategy.Guided, face, parameters.TipShape, parameters.ConeLengthMm,
