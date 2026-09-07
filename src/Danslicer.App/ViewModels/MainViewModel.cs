@@ -222,8 +222,13 @@ public partial class MainViewModel : ViewModelBase
         if (obj?.SourcePath is not { Length: > 0 } path) return;
         try
         {
-            var mesh = MeshFile.Read(path);
-            Document.ReloadObject(obj, mesh);
+            // Seated like an import, with the translation compensated so the model stays where
+            // it is in the world — an object imported before seating existed keeps its place too.
+            var raw = MeshFile.Read(path);
+            var seat = raw.SeatTranslation;
+            var t = obj.Transform;
+            var shift = Vector3.Transform(seat * t.Scale, t.Rotation);
+            Document.ReloadObject(obj, raw.Translated(seat), t with { Translation = t.Translation - shift });
             ViewportStatus = $"Updated {obj.Name} from {System.IO.Path.GetFileName(path)}.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
@@ -835,18 +840,20 @@ public partial class MainViewModel : ViewModelBase
 
     public void ImportMesh(string path)
     {
-        var mesh = MeshFile.Read(path);
-        var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), mesh)
+        // The file's own offset is baked into the mesh (XY centred, lowest point at Z = 0), so
+        // the transform's translation is the model's place on the plate and the position fields
+        // read as such (user report 2026-09-08). The height is the placement mode's business:
+        // an import lands exactly where Auto Drop (or the raise-above-plate offset) says it
+        // should. With placement off the model keeps the height it was authored at, carried in
+        // the translation where the position field shows it honestly.
+        var raw = MeshFile.Read(path);
+        var seat = raw.SeatTranslation;
+        var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), raw.Translated(seat))
         {
             SourcePath = System.IO.Path.GetFullPath(path),
         };
-        var b = mesh.Bounds;
-        // Centred on the plate in XY; the height is the placement mode's business, so an import
-        // lands exactly where Auto Drop (or the raise-above-plate offset) says it should, instead
-        // of being seated by a rule of its own that the first transform would then overrule.
-        // With placement off the model keeps the height it was authored at.
         obj.Transform = Document.ApplyPlacement(obj,
-            Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, 0f) });
+            Transform.Identity with { Translation = new Vector3(0f, 0f, -seat.Z) });
         Document.AddObject(obj);
     }
 

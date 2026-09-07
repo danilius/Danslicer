@@ -383,7 +383,7 @@ public sealed class Document
     /// <para>Reading the file is the caller's job, so that file errors are reported where the
     /// user clicked rather than thrown out of the document.</para>
     /// </summary>
-    public void ReloadObject(SceneObject obj, Mesh mesh)
+    public void ReloadObject(SceneObject obj, Mesh mesh, Transform? transform = null)
     {
         ArgumentNullException.ThrowIfNull(obj);
         ArgumentNullException.ThrowIfNull(mesh);
@@ -391,7 +391,7 @@ public sealed class Document
         var commands = new List<IDocumentCommand>
         {
             new SetMeshTransformCommand(obj, obj.Mesh, obj.Transform, mesh,
-                ApplyPlacement(mesh, obj.Transform), name),
+                ApplyPlacement(mesh, transform ?? obj.Transform), name),
         };
         if (!obj.Regions.IsEmpty)
             commands.Add(new SetSupportRegionsCommand(obj, ObjectSupportRegions.Empty, name));
