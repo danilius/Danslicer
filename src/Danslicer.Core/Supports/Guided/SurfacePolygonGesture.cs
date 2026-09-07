@@ -27,7 +27,8 @@ public sealed class SurfacePolygonGesture : IGuidedGesture
     }
 
     public string Name => "Support polygon";
-    public bool PlacesOnClick => false;
+    public bool ReadyToPlace => false;
+    public string Hint => "LMB add corner · double-click/Enter place · Backspace remove corner";
     public float PitchMm => _line.PitchMm;
     public IReadOnlyList<(Vector3 Point, int Face)> Vertices => _line.Vertices;
     public bool HasVertices => _line.HasVertices;

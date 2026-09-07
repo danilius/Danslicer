@@ -34,7 +34,8 @@ public sealed class SurfaceLineGesture : IGuidedGesture
     }
 
     public string Name => "Support line";
-    public bool PlacesOnClick => false;
+    public bool ReadyToPlace => false;
+    public string Hint => "LMB add point · double-click/Enter place · Backspace remove point";
     public float PitchMm { get; private set; }
     public IReadOnlyList<(Vector3 Point, int Face)> Vertices => _vertices;
     public bool HasVertices => _vertices.Count > 0;

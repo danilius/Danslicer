@@ -13,8 +13,16 @@ public interface IGuidedGesture
     /// <summary>Shown in the status line and used as the undo step's name, e.g. "Support line".</summary>
     string Name { get; }
 
-    /// <summary>True for a gesture with nothing to collect, where the first click places (edge follow).</summary>
-    bool PlacesOnClick { get; }
+    /// <summary>
+    /// True when the next click places: the host adds the click as a vertex and, if that
+    /// succeeds, commits at once. Edge follow is ready whenever a crease is under the cursor;
+    /// the ring once its centre is set; the line and polygon never (they place on Enter or a
+    /// double-click).
+    /// </summary>
+    bool ReadyToPlace { get; }
+
+    /// <summary>What the left button does right now, for the status line, e.g. "LMB set centre".</summary>
+    string Hint { get; }
 
     float PitchMm { get; }
     void SetPitch(float pitchMm);

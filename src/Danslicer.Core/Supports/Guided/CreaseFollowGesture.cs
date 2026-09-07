@@ -30,7 +30,8 @@ public sealed class CreaseFollowGesture : IGuidedGesture
     }
 
     public string Name => "Support edge";
-    public bool PlacesOnClick => true;
+    public bool ReadyToPlace => _trace is not null;
+    public string Hint => _trace is null ? "hover near a sharp edge" : "LMB place";
     public float PitchMm => _pitch;
     /// <summary>How far from a crease the cursor may be and still snap to it; the host sets it from the zoom.</summary>
     public float SnapDistanceMm { get; set; } = 1.5f;
