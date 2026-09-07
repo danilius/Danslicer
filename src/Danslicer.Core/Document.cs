@@ -823,7 +823,9 @@ public sealed class Document
             MiniSupportMaxAngleDegrees = settings.MiniSupportMaxAngleDegrees,
             MiniSupportMaxFanPerBranchEnd = settings.MiniSupportMaxFanPerBranchEnd,
             FineFeatureMinisFallBackToRegular = settings.FineFeatureMinisFallBackToRegular,
-            RefusedTipsFallBackToMini = settings.RefusedTipsFallBackToMini,
+            // Mini supports are set aside (2026-09-07): a refused contact stays refused rather
+            // than becoming a mini fanning off a branch end, whatever a saved config says.
+            RefusedTipsFallBackToMini = false,
             UseBaseGrid = settings.UseBaseGrid,
             BaseGridPitch = settings.BaseGridPitch,
             BaseShape = settings.BaseShape,
@@ -1022,7 +1024,10 @@ public sealed class Document
                 MiniSupportMaxFanPerBranchEnd = request.Settings.MiniSupportMaxFanPerBranchEnd,
                 FineFeatureMinisFallBackToRegular =
                     request.Settings.FineFeatureMinisFallBackToRegular,
-                RefusedTipsFallBackToMini = request.Settings.RefusedTipsFallBackToMini,
+                // Mini supports are set aside (2026-09-07): a refused contact stays refused
+                // rather than becoming a mini fanning off a branch end, whatever a saved
+                // config says. (Their checkbox is gone, but the saved value lived on.)
+                RefusedTipsFallBackToMini = false,
                 UseBaseGrid = request.Settings.UseBaseGrid,
                 BaseGridPitch = request.Settings.BaseGridPitch,
                 BaseShape = request.Settings.BaseShape,
