@@ -283,6 +283,78 @@ when it is at least `MinSpacingMm` from the previous one.
 4. Ring, contour.
 5. Array, mirror, densify, thin, stamp.
 
+## Parenting (user direction, 2026-09-08; spec for approval)
+
+Guided placement ignores existing supports by default, so a line, polygon or edge produces
+one trunk per tip. **Parenting** is the explicit command that turns a crowd of single
+supports into trees: branches are parented to trunks so fewer trunks stand. It is never
+automatic (user decision 1: the user runs it or not).
+
+### What it operates on
+
+- The selected tips of the support target, or every tip of the target when nothing is
+  selected (user decision 2). Selecting any element of a support selects that support's
+  tip for this purpose.
+- Each operand tip's **whole support** (cone, branch, trunk, base) is taken down and the
+  tip is routed again. Supports that are not operands stay exactly as they are; they act
+  as trunks the operands may join and as obstacles, as in generation.
+
+### How it works
+
+Parenting is **generation's routing applied to existing tips**: the operand tips are
+routed together through the tree router with trunk sharing on, in the router's own
+deterministic order. The three outcomes the user asked for (decision 3) all follow from
+that one re-route:
+
+- **Merged.** Two operand tips whose trunks stood apart now share one trunk, the second
+  reaching it by a branch.
+- **Removed.** A trunk whose tip found an existing trunk within branch range no longer
+  exists; its base goes with it.
+- **Moved.** In grid mode every surviving trunk stands on a lattice point, chosen by the
+  grid rules (nearest reachable, nearer base beats farther trunk). In free mode a trunk
+  stands where the router puts it, under its first tip; a later stage may move a shared
+  trunk to the centroid of the tips it carries — see "Later".
+
+**A tip never loses its support to parenting.** A tip the re-route refuses keeps the
+support it had. The whole command is one undo step, named "Parent supports", and the
+status line reports "n supports → m trunks (k unchanged)".
+
+### Modes
+
+- **Grid mode** (base grid on): trunks on lattice points; sharing, snapping onto trunk
+  axes, member separation and every other grid-mode rule apply.
+- **Free mode** (base grid off): normally every support is blind to every other. Parenting
+  is the one operation that turns sharing on in free mode, because sharing is what the
+  user asked for by running it. Trunks are not moved to any lattice.
+
+### Configuration ("Parenting" expander of the Supports pop-out)
+
+- **Max branch length** (mm, default the Members value): how far a tip may reach to join a
+  trunk.
+- **Max branch angle** (°, default the Members value): the steepest branch allowed; a
+  shallower limit keeps branches short and stiff.
+- **Trunk search range** (mm, default the Members "Existing trunk range"): how far around
+  a tip the router looks for a trunk to join before raising its own.
+- **Min tips per trunk** (default 1): after the re-route, a trunk carrying fewer tips than
+  this is re-routed once more with the range doubled; if it still stands alone it stays.
+  Guards against a parenting pass that merges nothing.
+
+These default to the Members values so that parenting and generation agree unless the
+user says otherwise (configurability directive).
+
+### UI
+
+- Key **J** (join) in Support mode and a **Parent** button in the Supports pop-out (every
+  key has a button). No modal: the command runs at once.
+- Undo restores every original support element, including bases, with their ids, so
+  selections and hidden flags survive an undo.
+
+### Later, not in the first cut
+
+- **Centroid trunks** in free mode: a shared trunk moved to the XY centroid of its tips,
+  with the branches re-fitted, when every branch then meets the angle and length limits.
+- **Bracing** between neighbouring trunks (its own section to come).
+
 ## Still open
 
 - Embedding depth: assumed measured along the tip axis past the contact point.
