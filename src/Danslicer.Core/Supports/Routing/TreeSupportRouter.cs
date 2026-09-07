@@ -89,11 +89,19 @@ public sealed class TreeSupportRouter
     /// </summary>
     private const int TipDirectionAttempts = 2;
     /// <summary>
-    /// A junction this close (horizontally, in branch radii) to a trunk axis is snapped onto
-    /// the axis and the cone lands on the trunk directly, instead of a stub branch shorter than
-    /// the ball it would start from bridging the gap.
+    /// A junction closer (horizontally) than this fraction of the tip member length to a trunk
+    /// axis or grid drop line is first offered a snap onto it: the cone is re-aimed at the line,
+    /// by at most 30° for a vertical cone, and lands on the trunk directly. Only when the snap
+    /// is impossible may a branch bridge the gap, and never one shorter than the ball it starts
+    /// from (see <see cref="MinBranchOffsetBranchRadii"/>).
     /// </summary>
-    private const float JunctionSnapBranchRadii = 1f;
+    private const float JunctionSnapMemberFraction = 0.5f;
+    /// <summary>
+    /// A branch never starts closer (horizontally, in branch radii) than this to the trunk line
+    /// it descends to: such a branch would be shorter than its own ball, a stub that reads as a
+    /// defect (user screen test 2026-09-07).
+    /// </summary>
+    private const float MinBranchOffsetBranchRadii = 1f;
     private readonly ICollisionScene _obstacles;
     private readonly GrowthRuleSet _rules;
 
@@ -590,17 +598,27 @@ public sealed class TreeSupportRouter
         return false;
     }
 
+    /// <summary>
+    /// Routes from one junction. Two plans are worked out without touching the graph: joining
+    /// an existing trunk, and a support of the tip's own (a straight drop, a snapped drop line,
+    /// or one branch to a fresh trunk). With the existing-trunk preference on, grid mode joins
+    /// the existing trunk when its branch is at most half a grid pitch longer than the fresh
+    /// route's (user decision 2026-09-07: a branch should not reach far past a nearer free
+    /// base), while free mode joins any reachable trunk as it always has. With the preference
+    /// off an existing trunk is only a last resort.
+    /// </summary>
     private bool TryRouteFromJunction(RoutingTip tip, Vector3 branchJunction,
         float branchTipDiameter, float trunkTipDiameter, float tipMemberLength,
         TreeRoutingOptions options, RouteState state, out RoutingFailureReason reason)
     {
         var separationRejections = state.SeparationRejections;
         reason = RoutingFailureReason.NoClearStep;
+        var snap = tipMemberLength * JunctionSnapMemberFraction;
 
-        // Branch-first: an existing trunk gets first refusal, and a tip feeding that branch
-        // tapers from the configured branch diameter.
-        if (options.PreferExistingTrunks && branchJunction.Z > options.PlateZ + Epsilon &&
-            TryAttachToTrunk(tip, branchJunction, options, state, branchTipDiameter)) return true;
+        var minBranchOffset = options.BranchDiameter * 0.5f * MinBranchOffsetBranchRadii;
+        var existing = branchJunction.Z > options.PlateZ + Epsilon
+            ? FindTrunkAttachment(tip, branchJunction, options, state, minBranchOffset)
+            : null;
 
         // A tip connected directly to a trunk (or directly to its base near the plate) tapers
         // from the trunk setting, independently of BranchDiameter: the same direction must
@@ -614,6 +632,9 @@ public sealed class TreeSupportRouter
                                  trunkMemberRadius))
             ? branchJunction
             : (Vector3?)null;
+
+        Action? own = null;
+        var ownLength = float.PositiveInfinity;
         if (trunkJunction is { } trunkJ1)
         {
             if (trunkJ1.Z <= options.PlateZ + Epsilon)
@@ -622,28 +643,35 @@ public sealed class TreeSupportRouter
                     trunkTipDiameter, tipMemberLength);
                 if (baseJunction is { } baseJ1)
                 {
-                    EmitSupport(tip, new Vector3(baseJ1.X, baseJ1.Y, options.PlateZ), null,
+                    own = () => EmitSupport(tip,
+                        new Vector3(baseJ1.X, baseJ1.Y, options.PlateZ), null,
                         tipOnly: true, options, state, trunkTipDiameter);
-                    return true;
+                    ownLength = 0f;
                 }
             }
             else if ((!options.UseBaseGrid || IsOnBaseGrid(trunkJ1, options)) &&
                      TrunkIsClear(trunkJ1, options, state))
             {
-                EmitSupport(tip, trunkJ1, null, tipOnly: false,
+                own = () => EmitSupport(tip, trunkJ1, null, tipOnly: false,
                     options, state, trunkTipDiameter);
-                return true;
+                ownLength = 0f;
             }
             else if (options.UseBaseGrid &&
-                     TrySnapToGridDropLine(tip, trunkJ1, trunkTipDiameter, tipMemberLength,
-                         options, state))
-                return true;
+                     FindGridDropLineSnap(tip, trunkJ1, trunkTipDiameter, tipMemberLength,
+                         snap, options, state) is { } snapped)
+            {
+                own = () => EmitSupport(tip, snapped, null, tipOnly: false,
+                    options, state, trunkTipDiameter);
+                ownLength = 0f;
+            }
         }
 
         // The straight candidate was handled with trunk-derived tip geometry above. Every
         // remaining candidate introduces a branch, so both it and its tip use branch settings.
-        var trunkTops = TrunkTopCandidates(branchJunction, options, state.AngleOffset,
-            TipMemberDirection(tip.SurfacePoint, branchJunction)).ToList();
+        var trunkTops = own is null
+            ? TrunkTopCandidates(branchJunction, options, state.AngleOffset,
+                TipMemberDirection(tip.SurfacePoint, branchJunction), minBranchOffset).ToList()
+            : [];
         foreach (var candidate in trunkTops)
         {
             var trunkTop = candidate.Top;
@@ -656,12 +684,27 @@ public sealed class TreeSupportRouter
                     branchJunction, branchTipDiameter * 0.5f, trunkTop,
                     new Vector3(trunkTop.X, trunkTop.Y, options.PlateZ),
                     options.TrunkDiameter * 0.5f)) continue;
-            EmitSupport(tip, trunkTop, branchJunction, tipOnly: false,
+            own = () => EmitSupport(tip, trunkTop, branchJunction, tipOnly: false,
                 options, state, branchTipDiameter);
+            ownLength = candidate.Length;
+            break;
+        }
+
+        var allowance = !options.PreferExistingTrunks ? float.NegativeInfinity
+            : options.UseBaseGrid ? options.BaseGridPitch * 0.5f
+            : float.PositiveInfinity;
+        if (existing is { } join &&
+            (own is null || join.Length <= ownLength + allowance))
+        {
+            EmitTrunkAttachment(tip, branchJunction, join, options, state, branchTipDiameter);
             return true;
         }
-        if (!options.PreferExistingTrunks && branchJunction.Z > options.PlateZ + Epsilon &&
-            TryAttachToTrunk(tip, branchJunction, options, state, branchTipDiameter)) return true;
+        if (own is not null)
+        {
+            own();
+            return true;
+        }
+
         var straightGridCandidateWasBlocked = options.UseBaseGrid &&
                                               trunkJunction is { } straightJunction &&
                                               straightJunction.Z > options.PlateZ + Epsilon &&
@@ -763,7 +806,7 @@ public sealed class TreeSupportRouter
     private bool TrySnapOntoNearTrunk(RoutingTip tip, Vector3 j1, float trunkTipDiameter,
         float tipMemberLength, TreeRoutingOptions options, RouteState state)
     {
-        var snap = options.BranchDiameter * 0.5f * JunctionSnapBranchRadii;
+        var snap = tipMemberLength * JunctionSnapMemberFraction;
         foreach (var trunk in state.Trunks
                      .Where(trunk => Vector2.Distance(new(j1.X, j1.Y), trunk.Xy) <= snap)
                      .OrderBy(trunk => Vector2.DistanceSquared(new(j1.X, j1.Y), trunk.Xy))
@@ -779,13 +822,12 @@ public sealed class TreeSupportRouter
 
     /// <summary>
     /// Grid mode, junction just off a drop line: rather than a stub branch to the lattice point,
-    /// re-aim the cone at the drop line (same member length, a few degrees off its normal) and
-    /// drop the trunk straight from there.
+    /// the cone is re-aimed at the drop line (same member length) and the trunk drops straight
+    /// from there. Returns the re-aimed junction, or null when no such line is usable.
     /// </summary>
-    private bool TrySnapToGridDropLine(RoutingTip tip, Vector3 j1, float tipMemberDiameter,
-        float tipMemberLength, TreeRoutingOptions options, RouteState state)
+    private Vector3? FindGridDropLineSnap(RoutingTip tip, Vector3 j1, float tipMemberDiameter,
+        float tipMemberLength, float snap, TreeRoutingOptions options, RouteState state)
     {
-        var snap = options.BranchDiameter * 0.5f * JunctionSnapBranchRadii;
         foreach (var xy in BaseLattice.NearestSquarePoints(new Vector2(j1.X, j1.Y),
                      options.BaseGridPitch, snap))
         {
@@ -793,10 +835,9 @@ public sealed class TreeSupportRouter
             if (!TipMemberIsClear(tip, snapped, tipMemberDiameter, options.TrunkDiameter, state,
                     null)) continue;
             if (!TrunkIsClear(snapped, options, state)) continue;
-            EmitSupport(tip, snapped, null, tipOnly: false, options, state, tipMemberDiameter);
-            return true;
+            return snapped;
         }
-        return false;
+        return null;
     }
 
     /// <summary>
@@ -914,29 +955,28 @@ public sealed class TreeSupportRouter
     }
 
     /// <summary>
-    /// One member-angle branch descending from the junction onto an earlier trunk of this run.
-    /// The bend at the ball between the cone tip and the branch may not exceed the member
-    /// angle, so a branch never doubles back on the cone it grows from. A trunk whose top is too
-    /// low for a member-angle branch first offers a shallower branch at its top; only when that
-    /// is refused is the trunk raised, by a new segment above its top, to meet a member-angle
-    /// branch. Existing branches on the trunk are untouched. Nearest trunk first; the trunk
-    /// segment is split at the attachment point.
+    /// One member-angle branch descending from the junction onto an earlier trunk of this run,
+    /// found without touching the graph. The bend at the ball between the cone tip and the
+    /// branch may not exceed the member angle, so a branch never doubles back on the cone it
+    /// grows from. A trunk whose top is too low for a member-angle branch first offers a
+    /// shallower branch at its top; only when that is refused is the trunk raised, by a new
+    /// segment above its top, to meet a member-angle branch. A trunk closer than
+    /// <paramref name="minOffset"/> never gets a branch: that would be a stub. Nearest trunk
+    /// first.
     /// </summary>
-    private bool TryAttachToTrunk(RoutingTip tip, Vector3 j1, TreeRoutingOptions options,
-        RouteState state, float tipMemberDiameter)
+    private ExistingTrunkCandidate? FindTrunkAttachment(RoutingTip tip, Vector3 j1,
+        TreeRoutingOptions options, RouteState state, float minOffset)
     {
         var branchRule = _rules.Find<BranchGrowthRule>();
         var maxBranches = branchRule is { Enabled: true } ? branchRule.MaxBranchesPerTrunk : int.MaxValue;
         var maxAngle = options.MaxMemberAngleDegrees * MathF.PI / 180f;
         var tanAngle = MathF.Tan(maxAngle);
         var tipDirection = TipMemberDirection(tip.SurfacePoint, j1);
-        var snap = options.BranchDiameter * 0.5f * JunctionSnapBranchRadii;
         var candidates = new List<ExistingTrunkCandidate>();
         foreach (var trunk in state.Trunks)
         {
             var hDist = Vector2.Distance(new(j1.X, j1.Y), trunk.Xy);
-            // A trunk this close is a snap target (already tried), never a stub branch's.
-            if (hDist <= snap) continue;
+            if (hDist <= minOffset) continue;
             if (trunk.BranchCount >= maxBranches) continue;
             // A hair steeper than the exact member angle, so float rounding in the lean rule
             // can never clamp (and thereby reject) a nominally-exact 45° branch.
@@ -980,22 +1020,9 @@ public sealed class TreeSupportRouter
                 if (state.ViolatesMemberSeparation(j1, attach, branchRadius,
                         null, sharedNode, [targetSegment.Id])) continue;
             }
-
-            var attachNode = candidate.RaisesTrunk
-                ? RaiseTrunk(trunk, attachZ, options, state)
-                : attachesAtTop
-                    ? state.Graph.GetNode(trunk.TopNodeId)
-                    : SplitTrunk(trunk, attachZ, state);
-            var tipNode = EmitTipMember(tip, j1, options, state, tipMemberDiameter,
-                options.BranchDiameter);
-            var branch = state.AddSegment(SupportSegmentType.Branch, tipNode.Junction, attachNode,
-                options.BranchDiameter, options.Origin);
-            state.RegisterBranchEnd(tipNode.Junction);
-            trunk.BranchSegmentIds.Add(branch.Id);
-            trunk.BranchCount++;
-            return true;
+            return candidate;
         }
-        return false;
+        return null;
 
         void AddCandidate(TrunkRecord trunk, float attachZ, bool raisesTrunk)
         {
@@ -1013,6 +1040,26 @@ public sealed class TreeSupportRouter
             candidates.Add(new ExistingTrunkCandidate(trunk, attach, branchLength,
                 branchLength + bendPenalty, raisesTrunk));
         }
+    }
+
+    /// <summary>Emits a validated <see cref="FindTrunkAttachment"/> plan: the tip member, its branch, and any trunk split or raise.</summary>
+    private void EmitTrunkAttachment(RoutingTip tip, Vector3 j1, ExistingTrunkCandidate candidate,
+        TreeRoutingOptions options, RouteState state, float tipMemberDiameter)
+    {
+        var trunk = candidate.Trunk;
+        var attachZ = candidate.Attach.Z;
+        var attachNode = candidate.RaisesTrunk
+            ? RaiseTrunk(trunk, attachZ, options, state)
+            : MathF.Abs(attachZ - trunk.TopZ) <= 1e-3f
+                ? state.Graph.GetNode(trunk.TopNodeId)
+                : SplitTrunk(trunk, attachZ, state);
+        var tipNode = EmitTipMember(tip, j1, options, state, tipMemberDiameter,
+            options.BranchDiameter);
+        var branch = state.AddSegment(SupportSegmentType.Branch, tipNode.Junction, attachNode,
+            options.BranchDiameter, options.Origin);
+        state.RegisterBranchEnd(tipNode.Junction);
+        trunk.BranchSegmentIds.Add(branch.Id);
+        trunk.BranchCount++;
     }
 
     /// <summary>
@@ -1093,7 +1140,8 @@ public sealed class TreeSupportRouter
     /// restores the deterministic branch fan used before bases were constrained to a grid.
     /// </summary>
     private static IEnumerable<TrunkTopCandidate> TrunkTopCandidates(Vector3 j1,
-        TreeRoutingOptions options, float angleOffset, Vector3? tipDirection = null)
+        TreeRoutingOptions options, float angleOffset, Vector3? tipDirection = null,
+        float minOffset = 0f)
     {
         // With a tip direction, the bend at the ball is limited to the member angle and the
         // branch that simply continues the cone's own axis is offered first at every length.
@@ -1147,14 +1195,13 @@ public sealed class TreeSupportRouter
 
         var angle = options.MaxMemberAngleDegrees * MathF.PI / 180f;
         var maxHorizontal = options.MaxBranchLength * MathF.Sin(angle);
-        var snap = options.BranchDiameter * 0.5f * JunctionSnapBranchRadii;
         var candidates = new List<TrunkTopCandidate>();
         foreach (var xy in BaseLattice.NearestSquarePoints(new Vector2(j1.X, j1.Y),
                      options.BaseGridPitch, maxHorizontal))
         {
             var horizontal = Vector2.Distance(new(j1.X, j1.Y), xy);
-            // A drop line this close is a snap target, never the end of a stub branch.
-            if (tipDirection is not null && horizontal <= snap) continue;
+            // A branch to a drop line this close would be shorter than its own ball.
+            if (horizontal <= minOffset) continue;
             foreach (var candidateDegrees in new[]
                      {
                          options.MaxMemberAngleDegrees,
@@ -1481,9 +1528,14 @@ public sealed class TreeSupportRouter
                 var a = Graph.GetNode(segment.NodeA);
                 var b = Graph.GetNode(segment.NodeB);
                 if (a.Disabled || b.Disabled) continue;
+                // An existing cone tip occupies the radius of the ball it grows from, exactly
+                // as a freshly routed one does; seeding it at its neck let new cones crowd it.
+                var radius = SupportSliceGeometry.TryConeTip(a, b, out _, out _)
+                    ? MathF.Max(segment.Diameter,
+                        SupportSliceGeometry.TipJunctionDiameter(Graph, segment)) * 0.5f
+                    : segment.Diameter * 0.5f;
                 _capsules.Add(new GeneratedCapsule(a.Position, b.Position,
-                    segment.Diameter * 0.5f, segment.Id, segment.Type,
-                    segment.NodeA, segment.NodeB));
+                    radius, segment.Id, segment.Type, segment.NodeA, segment.NodeB));
             }
 
             var trunkNodes = new HashSet<Guid>();

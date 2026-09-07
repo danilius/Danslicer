@@ -860,6 +860,23 @@ public sealed class RoutingTreeTests
     }
 
     [Fact]
+    public void ExistingConeKeepsItsBaseRadiusAgainstLaterPasses()
+    {
+        // A cone already in the document (from an earlier generation or a manual placement)
+        // is as wide as its ball; a later pass must not crowd it as if it were only its neck.
+        var first = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
+            new TreeRoutingOptions { UseBaseGrid = false });
+        Assert.Empty(first.Failures);
+
+        var second = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default)
+            .Route(new[] { new RoutingTip(new(1.35f, 0, 10), Vector3.UnitZ, 0.4f) },
+                new TreeRoutingOptions { UseBaseGrid = false }, first.Graph);
+
+        var failure = Assert.Single(second.Failures);
+        Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
+    }
+
+    [Fact]
     public void JunctionNearATrunkAxisLandsTheConeOnTheTrunk()
     {
         // The second tip's junction would sit 0.4 mm beside the first trunk. Instead of a stub

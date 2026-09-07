@@ -148,7 +148,11 @@ public sealed class MemberSeparationTests
     [Fact]
     public void RoutedBranchDoesNotLeaveItsTipTooCloseToItsOwnTrunk()
     {
-        var tip = new RoutingTip(new(0.7f, 0, 10), Vector3.UnitZ, 0.4f);
+        // 1.2 mm off the drop line: beyond snapping, so the tip gets a 45° branch to the
+        // lattice trunk, whose centreline then passes 1.7 mm from the tip member. A 1 mm
+        // surface gap between 1.2 mm members needs 2.2 mm, so the separated route must take
+        // a shallower branch that lowers the trunk top and opens the gap.
+        var tip = new RoutingTip(new(1.2f, 0, 10), Vector3.UnitZ, 0.4f);
         var router = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
         var baseline = router.Route([tip], new TreeRoutingOptions { BaseGridPitch = 4f });
         var separated = router.Route([tip], new TreeRoutingOptions
@@ -157,8 +161,8 @@ public sealed class MemberSeparationTests
             MinMemberSeparationMm = 1f,
         });
 
-        Assert.True(MemberSeparation.CountPairs(baseline.Graph, 1f) > 0);
-        Assert.Equal(0, MemberSeparation.CountPairs(separated.Graph, 1f));
+        Assert.True(MemberSeparation.CountPairs(baseline.Graph, 2.2f) > 0);
+        Assert.Equal(0, MemberSeparation.CountPairs(separated.Graph, 2.2f));
         Assert.Empty(separated.Failures);
     }
 
