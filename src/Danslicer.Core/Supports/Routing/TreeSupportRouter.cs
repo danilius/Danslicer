@@ -138,9 +138,12 @@ public sealed class TreeSupportRouter
         var ids = new DeterministicIds(options.Seed);
         var clearance = RoutingClearance.From(_rules, options.KeepCleanObstacleTags);
         var angleOffset = new Random(options.Seed).NextSingle() * MathF.Tau;
+        // Free mode (grid off): every contact gets a complete support of its own and knows
+        // nothing about any other support, existing or new, even if they collide (user
+        // decision 2026-09-07). Only grid mode shares trunks and keeps members apart.
         var state = new RouteState(graph, ids, clearance, angleOffset,
-            options.MinMemberSeparationMm);
-        if (existingGraph is not null && !options.IgnoreExistingSupports)
+            options.MinMemberSeparationMm, seesOtherSupports: options.UseBaseGrid);
+        if (existingGraph is not null && !options.IgnoreExistingSupports && options.UseBaseGrid)
             state.SeedExistingContext();
         var unrouted = new List<RoutingTip>();
         var failures = new List<RoutingFailure>();
@@ -583,7 +586,8 @@ public sealed class TreeSupportRouter
         {
             // A trunk right beside where the cone would end is the cone's junction, even though
             // the cone as first aimed would run into that trunk.
-            if (TrySnapOntoNearTrunk(tip, candidate.End, trunkTipDiameter, tipMemberLength,
+            if (options.UseBaseGrid &&
+                TrySnapOntoNearTrunk(tip, candidate.End, trunkTipDiameter, tipMemberLength,
                     options, state)) return true;
             if (!candidate.Clear) continue;
             anyClear = true;
@@ -622,8 +626,8 @@ public sealed class TreeSupportRouter
     /// or one branch to a fresh trunk). With the existing-trunk preference on, grid mode joins
     /// the existing trunk when its branch is at most half a grid pitch longer than the fresh
     /// route's (user decision 2026-09-07: a branch should not reach far past a nearer free
-    /// base), while free mode joins any reachable trunk as it always has. With the preference
-    /// off an existing trunk is only a last resort.
+    /// base); with the preference off an existing trunk is only a last resort. Free mode never
+    /// joins another support.
     /// </summary>
     private bool TryRouteFromJunction(RoutingTip tip, Vector3 branchJunction,
         float branchTipDiameter, float trunkTipDiameter, float tipMemberLength,
@@ -634,7 +638,7 @@ public sealed class TreeSupportRouter
         var snap = tipMemberLength * JunctionSnapMemberFraction;
 
         var minBranchOffset = options.BranchDiameter * 0.5f * MinBranchOffsetBranchRadii;
-        var existing = branchJunction.Z > options.PlateZ + Epsilon
+        var existing = options.UseBaseGrid && branchJunction.Z > options.PlateZ + Epsilon
             ? FindTrunkAttachment(tip, branchJunction, options, state, minBranchOffset)
             : null;
 
@@ -708,9 +712,9 @@ public sealed class TreeSupportRouter
             break;
         }
 
-        var allowance = !options.PreferExistingTrunks ? float.NegativeInfinity
-            : options.UseBaseGrid ? options.BaseGridPitch * 0.5f
-            : float.PositiveInfinity;
+        var allowance = options.PreferExistingTrunks
+            ? options.BaseGridPitch * 0.5f
+            : float.NegativeInfinity;
         if (existing is { } join &&
             (own is null || join.Length <= ownLength + allowance))
         {
@@ -1539,14 +1543,21 @@ public sealed class TreeSupportRouter
         private readonly float _minimumMemberSeparation;
         public int SeparationRejections { get; private set; }
 
+        /// <summary>
+        /// Whether members see one another at all. Off in free mode, where every support is
+        /// routed as if alone: no collision, separation or near-pass check against members.
+        /// </summary>
+        private readonly bool _seesOtherSupports;
+
         public RouteState(SupportGraph graph, DeterministicIds ids, RoutingClearance clearance,
-            float angleOffset, float minimumMemberSeparation)
+            float angleOffset, float minimumMemberSeparation, bool seesOtherSupports = true)
         {
             Graph = graph;
             _ids = ids;
             Clearance = clearance;
             AngleOffset = angleOffset;
             _minimumMemberSeparation = minimumMemberSeparation;
+            _seesOtherSupports = seesOtherSupports;
         }
 
         /// <summary>
@@ -1698,6 +1709,7 @@ public sealed class TreeSupportRouter
         public bool HitsGenerated(Vector3 start, Vector3 end, float radius,
             IReadOnlyCollection<Guid>? excludeSegments = null)
         {
+            if (!_seesOtherSupports) return false;
             foreach (var capsule in _capsules)
             {
                 if (excludeSegments is not null && excludeSegments.Contains(capsule.SegmentId))
@@ -1713,7 +1725,7 @@ public sealed class TreeSupportRouter
             Guid? nodeA = null, Guid? nodeB = null,
             IReadOnlyCollection<Guid>? excludeSegments = null)
         {
-            if (_minimumMemberSeparation <= 0) return false;
+            if (_minimumMemberSeparation <= 0 || !_seesOtherSupports) return false;
             foreach (var member in _capsules.OrderBy(item => item.SegmentId))
             {
                 if (excludeSegments is not null && excludeSegments.Contains(member.SegmentId))
@@ -1746,6 +1758,7 @@ public sealed class TreeSupportRouter
         public bool HitsGeneratedForTrunkAttachment(Vector3 start, Vector3 end, float radius,
             TrunkRecord trunk, float fusionDistance, float projectedClearance)
         {
+            if (!_seesOtherSupports) return false;
             foreach (var capsule in _capsules)
             {
                 if (trunk.SegmentIds.Contains(capsule.SegmentId)) continue;
@@ -1778,6 +1791,7 @@ public sealed class TreeSupportRouter
 
         public bool HasProjectedBranchNearPass(Vector3 start, Vector3 end, float clearance)
         {
+            if (!_seesOtherSupports) return false;
             foreach (var capsule in _capsules)
                 if (capsule.Type == SupportSegmentType.Branch &&
                     ProjectedSegmentsPassTooClose(start, end, capsule.Start, capsule.End,

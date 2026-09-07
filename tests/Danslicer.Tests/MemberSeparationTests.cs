@@ -83,12 +83,14 @@ public sealed class MemberSeparationTests
     [Fact]
     public void ZeroSettingIsBitIdenticalAndEnabledSettingRefusesTheNearCrossing()
     {
+        // Grid mode, where members see each other; the contact is off the lattice, so it gets
+        // its trunk straight under the junction by the off-grid last resort.
         var existing = ExistingMember();
         var tips = new[] { new RoutingTip(new(0.7f, 0, 10), Vector3.UnitZ, 0.4f) };
         var router = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default);
         var baseline = router.Route(tips, new TreeRoutingOptions
         {
-            UseBaseGrid = false,
+            UseBaseGrid = true,
             PreferExistingTrunks = false,
             TrunkDiameter = 0.1f,
             BranchDiameter = 0.1f,
@@ -96,7 +98,7 @@ public sealed class MemberSeparationTests
         }, existing);
         var explicitZero = router.Route(tips, new TreeRoutingOptions
         {
-            UseBaseGrid = false,
+            UseBaseGrid = true,
             PreferExistingTrunks = false,
             TrunkDiameter = 0.1f,
             BranchDiameter = 0.1f,
@@ -105,7 +107,7 @@ public sealed class MemberSeparationTests
         }, existing);
         var separated = router.Route(tips, new TreeRoutingOptions
         {
-            UseBaseGrid = false,
+            UseBaseGrid = true,
             PreferExistingTrunks = false,
             TrunkDiameter = 0.1f,
             BranchDiameter = 0.1f,

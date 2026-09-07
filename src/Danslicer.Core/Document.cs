@@ -791,7 +791,9 @@ public sealed class Document
         if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return false;
         var settings = SupportSettings with { };
         var independent = settings.IndependentManualSupports;
-        ICollisionScene obstacles = independent
+        // With the base grid off every support is routed as if alone (user decision
+        // 2026-09-07), so other supports are not obstacles either.
+        ICollisionScene obstacles = independent || !settings.UseBaseGrid
             ? MeshObstacles()
             : new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
         var rules = GrowthRuleSet.FromConfig(settings);
@@ -960,8 +962,10 @@ public sealed class Document
             cancellationToken.ThrowIfCancellationRequested();
             meshes.AddMesh(snapshot.Mesh, snapshot.Transform);
         }
+        // With the base grid off every support is routed as if alone (user decision
+        // 2026-09-07), so existing supports are not obstacles either.
         var supportObstacles = new LinearCollisionScene();
-        supportObstacles.AddSupportGraph(request.ExistingSupports);
+        if (request.Settings.UseBaseGrid) supportObstacles.AddSupportGraph(request.ExistingSupports);
         var obstacles = new CompositeCollisionScene(meshes, supportObstacles);
         var rules = GrowthRuleSet.FromConfig(request.Settings);
         // Spec-shaped generation: cone tips on trunk/branch trees with disc bases. The capsule

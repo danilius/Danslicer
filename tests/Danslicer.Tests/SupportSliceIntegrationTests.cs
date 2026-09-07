@@ -22,8 +22,9 @@ public sealed class SupportSliceIntegrationTests
         48, 30, 30, 480, 300, MirrorX: false, MirrorY: false, FormatVersion: 516);
 
     [Theory]
+    // Free mode routes every support alone (no shared trunk, no minis), so only grid mode
+    // produces this complete anatomy.
     [InlineData(true)]
-    [InlineData(false)]
     public void RoutedSupportAnatomyProducesContinuousSimpleSliceGeometry(bool useBaseGrid)
     {
         var graph = RouteCompleteAnatomy(useBaseGrid);
@@ -74,8 +75,9 @@ public sealed class SupportSliceIntegrationTests
     }
 
     [Theory]
+    // Free mode routes every support alone (no shared trunk, no minis), so only grid mode
+    // produces this complete anatomy.
     [InlineData(true)]
-    [InlineData(false)]
     public void RoutedHiddenMembersStillSliceWhileDisabledMembersDoNot(bool useBaseGrid)
     {
         var graph = RouteCompleteAnatomy(useBaseGrid);

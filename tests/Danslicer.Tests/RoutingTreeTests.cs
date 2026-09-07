@@ -157,12 +157,21 @@ public sealed class RoutingTreeTests
     [Fact]
     public void NearTiedExistingTrunksPreferTheTipsLeanDirection()
     {
+        // Grid mode (pitch 5): trunks at x = -5 and x = 5. The leaning tip's own drop line at
+        // the origin is blocked by a shelf and branches to fresh trunks are disabled, so it
+        // must join one of the two; the bend rule picks the one its cone points toward.
+        var scene = new LinearCollisionScene();
+        scene.AddTriangle(new(-2, -2, 5), new(1.5f, -2, 5), new(1.5f, 2, 5));
+        scene.AddTriangle(new(-2, -2, 5), new(1.5f, 2, 5), new(-2, 2, 5));
         var result = Route(new[]
         {
             new RoutingTip(new(-5, 0, 14), Vector3.UnitZ, 0.4f),
             new RoutingTip(new(5, 0, 13), Vector3.UnitZ, 0.4f),
             new RoutingTip(new(-2, 0, 10), Vector3.Normalize(new Vector3(-1, 0, 1)), 0.4f),
-        }, new TreeRoutingOptions { UseBaseGrid = false });
+        }, new TreeRoutingOptions
+        {
+            UseBaseGrid = true, BaseGridPitch = 5f, MaxBranchLength = 0.001f,
+        }, scene);
 
         Assert.Empty(result.Failures);
         var leanedTip = result.Graph.Nodes.Single(node =>
@@ -858,7 +867,7 @@ public sealed class RoutingTreeTests
         {
             new RoutingTip(new(0, 0, 12), -outward, 0.4f),
             new RoutingTip(new(0.75f, 0, 11.25f), -outward, 0.4f),
-        }, new TreeRoutingOptions { UseBaseGrid = false });
+        }, new TreeRoutingOptions { UseBaseGrid = true });
 
         var failure = Assert.Single(result.Failures);
         Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
@@ -869,14 +878,15 @@ public sealed class RoutingTreeTests
     public void ExistingConeKeepsItsBaseRadiusAgainstLaterPasses()
     {
         // A cone already in the document (from an earlier generation or a manual placement)
-        // is as wide as its ball; a later pass must not crowd it as if it were only its neck.
+        // is as wide as its ball; a later grid-mode pass must not crowd it as if it were only
+        // its neck.
         var first = Route(new[] { new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f) },
-            new TreeRoutingOptions { UseBaseGrid = false });
+            new TreeRoutingOptions { UseBaseGrid = true });
         Assert.Empty(first.Failures);
 
         var second = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default)
             .Route(new[] { new RoutingTip(new(1.1f, 0, 10), Vector3.UnitZ, 0.4f) },
-                new TreeRoutingOptions { UseBaseGrid = false }, first.Graph);
+                new TreeRoutingOptions { UseBaseGrid = true }, first.Graph);
 
         var failure = Assert.Single(second.Failures);
         Assert.Equal(RoutingFailureReason.ContactBlocked, failure.Reason);
@@ -1080,6 +1090,28 @@ public sealed class RoutingTreeTests
             }
         }
         return worst;
+    }
+
+    [Fact]
+    public void FreeModeGivesEveryTipItsOwnSupportBlindToTheOthers()
+    {
+        // Grid off: two contacts a millimetre apart each get tip, trunk and base of their own,
+        // colliding or not, and a later manual pass ignores what is there just the same.
+        var result = Route(new[]
+        {
+            new RoutingTip(new(0, 0, 10), Vector3.UnitZ, 0.4f),
+            new RoutingTip(new(1, 0, 10), Vector3.UnitZ, 0.4f),
+        }, new TreeRoutingOptions { UseBaseGrid = false });
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(2, result.BasePositions.Count);
+        Assert.DoesNotContain(result.Graph.Segments, s => s.Type == SupportSegmentType.Branch);
+
+        var later = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default)
+            .Route(new[] { new RoutingTip(new(0.5f, 0, 10), Vector3.UnitZ, 0.4f) },
+                new TreeRoutingOptions { UseBaseGrid = false }, result.Graph);
+        Assert.Empty(later.Failures);
+        Assert.Equal(3, later.Graph.Nodes.Count(n => n.Type == SupportNodeType.Base));
     }
 
     [Fact]

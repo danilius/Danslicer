@@ -128,6 +128,11 @@ base is the one exception.
   free lattice point would need (user screen test 2026-09-07: a 7 mm branch reached past a
   free lattice point 2 mm away). Free mode still joins any reachable trunk when the
   preference is on, as before.
+- **Free mode: every tip is a whole support, blind to the others** (user decision
+  2026-09-07, after a second tip joined a first tip's branch end). With the base grid off a
+  contact never joins another support and never avoids one, existing or new, even if they
+  collide; other supports are not obstacles for it. Sharing trunks, snapping onto them and
+  keeping members apart are grid-mode behaviours.
 - **Supports may touch each other.** A cone is checked against other supports as the
   frustum it is (two capsules), and no member keeps the model clearance from another
   member: supports that meet fuse. The optional member-separation setting is the one
