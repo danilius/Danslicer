@@ -1234,7 +1234,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private static readonly Vector4 LineGhostTipColor = new(0.7f, 1f, 0.4f, 1f);
     private const int LineBridgeSamples = 32;
 
-    private Danslicer.Core.Supports.Guided.SurfaceLineGesture? _lineGesture;
+    private Danslicer.Core.Supports.Guided.IGuidedGesture? _lineGesture;
     private SceneObject? _lineTarget;
     private IReadOnlyList<TipCandidate> _linePreview = Array.Empty<TipCandidate>();
     private string _linePitchInput = "";
@@ -1244,18 +1244,20 @@ public sealed class ViewportControl : OpenGlControlBase
     /// from that tip's contact, so a line can extend a support already placed. Returns a status
     /// message when the gesture cannot start.
     /// </summary>
-    private string? BeginLineGesture(Vector2 mouse)
+    private string? BeginLineGesture(Vector2 mouse, bool polygon = false)
     {
         if (Document is null) return null;
         if (Document.SupportTarget is not { } target)
-            return "Support line: choose the model to support first (Objects pop-out)";
+            return "Guided placement: choose the model to support first (Objects pop-out)";
         var world = target.Transform.ToMatrix();
         var worldMesh = new Mesh(
             target.Mesh.Positions.Select(p => Vector3.Transform(p, world)).ToArray(),
             (int[])target.Mesh.Indices.Clone());
         _lineTarget = target;
-        _lineGesture = new Danslicer.Core.Supports.Guided.SurfaceLineGesture(worldMesh,
-            Document.SupportSettings.Spacing);
+        var pitch = Document.SupportSettings.Spacing;
+        _lineGesture = polygon
+            ? new Danslicer.Core.Supports.Guided.SurfacePolygonGesture(worldMesh, pitch)
+            : new Danslicer.Core.Supports.Guided.SurfaceLineGesture(worldMesh, pitch);
         _linePitchInput = "";
 
         if (SelectedTip() is { } tipId)
@@ -1363,14 +1365,14 @@ public sealed class ViewportControl : OpenGlControlBase
         string status;
         if (candidates.Count == 0)
         {
-            status = "Support line: nothing to place";
+            status = $"{gesture.Name}: nothing to place";
         }
         else
         {
-            var placed = Document.PlaceGuidedTips(target, candidates, "Support line", out var refused);
+            var placed = Document.PlaceGuidedTips(target, candidates, gesture.Name, out var refused);
             status = refused == 0
-                ? $"Support line: {placed} placed"
-                : $"Support line: {placed} of {placed + refused} placed · {refused} had no clear path";
+                ? $"{gesture.Name}: {placed} placed"
+                : $"{gesture.Name}: {placed} of {placed + refused} placed · {refused} had no clear path";
         }
         EndLineGesture();
         StatusText = status;
@@ -1398,8 +1400,9 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var path in gesture.Route())
         {
             // A chord has left the surface: draw it red and through everything so it is seen.
-            var chord = path.Points.Count == 2 && path.Faces[0] != path.Faces[1] &&
-                ReferenceEquals(path, gesture.Route()[^1]) && gesture.CursorPathIsChord;
+            // A surface path between two different faces always has a crossing point, so a
+            // two-point path across faces can only be a chord.
+            var chord = path.Points.Count == 2 && path.Faces[0] != path.Faces[1];
             var target = chord ? lines : depthLines;
             var colour = chord ? LineChordColor : LineRouteColor;
             for (var i = 0; i + 1 < path.Points.Count; i++)
@@ -2024,6 +2027,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.T when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = TryAddSupport(mouse); break;
                 // Guided line of supports (SUPPORT-GEOMETRY-SPEC "Guided tip placement").
                 case Key.L when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse); break;
+                case Key.P when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, polygon: true); break;
                 case Key.Escape when _marqueeStart is not null:
                     _marqueeStart = null;
                     _pendingClickSupport = null;
@@ -2078,8 +2082,10 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             var pitch = _linePitchInput.Length > 0 ? $"{_linePitchInput}_" : $"{lineGesture.PitchMm:0.0}";
             var tips = _linePreview.Count == 1 ? "1 tip" : $"{_linePreview.Count} tips";
-            var surface = lineGesture.CursorPathIsChord ? " · OFF SURFACE" : "";
-            StatusText = $"Support line: {tips} · pitch {pitch} mm{surface}  ·  LMB add point · double-click/Enter place · Backspace remove point · wheel/digits pitch · RMB/Esc cancel";
+            var offSurface = lineGesture.CursorPathIsChord ||
+                lineGesture is Danslicer.Core.Supports.Guided.SurfacePolygonGesture { ClosingPathIsChord: true };
+            var surface = offSurface ? " · OFF SURFACE" : "";
+            StatusText = $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  LMB add point · double-click/Enter place · Backspace remove point · wheel/digits pitch · RMB/Esc cancel";
             return;
         }
         if (_tipDrag is not null)
@@ -2103,7 +2109,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

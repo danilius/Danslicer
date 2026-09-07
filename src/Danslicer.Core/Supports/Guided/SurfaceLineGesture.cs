@@ -16,7 +16,7 @@ namespace Danslicer.Core.Supports.Guided;
 /// <see cref="SetCursor(Vector3, int, SurfacePath?)"/>; with none, the rubber band is a straight
 /// chord, and the preview shows it as it is so the user sees the line has left the surface.</para>
 /// </summary>
-public sealed class SurfaceLineGesture
+public sealed class SurfaceLineGesture : IGuidedGesture
 {
     public const float MinPitchMm = 0.5f;
     public const float MaxPitchMm = 50f;
@@ -33,6 +33,7 @@ public sealed class SurfaceLineGesture
         PitchMm = Math.Clamp(pitchMm, MinPitchMm, MaxPitchMm);
     }
 
+    public string Name => "Support line";
     public float PitchMm { get; private set; }
     public IReadOnlyList<(Vector3 Point, int Face)> Vertices => _vertices;
     public bool HasVertices => _vertices.Count > 0;
