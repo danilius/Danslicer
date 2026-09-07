@@ -25,6 +25,12 @@ public enum TipStrategy
     /// even arc length along each row. Only produced when a region has actually been painted.
     /// </summary>
     RegionGrid,
+    /// <summary>
+    /// Placed by a guided gesture — a line, polygon or kin (SUPPORT-GEOMETRY-SPEC "Guided tip
+    /// placement"). Like a painted region it is an explicit instruction, so no angle rule
+    /// second-guesses it.
+    /// </summary>
+    Guided,
 }
 
 /// <summary>
