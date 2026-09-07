@@ -816,16 +816,6 @@ public sealed class Document
             ExistingTrunkBranchRange = settings.ExistingTrunkBranchRange,
             IgnoreExistingSupports = independent,
             MinMemberSeparationMm = independent ? 0 : settings.MinMemberSeparationMm,
-            MiniSupportDiameter = settings.MiniSupportDiameter,
-            MiniSupportTipDiameter = settings.MiniSupportTipDiameter,
-            MiniSupportConeLength = settings.MiniSupportConeLength,
-            MiniSupportMaxLength = settings.MiniSupportMaxLength,
-            MiniSupportMaxAngleDegrees = settings.MiniSupportMaxAngleDegrees,
-            MiniSupportMaxFanPerBranchEnd = settings.MiniSupportMaxFanPerBranchEnd,
-            FineFeatureMinisFallBackToRegular = settings.FineFeatureMinisFallBackToRegular,
-            // Mini supports are set aside (2026-09-07): a refused contact stays refused rather
-            // than becoming a mini fanning off a branch end, whatever a saved config says.
-            RefusedTipsFallBackToMini = false,
             UseBaseGrid = settings.UseBaseGrid,
             BaseGridPitch = settings.BaseGridPitch,
             BaseShape = settings.BaseShape,
@@ -989,13 +979,6 @@ public sealed class Document
                 MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
                 MaxContactFaceAngleDegrees = request.Settings.MaxContactFaceAngleDegrees,
                 RequireContactSeesPlate = request.Settings.RequireContactSeesPlate,
-                // Mini supports are set aside (user decision 2026-09-07): every island at or
-                // above the minimum area gets a regular cone tip, and no contact is converted
-                // to a mini by crowding or fineness. The mini code and its settings stay for
-                // when they return.
-                EnableMiniSupports = false,
-                EnableMiniTipClusters = false,
-                FineFeatureMaxAreaMm2 = 0f,
                 // Only a PAINTED region switches to the even surface grid; with nothing painted
                 // this stays null and generation is unchanged.
                 RegionGrid = request.Regions.Faces.Count > 0
@@ -1016,18 +999,6 @@ public sealed class Document
                 PreferExistingTrunks = request.Settings.PreferExistingTrunks,
                 ExistingTrunkBranchRange = request.Settings.ExistingTrunkBranchRange,
                 MinMemberSeparationMm = request.Settings.MinMemberSeparationMm,
-                MiniSupportDiameter = request.Settings.MiniSupportDiameter,
-                MiniSupportTipDiameter = request.Settings.MiniSupportTipDiameter,
-                MiniSupportConeLength = request.Settings.MiniSupportConeLength,
-                MiniSupportMaxLength = request.Settings.MiniSupportMaxLength,
-                MiniSupportMaxAngleDegrees = request.Settings.MiniSupportMaxAngleDegrees,
-                MiniSupportMaxFanPerBranchEnd = request.Settings.MiniSupportMaxFanPerBranchEnd,
-                FineFeatureMinisFallBackToRegular =
-                    request.Settings.FineFeatureMinisFallBackToRegular,
-                // Mini supports are set aside (2026-09-07): a refused contact stays refused
-                // rather than becoming a mini fanning off a branch end, whatever a saved
-                // config says. (Their checkbox is gone, but the saved value lived on.)
-                RefusedTipsFallBackToMini = false,
                 UseBaseGrid = request.Settings.UseBaseGrid,
                 BaseGridPitch = request.Settings.BaseGridPitch,
                 BaseShape = request.Settings.BaseShape,

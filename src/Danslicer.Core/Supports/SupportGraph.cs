@@ -48,8 +48,6 @@ public enum SupportSegmentType
 {
     /// <summary>Contact member from the tip node to the first junction. Thin, tapered, carries the cone.</summary>
     Tip,
-    /// <summary>Fine contact rod fanning directly from a branch end.</summary>
-    MiniSupport,
     /// <summary>Angled member spanning from a trunk or junction toward a tip.</summary>
     Branch,
     /// <summary>Vertical (or merged main) member rising from the base.</summary>

@@ -29,7 +29,6 @@ public static class SupportDisplayPolicy
                 Mode = SupportDisplayMode.Full,
                 ShowHiddenElements = true,
                 ShowTips = true,
-                ShowMiniSupports = true,
                 ShowBranches = true,
                 ShowTrunks = true,
                 ShowBases = true,
@@ -63,11 +62,10 @@ public static class SupportDisplayPolicy
         {
             SupportDisplayMode.ContactPoints => false,
             SupportDisplayMode.Lines => true,
-            SupportDisplayMode.Tips => type is SupportSegmentType.Tip or SupportSegmentType.MiniSupport,
+            SupportDisplayMode.Tips => type is SupportSegmentType.Tip,
             SupportDisplayMode.Full or SupportDisplayMode.Transparent => type switch
             {
                 SupportSegmentType.Tip => display.ShowTips,
-                SupportSegmentType.MiniSupport => display.ShowMiniSupports,
                 SupportSegmentType.Branch => display.ShowBranches,
                 SupportSegmentType.Trunk => display.ShowTrunks,
                 SupportSegmentType.Bracing => display.ShowBracing,
@@ -104,7 +102,7 @@ public static class SupportDisplayPolicy
         if (display.Mode is not (SupportDisplayMode.Full or SupportDisplayMode.Transparent))
             return true;
         var incident = graph.SegmentsAt(node.Id);
-        // A bare tip predates the mini taxonomy and retains regular-tip visibility.
+        // A bare tip retains regular-tip visibility.
         return incident.Count == 0 ? display.ShowTips :
             incident.Any(segment => IsSegmentDisplayed(segment.Type, display));
     }

@@ -37,9 +37,6 @@ public sealed class SupportDisplayPolicyTests
         Assert.Equal(mode is SupportDisplayMode.Lines or SupportDisplayMode.Tips or
             SupportDisplayMode.Transparent,
             SupportDisplayPolicy.IsSegmentDisplayed(SupportSegmentType.Tip, display));
-        Assert.Equal(mode is SupportDisplayMode.Lines or SupportDisplayMode.Tips or
-            SupportDisplayMode.Transparent,
-            SupportDisplayPolicy.IsSegmentDisplayed(SupportSegmentType.MiniSupport, display));
     }
 
     [Theory]
@@ -51,7 +48,6 @@ public sealed class SupportDisplayPolicyTests
         {
             Mode = mode,
             ShowTips = false,
-            ShowMiniSupports = false,
             ShowBranches = false,
             ShowTrunks = false,
             ShowBases = false,
@@ -72,7 +68,6 @@ public sealed class SupportDisplayPolicyTests
         {
             Mode = SupportDisplayMode.Lines,
             ShowTips = false,
-            ShowMiniSupports = false,
             ShowBranches = false,
             ShowTrunks = false,
             ShowBases = false,
@@ -97,16 +92,6 @@ public sealed class SupportDisplayPolicyTests
         Assert.All(nodes.Where(node => node.Type == SupportNodeType.Tip), node =>
             Assert.False(SupportDisplayPolicy.IsElementDisplayed(graph, node.Id, display)));
         Assert.True(SupportDisplayPolicy.IsSegmentDisplayed(SupportSegmentType.Tip, display));
-    }
-
-    [Fact]
-    public void MiniContactMarkerFollowsMiniRatherThanRegularTipSwitch()
-    {
-        var (graph, nodes, _) = CompleteGraph();
-        var display = new SupportDisplayConfig { ShowTips = false, ShowMiniSupports = true };
-
-        Assert.False(SupportDisplayPolicy.IsElementDisplayed(graph, nodes[0].Id, display));
-        Assert.True(SupportDisplayPolicy.IsElementDisplayed(graph, nodes[1].Id, display));
     }
 
     [Fact]
@@ -164,7 +149,7 @@ public sealed class SupportDisplayPolicyTests
         var segments = new[]
         {
             Segment(SupportSegmentType.Tip, nodes[0], nodes[2]),
-            Segment(SupportSegmentType.MiniSupport, nodes[1], nodes[2]),
+            Segment(SupportSegmentType.Tip, nodes[1], nodes[2]),
             Segment(SupportSegmentType.Branch, nodes[2], nodes[3]),
             Segment(SupportSegmentType.Trunk, nodes[3], nodes[5]),
             Segment(SupportSegmentType.Bracing, nodes[3], nodes[4]),

@@ -18,12 +18,11 @@ public sealed class SupportGraphStatisticsTests
         graph.AddNode(tip);
         graph.AddNode(junction);
         graph.AddNode(@base);
-        graph.AddSegment(Segment(tip, junction, SupportSegmentType.MiniSupport, 2));
+        graph.AddSegment(Segment(tip, junction, SupportSegmentType.Tip, 2));
         graph.AddSegment(Segment(junction, @base, SupportSegmentType.Trunk, 2));
 
         var result = SupportGraphStatistics.Calculate(graph);
 
-        Assert.Equal(1, result.MiniCount);
         Assert.Equal(1, result.BaseCount);
         Assert.Equal(36.8699f, result.MaxLeanDegrees, 3);
         Assert.Equal(8d * Math.PI, result.EstimatedVolumeMm3, 6);
@@ -39,13 +38,12 @@ public sealed class SupportGraphStatisticsTests
         b.BaseShape = SupportBaseShape.DiscCone;
         graph.AddNode(a);
         graph.AddNode(b);
-        var segment = Segment(a, b, SupportSegmentType.MiniSupport, 1);
+        var segment = Segment(a, b, SupportSegmentType.Tip, 1);
         segment.Disabled = true;
         graph.AddSegment(segment);
 
         var result = SupportGraphStatistics.Calculate(graph);
 
-        Assert.Equal(0, result.MiniCount);
         Assert.Equal(0, result.BaseCount);
         Assert.Equal(0, result.EstimatedVolumeMm3);
     }

@@ -278,41 +278,6 @@ public sealed class ManualSupportRoutingTests
     }
 
     [Fact]
-    public void MiniOnlyManualRouteFansFromAnExistingBranchEnd()
-    {
-        var (document, box) = FloatingBoxDocument();
-        document.SupportSettings = new SupportConfig { UseBaseGrid = true, BaseGridPitch = 20f };
-        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
-        Assert.True(document.AddManualSupport(box, new Vector3(4, 0, 8), -Vector3.UnitZ));
-        var branchEnd = document.Supports.Segments
-            .Single(segment => segment.Type == SupportSegmentType.Branch);
-        var trunkNodeIds = document.Supports.Segments
-            .Where(segment => segment.Type == SupportSegmentType.Trunk)
-            .SelectMany(segment => new[] { segment.NodeA, segment.NodeB }).ToHashSet();
-        var endId = trunkNodeIds.Contains(branchEnd.NodeA) ? branchEnd.NodeB : branchEnd.NodeA;
-        var end = document.Supports.GetNode(endId);
-        var obstacles = new LinearCollisionScene();
-        obstacles.AddSupportGraph(document.Supports);
-        var router = new TreeSupportRouter(obstacles, GrowthRuleSet.Default);
-        var result = router.Route(new[]
-        {
-            new RoutingTip(end.Position + new Vector3(0.5f, 0, 3), Vector3.UnitZ, 0.25f,
-                box.Id, MiniSupportOnly: true),
-        }, new TreeRoutingOptions
-        {
-            UseBaseGrid = true,
-            BaseGridPitch = 20f,
-            Origin = SupportOrigin.ManualFor(box.Id),
-        }, document.Supports);
-
-        Assert.Empty(result.Failures);
-        Assert.DoesNotContain(result.Edit.AddedNodes,
-            node => node.Type == SupportNodeType.Base);
-        Assert.Single(result.Edit.AddedSegments,
-            segment => segment.Type == SupportSegmentType.MiniSupport);
-    }
-
-    [Fact]
     public void AttachedManualTipHasSaneComponentVisibilityAndDeletion()
     {
         var (document, box) = FloatingBoxDocument();

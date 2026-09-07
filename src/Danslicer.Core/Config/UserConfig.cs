@@ -168,7 +168,6 @@ public sealed record SupportDisplayConfig
     public SupportDisplayMode Mode { get; init; } = SupportDisplayMode.Full;
     public bool ShowContactPointsInTransparent { get; init; } = true;
     public bool ShowTips { get; init; } = true;
-    public bool ShowMiniSupports { get; init; } = true;
     public bool ShowBranches { get; init; } = true;
     public bool ShowTrunks { get; init; } = true;
     public bool ShowBases { get; init; } = true;
@@ -227,22 +226,6 @@ public sealed record SupportConfig
     public bool IndependentManualSupports { get; set; }
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
-    public float MiniSupportDiameter { get; set; } = 0.6f;
-    public float MiniSupportTipDiameter { get; set; } = 0.25f;
-    public float MiniSupportConeLength { get; set; } = 1f;
-    public float MiniSupportMaxLength { get; set; } = 5f;
-    public float MiniSupportMaxAngleDegrees { get; set; } = 75f;
-    public int MiniSupportMaxFanPerBranchEnd { get; set; } = 4;
-    /// <summary>
-    /// Maximum distance between regular contacts for density-based mini-tip clustering.
-    /// The 1.25 mm default is half the default 2.5 mm placement spacing.
-    /// </summary>
-    public float MiniSupportClusterDistance { get; set; } = 1.25f;
-    /// <summary>Maximum local cross-section for an isolated one-member mini cluster.</summary>
-    public float FineFeatureMaxAreaMm2 { get; set; } = 1f;
-    public bool FineFeatureMinisFallBackToRegular { get; set; } = true;
-    public bool RefusedTipsFallBackToMini { get; set; }
-    public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
     public bool UseBaseGrid { get; set; } = true;
     public float BaseGridPitch { get; set; } = 6f;
 
@@ -303,15 +286,6 @@ public sealed record SupportConfig
         MaxBranchLength = Positive(MaxBranchLength, 8f);
         ExistingTrunkBranchRange = Positive(ExistingTrunkBranchRange, 8f);
         MinMemberSeparationMm = NonNegative(MinMemberSeparationMm);
-        MiniSupportDiameter = Positive(MiniSupportDiameter, 0.6f);
-        MiniSupportTipDiameter = Positive(MiniSupportTipDiameter, 0.25f);
-        MiniSupportConeLength = Positive(MiniSupportConeLength, 1f);
-        MiniSupportMaxLength = Positive(MiniSupportMaxLength, 5f);
-        MiniSupportMaxAngleDegrees = float.IsFinite(MiniSupportMaxAngleDegrees)
-            ? Math.Clamp(MiniSupportMaxAngleDegrees, 1f, 89f) : 75f;
-        MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
-        MiniSupportClusterDistance = Positive(MiniSupportClusterDistance, 1.25f);
-        FineFeatureMaxAreaMm2 = NonNegative(FineFeatureMaxAreaMm2);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;
@@ -331,10 +305,6 @@ public sealed record SupportConfig
         MinIslandAreaMm2 = NonNegative(MinIslandAreaMm2);
         MaxContactFaceAngleDegrees = float.IsFinite(MaxContactFaceAngleDegrees)
             ? Math.Clamp(MaxContactFaceAngleDegrees, 0f, 90f) : 90f;
-        var miniContactRadius = MiniSupportTipDiameter * 0.5f;
-        var miniContactArea = MathF.PI * miniContactRadius * miniContactRadius;
-        MiniIslandMaxAreaMm2 = MathF.Min(MinIslandAreaMm2,
-            MathF.Max(miniContactArea, NonNegative(MiniIslandMaxAreaMm2)));
     }
 
     private static float Positive(float value, float fallback) =>

@@ -107,7 +107,7 @@ public static class SupportSliceGeometry
     }
 
     /// <summary>
-    /// Diameter that a tapered tip must reach at its junction. Tip/mini members carry the
+    /// Diameter that a tapered tip must reach at its junction. Tip members carry the
     /// taper-rule diameter on the graph for routing clearance; their printable wide end instead
     /// matches the branch or trunk that carries them. A direct tip-to-base member has no separate
     /// parent and therefore keeps its own diameter.

@@ -471,7 +471,6 @@ public sealed class SupportLifecycleTests
             ShowTips = false,
             ShowBranches = false,
             ShowTrunks = false,
-            ShowMiniSupports = false,
             ShowBases = false,
             ShowBracing = false,
         };

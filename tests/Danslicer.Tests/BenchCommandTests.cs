@@ -9,7 +9,6 @@ public class BenchCommandTests
     {
         var report = new BenchmarkReport
         {
-            FineFeatureMaxAreaMm2 = 1f,
             MinMemberSeparationMm = 0.5f,
             Models =
             [
@@ -25,16 +24,8 @@ public class BenchCommandTests
                         ByStrategy = new Dictionary<string, int>
                         {
                             ["Island"] = 2,
-                            ["MiniIsland"] = 0,
-                            ["MiniCluster"] = 6,
+                            ["Corner"] = 0,
                             ["Overhang"] = 10,
-                        },
-                        MiniClusters = 2,
-                        FineFeatureMinis = 2,
-                        MiniClusterMembersBySourceStrategy = new Dictionary<string, int>
-                        {
-                            ["Island"] = 3,
-                            ["Overhang"] = 3,
                         },
                         Spacing = new SpacingBenchmark { Min = 1.1f, Median = 2.2f, Mean = 3.3f },
                     },
@@ -51,7 +42,6 @@ public class BenchCommandTests
                             SegmentCounts = new Dictionary<string, int>
                             {
                                 ["Tip"] = 2,
-                                ["MiniSupport"] = 1,
                                 ["Branch"] = 2,
                                 ["Trunk"] = 2,
                                 ["Bracing"] = 0,
@@ -78,18 +68,17 @@ public class BenchCommandTests
         var markdown = BenchCommand.BuildMarkdown(report);
 
         Assert.Contains("| Model | Command | Flags | Wall s | Exit | Counts | Notes |", markdown);
-        Assert.Contains("| model | `tips` | `--seat --json --fine-feature-max 1` | 1.235 | 0 | **12** candidates " +
-                        "(Island 2, MiniCluster 6, Overhang 10) across **2** mini clusters " +
-                        "(**3 island / 3 regular members**), **2 fine-feature singles**", markdown);
-        Assert.Contains("`--seat --strategy tree --base-grid on --fine-feature-fallback on " +
+        Assert.Contains("| model | `tips` | `--seat --json` | 1.235 | 0 | **12** candidates " +
+                        "(Island 2, Overhang 10)", markdown);
+        Assert.Contains("`--seat --strategy tree --base-grid on " +
                         "--min-member-separation 0.5 --reinforce on --json` | " +
                         "2.346 | 2", markdown);
-        Assert.Contains("segs 7 (tip 2, mini-support 1, branch 2, trunk 2)", markdown);
+        Assert.Contains("segs 7 (tip 2, branch 2, trunk 2)", markdown);
         Assert.Contains("**unrouted 9 / 12**, bases **1**, max lean 44.6°, " +
                         "collisionFree **true**, crossing pairs <0.5 / <1 mm **2 / 4**, " +
                         "intersections **1**", markdown);
         Assert.Contains("Refusals: ContactBlocked 1, NoClearStep 8; island-origin **3**.", markdown);
-        Assert.DoesNotContain("MiniIsland 0", markdown);
+        Assert.DoesNotContain("Corner 0", markdown);
         Assert.DoesNotContain("brace 0", markdown);
     }
 }

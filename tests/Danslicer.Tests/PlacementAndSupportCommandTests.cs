@@ -346,12 +346,6 @@ public sealed class PlacementAndSupportCommandTests
                 MemberAngleDegrees = 37f, TipMemberLength = 2.8f, MaxBranchLength = 12f,
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
                 MinMemberSeparationMm = 0.65f,
-                MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
-                MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
-                MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
-                MiniSupportClusterDistance = 1.4f, FineFeatureMaxAreaMm2 = 1.8f,
-                FineFeatureMinisFallBackToRegular = false,
-                RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 ReinforceEnabled = true,
                 ReinforceSeedSelector = ReinforceSeedSelector.CriticalTips,
@@ -381,17 +375,6 @@ public sealed class PlacementAndSupportCommandTests
         Assert.False(request.Settings.PreferExistingTrunks);
         Assert.Equal(9f, request.Settings.ExistingTrunkBranchRange);
         Assert.Equal(0.65f, request.Settings.MinMemberSeparationMm);
-        Assert.Equal(0.7f, request.Settings.MiniSupportDiameter);
-        Assert.Equal(0.3f, request.Settings.MiniSupportTipDiameter);
-        Assert.Equal(1.2f, request.Settings.MiniSupportConeLength);
-        Assert.Equal(6f, request.Settings.MiniSupportMaxLength);
-        Assert.Equal(72f, request.Settings.MiniSupportMaxAngleDegrees);
-        Assert.Equal(5, request.Settings.MiniSupportMaxFanPerBranchEnd);
-        Assert.Equal(1.4f, request.Settings.MiniSupportClusterDistance);
-        Assert.Equal(1.8f, request.Settings.FineFeatureMaxAreaMm2);
-        Assert.False(request.Settings.FineFeatureMinisFallBackToRegular);
-        Assert.True(request.Settings.RefusedTipsFallBackToMini);
-        Assert.Equal(0.2f, request.Settings.MiniIslandMaxAreaMm2);
         Assert.False(request.Settings.UseBaseGrid);
         Assert.Equal(18f, request.Settings.BaseGridPitch);
         Assert.True(request.Settings.ReinforceEnabled);

@@ -453,12 +453,6 @@ public sealed class ConfigViewModel : ViewModelBase
         set => UpdateSupportDisplay(display => display with { ShowTips = value });
     }
 
-    public bool ShowMiniSupports
-    {
-        get => SupportDisplay.ShowMiniSupports;
-        set => UpdateSupportDisplay(display => display with { ShowMiniSupports = value });
-    }
-
     public bool ShowSupportBranches
     {
         get => SupportDisplay.ShowBranches;
@@ -567,74 +561,6 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.MinMemberSeparationMm;
         set => Update(() => Supports.MinMemberSeparationMm = Clamp(value, 0f, 100f, 0f));
-    }
-
-    public float SupportMiniSupportDiameter
-    {
-        get => Supports.MiniSupportDiameter;
-        set => Update(() => Supports.MiniSupportDiameter = Clamp(value, 0.01f, 100f, 0.6f));
-    }
-
-    public float SupportMiniSupportTipDiameter
-    {
-        get => Supports.MiniSupportTipDiameter;
-        set => Update(() => Supports.MiniSupportTipDiameter = Clamp(value, 0.01f, 100f, 0.25f));
-    }
-
-    public float SupportMiniSupportConeLength
-    {
-        get => Supports.MiniSupportConeLength;
-        set => Update(() => Supports.MiniSupportConeLength = Clamp(value, 0.01f, 100f, 1f));
-    }
-
-    public float SupportMiniSupportMaxLength
-    {
-        get => Supports.MiniSupportMaxLength;
-        set => Update(() => Supports.MiniSupportMaxLength = Clamp(value, 0.01f, 1000f, 5f));
-    }
-
-    public float SupportMiniSupportMaxAngleDegrees
-    {
-        get => Supports.MiniSupportMaxAngleDegrees;
-        set => Update(() => Supports.MiniSupportMaxAngleDegrees = Clamp(value, 1f, 89f, 75f));
-    }
-
-    public int SupportMiniSupportMaxFanPerBranchEnd
-    {
-        get => Supports.MiniSupportMaxFanPerBranchEnd;
-        set => Update(() => Supports.MiniSupportMaxFanPerBranchEnd = Math.Clamp(value, 1, 100));
-    }
-
-    public float SupportMiniSupportClusterDistance
-    {
-        get => Supports.MiniSupportClusterDistance;
-        set => Update(() => Supports.MiniSupportClusterDistance = Clamp(value, 0.01f, 1000f, 1.25f));
-    }
-
-    public float SupportFineFeatureMaxAreaMm2
-    {
-        get => Supports.FineFeatureMaxAreaMm2;
-        set => Update(() => Supports.FineFeatureMaxAreaMm2 =
-            Clamp(value, 0f, 1_000_000f, 1f));
-    }
-
-    public bool SupportFineFeatureMinisFallBackToRegular
-    {
-        get => Supports.FineFeatureMinisFallBackToRegular;
-        set => Update(() => Supports.FineFeatureMinisFallBackToRegular = value);
-    }
-
-    public bool SupportRefusedTipsFallBackToMini
-    {
-        get => Supports.RefusedTipsFallBackToMini;
-        set => Update(() => Supports.RefusedTipsFallBackToMini = value);
-    }
-
-    public float SupportMiniIslandMaxAreaMm2
-    {
-        get => Supports.MiniIslandMaxAreaMm2;
-        set => Update(() => Supports.MiniIslandMaxAreaMm2 =
-            Clamp(value, 0f, 1_000_000f, 0.1f));
     }
 
     public float SupportBaseGridPitch

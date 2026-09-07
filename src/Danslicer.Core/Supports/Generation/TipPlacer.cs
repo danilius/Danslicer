@@ -79,29 +79,16 @@ public static class TipPlacer
             }
         }
 
-        var miniContactRadius = parameters.MiniSupportTipDiameterMm * 0.5f;
-        var miniIslandFloor = MathF.PI * miniContactRadius * miniContactRadius;
-        var requestedMiniMax = float.IsFinite(parameters.MiniIslandMaxAreaMm2)
-            ? MathF.Max(0, parameters.MiniIslandMaxAreaMm2)
-            : TipPlacementParameters.Default.MiniIslandMaxAreaMm2;
-        var miniIslandMax = MathF.Min(parameters.MinIslandAreaMm2,
-            MathF.Max(miniIslandFloor, requestedMiniMax));
-        var islandFloor = parameters.EnableMiniSupports
-            ? MathF.Min(parameters.MinIslandAreaMm2, miniIslandFloor)
-            : parameters.MinIslandAreaMm2;
-        var regularIslandMin = parameters.EnableMiniSupports
-            ? miniIslandMax
-            : parameters.MinIslandAreaMm2;
         var layers = LayerStack.Slice(mesh, parameters.LayerHeightMm);
         var islands = IslandFinder.Find(
-                     layers, mesh.Bounds.Min.Z, parameters.LayerHeightMm, islandFloor,
+                     layers, mesh.Bounds.Min.Z, parameters.LayerHeightMm, parameters.MinIslandAreaMm2,
                      parameters.PlateZ, parameters.OverhangAngleDegrees)
                      .OrderByDescending(i => i.AreaMm2)
                      .ThenBy(i => i.Z)
                      .ThenBy(i => i.Centroid.X)
                      .ThenBy(i => i.Centroid.Y)
                      .ToList();
-        foreach (var island in islands.Where(i => i.AreaMm2 >= regularIslandMin))
+        foreach (var island in islands.Where(i => i.AreaMm2 >= parameters.MinIslandAreaMm2))
         {
             if (!TryProjectToRegion(mesh, bvh, region, island.Centroid, parameters, out var point, out var outward, out var face))
                 continue;
@@ -109,7 +96,7 @@ public static class TipPlacer
             TryAcceptRequired(
                 keepClean, keepCleanBvh, keepCleanDistance,
                 graphGrid, placedGrid, accepted, minSpacing, parameters,
-                point, outward, face, score, TipStrategy.Island, island.AreaMm2);
+                point, outward, face, score, TipStrategy.Island);
         }
 
         foreach (var (vertex, position, outward, face) in features.LocalMinima(region, parameters.PlateZ, parameters.LayerHeightMm))
@@ -147,45 +134,7 @@ public static class TipPlacer
             accepted.Add(sample);
         }
 
-        // Fine islands are deliberately last: they fill otherwise unsupported detail without
-        // displacing ordinary required tips or the main overhang distribution.
-        if (parameters.EnableMiniSupports)
-        {
-            foreach (var island in islands.Where(i => i.AreaMm2 < miniIslandMax))
-            {
-                if (!TryProjectToRegion(mesh, bvh, region, island.Centroid, parameters,
-                        out var point, out var outward, out var face)) continue;
-                var score = 10f + MathF.Log(1f + island.AreaMm2);
-                var effectiveSpacing = MathF.Min(minSpacing,
-                    MathF.Max(parameters.IslandSpacingMm, 1e-4f));
-                var existingIndex = accepted.FindIndex(candidate =>
-                    Vector3.DistanceSquared(candidate.Point, point) <
-                    effectiveSpacing * effectiveSpacing);
-                if (existingIndex >= 0)
-                {
-                    // A local minimum at the same fine feature is the island's natural contact;
-                    // retain the point but type it for the mini pass instead of duplicating it.
-                    if (accepted[existingIndex].Strategy == TipStrategy.LocalMinimum &&
-                        !ViolatesKeepClean(face, point, keepClean, keepCleanBvh, keepCleanDistance))
-                    {
-                        accepted[existingIndex] = Candidate(point, Inward(outward),
-                            parameters.MiniSupportTipDiameterMm, score,
-                            TipStrategy.MiniIsland, face, parameters, island.AreaMm2);
-                    }
-                    continue;
-                }
-                TryAcceptRequired(
-                    keepClean, keepCleanBvh, keepCleanDistance,
-                    graphGrid, placedGrid, accepted, minSpacing, parameters,
-                    point, outward, face, score, TipStrategy.MiniIsland, island.AreaMm2);
-            }
-        }
-
-        var measured = FineFeatureMiniClassifier.Measure(accepted, layers, parameters);
-        var clustered = parameters.EnableMiniTipClusters
-            ? MiniTipClusterer.Apply(measured, parameters)
-            : measured;
-        return FineFeatureMiniClassifier.Apply(clustered, parameters);
+        return accepted;
     }
 
     /// <summary>
@@ -208,14 +157,13 @@ public static class TipPlacer
         Vector3 outward,
         int face,
         float score,
-        TipStrategy strategy,
-        float? fineFeatureAreaMm2 = null)
+        TipStrategy strategy)
     {
         if (ViolatesKeepClean(face, point, keepClean, keepCleanBvh, keepCleanDistance)) return;
         if (IsOnPlate(point, parameters)) return;
         // Islands are exempt from general spacing: each island needs its own support, however
         // close its neighbour is (teeth). They only dedup against a tip within IslandSpacingMm.
-        var effectiveSpacing = strategy is TipStrategy.Island or TipStrategy.MiniIsland
+        var effectiveSpacing = strategy is TipStrategy.Island
             ? MathF.Min(minSpacing, MathF.Max(parameters.IslandSpacingMm, 1e-4f))
             : minSpacing;
         // Under a painted grid an island landing on top of a row point is already supported by
@@ -226,12 +174,9 @@ public static class TipPlacer
         if (placedGrid.AnyWithin(point, effectiveSpacing)) return;
 
         var inward = Inward(outward);
-        var diameter = strategy == TipStrategy.MiniIsland
-            ? parameters.MiniSupportTipDiameterMm
-            : DiameterFor(parameters.TipDiameterMm, strategy);
+        var diameter = DiameterFor(parameters.TipDiameterMm, strategy);
         placedGrid.Add(point);
-        accepted.Add(Candidate(point, inward, diameter, score, strategy, face, parameters,
-            fineFeatureAreaMm2));
+        accepted.Add(Candidate(point, inward, diameter, score, strategy, face, parameters));
     }
 
     private static List<TipCandidate> CollectOverhangSamples(
@@ -496,14 +441,12 @@ public static class TipPlacer
 
     private static TipCandidate Candidate(
         Vector3 point, Vector3 inward, float diameter, float score, TipStrategy strategy, int face,
-        TipPlacementParameters parameters,
-        float? fineFeatureAreaMm2 = null) =>
+        TipPlacementParameters parameters) =>
         new(point, inward, diameter, score, strategy, face,
-            strategy == TipStrategy.MiniIsland ? SupportTipShape.Cone : parameters.TipShape,
-            strategy == TipStrategy.MiniIsland ? parameters.MiniSupportConeLengthMm : parameters.ConeLengthMm,
-            strategy == TipStrategy.MiniIsland ? 0f : parameters.BallDiameterMm,
+            parameters.TipShape,
+            parameters.ConeLengthMm,
+            parameters.BallDiameterMm,
             Math.Max(parameters.PenetrationDepthMm, 0f),
-            FineFeatureAreaMm2: fineFeatureAreaMm2,
             TipNormalLeadIn: Math.Max(parameters.TipNormalLeadInMm, 0f));
 
     private static float DiameterFor(float baseDiameter, TipStrategy strategy) => strategy switch

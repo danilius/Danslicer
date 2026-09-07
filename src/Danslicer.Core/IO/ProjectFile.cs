@@ -107,25 +107,44 @@ public static class ProjectFile
     }
 
     /// <summary>
-    /// Mini supports are set aside (user decision 2026-09-07). A saved mini rod would now draw
-    /// as a full-size cone, and a cluster of them as a fan of cones off one ball, so they are
-    /// dropped on load together with any carrier branch left holding nothing.
+    /// Mini supports were removed (user decision 2026-09-07), but old project files may still
+    /// carry them. Their segments are never added to the graph; this drops what they leave
+    /// behind: a tip node with no member, a branch end that fed only minis (a bare ball on a
+    /// stalk) with its branch, and then a trunk top left holding nothing, with its trunk and
+    /// an orphaned base, so no support stands with no tip on it.
     /// </summary>
-    internal static void StripMiniSupports(SupportGraph graph)
+    private static void DropMiniSupportRemnants(SupportGraph graph, IEnumerable<SegmentDto> minis)
     {
-        foreach (var mini in graph.Segments
-                     .Where(segment => segment.Type == SupportSegmentType.MiniSupport).ToList())
+        foreach (var mini in minis)
         {
-            var a = graph.GetNode(mini.NodeA);
-            var b = graph.GetNode(mini.NodeB);
+            if (!graph.TryGetNode(mini.NodeA, out var a) || !graph.TryGetNode(mini.NodeB, out var b))
+                continue;
             var (tip, carrier) = a.Type == SupportNodeType.Tip ? (a, b) : (b, a);
-            graph.RemoveSegment(mini.Id);
             if (graph.SegmentsAt(tip.Id).Count == 0) graph.RemoveNode(tip.Id);
-            // A branch end that fed only minis is now a bare ball on a stalk: drop the stalk too.
-            if (graph.SegmentsAt(carrier.Id).Count == 1 &&
-                graph.SegmentsAt(carrier.Id)[0].Type == SupportSegmentType.Branch)
-                graph.RemoveNode(carrier.Id);
+            DropBareStalk(graph, carrier.Id, SupportSegmentType.Branch);
         }
+    }
+
+    /// <summary>
+    /// Removes <paramref name="nodeId"/> when its only remaining member is one
+    /// <paramref name="stalkType"/> segment, then repeats down that member: a branch end feeding
+    /// nothing takes its branch; a trunk top then left with only its trunk takes the trunk; a
+    /// base left with no member goes too.
+    /// </summary>
+    private static void DropBareStalk(SupportGraph graph, Guid nodeId, SupportSegmentType stalkType)
+    {
+        if (!graph.TryGetNode(nodeId, out var node)) return;
+        var members = graph.SegmentsAt(nodeId);
+        if (node.Type == SupportNodeType.Base)
+        {
+            if (members.Count == 0) graph.RemoveNode(nodeId);
+            return;
+        }
+        if (members.Count != 1 || members[0].Type != stalkType) return;
+        var stalk = members[0];
+        var farId = stalk.NodeA == nodeId ? stalk.NodeB : stalk.NodeA;
+        graph.RemoveNode(nodeId);
+        DropBareStalk(graph, farId, SupportSegmentType.Trunk);
     }
 
     public static ProjectLoadResult Load(string path)
@@ -179,9 +198,11 @@ public static class ProjectFile
             document.Scene.Add(dto.ToObject(meshes[dto.Mesh]));
         foreach (var node in manifest.SupportGraph.Nodes)
             document.Supports.AddNode(node.ToNode());
-        foreach (var segment in manifest.SupportGraph.Segments)
+        // Old files may carry mini supports (removed 2026-09-07); those segments are dropped.
+        foreach (var segment in manifest.SupportGraph.Segments.Where(segment => !segment.IsMiniSupport))
             document.Supports.AddSegment(segment.ToSegment());
-        StripMiniSupports(document.Supports);
+        DropMiniSupportRemnants(document.Supports,
+            manifest.SupportGraph.Segments.Where(segment => segment.IsMiniSupport));
         document.History.Clear();
 
         return new ProjectLoadResult(document, (manifest.ViewState ?? new ViewStateDto()).ToViewState());
@@ -437,8 +458,16 @@ public static class ProjectFile
 
     private sealed class SegmentDto
     {
+        /// <summary>Segment type written by the removed mini-support feature; still found in old files.</summary>
+        private const string MiniSupportTypeName = "miniSupport";
+
         public Guid Id { get; set; }
-        public SupportSegmentType Type { get; set; }
+        /// <summary>
+        /// The segment type as its camel-case name, kept as a string so a type this version no
+        /// longer has (<see cref="MiniSupportTypeName"/>) can be recognised and skipped instead of
+        /// failing the whole load.
+        /// </summary>
+        public string Type { get; set; } = "";
         public Guid NodeA { get; set; }
         public Guid NodeB { get; set; }
         public float Diameter { get; set; }
@@ -447,18 +476,30 @@ public static class ProjectFile
         public bool Hidden { get; set; }
         public bool Disabled { get; set; }
 
+        [JsonIgnore]
+        public bool IsMiniSupport =>
+            string.Equals(Type, MiniSupportTypeName, StringComparison.OrdinalIgnoreCase);
+
         public static SegmentDto From(SupportSegment segment) => new()
         {
-            Id = segment.Id, Type = segment.Type, NodeA = segment.NodeA, NodeB = segment.NodeB,
+            Id = segment.Id, Type = JsonNamingPolicy.CamelCase.ConvertName(segment.Type.ToString()),
+            NodeA = segment.NodeA, NodeB = segment.NodeB,
             Diameter = segment.Diameter, Origin = OriginDto.From(segment.Origin),
             Pinned = segment.Pinned, Hidden = segment.Hidden, Disabled = segment.Disabled,
         };
 
         public SupportSegment ToSegment() => new()
         {
-            Id = Id, Type = Type, NodeA = NodeA, NodeB = NodeB, Diameter = Diameter,
+            Id = Id, Type = ParseType(), NodeA = NodeA, NodeB = NodeB, Diameter = Diameter,
             Origin = Origin.ToOrigin(), Pinned = Pinned, Hidden = Hidden, Disabled = Disabled,
         };
+
+        private SupportSegmentType ParseType() =>
+            !string.IsNullOrEmpty(Type) && !char.IsDigit(Type[0]) &&
+            Enum.TryParse<SupportSegmentType>(Type, ignoreCase: true, out var type) &&
+            Enum.IsDefined(type)
+                ? type
+                : throw new InvalidDataException($"Unknown support segment type '{Type}'.");
     }
 
     private sealed class OriginDto

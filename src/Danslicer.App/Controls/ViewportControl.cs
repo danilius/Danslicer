@@ -503,7 +503,6 @@ public sealed class ViewportControl : OpenGlControlBase
             ? TransparentSupportOpacity
             : 1f;
         AddCategory(SupportSegmentType.Tip, TipColor, SupportNodeType.Tip);
-        AddCategory(SupportSegmentType.MiniSupport, MiniSupportColor, SupportNodeType.Tip);
         AddCategory(SupportSegmentType.Branch, BranchColor);
         AddCategory(SupportSegmentType.Trunk, TrunkColor);
         AddCategory(SupportSegmentType.Bracing, BracingColor);
@@ -1174,7 +1173,6 @@ public sealed class ViewportControl : OpenGlControlBase
     // ----- Manual supports -----
 
     private static readonly Vector4 TipColor = new(1f, 0.85f, 0.3f, 0.95f);
-    private static readonly Vector4 MiniSupportColor = new(1f, 0.68f, 0.22f, 0.95f);
     private static readonly Vector4 BranchColor = new(0.55f, 0.75f, 0.95f, 0.95f);
     private static readonly Vector4 TrunkColor = new(0.75f, 0.85f, 1f, 0.95f);
     private static readonly Vector4 BracingColor = new(0.5f, 0.9f, 0.6f, 0.95f);
@@ -1533,7 +1531,6 @@ public sealed class ViewportControl : OpenGlControlBase
         var color = part.Kind switch
         {
             SupportRenderKind.Tip => TipColor,
-            SupportRenderKind.MiniSupport => MiniSupportColor,
             SupportRenderKind.Trunk => TrunkColor,
             SupportRenderKind.Bracing => BracingColor,
             SupportRenderKind.Base => BaseColor,
@@ -1569,7 +1566,6 @@ public sealed class ViewportControl : OpenGlControlBase
                     : segment.Type switch
                     {
                         SupportSegmentType.Tip => TipColor,
-                        SupportSegmentType.MiniSupport => MiniSupportColor,
                         SupportSegmentType.Trunk => TrunkColor,
                         SupportSegmentType.Bracing => BracingColor,
                         _ => BranchColor,

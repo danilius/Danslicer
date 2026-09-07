@@ -8,25 +8,6 @@ namespace Danslicer.Tests;
 public class SupportSliceGeometryTests
 {
     [Fact]
-    public void MiniSupportSlicesLikeAnOrdinaryMember()
-    {
-        var graph = new SupportGraph();
-        var tip = new SupportNode { Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 2) };
-        var end = new SupportNode { Type = SupportNodeType.Junction, Position = Vector3.Zero };
-        graph.AddNode(tip);
-        graph.AddNode(end);
-        graph.AddSegment(new SupportSegment
-        {
-            Type = SupportSegmentType.MiniSupport,
-            NodeA = tip.Id,
-            NodeB = end.Id,
-            Diameter = 0.6f,
-        });
-
-        AssertAreaNear(Math.PI * 0.3 * 0.3, SupportSliceGeometry.SectionsAt(graph, 1));
-    }
-
-    [Fact]
     public void FilteredSectionsIncludeOnlyTheRequestedViewportCategory()
     {
         var graph = new SupportGraph();

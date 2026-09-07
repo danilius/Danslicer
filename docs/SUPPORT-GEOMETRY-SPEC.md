@@ -142,92 +142,24 @@ base is the one exception.
   and no existing trunk can be joined, the support is routed as in free mode, its base
   standing wherever the trunk falls. (User, 2026-09-07: refusing a contact whose trunk
   could drop straight under it is absurd.)
-- **Density clusters are off with minis.** The tree generator forced the crowded-contact
-  cluster pass on regardless of the mini switch, and that pass never checked it, so three
-  close regular contacts still became a fan of minis on one carrier (the last "multi tip"
-  of the 2026-09-07 screen test). Clusters now run only when minis are enabled.
-- **A refused contact never becomes a mini.** The old "retry refused regular tips as
-  minis" fallback is forced off in generation and manual placement, whatever a saved
-  config says: with its checkbox gone, a saved `true` kept producing fans of minis in the
-  viewport that vanished on reload (user screen test 2026-09-07).
-- **Saved mini supports are dropped on load** together with a carrier branch left holding
-  nothing: drawn with the new geometry, a cluster of three thin rods looked like a fan of
-  three full cones on one ball.
+- **Mini supports are removed; old project files that still carry them load with those
+  members dropped.**
 - **Existing supports count at full size.** Supports already in the document (an earlier
   generation, manual placements) are seeded into later routing with each cone at the radius
-  of its ball, so a later pass cannot crowd them; the saved project from before this
-  change still shows its old mini fans until regenerated.
+  of its ball, so a later pass cannot crowd them.
 - **One member draws each joint's ball.** In the viewport the widest member at a node
   (trunk before branch, then lowest id) draws the ball; the others tuck their end caps
   inside it, so no two surfaces coincide and the seams no longer flicker.
 - **A cone is straight.** The normal lead-in (a short run along the contact normal before
   bending toward the junction) is set to zero in generation and manual placement and its
   setting is gone from the panel (user screen test 2026-09-07: a bent cone is wrong).
-- **Mini-supports are removed for now** (user decision 2026-09-07): generation never
-  classifies a contact as a mini, and the mini settings are gone from the support
-  panel. Islands at or above the minimum area get regular cone tips; smaller ones are
-  ignored as before minis existed. The mini code, its configuration fields and the CLI
-  options remain for when they return.
+## Mini-supports (removed 2026-09-07)
 
-## Mini-supports (user dictation, 2026-09-03 late night)
-
-Very fine support is important — teeth, barbs and other fine detail need it:
-
-- **Mini-supports** are very fine rods (canonical name).
-- Several mini-supports may **fan out from one branch end**.
-- They have a **configurable maximum length**; past it, a new branch or trunk is
-  required to carry them.
-
-### Mini-tip clusters (user dictation with Blender mock-up, 2026-09-04)
-
-Where a regular tip goes, one or more mini-tips may go instead — a **cluster**: a
-group of fine rods converging near one contact location, sharing the branch end a
-single regular tip would have used. The mock-up shows a Y-shaped support: right
-branch ends in one regular cone tip, left branch ends in a cluster of four mini
-rods spreading to nearby contact points.
-
-- A cluster is **one or more** mini-tips at one location.
-- Use case: places where regular tips would be **too clustered** — several fine
-  contacts spread the load without the bulk of adjacent full-size cones.
-- Configurable: **max length**, **diameter**, and **max mini-tips in one cluster**.
-- (Existing knobs map: MiniSupportMaxLength, MiniSupportDiameter/TipDiameter, and
-  MiniSupportMaxFanPerBranchEnd becomes the per-cluster cap.)
-
-#### Implemented semantics (job 023 — proposals pending screen test)
-
-- Density clustering is additional to mini-island classification. Regular-size contacts,
-  explicitly including required `Island` contacts, in a connected group of at least three each
-  linked within the configurable crowding distance become mini-tip members instead of adjacent
-  full-size cones. Each member retains its source strategy as metadata so island coverage remains
-  auditable after reclassification. Mini-island contacts keep their existing classification and
-  route pass.
-- After density clustering, an isolated `Island` or `LocalMinimum` contact whose measured local
-  cross-section is no greater than `FineFeatureMaxAreaMm2` becomes a one-member mini cluster.
-  Islands use their already-computed first-appearance area. Local minima use the connected solid
-  section in a horizontal slice 0.5 mm above the contact; if that fixed-height probe does not
-  contain the contact XY, the contact stays regular rather than guessing. Mini-island
-  classification still wins, and crowded density groups are never split by this pass.
-- The proposed `FineFeatureMaxAreaMm2` default is **1.0 mm²**. On `drogon-lo`, the four isolated
-  bottom-spike minima measure 0.36, 0.62, 0.68 and 0.78 mm² at the 0.5 mm probe; the next measured
-  local minimum is 4.01 mm², leaving a clean gap around the round-number default.
-- After density clustering, an isolated `Island` or `LocalMinimum` contact whose measured local
-  cross-section is no greater than `FineFeatureMaxAreaMm2` becomes a one-member mini cluster.
-  Islands use their already-computed first-appearance area. Local minima use the connected solid
-  section in a horizontal slice 0.5 mm above the contact; if that fixed-height probe does not
-  contain the contact XY, the contact stays regular rather than guessing. Mini-island
-  classification still wins, and crowded density groups are never split by this pass.
-- The proposed `FineFeatureMaxAreaMm2` default is **1.0 mm²**. On `drogon-lo`, the four isolated
-  bottom-spike minima measure 0.36, 0.62, 0.68 and 0.78 mm² at the 0.5 mm probe; the next measured
-  local minimum is 4.01 mm², leaving a clean gap around the round-number default.
-- The proposed crowding-distance default is **1.25 mm**, derived as half the default 2.5 mm tip
-  spacing. Each cluster location is the score-weighted centre of its member contacts.
-- One purpose-built branch end below the cluster feeds one ascending mini rod per member. The
-  carrier follows the ordinary branch-first policy: attach to a reachable trunk when possible,
-  otherwise create a clear branch/trunk path to the plate.
-- `MiniSupportMaxFanPerBranchEnd` is also the per-cluster cap. Larger connected groups split into
-  deterministic, spatially compact follow-on clusters; no over-cap contact is silently dropped.
-- Maximum mini length, maximum mini lean and ordinary collision clearance remain binding. An
-  unroutable carrier reports its reason against every affected member contact.
+Mini supports (fine rods fanning from a branch end, mini-island tips, density clusters and
+fine-feature minis) were removed on 2026-09-07 at the user's decision: not worth dealing
+with now. The code, settings, CLI options and tests are gone. Islands at or above the
+minimum area get regular cone tips; smaller ones are ignored. Old project files that still
+carry mini segments load with those members dropped.
 
 ## Island-first generation and island tools (user dictation, 2026-09-04)
 
@@ -250,5 +182,3 @@ rods spreading to nearby contact points.
 - Base grid details assumed pending the user's confirmation (offered a Blender
   mock-up): square grid aligned to the plate origin; a new trunk takes the nearest
   reachable grid point; a blocked grid point falls through to the next nearest.
-- Mini-support geometry defaults (rod and tip diameter, max length, fan count)
-  are implementation proposals until screen-tested.
