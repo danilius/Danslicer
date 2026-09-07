@@ -749,7 +749,12 @@ public sealed class ViewportControl : OpenGlControlBase
             // A click adds a vertex; the second click of a double-click places the line.
             if (props.IsLeftButtonPressed)
             {
-                if (e.ClickCount >= 2) CommitLineGesture();
+                if (_lineGesture.PlacesOnClick)
+                {
+                    UpdateLineGestureCursor(MouseVector(e));
+                    if (_lineGesture.AddVertex()) CommitLineGesture();
+                }
+                else if (e.ClickCount >= 2) CommitLineGesture();
                 else LineGestureAddVertex(MouseVector(e));
             }
             else if (props.IsRightButtonPressed) CancelLineGesture();
@@ -1244,7 +1249,9 @@ public sealed class ViewportControl : OpenGlControlBase
     /// from that tip's contact, so a line can extend a support already placed. Returns a status
     /// message when the gesture cannot start.
     /// </summary>
-    private string? BeginLineGesture(Vector2 mouse, bool polygon = false)
+    private enum GuidedKind { Line, Polygon, Edge }
+
+    private string? BeginLineGesture(Vector2 mouse, GuidedKind kind = GuidedKind.Line)
     {
         if (Document is null) return null;
         if (Document.SupportTarget is not { } target)
@@ -1255,9 +1262,13 @@ public sealed class ViewportControl : OpenGlControlBase
             (int[])target.Mesh.Indices.Clone());
         _lineTarget = target;
         var pitch = Document.SupportSettings.Spacing;
-        _lineGesture = polygon
-            ? new Danslicer.Core.Supports.Guided.SurfacePolygonGesture(worldMesh, pitch)
-            : new Danslicer.Core.Supports.Guided.SurfaceLineGesture(worldMesh, pitch);
+        _lineGesture = kind switch
+        {
+            GuidedKind.Polygon => new Danslicer.Core.Supports.Guided.SurfacePolygonGesture(worldMesh, pitch),
+            GuidedKind.Edge => new Danslicer.Core.Supports.Guided.CreaseFollowGesture(worldMesh, pitch,
+                Document.GuidedPlacementParameters().SharpEdgeDegrees),
+            _ => new Danslicer.Core.Supports.Guided.SurfaceLineGesture(worldMesh, pitch),
+        };
         _linePitchInput = "";
 
         if (SelectedTip() is { } tipId)
@@ -1284,6 +1295,9 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         else
         {
+            // Edge follow snaps within about twelve screen pixels, whatever the zoom.
+            if (gesture is Danslicer.Core.Supports.Guided.CreaseFollowGesture crease)
+                crease.SnapDistanceMm = ContactMarkerHalfSize(point) * 3f;
             gesture.SetCursor(point, face);
             // The vertical-plane path failed: bridge along what the user sees on screen.
             if (gesture.CursorPathIsChord && gesture.Vertices.Count > 0)
@@ -2027,7 +2041,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.T when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = TryAddSupport(mouse); break;
                 // Guided line of supports (SUPPORT-GEOMETRY-SPEC "Guided tip placement").
                 case Key.L when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse); break;
-                case Key.P when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, polygon: true); break;
+                case Key.P when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Polygon); break;
+                case Key.E when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Edge); break;
                 case Key.Escape when _marqueeStart is not null:
                     _marqueeStart = null;
                     _pendingClickSupport = null;
@@ -2085,7 +2100,9 @@ public sealed class ViewportControl : OpenGlControlBase
             var offSurface = lineGesture.CursorPathIsChord ||
                 lineGesture is Danslicer.Core.Supports.Guided.SurfacePolygonGesture { ClosingPathIsChord: true };
             var surface = offSurface ? " · OFF SURFACE" : "";
-            StatusText = $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  LMB add point · double-click/Enter place · Backspace remove point · wheel/digits pitch · RMB/Esc cancel";
+            StatusText = lineGesture.PlacesOnClick
+                ? $"{lineGesture.Name}: {(_linePreview.Count == 0 ? "hover near a sharp edge" : tips)} · pitch {pitch} mm  ·  LMB place · wheel/digits pitch · RMB/Esc cancel"
+                : $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  LMB add point · double-click/Enter place · Backspace remove point · wheel/digits pitch · RMB/Esc cancel";
             return;
         }
         if (_tipDrag is not null)
@@ -2109,7 +2126,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

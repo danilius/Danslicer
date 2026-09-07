@@ -13,6 +13,9 @@ public interface IGuidedGesture
     /// <summary>Shown in the status line and used as the undo step's name, e.g. "Support line".</summary>
     string Name { get; }
 
+    /// <summary>True for a gesture with nothing to collect, where the first click places (edge follow).</summary>
+    bool PlacesOnClick { get; }
+
     float PitchMm { get; }
     void SetPitch(float pitchMm);
     void StepPitch(int notches);
