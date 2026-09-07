@@ -234,8 +234,15 @@ Keys, all Support mode only:
 - **Overhang perimeter.** Click an overhang patch; tips around its boundary at pitch.
 - **Array / mirror.** Selected tips repeated along a direction, or mirrored across the
   model's midplane, each copy re-picked onto the surface.
-- **Densify / thin.** Selected tips along a line group get midpoints inserted or every
-  second tip removed.
+- **Densify (D) / thin (Shift+D).** Commands, not gestures: they work on the selected tips
+  of the target, or all of its tips when nothing is selected (user decision 2026-09-08).
+  Neighbours are the edges of the minimum spanning tree over the tips, minus any edge over
+  2.5× the median, so separate lines stay separate. Densify inserts "tips per gap" (default
+  1) evenly along the surface path between each pair of neighbours and places them as
+  guided tips, never on an operand. Thin keeps one tip in N (default 2) along each run,
+  walked from an end so a line keeps its ends, and removes the rest with their supports.
+  Both live under the "Guided" expander of the Supports pop-out with the ignore-existing
+  rows. Toolbar buttons are still owed for every guided key (user rule 2026-09-08).
 - **Stamp.** One click drops a small cluster at pitch around the point (the manual
   replacement for the removed mini clusters).
 

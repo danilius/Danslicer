@@ -563,6 +563,18 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.GuidedExistingClearanceMm = Clamp(value, 0.1f, 100f, 2.5f));
     }
 
+    public int SupportGuidedDensifyInsertions
+    {
+        get => Supports.GuidedDensifyInsertions;
+        set => Update(() => Supports.GuidedDensifyInsertions = Math.Clamp(value, 1, 10));
+    }
+
+    public int SupportGuidedThinKeepEvery
+    {
+        get => Supports.GuidedThinKeepEvery;
+        set => Update(() => Supports.GuidedThinKeepEvery = Math.Clamp(value, 2, 10));
+    }
+
     public float SupportExistingTrunkBranchRange
     {
         get => Supports.ExistingTrunkBranchRange;
