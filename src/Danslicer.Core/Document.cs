@@ -5,6 +5,7 @@ using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Routing;
 using Danslicer.Core.Supports.Generation;
+using Danslicer.Core.Supports.Guided;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
@@ -249,13 +250,23 @@ public sealed class Document
     public void DeleteSupportSelection()
     {
         if (_supportSelection.Count == 0) return;
-        var nodes = _supportSelection.Where(id => Supports.TryGetNode(id, out _)).ToHashSet();
-        var segments = _supportSelection.Where(id => Supports.TryGetSegment(id, out _)).ToHashSet();
+        var ids = _supportSelection.ToList();
         _supportSelection.Clear();
         SupportSelectionChanged?.Invoke();
+        DeleteSupportElements(ids);
+    }
+
+    /// <summary>
+    /// Removes the given elements with the same pruning as a selection delete, as one undo step
+    /// under <paramref name="undoName"/>. Ids that are not elements are ignored.
+    /// </summary>
+    public void DeleteSupportElements(IEnumerable<Guid> ids, string undoName = "Delete supports")
+    {
+        var nodes = ids.Where(id => Supports.TryGetNode(id, out _)).ToHashSet();
+        var segments = ids.Where(id => Supports.TryGetSegment(id, out _)).ToHashSet();
         if (nodes.Count == 0 && segments.Count == 0) return;
         AddOrphanedFragments(nodes, segments);
-        Execute(new RemoveSupportElementsCommand(Supports, nodes, segments));
+        Execute(new RemoveSupportElementsCommand(Supports, nodes, segments, undoName));
     }
 
     /// <summary>
@@ -861,6 +872,71 @@ public sealed class Document
     /// </summary>
     public SupportGraph? GuidedExistingSupports() =>
         SupportSettings.GuidedIgnoreExistingSupports ? null : Supports;
+
+    /// <summary>
+    /// The tips densify and thin work on: the selected tips of the support target, or every tip
+    /// of the target when nothing is selected (user decision 2026-09-08).
+    /// </summary>
+    public IReadOnlyList<SupportNode> GuidedOperandTips()
+    {
+        if (SupportTarget is not { } target) return [];
+        var tips = Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip && !n.Hidden &&
+            (n.ContactObjectId ?? n.Origin.ObjectId) == target.Id);
+        if (_supportSelection.Count > 0) tips = tips.Where(n => _supportSelection.Contains(n.Id));
+        return tips.ToList();
+    }
+
+    /// <summary>
+    /// Densify (D): inserts <see cref="SupportConfig.GuidedDensifyInsertions"/> tips along the
+    /// surface between each pair of neighbouring operand tips, placed as guided tips in one
+    /// undo step. Returns the number placed; <paramref name="refused"/> counts those the router
+    /// could not route.
+    /// </summary>
+    public int DensifyTips(out int refused)
+    {
+        refused = 0;
+        if (SupportTarget is not { } target) return 0;
+        var tips = GuidedOperandTips();
+        if (tips.Count < 2) return 0;
+        var mesh = WorldMesh(target);
+        var bvh = MeshAnalysis.For(mesh).Bvh;
+        var operands = tips.Select(t =>
+        {
+            bvh.ClosestPoint(t.Position, out var onMesh, out var face);
+            return (onMesh, face);
+        }).ToList();
+        var samples = TipRuns.Densify(mesh, operands, SupportSettings.GuidedDensifyInsertions);
+        // Never a second tip on an operand: the operands are the existing tips to keep clear of,
+        // whatever the ignore-existing setting says about the rest of the document.
+        var candidates = GuidedTipPlacement.Candidates(mesh, samples, GuidedPlacementParameters(),
+            GuidedExistingSupports(), keepClearOf: operands.Select(o => o.onMesh).ToList());
+        return PlaceGuidedTips(target, candidates, "Densify", out refused);
+    }
+
+    /// <summary>
+    /// Thin (Shift+D): keeps one tip in <see cref="SupportConfig.GuidedThinKeepEvery"/> along
+    /// each run of operand tips and removes the rest with their supports, as one undo step.
+    /// Returns the number removed.
+    /// </summary>
+    public int ThinTips()
+    {
+        var tips = GuidedOperandTips();
+        if (tips.Count < 2) return 0;
+        var remove = TipRuns.Thin(tips.Select(t => t.Position).ToList(), SupportSettings.GuidedThinKeepEvery)
+            .Select(i => tips[i].Id).ToList();
+        if (remove.Count == 0) return 0;
+        foreach (var id in remove) _supportSelection.Remove(id);
+        SupportSelectionChanged?.Invoke();
+        DeleteSupportElements(remove, "Thin");
+        return remove.Count;
+    }
+
+    private static Mesh WorldMesh(SceneObject obj)
+    {
+        var world = obj.Transform.ToMatrix();
+        return new Mesh(obj.Mesh.Positions.Select(p => Vector3.Transform(p, world)).ToArray(),
+            (int[])obj.Mesh.Indices.Clone());
+    }
 
     /// <summary>
     /// The router and options a manual placement uses, shared by T and the guided tools.

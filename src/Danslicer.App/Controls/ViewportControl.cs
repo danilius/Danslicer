@@ -2047,6 +2047,22 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.E when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Edge); break;
                 case Key.R when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Ring); break;
                 case Key.C when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Contour); break;
+                // Densify / thin the selected tips (all of the target's when nothing is selected).
+                case Key.D when !ctrl && shift && SupportSelectionMode:
+                {
+                    var removed = Document.ThinTips();
+                    statusAfterUpdate = removed == 0 ? "Thin: nothing to remove (needs two or more tips)" : $"Thin: {removed} removed";
+                    break;
+                }
+                case Key.D when !ctrl && SupportSelectionMode:
+                {
+                    var placed = Document.DensifyTips(out var refused);
+                    statusAfterUpdate = placed + refused == 0
+                        ? "Densify: nothing to add (needs two or more tips)"
+                        : refused == 0 ? $"Densify: {placed} placed"
+                        : $"Densify: {placed} of {placed + refused} placed · {refused} had no clear path";
+                    break;
+                }
                 case Key.Escape when _marqueeStart is not null:
                     _marqueeStart = null;
                     _pendingClickSupport = null;
@@ -2128,7 +2144,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

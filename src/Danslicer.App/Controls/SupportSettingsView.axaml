@@ -107,17 +107,6 @@
                           Content="Independent supports (ignore existing)"
                           ToolTip.Tip="Manual T placements ignore other supports but still avoid models"
                           IsChecked="{Binding SupportIndependentManualSupports, Mode=TwoWay}" Margin="0,4" />
-                <CheckBox Tag="supports guided line polygon edge ignore existing"
-                          Content="Guided tools ignore existing"
-                          ToolTip.Tip="Line (L), polygon (P) and edge (E) place every tip and route as if no other support existed. Untick to keep clear of existing tips and route around existing supports."
-                          IsChecked="{Binding SupportGuidedIgnoreExistingSupports, Mode=TwoWay}" Margin="0,4" />
-                <Grid Tag="supports guided existing tip clearance distance mm" ColumnDefinitions="170,*" Margin="0,2"
-                      IsEnabled="{Binding !SupportGuidedIgnoreExistingSupports}">
-                    <TextBlock Text="Guided tip clearance" Classes="label"
-                               ToolTip.Tip="When guided tools respect existing supports: no guided tip closer than this to an existing tip" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.1" Maximum="100" Increment="0.5" FormatString="0.##"
-                                   Value="{Binding SupportGuidedExistingClearanceMm, Mode=TwoWay}" />
-                </Grid>
                 <Grid Tag="supports members existing trunk branch range mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Existing trunk range" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
@@ -195,6 +184,36 @@
                     <TextBlock Text="Tip diameter multiplier" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportReinforceRingDiameterMultiplier, Mode=TwoWay}" />
+                </Grid>
+            </StackPanel>
+        </Expander>
+
+        <!-- Guided placement: line (L), polygon (P), edge (E), ring (R), contour (C), densify (D)
+             and thin (Shift+D). SUPPORT-GEOMETRY-SPEC "Guided tip placement". -->
+        <Expander Header="Guided" IsExpanded="True">
+            <StackPanel Margin="8,2,0,6">
+                <CheckBox Tag="supports guided line polygon edge ring contour ignore existing"
+                          Content="Guided tools ignore existing"
+                          ToolTip.Tip="Guided tools place every tip and route as if no other support existed. Untick to keep clear of existing tips and route around existing supports."
+                          IsChecked="{Binding SupportGuidedIgnoreExistingSupports, Mode=TwoWay}" Margin="0,4" />
+                <Grid Tag="supports guided existing tip clearance distance mm" ColumnDefinitions="170,*" Margin="0,2"
+                      IsEnabled="{Binding !SupportGuidedIgnoreExistingSupports}">
+                    <TextBlock Text="Guided tip clearance" Classes="label"
+                               ToolTip.Tip="When guided tools respect existing supports: no guided tip closer than this to an existing tip" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.1" Maximum="100" Increment="0.5" FormatString="0.##"
+                                   Value="{Binding SupportGuidedExistingClearanceMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports guided densify insert tips between neighbours count" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Densify: tips per gap" Classes="label"
+                               ToolTip.Tip="D inserts this many tips along the surface between each pair of neighbouring selected tips (all of the model's tips when nothing is selected)" />
+                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="10" Increment="1" FormatString="0"
+                                   Value="{Binding SupportGuidedDensifyInsertions, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports guided thin keep one in every n tips" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Thin: keep 1 in" Classes="label"
+                               ToolTip.Tip="Shift+D keeps one tip in this many along each run of selected tips and removes the rest with their supports" />
+                    <NumericUpDown Grid.Column="1" Minimum="2" Maximum="10" Increment="1" FormatString="0"
+                                   Value="{Binding SupportGuidedThinKeepEvery, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
         </Expander>

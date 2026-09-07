@@ -234,6 +234,10 @@ public sealed record SupportConfig
     public bool GuidedIgnoreExistingSupports { get; set; } = true;
     /// <summary>Existing-aware guided placement: no guided tip lands closer than this to an existing tip.</summary>
     public float GuidedExistingClearanceMm { get; set; } = 2.5f;
+    /// <summary>Densify (D): tips inserted between each pair of neighbouring selected tips.</summary>
+    public int GuidedDensifyInsertions { get; set; } = 1;
+    /// <summary>Thin (Shift+D): keep one tip in this many along each run of selected tips.</summary>
+    public int GuidedThinKeepEvery { get; set; } = 2;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     public bool UseBaseGrid { get; set; } = true;
@@ -297,6 +301,8 @@ public sealed record SupportConfig
         ExistingTrunkBranchRange = Positive(ExistingTrunkBranchRange, 8f);
         MinMemberSeparationMm = NonNegative(MinMemberSeparationMm);
         GuidedExistingClearanceMm = Positive(GuidedExistingClearanceMm, 2.5f);
+        GuidedDensifyInsertions = Math.Clamp(GuidedDensifyInsertions, 1, 10);
+        GuidedThinKeepEvery = Math.Clamp(GuidedThinKeepEvery, 2, 10);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;
