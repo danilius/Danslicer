@@ -211,6 +211,60 @@ public sealed class GuidedTipPlacementTests
         Assert.Equal(new Vector3(2, -2, 0), kept.Point);
     }
 
+    [Fact]
+    public void ExistingTipClearanceIsItsOwnDistanceWhenGiven()
+    {
+        var mesh = UnitBox();
+        var graph = new SupportGraph();
+        graph.AddNode(new SupportNode { Type = SupportNodeType.Tip, Position = new Vector3(-2, 2, 0) });
+        var parameters = Parameters(2.5f) with { ExistingTipClearanceMm = 1f };
+
+        // 1.5 mm from the existing tip: inside the 2.5 mm spacing, outside the 1 mm clearance.
+        var candidates = GuidedTipPlacement.Candidates(mesh,
+            [(new Vector3(-2, 3.5f, 0), 0), (new Vector3(-2, 2.5f, 0), 0)], parameters, graph);
+
+        var kept = Assert.Single(candidates);
+        Assert.Equal(new Vector3(-2, 3.5f, 0), kept.Point);
+    }
+
+    [Fact]
+    public void SamplesRoundABendAreNotMistakenForDuplicates()
+    {
+        // Two legs at 90°, sampled 2.5 mm apart along the surface: the tip just past the corner
+        // is 1.77 mm from the one just before it in a straight line, yet both must stay (the
+        // roof gripper's fillets lost a tip each way when the radius was the pitch).
+        var mesh = UnitBox();
+        var legs = new List<SurfacePath>
+        {
+            SurfacePath.Chord(new Vector3(-4, 4, 0), 0, new Vector3(-4, -1, 0), 0),
+            SurfacePath.Chord(new Vector3(-4, -1, 0), 0, new Vector3(1, -1, 0), 1),
+        };
+        var samples = SurfacePath.SampleAtPitch(legs, 2.5f, 2.5f);
+
+        var candidates = GuidedTipPlacement.Candidates(mesh, samples, Parameters(2.5f));
+
+        Assert.Equal(samples.Count, candidates.Count);
+    }
+
+    [Fact]
+    public void TheSamePointSampledTwiceIsOneCandidate()
+    {
+        var mesh = UnitBox();
+        var candidates = GuidedTipPlacement.Candidates(mesh,
+            [(new Vector3(-2, 2, 0), 0), (new Vector3(-2, 2, 0), 0), (new Vector3(-2, 2.5f, 0), 0)],
+            Parameters(2.5f));
+        Assert.Single(candidates);
+    }
+
+    [Fact]
+    public void WithNoExistingGraphNothingIsDropped()
+    {
+        var mesh = UnitBox();
+        var candidates = GuidedTipPlacement.Candidates(mesh,
+            [(new Vector3(-2, 2, 0), 0), (new Vector3(2, -2, 0), 1)], Parameters(2.5f), existing: null);
+        Assert.Equal(2, candidates.Count);
+    }
+
     // ----- SurfaceLineGesture -----
 
     [Fact]
@@ -349,6 +403,35 @@ public sealed class GuidedTipPlacementTests
 
         Assert.True(document.Undo());
         Assert.Empty(document.Supports.Nodes);
+    }
+
+    [Fact]
+    public void GuidedGesturesIgnoreExistingSupportsUnlessTold()
+    {
+        var (document, box) = FloatingBoxDocument();
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+
+        Assert.Null(document.GuidedExistingSupports());
+        Assert.Equal(document.SupportSettings.GuidedExistingClearanceMm,
+            document.GuidedPlacementParameters().ExistingTipClearanceMm);
+
+        document.SupportSettings = document.SupportSettings with { GuidedIgnoreExistingSupports = false };
+        Assert.Same(document.Supports, document.GuidedExistingSupports());
+    }
+
+    [Fact]
+    public void IgnoringExistingSupportsPlacesATipRightBesideOne()
+    {
+        var (document, box) = FloatingBoxDocument();
+        Assert.True(document.AddManualSupport(box, new Vector3(0, -3.5f, 8), -Vector3.UnitZ));
+        var beside = GuidedTipPlacement.Candidates(box.Mesh, [(new Vector3(0.6f, -3.5f, 8), 1)],
+            document.GuidedPlacementParameters(), document.GuidedExistingSupports());
+        Assert.Single(beside);
+
+        var placed = document.PlaceGuidedTips(box, beside, "Support line", out var refused);
+
+        Assert.Equal(1, placed);
+        Assert.Equal(0, refused);
     }
 
     [Fact]

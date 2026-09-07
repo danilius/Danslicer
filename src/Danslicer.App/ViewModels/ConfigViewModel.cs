@@ -551,6 +551,18 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.IndependentManualSupports = value);
     }
 
+    public bool SupportGuidedIgnoreExistingSupports
+    {
+        get => Supports.GuidedIgnoreExistingSupports;
+        set => Update(() => Supports.GuidedIgnoreExistingSupports = value);
+    }
+
+    public float SupportGuidedExistingClearanceMm
+    {
+        get => Supports.GuidedExistingClearanceMm;
+        set => Update(() => Supports.GuidedExistingClearanceMm = Clamp(value, 0.1f, 100f, 2.5f));
+    }
+
     public float SupportExistingTrunkBranchRange
     {
         get => Supports.ExistingTrunkBranchRange;
