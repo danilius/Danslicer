@@ -192,7 +192,7 @@ public sealed class SupportBracingTests
     [Fact]
     public void AClusterIsBracedAsOneBundleWithNothingInside()
     {
-        // Three trunks 1.5 mm apart (a cluster) and a lone trunk 6 mm beyond them.
+        // Three trunks 1.5 mm apart (surfaces 0.3 mm apart: a cluster) and a lone trunk 6 mm beyond them.
         var document = new Document();
         var slab = new SceneObject("slab", Box(new Vector3(-30, -30, 40), new Vector3(30, 30, 46)));
         document.AddObject(slab);
@@ -225,6 +225,34 @@ public sealed class SupportBracingTests
         Assert.NotNull(separate);
         Assert.Contains(document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing), s =>
             MathF.Abs(document.Supports.GetNode(s.NodeA).Position.X - document.Supports.GetNode(s.NodeB).Position.X) < 2f);
+    }
+
+    [Fact]
+    public void AFieldOfSupportsIsTiedInBothDirectionsAndEveryTrunkGetsABrace()
+    {
+        // A 3 x 3 field at 4 mm pitch: a single chain would leave trunks off its path untied.
+        var document = new Document();
+        var slab = new SceneObject("slab", Box(new Vector3(-30, -30, 40), new Vector3(30, 30, 46)));
+        document.AddObject(slab);
+        document.Select(slab);
+        document.SupportSettings = new SupportConfig
+        {
+            UseBaseGrid = false, IndependentManualSupports = true, AutoParenting = false, AutoBracing = false,
+        };
+        for (var x = -4f; x <= 4f; x += 4f)
+        for (var y = -4f; y <= 4f; y += 4f)
+            Assert.True(document.AddManualSupport(slab, new Vector3(x, y, 40), -Vector3.UnitZ));
+
+        var outcome = document.BraceSupports();
+
+        Assert.NotNull(outcome);
+        Assert.Equal(9, outcome.SupportsTied);
+        var braces = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing)
+            .Select(s => (A: document.Supports.GetNode(s.NodeA).Position, B: document.Supports.GetNode(s.NodeB).Position)).ToList();
+        Assert.Contains(braces, b => MathF.Abs(b.A.X - b.B.X) > 3f); // ties along X
+        Assert.Contains(braces, b => MathF.Abs(b.A.Y - b.B.Y) > 3f); // and along Y
+        // Rows at the 2.5 mm tip spacing are not a cluster: the gap is between trunk surfaces.
+        Assert.Equal(1f, document.SupportSettings.BracingClusterGapMm);
     }
 
     [Fact]

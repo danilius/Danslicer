@@ -308,10 +308,11 @@ public sealed record SupportConfig
     /// </summary>
     public float BracingMaxStemLeanDegrees { get; set; } = 30f;
     /// <summary>
-    /// Stems standing closer than this are one bundle for bracing: no braces inside it, and the
-    /// row ties to its outer member (user decision 2026-09-09, from a cluster of five trunks).
+    /// Stems whose trunk surfaces are closer than this are one bundle for bracing: no braces
+    /// inside it, and the row ties to its outer member (user decision 2026-09-09, from a cluster
+    /// of five trunks). A gap between surfaces, so a field at the tip spacing is not a cluster.
     /// </summary>
-    public float BracingClusterGapMm { get; set; } = 3f;
+    public float BracingClusterGapMm { get; set; } = 1f;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     /// <summary>

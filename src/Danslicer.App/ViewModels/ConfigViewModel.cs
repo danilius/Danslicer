@@ -696,7 +696,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public float SupportBracingClusterGapMm
     {
         get => Supports.BracingClusterGapMm;
-        set => Update(() => Supports.BracingClusterGapMm = Clamp(value, 0f, 100f, 3f));
+        set => Update(() => Supports.BracingClusterGapMm = Clamp(value, 0f, 100f, 1f));
     }
 
     public float SupportMinBranchAttachHeightMm

@@ -336,7 +336,7 @@
                 </Grid>
                 <Grid Tag="supports bracing cluster gap bundle mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Cluster gap" Classes="label"
-                               ToolTip.Tip="Trunks standing closer than this are braced as one bundle: no braces inside the cluster, the row ties to its outer trunk. 0 = never" />
+                               ToolTip.Tip="Trunks whose surfaces are closer than this are braced as one bundle: no braces inside the cluster, the row ties to its outer trunk. 0 = never" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.5" FormatString="0.##"
                                    Value="{Binding SupportBracingClusterGapMm, Mode=TwoWay}" />
                 </Grid>

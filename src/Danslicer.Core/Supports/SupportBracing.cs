@@ -125,7 +125,9 @@ public static class SupportBracing
 
         // Bundles: stems closer than the cluster gap are one stem for bracing (user decision
         // 2026-09-09: a cluster of trunks is already a bundle; rungs inside it would be stubs).
-        var bundles = Bundles(columns, pairOnly ? 0f : settings.BracingClusterGapMm);
+        // The cluster gap is between trunk surfaces, so a field at the ordinary tip spacing is
+        // not a cluster (screen test 2026-09-09: 2.5 mm rows had merged into bundles).
+        var bundles = Bundles(columns, pairOnly ? 0f : settings.BracingClusterGapMm + settings.TrunkDiameter);
         if (bundles.Count < 2) return null;
 
         // Braces already standing: count partners and the pairs that are done.
@@ -186,10 +188,26 @@ public static class SupportBracing
             return created;
         }
 
+        // Chain pairs first, alternating direction along each chain; then every remaining
+        // neighbour pair nearest first, so a field of supports (not just a row) is tied in more
+        // than one direction, up to the partner cap (screen test 2026-09-09: a 2D field left
+        // the trunks off the chain's path with nothing).
+        var pairs = new List<(int A, int B, bool FromA)>();
         foreach (var chain in chains)
-        for (var k = 0; k + 1 < chain.Count; k++)
+            for (var k = 0; k + 1 < chain.Count; k++) pairs.Add((chain[k], chain[k + 1], k % 2 == 0));
+        var extra = new List<(int A, int B, float Distance)>();
+        for (var i = 0; i < candidates.Count; i++)
+        for (var j = i + 1; j < candidates.Count; j++)
         {
-            var (ia, ib) = (chain[k], chain[k + 1]);
+            var (ci, cj) = (candidates[i], candidates[j]);
+            if (!Neighbours(ci, cj)) continue;
+            extra.Add((ci, cj, Vector2.Distance(bundles[ci].Xy, bundles[cj].Xy)));
+        }
+        foreach (var e in extra.OrderBy(e => e.Distance).ThenBy(e => bundles[e.A].Id).ThenBy(e => bundles[e.B].Id))
+            pairs.Add((e.A, e.B, bundles[e.A].Partners % 2 == 0));
+
+        foreach (var (ia, ib, startFromA) in pairs)
+        {
             var a = bundles[ia];
             var b = bundles[ib];
             if (braced.Contains(ia < ib ? (ia, ib) : (ib, ia))) continue;
@@ -199,7 +217,7 @@ public static class SupportBracing
             // Even pairs start from the earlier bundle, odd pairs from the later one, so the
             // ladders alternate direction along the row. Laid top-down (user, 2026-09-09): the
             // first rung reaches as high as both stems allow, the next ends where it started.
-            var fromA = k % 2 == 0;
+            var fromA = startFromA;
             var laid = 0;
             var head = (fromA ? b : a).Top - radius;
             var firstRung = true;

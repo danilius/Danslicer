@@ -16,7 +16,10 @@ branches and other trunks), then the angle as a maximum lean from vertical with 
 flattening anywhere (user screen test 2026-09-09: three flat bottom rungs circled; a rung
 that cannot fit at the angle is left out), then bundles (user, 2026-09-09: a cluster of
 trunks closer than "Cluster gap" 3 mm is one stem for bracing, nothing inside it, the row
-ties to whichever member is nearest at each rung's height). The app runs from
+ties to whichever member is nearest at each rung's height), then a surface cluster gap
+(1 mm between trunk bodies; 3 mm axis-to-axis had swallowed the tilted cube's 2.5 mm rows)
+and a second pass tying every remaining neighbour pair so a 2D field is braced across as
+well as along. The app runs from
 `src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe` after `dotnet build -c Debug`. Memory
 files (`~/.claude/projects/F--Git-Repos-Danslicer/memory/`) carry the roadmap and standing
 rules; read `MEMORY.md`. Every support rule is in `docs/SUPPORT-GEOMETRY-SPEC.md` — the new
@@ -50,7 +53,8 @@ Fix what they find on `bracing`; merging is their call.
 - A column ("stem") is a polyline from a base up the trunk and then whichever member
   continues most nearly vertically, while it leans ≤ `BracingMaxStemLeanDegrees` (30);
   brace ends are interpolated along it (`Column.At(z)`), cones never count.
-- Columns within `BracingClusterGapMm` (3) of each other (transitively, by bottom XY) form
+- Columns whose trunk surfaces are within `BracingClusterGapMm` (1) of each other
+  (axis distance <= gap + trunk diameter, transitively, by bottom XY) form
   a `Bundle`; a lone column is a bundle of one. Pairs, partners, chains and the existing
   brace check all work on bundles; each rung lands on the member of each bundle nearest
   the other bundle at its height (`Bundle.NearestAt`).
