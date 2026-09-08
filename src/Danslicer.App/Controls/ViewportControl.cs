@@ -99,7 +99,12 @@ public sealed class ViewportControl : OpenGlControlBase
         AvaloniaProperty.Register<ViewportControl, Rect?>(nameof(MarqueeRect));
 
     private static readonly bool Trace = Environment.GetEnvironmentVariable("DANSLICER_TRACE") == "1";
-    private static void Log(string message) { if (Trace) Console.Error.WriteLine($"[viewport] {message}"); }
+    private static void Log(string message)
+    {
+        if (!Trace) return;
+        Console.Error.WriteLine($"[viewport] {message}");
+        Danslicer.Core.Diagnostics.CrashLog.Write($"[viewport] {message}");
+    }
 
     private SceneRenderer? _renderer;
     private ModalTransform? _modal;

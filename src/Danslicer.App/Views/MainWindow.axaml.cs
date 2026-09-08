@@ -724,6 +724,9 @@ public partial class MainWindow : Window
     private void OnSaveProjectClick(object? sender, RoutedEventArgs e) => SaveProjectCommand.Execute(null);
     private void OnSaveProjectAsClick(object? sender, RoutedEventArgs e) => SaveProjectAsCommand.Execute(null);
 
+    /// <summary>Save-as from the crash dialog: the same picker the menu item opens.</summary>
+    public void RequestSaveProjectAs() => SaveProjectAsCommand.Execute(null);
+
     private async void OnImportClick(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
