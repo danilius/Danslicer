@@ -43,6 +43,7 @@ public sealed class SupportParentingTests
             UseBaseGrid = grid,
             BaseGridPitch = 6f,
             IndependentManualSupports = true, // every single support stands alone to begin with
+            AutoParenting = false, // and stays so until J: this fixture tests the explicit command
         };
         for (var i = 0; i < count; i++)
             Assert.True(document.AddManualSupport(slab, new Vector3(i * pitch - (count - 1) * pitch / 2f, 0, 20), -Vector3.UnitZ));

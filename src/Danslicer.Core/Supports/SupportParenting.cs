@@ -9,6 +9,13 @@ namespace Danslicer.Core.Supports;
 public sealed record ParentingOutcome(int Operands, int TrunksBefore, int TrunksAfter, int Refused);
 
 /// <summary>
+/// What auto-parenting did after a placement, for the status line ("12 placed → 3 trunks"):
+/// <paramref name="Trunks"/> is how many trunks now stand under the tips just placed;
+/// <paramref name="Refused"/> counts the operand supports the re-route left as they were.
+/// </summary>
+public sealed record AutoParentingOutcome(int Placed, int Trunks, int Refused);
+
+/// <summary>
 /// Parenting (SUPPORT-GEOMETRY-SPEC "Parenting"): generation's routing applied to existing tips.
 /// The operand supports are taken down and their tips routed again together with trunk
 /// sharing on, so trunks merge, disappear into existing ones, or move onto the grid. A tip the
@@ -145,8 +152,11 @@ public static class SupportParenting
             if (settings.ParentingHierarchical)
             {
                 // Tips pair into junctions, junctions pair again, one trunk carries the lot.
+                // The supports left standing offer their trunks: a junction joins one within
+                // range before dropping a trunk of its own.
                 var (edit, refusedTips) = HierarchicalParenting.Build(tips.Select(t => t.Tip).ToList(),
-                    settings, obstacles, SupportOrigin.ManualFor(targetId), seed, rangeFactor);
+                    settings, obstacles, SupportOrigin.ManualFor(targetId), seed, rangeFactor,
+                    HierarchicalParenting.ExistingTrunks(working, targetId));
                 if (refusedTips.Count > 0)
                 {
                     var before = kept.Count;

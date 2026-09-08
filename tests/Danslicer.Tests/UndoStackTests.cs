@@ -45,6 +45,34 @@ public class UndoStackTests
     }
 
     [Fact]
+    public void MergeLastTwoFoldsTwoStepsIntoOne()
+    {
+        var doc = new Document();
+        var a = new SceneObject("a", Triangle());
+        var b = new SceneObject("b", Triangle());
+        doc.AddObject(a);
+        doc.AddObject(b);
+
+        Assert.True(doc.History.MergeLastTwo("Add both"));
+
+        Assert.Equal("Add both", doc.History.UndoName);
+        Assert.True(doc.Undo());
+        Assert.Empty(doc.Scene.Objects);
+        Assert.False(doc.History.CanUndo);
+        Assert.True(doc.Redo());
+        Assert.Equal(new[] { a, b }, doc.Scene.Objects);
+    }
+
+    [Fact]
+    public void MergeLastTwoNeedsTwoSteps()
+    {
+        var doc = new Document();
+        doc.AddObject(new SceneObject("a", Triangle()));
+        Assert.False(doc.History.MergeLastTwo("nothing"));
+        Assert.Equal("Add a", doc.History.UndoName);
+    }
+
+    [Fact]
     public void CompositeUndoesInReverse()
     {
         var doc = new Document();

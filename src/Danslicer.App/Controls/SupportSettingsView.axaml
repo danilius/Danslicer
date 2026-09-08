@@ -233,6 +233,10 @@
                           Content="Hierarchical tree"
                           ToolTip.Tip="Tips pair into junctions, junctions pair again, one trunk carries the lot. Off: each tip joins a trunk directly."
                           IsChecked="{Binding SupportParentingHierarchical, Mode=TwoWay}" Margin="0,4" />
+                <CheckBox Tag="supports parenting auto automatic after placement live"
+                          Content="Auto-parenting"
+                          ToolTip.Tip="After T, a guided tool or densify, the new supports and their neighbours within the trunk search range are parented at once, as part of the same undo step. Off: supports stay single until J."
+                          IsChecked="{Binding SupportAutoParenting, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports parenting max branch length mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max branch length" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000" Increment="0.5" FormatString="0.##"

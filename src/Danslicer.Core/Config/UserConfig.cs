@@ -264,6 +264,13 @@ public sealed record SupportConfig
     /// joins each tip straight onto a trunk with the tree router instead.
     /// </summary>
     public bool ParentingHierarchical { get; set; } = true;
+    /// <summary>
+    /// Auto-parenting (user directive 2026-09-08): after any placement — T, a guided commit,
+    /// densify — the new tips and the tips of existing supports within the trunk search range
+    /// of a new tip are parented at once, as part of the placement's undo step. Off, supports
+    /// stay single until J.
+    /// </summary>
+    public bool AutoParenting { get; set; } = true;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     /// <summary>
