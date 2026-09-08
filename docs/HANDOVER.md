@@ -1,5 +1,88 @@
 # Danslicer handover
 
+## STATE 2026-09-09 evening — READ FIRST (supersedes everything below)
+
+**Single-session work (Claude implementing directly, user screen-testing live).** Auto-parenting
+was screen-tested by the user on 2026-09-09: checklist items 1–4 all passed. Branch **`bracing`**
+(off main `9250fac`) carries the bracing work, 899 tests green, NOT merged and NOT screen-tested:
+spec `db8f32e`, Core `0198d1f`, UI `9ee0bd4`, round-trip test `c676cf8`. The app runs from
+`src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe` after `dotnet build -c Debug`. Memory
+files (`~/.claude/projects/F--Git-Repos-Danslicer/memory/`) carry the roadmap and standing
+rules; read `MEMORY.md`. Every support rule is in `docs/SUPPORT-GEOMETRY-SPEC.md` — the new
+section "Bracing (user-approved spec, 2026-09-09)" is the contract for this branch.
+
+**Screen-test checklist for bracing** (on `test files\roof gripper T2 single and tilted
+cube.danslicer`; the probe put 27 braces on the gripper's 29 supports in 41 ms with defaults):
+1. Support mode, nothing selected, K — status "Bracing: n braces added, m supports tied";
+   braces draw in the bracing colour between neighbouring trunks as a zigzag ladder, and no
+   trunk is split (select a trunk: still one segment base to top).
+2. K again — "no brace fits" and nothing changes. One undo removes every brace.
+3. Select a few supports, K — only those get braces. Shift+K — their braces go, one undo.
+4. "Select braces" button (Supports pop-out) or Object > Select Braces — only braces selected;
+   Delete removes them cleanly (no stray balls left on the trunks).
+5. Delete one braced support — its braces go, the neighbours' other braces stay.
+6. J on braced supports — braces on rebuilt trunks vanish, then auto-bracing re-braces the
+   result (Bracing expander, "Auto-bracing" on). Untick it: J leaves no braces.
+7. Generate Supports — the status line ends "… n braces." and one undo removes all.
+8. Bracing expander: Pattern Diagonal, angle, spacing, min support height, neighbour distance.
+Fix what they find on `bracing`; merging is their call.
+
+**How bracing works (`SupportBracing.cs`, spec section "Bracing"):**
+- Operands: the supports containing the selection, else every support of the target (one
+  base per support). Each support's vertical trunk segments sharing an axis form a *column*
+  (bottom = base top, top = highest trunk node).
+- Pairs of columns of different supports, both tops ≥ `BracingMinSupportHeightMm` (20),
+  axis gap ≤ `BracingNeighbourDistanceMm` (10) and > trunk diameter, nearest first. A pair
+  already tied by a brace is skipped (idempotent); a column at `BracingMaxPartners` (3) is
+  skipped.
+- Ladder: foot at max(`BracingLowestHeightMm` or min branch height, bottoms + radius), head
+  = foot + gap·tan(angle), then up by `BracingSpacingMm` (15), alternating sides (Zigzag)
+  or not (Diagonal), until an end would pass top − radius. Each brace is a capsule test
+  against meshes + the whole graph + braces laid this run, ignoring the two columns' own
+  segments and any member whose joint ball the brace end sits inside.
+- **Brace ends are `SupportNodeType.BraceEnd` nodes on the trunk axis; the trunk is never
+  split.** The carrier is found geometrically (`SupportBracing.CarrierOf`, 0.05 mm off the
+  axis), so a split or replaced trunk still carries them. `SupportGraph.Supports()` skips
+  them; `Document.AddOrphanedFragments` removes a brace end when its carrier or its brace
+  goes (iterates to a fixed point: one end going takes the brace, which orphans the other);
+  `SupportParenting.Components` adds the braces on a component's segments so a re-route
+  takes them down. Braces slice and render as plain capsules (their own small ball sits
+  inside the trunk).
+- Commands: `Document.BraceSupports` ("Brace supports"), `UnbraceSupports` ("Unbrace
+  supports"), `SelectBraces`; `AutoBraceAfter` folds a brace pass into the last undo step
+  via `History.MergeLastTwo` after `ParentSupports`, `AutoParentAfterPlacement` and
+  generation (`AutoBraceAfterGeneration`, called from `GenerateSupports` and the batched
+  path in `MainViewModel`). Viewport: `Key.K` / `Shift+K`, `BraceSupports` /
+  `UnbraceSupports` / `SelectBraces` public methods, buttons in the Supports pop-out and
+  Object menu items. Settings: `SupportConfig.Bracing*` + `AutoBracing`, "Bracing"
+  expander in `SupportSettingsView.axaml`, `ConfigViewModel.SupportBracing*`.
+- The old unused `SupportBraceStage` / `BraceGrowthRule` / `GrowthOperation.Brace` are gone.
+
+**Then (roadmap, user order):** rafts (write the spec section first, get it approved). Notes
+for later (user, 2026-09-08, not ordered): manual support editing (click a support, Space
+enters an edit mode; move base XY, trunk XY, tip across the surface); a manual placement MODE
+instead of T with a ghosted support following the cursor; split the overloaded Supports
+pop-out into toolbar functions. Standing rule: every key-bound function needs a toolbar
+button (L/P/E/R/C/J/K have them via pop-outs; keep it that way for anything new). Bracing
+"Later": braces to branches, manual bracing, braces following edited trunks, cross-object.
+
+**Working rules that bit us (do not repeat):**
+- Kill the running app before building (`taskkill /IM Danslicer.App.exe /F`); never drive
+  the app on screen while the user is present — they test, you build.
+- Gate commits on `grep -q "Failed:     0"` over the test output, not on grep's exit code.
+  `dotnet test --no-build` after a failed build reports stale green: build first.
+- Throwaway probes (`tests\Danslicer.Tests\Zz*Probe.cs`) against the roof gripper project
+  find limits in minutes (`ProjectFile.Load(path).Document`, `Select(obj)`, run the
+  command, `ITestOutputHelper`). Delete probes before committing.
+- Long Python patch scripts fed through a bash heredoc get mangled by the tool: write the
+  script to the scratchpad and run it by path.
+- A later command in a composite must not be built before earlier ones execute
+  (`DeferredCommand`); `RemoveSupportElementsCommand` looks its ids up at construction.
+- Avalonia commits bindings per keystroke; `UpdateSourceTrigger=LostFocus` on expression
+  fields. Crash stacks: `%AppData%\Danslicer\logs\`.
+- Ask before branching; never commit to main directly; merging is the user's call, proposed
+  actively at a sensible stopping point.
+
 ## STATE 2026-09-09 — READ FIRST (supersedes everything below)
 
 **Single-session work (Claude implementing directly, user screen-testing live).** main is
@@ -13,7 +96,8 @@ placement", "Parenting" incl. "Auto-parenting") — read them before touching
 `TreeSupportRouter.cs`.
 
 **Auto-parenting is merged but NOT yet screen-tested by the user.** Run this checklist
-with them first, on `test filesoof gripper T2 single and tilted cube.danslicer`:
+with them first, on `test files
+oof gripper T2 single and tilted cube.danslicer`:
 1. T two supports close together — the second should report "Support: placed → 1 trunk".
 2. A guided line (L) over a supported edge — "Support line: n placed → m trunks".
 3. Densify (D) — same suffix. One undo after each must remove placement AND parenting.
