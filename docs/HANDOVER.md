@@ -1,39 +1,71 @@
 # Danslicer handover
 
-## STATE 2026-09-08 night — READ FIRST (supersedes everything below)
+## STATE 2026-09-09 — READ FIRST (supersedes everything below)
 
-**Single-session work (Claude implementing directly).** Branch `auto-parenting` off main
-`a81f28f` carries auto-parenting, NOT merged, NOT screen-tested by the user yet; 891 tests
-green. The design in the evening note below was confirmed by the user and built as written:
+**Single-session work (Claude implementing directly, user screen-testing live).** main is
+the merge of `auto-parenting` (`68f3818`, pushed); 891 tests green; the app runs from
+`src\Danslicer.Appin\Debug
+et10.0\Danslicer.App.exe`. Memory files
+(`~/.claude/projects/F--Git-Repos-Danslicer/memory/`) carry the roadmap and standing rules;
+read `MEMORY.md`. Every support rule is in `docs/SUPPORT-GEOMETRY-SPEC.md` ("Guided tip
+placement", "Parenting" incl. "Auto-parenting") — read them before touching
+`Supports/Guided/*`, `SupportParenting.cs`, `HierarchicalParenting.cs` or
+`TreeSupportRouter.cs`.
 
-- **Setting `AutoParenting`** (Parenting expander, "Auto-parenting", default ON). After T,
-  a guided commit or densify, the new tips plus the target's existing tips within the trunk
-  search range of any new tip are parented at once with the ordinary plan
-  (`Document.AutoParentAfterPlacement`). Placement and parenting are one undo step under
-  the placement's name via `UndoStack.MergeLastTwo(name)`.
-- **Hierarchical builder joins existing trunks**: `HierarchicalParenting.Build` takes
-  `existingTrunks` (`HierarchicalParenting.ExistingTrunks(working, targetId)`, vertical
-  Trunk segments of the target); each surviving junction tries them nearest first within
-  the trunk range before `DropTrunk`. Attach z = min(junction.Z − horiz/tan(angle), top),
-  ≥ max(min branch height, base top); below the top the trunk is split (edit.RemovedSegments
-  + two Trunk clones + a junction), at the top the branch joins the top node. Obstacle
-  capsules tagged with the segment id are excluded for the trunk being joined. A piece the
-  build itself made is replaced in AddedSegments rather than listed for removal (that
-  crashed the probe: "segment not in the graph"). Router mode already shared trunks.
-- **Status line**: "Support line: 12 placed → 3 trunks · k kept as they were"; T reports
-  "Support: placed → 1 trunk" only when parenting acted.
-- Probe on the saved roof gripper project (36 tips in runs of 10, its own 8 mm / 45°
-  settings, grid on): 26 bases for 36 tips, most low-edge tips kept single because their
-  cones end under the 10 mm floor or no lattice point is within 8 mm — settings, not bugs.
-  Per-placement cost < 100 ms. Undo after a run restored the previous run's graph exactly.
-- Spec: "Auto-parenting" subsection under Parenting; hierarchical step 3 rewritten.
+**Auto-parenting is merged but NOT yet screen-tested by the user.** Run this checklist
+with them first, on `test filesoof gripper T2 single and tilted cube.danslicer`:
+1. T two supports close together — the second should report "Support: placed → 1 trunk".
+2. A guided line (L) over a supported edge — "Support line: n placed → m trunks".
+3. Densify (D) — same suffix. One undo after each must remove placement AND parenting.
+4. Untick "Auto-parenting" (Parenting expander) — supports stay single until J.
+Fix what they find on a branch off main (ask before branching; merging is their call).
 
-**Screen test for the user:** T two supports close together (second should say "placed →
-1 trunk"); a guided line over a supported edge; densify; undo once after each (one step);
-the checkbox off restores single supports. Then merge if approved (user's call).
+**How auto-parenting works (built 2026-09-08 night, design confirmed by the user):**
+- `SupportConfig.AutoParenting` (default ON). `Document.AutoParentAfterPlacement` runs
+  after `AddManualSupport`, `PlaceGuidedTips` (guided commit and densify): operands are the
+  tips just placed plus the target's existing tips within the trunk search range
+  (`ParentingTrunkRange`, 0 = `ExistingTrunkBranchRange`) of any new tip; the ordinary
+  `SupportParenting.Plan` runs (hierarchical or router, same settings), then
+  `UndoStack.MergeLastTwo(name)` folds placement + parenting into one step under the
+  placement's name. `AutoParentingOutcome(Placed, Trunks, Refused)` feeds the status line
+  (`ViewportControl.AutoParentSuffix`).
+- `HierarchicalParenting.Build(..., existingTrunks)` joins the standing supports' vertical
+  trunks (`HierarchicalParenting.ExistingTrunks(working, targetId)`) nearest first within
+  the trunk range before `DropTrunk`: attach z = min(junction.Z − horiz/tan(angle), trunk
+  top), ≥ max(min branch height, base top). Below the top the trunk is split
+  (edit.RemovedSegments + two Trunk clones + a junction); at the top, or exactly on an
+  earlier split's junction, the branch joins that node. Obstacle capsules carry the segment
+  id (`LinearCollisionScene.AddSupportGraph`), excluded for the trunk being joined. A piece
+  the build itself made is replaced in AddedSegments, never listed for removal (that
+  crashed: "segment not in the graph"). Router mode shared trunks already.
+- Probe on the saved roof gripper (36 tips in runs of 10, its own 8 mm / 45° settings,
+  grid on): 26 bases for 36 tips; the low-edge tips stay single because their cones end
+  under the 10 mm floor or no lattice point is within 8 mm — settings, not bugs. Under
+  100 ms per placement. Raising branch length / angle / cone bend in the Parenting
+  expander is what makes long runs collapse onto one trunk (60° → one tree yesterday).
 
-**Then:** bracing (spec section first), rafts (spec section first); notes for later in the
-evening section below.
+**Then (roadmap, user order):** bracing (write the spec section first, get it approved),
+then rafts (spec section first). **Notes for later** (user, 2026-09-08, not ordered): manual
+support editing (click a support, Space enters an edit mode; move base XY, trunk XY, tip
+across the surface); a manual placement MODE instead of T with a ghosted support following
+the cursor; split the overloaded Supports pop-out into toolbar functions. Standing rule:
+every key-bound function needs a toolbar button (L/P/E/R/C/J have them via pop-outs; keep
+it that way for anything new).
+
+**Working rules that bit us (do not repeat):**
+- Kill the running app before building (`taskkill /IM Danslicer.App.exe /F`); never drive
+  the app on screen while the user is present — they test, you build.
+- Gate commits on `grep -q "Failed:     0"` over the test output, not on grep's exit code.
+  `dotnet test --no-build` after a failed build reports stale green: build first.
+- Throwaway probes (`tests\Danslicer.Tests\Zz*Probe.cs`) against the roof gripper project
+  find routing limits in minutes; `HierarchicalParenting.Trace` prints why pairs refuse.
+  Delete probes before committing.
+- A later command in a composite must not be built before earlier ones execute
+  (`DeferredCommand`); `RemoveSupportElementsCommand` looks its ids up at construction.
+- Avalonia commits bindings per keystroke; `UpdateSourceTrigger=LostFocus` on expression
+  fields. Crash stacks: `%AppData%\Danslicer\logs\`.
+- Ask before branching; never commit to main directly; merging is the user's call, proposed
+  actively at a sensible stopping point.
 
 ## STATE 2026-09-08 evening — READ FIRST (supersedes everything below)
 
