@@ -178,6 +178,8 @@ public partial class MainWindow : Window
     private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_raftsPopupState);
 
+    private void OnParentSupportsClick(object? sender, RoutedEventArgs e) => Viewport.ParentSupports();
+
     private void OnTransformToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_transformPopupState);
 
@@ -721,6 +723,9 @@ public partial class MainWindow : Window
     private void OnOpenProjectClick(object? sender, RoutedEventArgs e) => OpenProjectCommand.Execute(null);
     private void OnSaveProjectClick(object? sender, RoutedEventArgs e) => SaveProjectCommand.Execute(null);
     private void OnSaveProjectAsClick(object? sender, RoutedEventArgs e) => SaveProjectAsCommand.Execute(null);
+
+    /// <summary>Save-as from the crash dialog: the same picker the menu item opens.</summary>
+    public void RequestSaveProjectAs() => SaveProjectAsCommand.Execute(null);
 
     private async void OnImportClick(object? sender, RoutedEventArgs e)
     {

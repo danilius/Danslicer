@@ -283,6 +283,127 @@ when it is at least `MinSpacingMm` from the previous one.
 4. Ring, contour.
 5. Array, mirror, densify, thin, stamp.
 
+## Parenting (user direction, 2026-09-08; spec for approval)
+
+Guided placement ignores existing supports by default, so a line, polygon or edge produces
+one trunk per tip. **Parenting** is the explicit command that turns a crowd of single
+supports into trees: branches are parented to trunks so fewer trunks stand. It is never
+automatic (user decision 1: the user runs it or not).
+
+### What it operates on
+
+- The selected tips of the support target, or every tip of the target when nothing is
+  selected (user decision 2). Selecting any element of a support selects that support's
+  tip for this purpose.
+- Each operand tip's **whole support** (cone, branch, trunk, base) is taken down and the
+  tip is routed again. Supports that are not operands stay exactly as they are; they act
+  as trunks the operands may join and as obstacles, as in generation.
+
+### How it works
+
+Parenting is **generation's routing applied to existing tips**: the operand tips are
+routed together through the tree router with trunk sharing on, in the router's own
+deterministic order. The three outcomes the user asked for (decision 3) all follow from
+that one re-route:
+
+- **Merged.** Two operand tips whose trunks stood apart now share one trunk, the second
+  reaching it by a branch.
+- **Removed.** A trunk whose tip found an existing trunk within branch range no longer
+  exists; its base goes with it.
+- **Moved.** In grid mode every surviving trunk stands on a lattice point, chosen by the
+  grid rules (nearest reachable, nearer base beats farther trunk). In free mode a trunk
+  stands where the router puts it, under its first tip; a later stage may move a shared
+  trunk to the centroid of the tips it carries — see "Later".
+
+**A tip never loses its support to parenting.** A tip the re-route refuses keeps the
+support it had. The whole command is one undo step, named "Parent supports", and the
+status line reports "n supports → m trunks (k unchanged)".
+
+### Hierarchical tree (user direction, 2026-09-08, from a reference image)
+
+The reference shows tips pairing into junctions, junctions pairing again, and one trunk
+carrying the lot; the user's words: it should be possible to have every tip of a run on
+one trunk. The tree router only ever joins a tip straight onto a trunk, so with a steep
+branch-angle limit its branches just grow long (the 10° screen test). Parenting therefore
+builds the tree itself when **Hierarchical tree** (default on) is set:
+
+1. Every tip's cone ends at a junction, along the contact normal clamped to 45° from
+   vertical (else straight down), if clear of the model and other supports.
+2. The two junctions whose merge costs the least branch length are joined, either at a
+   new junction under their midpoint where both branches lean at most the branch angle, or
+   by the higher junction sending a branch straight into the lower junction's own position
+   (or directly below it, as far as that branch's angle needs). Whichever stays highest
+   wins, because height is what later merges spend; the into-the-lower form is how a long
+   run on a sloping edge ends up on one trunk. Repeat until nothing can merge within the
+   length, angle, cone-bend, height and clearance limits.
+   *Probe, roof gripper lower edge, 44 tips over a 64 mm rise, 2026-09-08:* at 45° four
+   trees, at 60° one tree, plus the six lowest tips as singles — a tip whose cone would end
+   under the 10 mm floor cannot have a junction at all, and a pair whose merge point would
+   fall under the floor cannot join. The floor and the branch angle are the remaining
+   limits, and both are the user's settings.
+3. Each surviving junction drops a trunk: straight down, or in grid mode by a branch to
+   the nearest reachable lattice point. A cluster with no clear trunk keeps its old
+   supports.
+
+Off, parenting joins each tip straight onto a trunk with the tree router, as before.
+
+**Minimum branch height** (Members, default 10 mm, user decision 2026-09-08): branches may
+connect at almost any height on a trunk, but never below this height above the plate,
+and no junction is made below it. It applies to generation, manual placement and both
+parenting modes.
+
+### Modes
+
+- **Grid mode** (base grid on): trunks on lattice points; sharing, snapping onto trunk
+  axes, member separation and every other grid-mode rule apply.
+- **Free mode** (base grid off): normally every support is blind to every other. Parenting
+  is the one operation that turns sharing on in free mode, because sharing is what the
+  user asked for by running it. Trunks are not moved to any lattice.
+
+### Configuration ("Parenting" expander of the Supports pop-out)
+
+- **Max branch length** (mm, default the Members value): how far a tip may reach to join a
+  trunk.
+- **Max branch angle** (°, default the Members value): the steepest branch allowed; a
+  shallower limit keeps branches short and stiff.
+- **Trunk search range** (mm, default the Members "Existing trunk range"): how far around
+  a tip the router looks for a trunk to join before raising its own.
+- **Min tips per trunk** (default 1): after the re-route, a trunk carrying fewer tips than
+  this is re-routed once more with the range doubled; if it still stands alone it stays.
+  Guards against a parenting pass that merges nothing.
+- **Rounds** (default 3): the re-route is run this many times with different seeds and
+  the round with the fewest trunks wins (ties: fewest refusals). The router's choices
+  depend on its seed, so a poor first outcome is not the last word (user, 2026-09-08).
+
+These default to the Members values so that parenting and generation agree unless the
+user says otherwise (configurability directive).
+
+### UI
+
+- Key **J** (join) in Support mode and a **Parent** button in the Supports pop-out (every
+  key has a button). No modal: the command runs at once.
+- Undo restores every original support element, including bases, with their ids, so
+  selections and hidden flags survive an undo.
+
+- **Max cone bend** (°, default 0 = the member angle): how far the branch leaving a cone
+  may bend from the cone's own axis. The no-Z-kink rule of 2026-09-07 caps this at the
+  member angle for generation and manual placement; a cone on a leaning wall points
+  outward, so a join sideways along the edge needs 60–90°, and the first screen test
+  (2026-09-08, roof gripper, ~40 trunks for ~80 tips) was capped by exactly this. Raising
+  it is the user's explicit choice for parenting only.
+- **Max branches per trunk** (default 0 = the growth rule's 6): the second cap that
+  screen test hit — six branches per trunk means at least one trunk per six tips.
+
+### Later, not in the first cut
+
+- **Auto-parenting** (user, 2026-09-08): the same re-route run live while supports are
+  placed manually or by a guided tool, so a new tip joins a trunk as it lands instead of
+  raising its own. Comes after parenting is complete and screen-tested; it needs a
+  cheap incremental form of the plan (route only the new tips against the current graph).
+- **Centroid trunks** in free mode: a shared trunk moved to the XY centroid of its tips,
+  with the branches re-fitted, when every branch then meets the angle and length limits.
+- **Bracing** between neighbouring trunks (its own section to come).
+
 ## Still open
 
 - Embedding depth: assumed measured along the tip axis past the contact point.

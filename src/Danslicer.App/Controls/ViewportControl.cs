@@ -99,7 +99,12 @@ public sealed class ViewportControl : OpenGlControlBase
         AvaloniaProperty.Register<ViewportControl, Rect?>(nameof(MarqueeRect));
 
     private static readonly bool Trace = Environment.GetEnvironmentVariable("DANSLICER_TRACE") == "1";
-    private static void Log(string message) { if (Trace) Console.Error.WriteLine($"[viewport] {message}"); }
+    private static void Log(string message)
+    {
+        if (!Trace) return;
+        Console.Error.WriteLine($"[viewport] {message}");
+        Danslicer.Core.Diagnostics.CrashLog.Write($"[viewport] {message}");
+    }
 
     private SceneRenderer? _renderer;
     private ModalTransform? _modal;
@@ -591,6 +596,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 1f, DepthOverlay: true));
         AppendSupportLines(_depthOverlay);
         AppendBrushCursor(_overlay);
+        AppendBaseGridMarkers(_depthOverlay);
         AppendLineGesture(_depthOverlay, _overlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         if (!SupportSelectionMode) UpdateGizmo();
@@ -1293,6 +1299,28 @@ public sealed class ViewportControl : OpenGlControlBase
         return removed == 0 ? "Thin: nothing to remove (needs two or more tips)" : $"Thin: {removed} removed";
     }
 
+    /// <summary>Parenting (J), from the key or the Supports pop-out button.</summary>
+    public void ParentSupports()
+    {
+        if (Document is null || !SupportSelectionMode) return;
+        var status = ParentStatus();
+        Focus();
+        UpdateStatus();
+        StatusText = status;
+        Redraw();
+    }
+
+    private string ParentStatus()
+    {
+        if (Document!.SupportTarget is null) return "Parent: choose the model to support first (Objects pop-out)";
+        var outcome = Document.ParentSupports();
+        if (outcome is null) return "Parent: nothing to parent (needs two or more supports)";
+        var refused = outcome.Refused > 0 ? $" · {outcome.Refused} kept as they were" : "";
+        return outcome.TrunksAfter < outcome.TrunksBefore
+            ? $"Parent: {outcome.Operands} supports → {outcome.TrunksAfter} trunks (was {outcome.TrunksBefore}){refused}"
+            : $"Parent: no trunk could be shared ({outcome.TrunksBefore} trunks){refused}";
+    }
+
     private enum GuidedKind { Line, Polygon, Edge, Ring, Contour }
 
     private string? BeginLineGesture(Vector2 mouse, GuidedKind kind = GuidedKind.Line)
@@ -1940,6 +1968,38 @@ public sealed class ViewportControl : OpenGlControlBase
         }
     }
 
+    private static readonly Vector4 BaseGridMarkerColor = new(1f, 0.85f, 0.2f, 0.8f);
+    private const int MaxBaseGridMarkers = 20000;
+
+    /// <summary>
+    /// The base lattice on the plate, as small crosses at every lattice point, whenever the base
+    /// grid is on in Support mode (user request 2026-09-08): the user sees where trunks may
+    /// stand before generating or parenting. Plate-origin aligned, like the router's own rule.
+    /// Depth-tested, so the model hides the points beneath it as it hides the plate grid.
+    /// </summary>
+    private void AppendBaseGridMarkers(List<OverlayLine> lines)
+    {
+        if (Document is null || !SupportSelectionMode || !Document.SupportSettings.UseBaseGrid) return;
+        var pitch = Document.SupportSettings.BaseGridPitch;
+        if (pitch <= 0.1f) return;
+        var volume = Document.Printer.BuildVolume;
+        var halfX = volume.X * 0.5f;
+        var halfY = volume.Y * 0.5f;
+        var countX = (int)MathF.Floor(halfX / pitch);
+        var countY = (int)MathF.Floor(halfY / pitch);
+        if ((2L * countX + 1) * (2L * countY + 1) > MaxBaseGridMarkers) return;
+        var size = MathF.Min(pitch * 0.15f, 1f);
+        // A hair above the plate so the crosses do not fight the plate surface for depth.
+        const float z = 0.02f;
+        for (var i = -countX; i <= countX; i++)
+            for (var j = -countY; j <= countY; j++)
+            {
+                var p = new Vector3(i * pitch, j * pitch, z);
+                lines.Add(new OverlayLine(p - new Vector3(size, 0, 0), p + new Vector3(size, 0, 0), BaseGridMarkerColor));
+                lines.Add(new OverlayLine(p - new Vector3(0, size, 0), p + new Vector3(0, size, 0), BaseGridMarkerColor));
+            }
+    }
+
     /// <summary>Four screen pixels, clamped in world space so extreme zooms stay sensible.</summary>
     private float ContactMarkerHalfSize(Vector3 point)
     {
@@ -2094,6 +2154,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 // Densify / thin the selected tips (all of the target's when nothing is selected).
                 case Key.D when !ctrl && shift && SupportSelectionMode: statusAfterUpdate = ThinStatus(); break;
                 case Key.D when !ctrl && SupportSelectionMode: statusAfterUpdate = DensifyStatus(); break;
+                // Parenting (SUPPORT-GEOMETRY-SPEC "Parenting"): re-route the selected supports together.
+                case Key.J when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = ParentStatus(); break;
                 case Key.Escape when _marqueeStart is not null:
                     _marqueeStart = null;
                     _pendingClickSupport = null;
@@ -2175,7 +2237,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · J parent · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

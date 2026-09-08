@@ -27,6 +27,27 @@ public sealed record TreeRoutingOptions
     /// </summary>
     public bool IgnoreExistingSupports { get; init; }
     /// <summary>
+    /// Shares trunks and sees other supports even with the base grid off. Free mode normally
+    /// routes every contact blind to every other (user decision 2026-09-07); parenting is the
+    /// one operation that asks for sharing there (SUPPORT-GEOMETRY-SPEC "Parenting"). Trunks
+    /// are still placed freely, not on any lattice.
+    /// </summary>
+    public bool ShareTrunks { get; init; }
+    /// <summary>
+    /// How far the member leaving a cone's junction may bend from the cone's axis, degrees.
+    /// Zero means <see cref="MaxMemberAngleDegrees"/>, the rule for generation and manual
+    /// placement (user decision 2026-09-07: no Z-kinks at the ball). Parenting may raise it so
+    /// a tip on a leaning wall can reach a trunk sideways along the edge.
+    /// </summary>
+    public float MaxConeBendDegrees { get; init; }
+    /// <summary>
+    /// No branch attaches to a trunk below this height above the plate (user decision
+    /// 2026-09-08). Zero keeps the old rule, which only stayed above the base itself.
+    /// </summary>
+    public float MinBranchAttachHeightMm { get; init; }
+
+    internal float ConeBendLimitDegrees => MaxConeBendDegrees > 0 ? MaxConeBendDegrees : MaxMemberAngleDegrees;
+    /// <summary>
     /// Minimum gap between the surfaces of non-incident support members. Zero disables
     /// the additional constraint and preserves legacy routing exactly.
     /// </summary>
@@ -116,9 +137,10 @@ public sealed class TreeSupportRouter
         // Free mode (grid off): every contact gets a complete support of its own and knows
         // nothing about any other support, existing or new, even if they collide (user
         // decision 2026-09-07). Only grid mode shares trunks and keeps members apart.
+        var shares = options.UseBaseGrid || options.ShareTrunks;
         var state = new RouteState(graph, ids, clearance, angleOffset,
-            options.MinMemberSeparationMm, seesOtherSupports: options.UseBaseGrid);
-        if (existingGraph is not null && !options.IgnoreExistingSupports && options.UseBaseGrid)
+            options.MinMemberSeparationMm, seesOtherSupports: shares);
+        if (existingGraph is not null && !options.IgnoreExistingSupports && shares)
             state.SeedExistingContext();
         var unrouted = new List<RoutingTip>();
         var failures = new List<RoutingFailure>();
@@ -251,7 +273,7 @@ public sealed class TreeSupportRouter
         var snap = tipMemberLength * JunctionSnapMemberFraction;
 
         var minBranchOffset = options.BranchDiameter * 0.5f * MinBranchOffsetBranchRadii;
-        var existing = options.UseBaseGrid && branchJunction.Z > options.PlateZ + Epsilon
+        var existing = (options.UseBaseGrid || options.ShareTrunks) && branchJunction.Z > options.PlateZ + Epsilon
             ? FindTrunkAttachment(tip, branchJunction, options, state, minBranchOffset)
             : null;
 
@@ -325,9 +347,14 @@ public sealed class TreeSupportRouter
             break;
         }
 
-        var allowance = options.PreferExistingTrunks
-            ? options.BaseGridPitch * 0.5f
-            : float.NegativeInfinity;
+        // Nearer base beats farther trunk (user, 2026-09-07): a join wins only within half a
+        // pitch of a fresh trunk's cost. Parenting (ShareTrunks) exists to cut trunks, so there
+        // any join within the search range wins.
+        var allowance = options.ShareTrunks
+            ? options.ExistingTrunkBranchRange
+            : options.PreferExistingTrunks
+                ? options.BaseGridPitch * 0.5f
+                : float.NegativeInfinity;
         if (existing is { } join &&
             (own is null || join.Length <= ownLength + allowance))
         {
@@ -674,12 +701,12 @@ public sealed class TreeSupportRouter
 
         void AddCandidate(TrunkRecord trunk, float attachZ, bool raisesTrunk)
         {
-            if (attachZ < options.PlateZ + options.BaseHeight + Epsilon) return;
+            if (attachZ < options.PlateZ + MathF.Max(options.BaseHeight, options.MinBranchAttachHeightMm) + Epsilon) return;
             var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
             var branchLength = Vector3.Distance(j1, attach);
             if (branchLength > options.ExistingTrunkBranchRange + Epsilon) return;
             var bend = BendDegrees(tipDirection, attach - j1);
-            if (bend > options.MaxMemberAngleDegrees + BendToleranceDegrees) return;
+            if (bend > options.ConeBendLimitDegrees + BendToleranceDegrees) return;
             // Among reachable trunks, the one the cone already points toward wins near ties.
             var bendPenalty = options.MaxMemberAngleDegrees > 0
                 ? bend / options.MaxMemberAngleDegrees * options.BranchDiameter *
@@ -792,7 +819,7 @@ public sealed class TreeSupportRouter
     {
         // With a tip direction, the bend at the ball is limited to the member angle and the
         // branch that simply continues the cone's own axis is offered first at every length.
-        var maxBend = options.MaxMemberAngleDegrees + BendToleranceDegrees;
+        var maxBend = options.ConeBendLimitDegrees + BendToleranceDegrees;
         var continuation = tipDirection is { } direction && direction.Z < -Epsilon &&
                            new Vector2(direction.X, direction.Y).LengthSquared() >
                            Epsilon * Epsilon

@@ -70,6 +70,13 @@ public sealed class Document
 
     /// <summary>Raised after any command, undo or redo, and after selection changes.</summary>
     public event Action? Changed;
+
+    /// <summary>
+    /// Raises <see cref="Changed"/> for a settings edit that draws differently without touching
+    /// the document's data — the base lattice markers follow the grid toggle and pitch (user
+    /// report 2026-09-08: they only appeared after the next click).
+    /// </summary>
+    public void NotifySettingsChanged() => Changed?.Invoke();
     public event Action? SelectionChanged;
     public event Action? SupportSelectionChanged;
 
@@ -931,6 +938,37 @@ public sealed class Document
         return remove.Count;
     }
 
+    /// <summary>
+    /// Parenting (J): the supports containing the selected elements — every support of the
+    /// target when nothing is selected — are taken down and their tips routed again together
+    /// with trunk sharing on, so fewer trunks stand (SUPPORT-GEOMETRY-SPEC "Parenting"). One
+    /// undo step. Null when there is nothing to parent.
+    /// </summary>
+    public ParentingOutcome? ParentSupports()
+    {
+        if (SupportTarget is not { } target) return null;
+        var tips = _supportSelection.Count > 0
+            ? _supportSelection.SelectMany(id => Supports.TryGetNode(id, out _) || Supports.TryGetSegment(id, out _)
+                    ? Supports.Component(Supports.TryGetNode(id, out _) ? id : Supports.GetSegment(id).NodeA).Nodes
+                    : [])
+                .Distinct()
+                .Where(id => Supports.GetNode(id).Type == SupportNodeType.Tip)
+                .ToList()
+            : GuidedOperandTips().Select(t => t.Id).ToList();
+        tips = tips.Where(id => (Supports.GetNode(id).ContactObjectId ?? Supports.GetNode(id).Origin.ObjectId) == target.Id).ToList();
+        if (tips.Count < 2) return null;
+
+        var planned = SupportParenting.Plan(Supports, target.Id, tips, SupportSettings with { }, MeshObstacles());
+        if (planned is not { } result) return null;
+        var (plans, outcome) = result;
+        var commands = SupportParenting.Commands(Supports, plans, "Parent supports");
+        if (commands.Count == 0) return outcome;
+        _supportSelection.Clear();
+        SupportSelectionChanged?.Invoke();
+        Execute(new CompositeCommand("Parent supports", commands));
+        return outcome;
+    }
+
     private static Mesh WorldMesh(SceneObject obj)
     {
         var world = obj.Transform.ToMatrix();
@@ -967,6 +1005,7 @@ public sealed class Document
             ExistingTrunkBranchRange = settings.ExistingTrunkBranchRange,
             IgnoreExistingSupports = independent,
             MinMemberSeparationMm = independent ? 0 : settings.MinMemberSeparationMm,
+            MinBranchAttachHeightMm = settings.MinBranchAttachHeightMm,
             UseBaseGrid = settings.UseBaseGrid,
             BaseGridPitch = settings.BaseGridPitch,
             BaseShape = settings.BaseShape,
@@ -1141,6 +1180,7 @@ public sealed class Document
                 PreferExistingTrunks = request.Settings.PreferExistingTrunks,
                 ExistingTrunkBranchRange = request.Settings.ExistingTrunkBranchRange,
                 MinMemberSeparationMm = request.Settings.MinMemberSeparationMm,
+                MinBranchAttachHeightMm = request.Settings.MinBranchAttachHeightMm,
                 UseBaseGrid = request.Settings.UseBaseGrid,
                 BaseGridPitch = request.Settings.BaseGridPitch,
                 BaseShape = request.Settings.BaseShape,
