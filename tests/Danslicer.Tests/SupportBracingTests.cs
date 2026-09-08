@@ -2,6 +2,7 @@ using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
+using Danslicer.Core.IO;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Supports;
 
@@ -222,6 +223,29 @@ public sealed class SupportBracingTests
         AssertBraceEndsSound(document);
         foreach (var node in document.Supports.Nodes.Where(n => n.Type == SupportNodeType.BraceEnd))
             Assert.True(document.Supports.TryGetSegment(SupportBracing.CarrierOf(document.Supports, node)!.Id, out _));
+    }
+
+    [Fact]
+    public void BracedGraphsRoundTripThroughTheProjectFile()
+    {
+        var (document, _) = SlabWithSingles(3, 6);
+        document.BraceSupports();
+        var braces = Braces(document);
+        var braceEnds = BraceEnds(document);
+        Assert.True(braces > 0);
+        var path = Path.Combine(Path.GetTempPath(), $"danslicer-bracing-{Guid.NewGuid():N}.{ProjectFile.Extension}");
+        try
+        {
+            ProjectFile.Save(path, document, new ProjectViewState());
+            var loaded = ProjectFile.Load(path).Document;
+            Assert.Equal(braces, Braces(loaded));
+            Assert.Equal(braceEnds, BraceEnds(loaded));
+            AssertBraceEndsSound(loaded);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
     }
 
     [Fact]
