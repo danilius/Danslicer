@@ -76,10 +76,16 @@ public static class SupportParenting
     public static IReadOnlyList<IDocumentCommand> Commands(SupportGraph graph, IReadOnlyList<ParentingPlan> plans, string name)
     {
         var commands = new List<IDocumentCommand>();
-        foreach (var plan in plans)
+        for (var i = 0; i < plans.Count; i++)
         {
+            var plan = plans[i];
+            // A later plan removes elements an earlier plan adds, so its removal must be built
+            // when it executes, not now (the up-front lookup crashed on 2026-09-08).
             if (plan.RemovedNodes.Count > 0 || plan.RemovedSegments.Count > 0)
-                commands.Add(new RemoveSupportElementsCommand(graph, plan.RemovedNodes, plan.RemovedSegments, name));
+                commands.Add(i == 0
+                    ? new RemoveSupportElementsCommand(graph, plan.RemovedNodes, plan.RemovedSegments, name)
+                    : new DeferredCommand(name, () =>
+                        new RemoveSupportElementsCommand(graph, plan.RemovedNodes, plan.RemovedSegments, name)));
             commands.Add(new ApplySupportGraphEditCommand(graph, plan.Edit, name));
         }
         return commands;

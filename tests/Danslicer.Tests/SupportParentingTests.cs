@@ -129,6 +129,31 @@ public sealed class SupportParentingTests
     }
 
     [Fact]
+    public void MinTipsPerTrunkSecondPassDoesNotCrashAndUndoes()
+    {
+        // The user's screen-test settings of 2026-09-08: a high minimum forces the second pass,
+        // whose removals target trunks the first pass adds. Building them up front crashed.
+        var (document, _) = SlabWithSingles(6, 2.5f, grid: true);
+        document.SupportSettings = document.SupportSettings with
+        {
+            ParentingMinTipsPerTrunk = 20, ParentingRounds = 2,
+            ParentingMaxBranchLength = 200f, ParentingTrunkRange = 200f,
+            ParentingMaxConeBend = 90f, ParentingMaxBranchesPerTrunk = 30,
+        };
+        var tipsBefore = Count(document, SupportNodeType.Tip);
+        var nodeIds = document.Supports.Nodes.Select(n => n.Id).OrderBy(id => id).ToList();
+
+        var outcome = document.ParentSupports();
+
+        Assert.NotNull(outcome);
+        Assert.Equal(tipsBefore, Count(document, SupportNodeType.Tip));
+        Assert.True(document.Undo());
+        Assert.Equal(nodeIds, document.Supports.Nodes.Select(n => n.Id).OrderBy(id => id).ToList());
+        Assert.True(document.Redo());
+        Assert.Equal(tipsBefore, Count(document, SupportNodeType.Tip));
+    }
+
+    [Fact]
     public void RoundsPickTheFewestTrunks()
     {
         var (document, _) = SlabWithSingles(5, 2.5f, grid: true);
