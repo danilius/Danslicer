@@ -30,6 +30,42 @@ public static class HierarchicalParenting
 
     private sealed record MemberTag(int A, int B);
 
+    /// <summary>
+    /// A vertical trunk of a support that is not being parented, which a surviving junction may
+    /// join instead of dropping a trunk of its own (auto-parenting, 2026-09-08). Obstacle capsules
+    /// carry the segment id, so <paramref name="ObstacleId"/> is what a branch to this trunk
+    /// must ignore; the pieces of a split trunk keep the original's id there.
+    /// </summary>
+    public sealed record ExistingTrunk(SupportSegment Segment, SupportNode Top, SupportNode Bottom,
+        Guid ObstacleId, IReadOnlyList<Guid> SegmentsAtTop)
+    {
+        public Vector2 Xy => new(Top.Position.X, Top.Position.Y);
+        /// <summary>Lowest point a branch may attach: the top of the base, or the bottom junction.</summary>
+        public float AttachFloor => Bottom.Type == SupportNodeType.Base
+            ? Bottom.Position.Z + Bottom.BaseHeight : Bottom.Position.Z;
+    }
+
+    /// <summary>
+    /// The vertical trunks of <paramref name="graph"/> owned by <paramref name="targetId"/> (any
+    /// owner when null), as candidates for <see cref="Build"/> to join.
+    /// </summary>
+    public static List<ExistingTrunk> ExistingTrunks(SupportGraph graph, Guid? targetId)
+    {
+        var result = new List<ExistingTrunk>();
+        foreach (var segment in graph.Segments)
+        {
+            if (segment.Type != SupportSegmentType.Trunk || segment.Disabled) continue;
+            if (targetId is { } target && graph.OwningObjectId(segment.Id) is { } owner && owner != target) continue;
+            var a = graph.GetNode(segment.NodeA);
+            var b = graph.GetNode(segment.NodeB);
+            if (Vector2.Distance(new(a.Position.X, a.Position.Y), new(b.Position.X, b.Position.Y)) > 0.01f) continue;
+            var (top, bottom) = a.Position.Z >= b.Position.Z ? (a, b) : (b, a);
+            result.Add(new ExistingTrunk(segment, top, bottom, segment.Id,
+                graph.SegmentsAt(top.Id).Select(x => x.Id).ToList()));
+        }
+        return result;
+    }
+
     private sealed class Node
     {
         public required int Index { get; init; }
@@ -42,17 +78,22 @@ public static class HierarchicalParenting
 
     /// <summary>
     /// Builds trees over <paramref name="tips"/>. <paramref name="obstacles"/> is the model
-    /// plus every support that is not being parented. Returns the elements to add and the
-    /// tips that could not be given a clear cone or a clear trunk, which keep their supports.
+    /// plus every support that is not being parented; <paramref name="existingTrunks"/> are
+    /// those supports' trunks, which a surviving junction joins (nearest first, within the
+    /// trunk search range) before dropping a trunk of its own. Returns the elements to add
+    /// and remove (a joined trunk is split at the attach point) and the tips that could not be
+    /// given a clear cone or a clear trunk, which keep their supports.
     /// </summary>
     public static (SupportGraphEdit Edit, IReadOnlyList<RoutingTip> Refused) Build(
         IReadOnlyList<RoutingTip> tips, SupportConfig settings, ICollisionScene obstacles,
-        SupportOrigin origin, int seed, float rangeFactor = 1f)
+        SupportOrigin origin, int seed, float rangeFactor = 1f,
+        IReadOnlyList<ExistingTrunk>? existingTrunks = null)
     {
         var angle = (settings.ParentingMaxBranchAngle > 0 ? settings.ParentingMaxBranchAngle : settings.MemberAngleDegrees)
             * MathF.PI / 180f;
         var tan = MathF.Tan(MathF.Max(angle, 0.01f));
         var maxLength = (settings.ParentingMaxBranchLength > 0 ? settings.ParentingMaxBranchLength : settings.MaxBranchLength) * rangeFactor;
+        var trunkRange = (settings.ParentingTrunkRange > 0 ? settings.ParentingTrunkRange : settings.ExistingTrunkBranchRange) * rangeFactor;
         var coneBend = (settings.ParentingMaxConeBend > 0 ? settings.ParentingMaxConeBend : settings.MemberAngleDegrees)
             * MathF.PI / 180f;
         var plateZ = 0f;
@@ -65,6 +106,8 @@ public static class HierarchicalParenting
         var scene = new CompositeCollisionScene(obstacles, members);
         var addedNodes = new List<SupportNode>();
         var addedSegments = new List<SupportSegment>();
+        var removedSegments = new List<SupportSegment>();
+        var trunks = existingTrunks?.ToList() ?? [];
         var refused = new List<RoutingTip>();
         var active = new List<Node>();
         var nextIndex = 0;
@@ -169,10 +212,10 @@ public static class HierarchicalParenting
             });
         }
 
-        // Stage 3: a trunk under every surviving junction.
+        // Stage 3: every surviving junction joins an existing trunk or drops one of its own.
         foreach (var node in active)
         {
-            if (DropTrunk(node)) continue;
+            if (JoinTrunk(node) || DropTrunk(node)) continue;
             Trace?.Invoke($"trunk failed for cluster of {node.Tips.Count} at {node.Position}");
             refused.AddRange(node.Tips.Select(t => tips[t]));
         }
@@ -185,7 +228,7 @@ public static class HierarchicalParenting
                 .Select(n => n.Id).ToHashSet();
             Withdraw(addedNodes, addedSegments, refusedTipNodes, active.Where(n => n.Tips.Any(t => refusedContacts.Contains(tips[t].SurfacePoint))));
         }
-        return (new SupportGraphEdit(addedNodes, addedSegments, []), refused);
+        return (new SupportGraphEdit(addedNodes, addedSegments, removedSegments), refused);
 
         // Two ways to join a pair, and the one that stays highest wins, because height is what
         // later merges spend: a junction under the midpoint (both branches lean equally), or the
@@ -248,11 +291,71 @@ public static class HierarchicalParenting
             return MathF.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(incoming), Vector3.Normalize(d)), -1f, 1f));
         }
 
-        bool BranchClear(Node from, Vector3 to, int alsoExclude = -1) =>
+        bool BranchClear(Node from, Vector3 to, int alsoExclude = -1, IReadOnlySet<Guid>? excludeSegments = null) =>
             !scene.IntersectsCapsule(from.Position, to, branchRadius,
-                tag => tag is not MemberTag member ||
-                       (member.A != from.Index && member.B != from.Index &&
-                        member.A != alsoExclude && member.B != alsoExclude));
+                tag => tag switch
+                {
+                    MemberTag member => member.A != from.Index && member.B != from.Index &&
+                                        member.A != alsoExclude && member.B != alsoExclude,
+                    Guid id => excludeSegments is null || !excludeSegments.Contains(id),
+                    _ => true,
+                });
+
+        // An existing trunk within the trunk search range, nearest first: the branch attaches
+        // as high as its angle allows, never above the trunk's top nor below the attach floor
+        // (min branch height, base top). Below the top the trunk is split at the attach point;
+        // at the top the branch simply joins the top node.
+        bool JoinTrunk(Node node)
+        {
+            var xy = new Vector2(node.Position.X, node.Position.Y);
+            foreach (var trunk in trunks.OrderBy(t => Vector2.Distance(xy, t.Xy)).ToList())
+            {
+                var horizontal = Vector2.Distance(xy, trunk.Xy);
+                if (horizontal > trunkRange) break;
+                var topZ = trunk.Top.Position.Z;
+                var attachZ = MathF.Min(node.Position.Z - horizontal / tan, topZ);
+                if (attachZ < MathF.Max(minZ, trunk.AttachFloor)) continue;
+                var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
+                var length = Vector3.Distance(node.Position, attach);
+                if (length < Epsilon || length > maxLength) continue;
+                if (Bend(node, attach) > coneBend) continue;
+                var atTop = topZ - attachZ < Epsilon;
+                // Landing on the junction under a piece of an already split trunk: join it
+                // rather than cutting a zero-length piece.
+                var atBottom = !atTop && trunk.Bottom.Type != SupportNodeType.Base && attachZ - trunk.Bottom.Position.Z < Epsilon;
+                var exclude = new HashSet<Guid> { trunk.ObstacleId };
+                if (atTop) exclude.UnionWith(trunk.SegmentsAtTop);
+                if (!BranchClear(node, attach, -1, exclude)) continue;
+
+                SupportNode attachNode;
+                if (atTop) attachNode = trunk.Top;
+                else if (atBottom) attachNode = trunk.Bottom;
+                else
+                {
+                    attachNode = new SupportNode { Type = SupportNodeType.Junction, Position = attach, Origin = origin };
+                    addedNodes.Add(attachNode);
+                    // A piece this build made is simply replaced; only a trunk the graph
+                    // already holds goes on the removal list.
+                    if (!addedSegments.Remove(trunk.Segment)) removedSegments.Add(trunk.Segment);
+                    var upper = trunk.Segment.Clone(id: Guid.NewGuid(), nodeA: trunk.Top.Id, nodeB: attachNode.Id);
+                    var lower = trunk.Segment.Clone(id: Guid.NewGuid(), nodeA: attachNode.Id, nodeB: trunk.Bottom.Id);
+                    addedSegments.Add(upper);
+                    addedSegments.Add(lower);
+                    trunks.Remove(trunk);
+                    trunks.Add(trunk with { Segment = upper, Bottom = attachNode });
+                    trunks.Add(trunk with { Segment = lower, Top = attachNode, SegmentsAtTop = [upper.Id, lower.Id] });
+                }
+                addedSegments.Add(new SupportSegment
+                {
+                    Type = SupportSegmentType.Branch, NodeA = node.Graph.Id, NodeB = attachNode.Id,
+                    Diameter = settings.BranchDiameter, Origin = origin,
+                });
+                members.AddCapsule(node.Position, attach, branchRadius, new MemberTag(node.Index, node.Index));
+                Trace?.Invoke($"cluster of {node.Tips.Count} at {node.Position} joined trunk at {attach}");
+                return true;
+            }
+            return false;
+        }
 
         bool DropTrunk(Node node)
         {

@@ -31,6 +31,22 @@ public sealed class UndoStack
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Folds the last two executed commands into one undo step named <paramref name="name"/>.
+    /// Auto-parenting runs as its own command after a placement and the two must undo together
+    /// (one gesture, one step); merging after the fact keeps parenting out of every placement
+    /// command. Does nothing with fewer than two commands.
+    /// </summary>
+    public bool MergeLastTwo(string name)
+    {
+        if (_undo.Count < 2) return false;
+        var later = _undo.Pop();
+        var earlier = _undo.Pop();
+        _undo.Push(new CompositeCommand(name, [earlier, later]));
+        Changed?.Invoke();
+        return true;
+    }
+
     public bool Undo()
     {
         if (!_undo.TryPop(out var command)) return false;

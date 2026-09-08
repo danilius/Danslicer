@@ -1,5 +1,40 @@
 # Danslicer handover
 
+## STATE 2026-09-08 night — READ FIRST (supersedes everything below)
+
+**Single-session work (Claude implementing directly).** Branch `auto-parenting` off main
+`a81f28f` carries auto-parenting, NOT merged, NOT screen-tested by the user yet; 891 tests
+green. The design in the evening note below was confirmed by the user and built as written:
+
+- **Setting `AutoParenting`** (Parenting expander, "Auto-parenting", default ON). After T,
+  a guided commit or densify, the new tips plus the target's existing tips within the trunk
+  search range of any new tip are parented at once with the ordinary plan
+  (`Document.AutoParentAfterPlacement`). Placement and parenting are one undo step under
+  the placement's name via `UndoStack.MergeLastTwo(name)`.
+- **Hierarchical builder joins existing trunks**: `HierarchicalParenting.Build` takes
+  `existingTrunks` (`HierarchicalParenting.ExistingTrunks(working, targetId)`, vertical
+  Trunk segments of the target); each surviving junction tries them nearest first within
+  the trunk range before `DropTrunk`. Attach z = min(junction.Z − horiz/tan(angle), top),
+  ≥ max(min branch height, base top); below the top the trunk is split (edit.RemovedSegments
+  + two Trunk clones + a junction), at the top the branch joins the top node. Obstacle
+  capsules tagged with the segment id are excluded for the trunk being joined. A piece the
+  build itself made is replaced in AddedSegments rather than listed for removal (that
+  crashed the probe: "segment not in the graph"). Router mode already shared trunks.
+- **Status line**: "Support line: 12 placed → 3 trunks · k kept as they were"; T reports
+  "Support: placed → 1 trunk" only when parenting acted.
+- Probe on the saved roof gripper project (36 tips in runs of 10, its own 8 mm / 45°
+  settings, grid on): 26 bases for 36 tips, most low-edge tips kept single because their
+  cones end under the 10 mm floor or no lattice point is within 8 mm — settings, not bugs.
+  Per-placement cost < 100 ms. Undo after a run restored the previous run's graph exactly.
+- Spec: "Auto-parenting" subsection under Parenting; hierarchical step 3 rewritten.
+
+**Screen test for the user:** T two supports close together (second should say "placed →
+1 trunk"); a guided line over a supported edge; densify; undo once after each (one step);
+the checkbox off restores single supports. Then merge if approved (user's call).
+
+**Then:** bracing (spec section first), rafts (spec section first); notes for later in the
+evening section below.
+
 ## STATE 2026-09-08 evening — READ FIRST (supersedes everything below)
 
 **Single-session work (Claude implementing directly, user screen-testing live).** main is

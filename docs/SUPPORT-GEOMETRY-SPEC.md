@@ -287,8 +287,9 @@ when it is at least `MinSpacingMm` from the previous one.
 
 Guided placement ignores existing supports by default, so a line, polygon or edge produces
 one trunk per tip. **Parenting** is the explicit command that turns a crowd of single
-supports into trees: branches are parented to trunks so fewer trunks stand. It is never
-automatic (user decision 1: the user runs it or not).
+supports into trees: branches are parented to trunks so fewer trunks stand. The user runs it
+(J) or not (user decision 1); with **Auto-parenting** on (below, user directive 2026-09-08) the
+same plan also runs by itself after every placement.
 
 ### What it operates on
 
@@ -341,9 +342,13 @@ builds the tree itself when **Hierarchical tree** (default on) is set:
    under the 10 mm floor cannot have a junction at all, and a pair whose merge point would
    fall under the floor cannot join. The floor and the branch angle are the remaining
    limits, and both are the user's settings.
-3. Each surviving junction drops a trunk: straight down, or in grid mode by a branch to
-   the nearest reachable lattice point. A cluster with no clear trunk keeps its old
-   supports.
+3. Each surviving junction first tries the trunks of the supports left standing, nearest
+   first within the trunk search range: the branch attaches as high as the branch angle
+   allows, never above the trunk's top and never below the min branch height or the base
+   top; below the top the trunk is split at the attach point, at the top the branch joins
+   the top node. Failing that it drops a trunk of its own: straight down, or in grid mode
+   by a branch to the nearest reachable lattice point. A cluster with no clear trunk keeps
+   its old supports.
 
 Off, parenting joins each tip straight onto a trunk with the tree router, as before.
 
@@ -359,6 +364,17 @@ parenting modes.
 - **Free mode** (base grid off): normally every support is blind to every other. Parenting
   is the one operation that turns sharing on in free mode, because sharing is what the
   user asked for by running it. Trunks are not moved to any lattice.
+
+### Auto-parenting (user directive 2026-09-08)
+
+With **Auto-parenting** on (Parenting expander, default on), every placement — T, a guided
+commit, densify — is followed at once by a parenting of the tips just placed together with
+the tips of the target's existing supports within the trunk search range of any new tip.
+The plan is the ordinary one (hierarchical or router, the same settings); supports out of
+range are not touched, and a new tip that finds nothing within range simply stands alone.
+The placement and its parenting are **one undo step** under the placement's name, so one
+gesture is one undo. The status line reports the placed count and the trunks now under
+those tips: "Support line: 12 placed → 3 trunks". Off, supports stay single until J.
 
 ### Configuration ("Parenting" expander of the Supports pop-out)
 
@@ -396,10 +412,9 @@ user says otherwise (configurability directive).
 
 ### Later, not in the first cut
 
-- **Auto-parenting** (user, 2026-09-08): the same re-route run live while supports are
-  placed manually or by a guided tool, so a new tip joins a trunk as it lands instead of
-  raising its own. Comes after parenting is complete and screen-tested; it needs a
-  cheap incremental form of the plan (route only the new tips against the current graph).
+- ~~Auto-parenting~~ — done 2026-09-08, see "Auto-parenting" above. The plan is not
+  incremental: it re-routes the new tips with their in-range neighbours, which the probe
+  put under 100 ms per placement on the roof gripper.
 - **Centroid trunks** in free mode: a shared trunk moved to the XY centroid of its tips,
   with the branches re-fitted, when every branch then meets the angle and length limits.
 - **Bracing** between neighbouring trunks (its own section to come).

@@ -1228,11 +1228,20 @@ public sealed class ViewportControl : OpenGlControlBase
         // silently doing nothing. Document refuses it as well — this is the visible half.
         if (Danslicer.Core.Supports.SupportTargetPolicy.RefusalMessage(Document.SupportTarget, hit)
             is { } refusal) return refusal;
-        if (!Document.AddManualSupport(hit, point, normal, out var reason))
+        if (!Document.AddManualSupport(hit, point, normal, out var reason, out var parenting))
             return reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
                 ? "Support: contact is too tight to the surface"
                 : "Support: no clear path to the plate from here";
-        return null;
+        return parenting is null ? null : $"Support: placed{AutoParentSuffix(parenting)}";
+    }
+
+    /// <summary>"→ 3 trunks" after a placement auto-parenting acted on; empty when it did not.</summary>
+    private static string AutoParentSuffix(Danslicer.Core.Supports.AutoParentingOutcome? parenting)
+    {
+        if (parenting is null) return "";
+        var trunks = parenting.Trunks == 1 ? "1 trunk" : $"{parenting.Trunks} trunks";
+        var kept = parenting.Refused > 0 ? $" · {parenting.Refused} kept as they were" : "";
+        return $" → {trunks}{kept}";
     }
 
     // ----- Guided line of supports (L in Support mode) -----
@@ -1286,11 +1295,11 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private string DensifyStatus()
     {
-        var placed = Document!.DensifyTips(out var refused);
+        var placed = Document!.DensifyTips(out var refused, out var parenting);
         return placed + refused == 0
             ? "Densify: nothing to add (needs two or more tips)"
-            : refused == 0 ? $"Densify: {placed} placed"
-            : $"Densify: {placed} of {placed + refused} placed · {refused} had no clear path";
+            : refused == 0 ? $"Densify: {placed} placed{AutoParentSuffix(parenting)}"
+            : $"Densify: {placed} of {placed + refused} placed{AutoParentSuffix(parenting)} · {refused} had no clear path";
     }
 
     private string ThinStatus()
@@ -1457,10 +1466,10 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         else
         {
-            var placed = Document.PlaceGuidedTips(target, candidates, gesture.Name, out var refused);
+            var placed = Document.PlaceGuidedTips(target, candidates, gesture.Name, out var refused, out var parenting);
             status = refused == 0
-                ? $"{gesture.Name}: {placed} placed"
-                : $"{gesture.Name}: {placed} of {placed + refused} placed · {refused} had no clear path";
+                ? $"{gesture.Name}: {placed} placed{AutoParentSuffix(parenting)}"
+                : $"{gesture.Name}: {placed} of {placed + refused} placed{AutoParentSuffix(parenting)} · {refused} had no clear path";
         }
         EndLineGesture();
         StatusText = status;

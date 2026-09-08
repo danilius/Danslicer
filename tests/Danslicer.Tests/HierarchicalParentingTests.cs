@@ -104,6 +104,118 @@ public sealed class HierarchicalParentingTests
         Assert.Empty(edit.AddedNodes);
     }
 
+    /// <summary>A standing support: tip at <paramref name="tip"/>, vertical trunk from <paramref name="topZ"/> to a base.</summary>
+    private static SupportGraph StandingSupport(Vector3 tip, float topZ, float baseHeight = 0.8f)
+    {
+        var graph = new SupportGraph();
+        var contact = new SupportNode { Type = SupportNodeType.Tip, Position = tip, TipShape = SupportTipShape.Cone };
+        var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(tip.X, tip.Y, topZ) };
+        var bottom = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = new Vector3(tip.X, tip.Y, 0), BaseHeight = baseHeight,
+            BaseShape = SupportBaseShape.Disc,
+        };
+        graph.AddNode(contact);
+        graph.AddNode(top);
+        graph.AddNode(bottom);
+        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Tip, NodeA = contact.Id, NodeB = top.Id, Diameter = 1f });
+        graph.AddSegment(new SupportSegment { Type = SupportSegmentType.Trunk, NodeA = top.Id, NodeB = bottom.Id, Diameter = 2f });
+        return graph;
+    }
+
+    [Fact]
+    public void AClusterJoinsAnExistingTrunkInsteadOfDroppingItsOwn()
+    {
+        // Three new tips 6 mm from a standing support: the junction reaches its trunk sideways.
+        var tips = Row(3, 2.5f, z: 40);
+        var standing = StandingSupport(new Vector3(8, 0, 40), topZ: 38);
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddSupportGraph(standing);
+        var trunks = HierarchicalParenting.ExistingTrunks(standing, null);
+        Assert.Single(trunks);
+
+        var (edit, refused) = HierarchicalParenting.Build(tips, Settings(grid: false), new CompositeCollisionScene(Slab(40), obstacles),
+            SupportOrigin.Manual, seed: 1, existingTrunks: trunks);
+
+        Assert.Empty(refused);
+        Assert.Equal(0, edit.AddedNodes.Count(n => n.Type == SupportNodeType.Base));
+        // The trunk was split at the attach point: the old one goes, two pieces come.
+        Assert.Single(edit.RemovedSegments);
+        Assert.Equal(SupportSegmentType.Trunk, edit.RemovedSegments[0].Type);
+        Assert.Equal(2, edit.AddedSegments.Count(s => s.Type == SupportSegmentType.Trunk));
+        var attach = edit.AddedNodes.Single(n => n.Type == SupportNodeType.Junction && MathF.Abs(n.Position.X - 8) < 1e-3f);
+        Assert.InRange(attach.Position.Z, 10f, 38f);
+        Assert.Contains(edit.AddedSegments, s => s.Type == SupportSegmentType.Branch && s.NodeB == attach.Id);
+    }
+
+    [Fact]
+    public void AJunctionAboveTheTrunkTopJoinsTheTopNode()
+    {
+        // The standing trunk's top is far below the cluster: the branch lands on the top node.
+        var tips = Row(2, 2.5f, z: 40);
+        var standing = StandingSupport(new Vector3(3, 0, 40), topZ: 20);
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddSupportGraph(standing);
+        var trunks = HierarchicalParenting.ExistingTrunks(standing, null);
+        var top = trunks[0].Top;
+
+        var (edit, refused) = HierarchicalParenting.Build(tips, Settings(grid: false), new CompositeCollisionScene(Slab(40), obstacles),
+            SupportOrigin.Manual, seed: 1, existingTrunks: trunks);
+
+        Assert.Empty(refused);
+        Assert.Empty(edit.RemovedSegments);
+        Assert.Equal(0, edit.AddedNodes.Count(n => n.Type == SupportNodeType.Base));
+        Assert.Contains(edit.AddedSegments, s => s.Type == SupportSegmentType.Branch && s.NodeB == top.Id);
+    }
+
+    [Fact]
+    public void TwoClustersMaySplitTheSameTrunk()
+    {
+        // Two lone tips either side of a wall that blocks their merge, both within reach of one
+        // standing trunk: the second split cuts a piece the first split made (crashed 2026-09-08
+        // as a removal of a segment the graph never held).
+        var tips = new List<RoutingTip>
+        {
+            new(new Vector3(3, 0, 40), Vector3.UnitZ, 0.4f, TipShape: SupportTipShape.Cone, ConeLength: 2f),
+            new(new Vector3(5, 0, 48), Vector3.UnitZ, 0.4f, TipShape: SupportTipShape.Cone, ConeLength: 2f),
+        };
+        var standing = StandingSupport(new Vector3(0, 0, 46), topZ: 44);
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddSupportGraph(standing);
+        obstacles.AddMesh(Box(new Vector3(3.5f, -2, 40), new Vector3(4.5f, 2, 43.5f)), Matrix4x4.Identity);
+        var settings = Settings(grid: false) with { MaxBranchLength = 10f };
+
+        var (edit, refused) = HierarchicalParenting.Build(tips, settings, obstacles, SupportOrigin.Manual, seed: 1,
+            existingTrunks: HierarchicalParenting.ExistingTrunks(standing, null));
+
+        Assert.Empty(refused);
+        Assert.Equal(0, edit.AddedNodes.Count(n => n.Type == SupportNodeType.Base));
+        Assert.Single(edit.RemovedSegments);
+        Assert.Equal(3, edit.AddedSegments.Count(s => s.Type == SupportSegmentType.Trunk));
+        Assert.Equal(2, edit.AddedSegments.Count(s => s.Type == SupportSegmentType.Branch));
+        // The pieces chain from the old top to the old base through the two attach junctions.
+        var pieces = edit.AddedSegments.Where(s => s.Type == SupportSegmentType.Trunk).ToList();
+        Assert.Contains(pieces, s => s.NodeA == standing.Nodes.Single(n => n.Type == SupportNodeType.Junction).Id);
+        Assert.Contains(pieces, s => s.NodeB == standing.Nodes.Single(n => n.Type == SupportNodeType.Base).Id);
+    }
+
+    [Fact]
+    public void ATrunkOutOfRangeIsNotJoined()
+    {
+        var tips = Row(2, 2.5f, z: 40);
+        var standing = StandingSupport(new Vector3(30, 0, 40), topZ: 38);
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddSupportGraph(standing);
+        var settings = Settings(grid: false) with { ExistingTrunkBranchRange = 8f };
+
+        var (edit, refused) = HierarchicalParenting.Build(tips, settings, new CompositeCollisionScene(Slab(40), obstacles),
+            SupportOrigin.Manual, seed: 1, existingTrunks: HierarchicalParenting.ExistingTrunks(standing, null));
+
+        Assert.Empty(refused);
+        Assert.Empty(edit.RemovedSegments);
+        Assert.Equal(1, edit.AddedNodes.Count(n => n.Type == SupportNodeType.Base));
+    }
+
     [Fact]
     public void FarApartTipsStaySeparateTrees()
     {

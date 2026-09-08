@@ -623,6 +623,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.ParentingHierarchical = value);
     }
 
+    public bool SupportAutoParenting
+    {
+        get => Supports.AutoParenting;
+        set => Update(() => Supports.AutoParenting = value);
+    }
+
     public float SupportMinBranchAttachHeightMm
     {
         get => Supports.MinBranchAttachHeightMm;

@@ -801,8 +801,17 @@ public sealed class Document
 
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
         out RoutingFailureReason? failureReason)
+        => AddManualSupport(obj, contact, surfaceNormal, out failureReason, out _);
+
+    /// <summary>
+    /// <see cref="AddManualSupport(SceneObject, Vector3, Vector3, out RoutingFailureReason?)"/>,
+    /// reporting what auto-parenting then did (null when it did nothing or is off).
+    /// </summary>
+    public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason, out AutoParentingOutcome? parenting)
     {
         failureReason = null;
+        parenting = null;
         // A click on a model that is not the support target is refused before any routing work:
         // this is not a routing failure, so it carries no routing reason. The caller turns it
         // into the status line from SupportTargetPolicy.
@@ -823,7 +832,9 @@ public sealed class Document
         }
 
         failureReason = null;
-        Execute(new ApplySupportGraphEditCommand(Supports, result.Edit));
+        var command = new ApplySupportGraphEditCommand(Supports, result.Edit);
+        Execute(command);
+        parenting = AutoParentAfterPlacement(obj, result.Edit, command.Name);
         return true;
     }
 
@@ -835,8 +846,17 @@ public sealed class Document
     /// </summary>
     public int PlaceGuidedTips(SceneObject obj, IReadOnlyList<TipCandidate> candidates,
         string undoName, out int refused)
+        => PlaceGuidedTips(obj, candidates, undoName, out refused, out _);
+
+    /// <summary>
+    /// <see cref="PlaceGuidedTips(SceneObject, IReadOnlyList{TipCandidate}, string, out int)"/>,
+    /// reporting what auto-parenting then did (null when it did nothing or is off).
+    /// </summary>
+    public int PlaceGuidedTips(SceneObject obj, IReadOnlyList<TipCandidate> candidates,
+        string undoName, out int refused, out AutoParentingOutcome? parenting)
     {
         refused = 0;
+        parenting = null;
         if (candidates.Count == 0 || !SupportTargetPolicy.CanSupport(SupportTarget, obj)) return 0;
         var settings = SupportSettings with { };
         var first = candidates[0].Point;
@@ -852,8 +872,57 @@ public sealed class Document
         var result = router.Route(tips, options, Supports);
         refused = result.UnroutedTips.Count;
         var placed = tips.Count - refused;
-        if (placed > 0) Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, undoName));
+        if (placed > 0)
+        {
+            Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, undoName));
+            parenting = AutoParentAfterPlacement(obj, result.Edit, undoName);
+        }
         return placed;
+    }
+
+    /// <summary>
+    /// Auto-parenting (SUPPORT-GEOMETRY-SPEC "Auto-parenting", user directive 2026-09-08): the
+    /// tips a placement just added, plus the tips of the target's existing supports within the
+    /// trunk search range of any of them, are parented at once. The parenting runs as its own
+    /// command and is then folded into the placement's undo step, so one gesture is one step.
+    /// Null when the setting is off, there is nothing to parent, or the plan changed nothing.
+    /// </summary>
+    private AutoParentingOutcome? AutoParentAfterPlacement(SceneObject obj, SupportGraphEdit placement, string undoName)
+    {
+        var settings = SupportSettings;
+        var placedTips = placement.AddedNodes.Where(n => n.Type == SupportNodeType.Tip).ToList();
+        if (!settings.AutoParenting || placedTips.Count == 0) return null;
+        var range = settings.ParentingTrunkRange > 0 ? settings.ParentingTrunkRange : settings.ExistingTrunkBranchRange;
+        var placedIds = placedTips.Select(t => t.Id).ToHashSet();
+        var operands = new List<Guid>(placedIds);
+        foreach (var node in Supports.Nodes)
+        {
+            if (node.Type != SupportNodeType.Tip || node.Hidden || placedIds.Contains(node.Id)) continue;
+            if ((node.ContactObjectId ?? node.Origin.ObjectId) != obj.Id) continue;
+            if (placedTips.Any(p => Vector3.Distance(p.Position, node.Position) <= range)) operands.Add(node.Id);
+        }
+        if (operands.Count < 2) return null;
+        if (SupportParenting.Plan(Supports, obj.Id, operands, settings with { }, MeshObstacles()) is not { } planned) return null;
+        var commands = SupportParenting.Commands(Supports, planned.Plans, undoName);
+        if (commands.Count == 0) return null;
+        Execute(new CompositeCommand(undoName, commands));
+        History.MergeLastTwo(undoName);
+        var positions = placedTips.Select(t => t.Position).ToList();
+        return new AutoParentingOutcome(positions.Count, TrunksUnder(positions), planned.Outcome.Refused);
+    }
+
+    /// <summary>How many distinct bases stand under the tips at <paramref name="tipPositions"/>.</summary>
+    private int TrunksUnder(IReadOnlyList<Vector3> tipPositions)
+    {
+        var bases = new HashSet<Guid>();
+        foreach (var node in Supports.Nodes)
+        {
+            if (node.Type != SupportNodeType.Tip) continue;
+            if (!tipPositions.Any(p => Vector3.DistanceSquared(p, node.Position) < 1e-6f)) continue;
+            foreach (var id in Supports.Component(node.Id).Nodes)
+                if (Supports.GetNode(id).Type == SupportNodeType.Base) bases.Add(id);
+        }
+        return bases.Count;
     }
 
     /// <summary>
@@ -899,9 +968,13 @@ public sealed class Document
     /// undo step. Returns the number placed; <paramref name="refused"/> counts those the router
     /// could not route.
     /// </summary>
-    public int DensifyTips(out int refused)
+    public int DensifyTips(out int refused) => DensifyTips(out refused, out _);
+
+    /// <summary><see cref="DensifyTips(out int)"/>, reporting what auto-parenting then did.</summary>
+    public int DensifyTips(out int refused, out AutoParentingOutcome? parenting)
     {
         refused = 0;
+        parenting = null;
         if (SupportTarget is not { } target) return 0;
         var tips = GuidedOperandTips();
         if (tips.Count < 2) return 0;
@@ -917,7 +990,7 @@ public sealed class Document
         // whatever the ignore-existing setting says about the rest of the document.
         var candidates = GuidedTipPlacement.Candidates(mesh, samples, GuidedPlacementParameters(),
             GuidedExistingSupports(), keepClearOf: operands.Select(o => o.onMesh).ToList());
-        return PlaceGuidedTips(target, candidates, "Densify", out refused);
+        return PlaceGuidedTips(target, candidates, "Densify", out refused, out parenting);
     }
 
     /// <summary>
