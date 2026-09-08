@@ -605,6 +605,18 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.ParentingRounds = Math.Clamp(value, 1, 10));
     }
 
+    public float SupportParentingMaxConeBend
+    {
+        get => Supports.ParentingMaxConeBend;
+        set => Update(() => Supports.ParentingMaxConeBend = Clamp(value, 0f, 180f, 0f));
+    }
+
+    public int SupportParentingMaxBranchesPerTrunk
+    {
+        get => Supports.ParentingMaxBranchesPerTrunk;
+        set => Update(() => Supports.ParentingMaxBranchesPerTrunk = Math.Clamp(value, 0, 200));
+    }
+
     public float SupportExistingTrunkBranchRange
     {
         get => Supports.ExistingTrunkBranchRange;

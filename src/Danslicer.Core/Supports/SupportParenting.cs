@@ -135,7 +135,12 @@ public static class SupportParenting
             // Sharing is the point of parenting, so it is on in free mode too (ShareTrunks), and
             // a route that shares trunks must see the other supports as obstacles.
             ICollisionScene obstacles = new CompositeCollisionScene(meshes, SupportScene(working));
-            var router = new TreeSupportRouter(obstacles, GrowthRuleSet.FromConfig(settings));
+            var rules = GrowthRuleSet.FromConfig(settings);
+            // Aggressive parenting (user screen test 2026-09-08): a trunk may carry more branches
+            // than the growth rule's default when the user asks for it.
+            if (settings.ParentingMaxBranchesPerTrunk > 0 && rules.Find<BranchGrowthRule>() is { } branchRule)
+                branchRule.MaxBranchesPerTrunk = settings.ParentingMaxBranchesPerTrunk;
+            var router = new TreeSupportRouter(obstacles, rules);
             var options = new TreeRoutingOptions
             {
                 TrunkDiameter = settings.TrunkDiameter,
@@ -147,6 +152,7 @@ public static class SupportParenting
                 ExistingTrunkBranchRange = (settings.ParentingTrunkRange > 0 ? settings.ParentingTrunkRange : settings.ExistingTrunkBranchRange) * rangeFactor,
                 IgnoreExistingSupports = false,
                 ShareTrunks = true,
+                MaxConeBendDegrees = settings.ParentingMaxConeBend,
                 MinMemberSeparationMm = settings.MinMemberSeparationMm,
                 UseBaseGrid = settings.UseBaseGrid,
                 BaseGridPitch = settings.BaseGridPitch,

@@ -250,6 +250,14 @@ public sealed record SupportConfig
     public int ParentingMinTipsPerTrunk { get; set; } = 1;
     /// <summary>Re-route rounds with different seeds; the round with the fewest trunks wins.</summary>
     public int ParentingRounds { get; set; } = 3;
+    /// <summary>
+    /// How far the member leaving a cone may bend from the cone's axis when parented, degrees;
+    /// 0 = <see cref="MemberAngleDegrees"/>. A cone on a leaning wall points outward, so a join
+    /// sideways along the edge needs more than the member angle (user screen test 2026-09-08).
+    /// </summary>
+    public float ParentingMaxConeBend { get; set; }
+    /// <summary>Branches one trunk may carry when parented; 0 = the growth rule's default (6).</summary>
+    public int ParentingMaxBranchesPerTrunk { get; set; }
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     public bool UseBaseGrid { get; set; } = true;
@@ -321,6 +329,9 @@ public sealed record SupportConfig
         ParentingTrunkRange = NonNegative(ParentingTrunkRange);
         ParentingMinTipsPerTrunk = Math.Clamp(ParentingMinTipsPerTrunk, 1, 20);
         ParentingRounds = Math.Clamp(ParentingRounds, 1, 10);
+        ParentingMaxConeBend = float.IsFinite(ParentingMaxConeBend)
+            ? Math.Clamp(ParentingMaxConeBend, 0f, 180f) : 0f;
+        ParentingMaxBranchesPerTrunk = Math.Clamp(ParentingMaxBranchesPerTrunk, 0, 200);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;

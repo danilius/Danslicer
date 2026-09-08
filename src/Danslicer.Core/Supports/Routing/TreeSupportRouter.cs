@@ -34,6 +34,15 @@ public sealed record TreeRoutingOptions
     /// </summary>
     public bool ShareTrunks { get; init; }
     /// <summary>
+    /// How far the member leaving a cone's junction may bend from the cone's axis, degrees.
+    /// Zero means <see cref="MaxMemberAngleDegrees"/>, the rule for generation and manual
+    /// placement (user decision 2026-09-07: no Z-kinks at the ball). Parenting may raise it so
+    /// a tip on a leaning wall can reach a trunk sideways along the edge.
+    /// </summary>
+    public float MaxConeBendDegrees { get; init; }
+
+    internal float ConeBendLimitDegrees => MaxConeBendDegrees > 0 ? MaxConeBendDegrees : MaxMemberAngleDegrees;
+    /// <summary>
     /// Minimum gap between the surfaces of non-incident support members. Zero disables
     /// the additional constraint and preserves legacy routing exactly.
     /// </summary>
@@ -692,7 +701,7 @@ public sealed class TreeSupportRouter
             var branchLength = Vector3.Distance(j1, attach);
             if (branchLength > options.ExistingTrunkBranchRange + Epsilon) return;
             var bend = BendDegrees(tipDirection, attach - j1);
-            if (bend > options.MaxMemberAngleDegrees + BendToleranceDegrees) return;
+            if (bend > options.ConeBendLimitDegrees + BendToleranceDegrees) return;
             // Among reachable trunks, the one the cone already points toward wins near ties.
             var bendPenalty = options.MaxMemberAngleDegrees > 0
                 ? bend / options.MaxMemberAngleDegrees * options.BranchDiameter *
@@ -805,7 +814,7 @@ public sealed class TreeSupportRouter
     {
         // With a tip direction, the bend at the ball is limited to the member angle and the
         // branch that simply continues the cone's own axis is offered first at every length.
-        var maxBend = options.MaxMemberAngleDegrees + BendToleranceDegrees;
+        var maxBend = options.ConeBendLimitDegrees + BendToleranceDegrees;
         var continuation = tipDirection is { } direction && direction.Z < -Epsilon &&
                            new Vector2(direction.X, direction.Y).LengthSquared() >
                            Epsilon * Epsilon

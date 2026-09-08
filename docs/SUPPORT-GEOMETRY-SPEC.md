@@ -352,8 +352,21 @@ user says otherwise (configurability directive).
 - Undo restores every original support element, including bases, with their ids, so
   selections and hidden flags survive an undo.
 
+- **Max cone bend** (°, default 0 = the member angle): how far the branch leaving a cone
+  may bend from the cone's own axis. The no-Z-kink rule of 2026-09-07 caps this at the
+  member angle for generation and manual placement; a cone on a leaning wall points
+  outward, so a join sideways along the edge needs 60–90°, and the first screen test
+  (2026-09-08, roof gripper, ~40 trunks for ~80 tips) was capped by exactly this. Raising
+  it is the user's explicit choice for parenting only.
+- **Max branches per trunk** (default 0 = the growth rule's 6): the second cap that
+  screen test hit — six branches per trunk means at least one trunk per six tips.
+
 ### Later, not in the first cut
 
+- **Auto-parenting** (user, 2026-09-08): the same re-route run live while supports are
+  placed manually or by a guided tool, so a new tip joins a trunk as it lands instead of
+  raising its own. Comes after parenting is complete and screen-tested; it needs a
+  cheap incremental form of the plan (route only the new tips against the current graph).
 - **Centroid trunks** in free mode: a shared trunk moved to the XY centroid of its tips,
   with the branches re-fitted, when every branch then meets the angle and length limits.
 - **Bracing** between neighbouring trunks (its own section to come).
