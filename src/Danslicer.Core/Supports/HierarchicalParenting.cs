@@ -257,12 +257,16 @@ public static class HierarchicalParenting
         bool DropTrunk(Node node)
         {
             var xy = new Vector2(node.Position.X, node.Position.Y);
-            var tops = new List<Vector2> { xy };
+            var tops = new List<Vector2>();
             if (settings.UseBaseGrid)
-                tops.AddRange(BaseLattice.NearestSquarePoints(xy, settings.BaseGridPitch, maxLength)
-                    .Where(p => Vector2.Distance(p, xy) > Epsilon));
+            {
+                // Grid on: lattice points only, nearest first. (The junction's own column was
+                // tried first here once, so trunks left the grid — user screen test 2026-09-08.)
+                tops.AddRange(BaseLattice.NearestSquarePoints(xy, settings.BaseGridPitch, maxLength));
+            }
             else
             {
+                tops.Add(xy);
                 // A straight drop under a leaning model hits the model: fan out, nearest reach
                 // first, so the trunk stands where the column down to the plate is clear.
                 var reach = MathF.Min(maxLength, node.Position.Z - minZ) * MathF.Sin(angle);
