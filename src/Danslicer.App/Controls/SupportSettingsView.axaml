@@ -279,6 +279,58 @@
             </StackPanel>
         </Expander>
 
+        <Expander Header="Bracing" IsExpanded="True">
+            <StackPanel Margin="8,2,0,6">
+                <TextBlock Text="K ties neighbouring supports together with braces laid as a ladder up each pair; Shift+K removes them. 0 = use the Members value."
+                           Classes="label" TextWrapping="Wrap" Margin="0,0,0,4" />
+                <CheckBox Tag="supports bracing auto automatic after generation parenting"
+                          Content="Auto-bracing"
+                          ToolTip.Tip="Brace after Generate Supports and after every parenting, as part of that command's undo step. Off: braces exist only when you press K."
+                          IsChecked="{Binding SupportAutoBracing, Mode=TwoWay}" Margin="0,4" />
+                <Grid Tag="supports bracing pattern zigzag diagonal" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Pattern" Classes="label"
+                               ToolTip.Tip="Zigzag: each brace leaves the trunk the previous one arrived at. Diagonal: every brace leans the same way." />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding BracingPatterns}"
+                              SelectedItem="{Binding SupportBracingPattern, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing brace diameter mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Brace diameter" Classes="label" ToolTip.Tip="0 = the branch diameter" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="20" Increment="0.1" FormatString="0.##"
+                                   Value="{Binding SupportBracingDiameter, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing angle degrees" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Brace angle °" Classes="label" ToolTip.Tip="Rise of a brace from horizontal" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="80" Increment="5" FormatString="0"
+                                   Value="{Binding SupportBracingAngleDegrees, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing spacing vertical pitch mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Brace spacing" Classes="label" ToolTip.Tip="Vertical pitch between the braces of one pair of trunks" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.5" Maximum="500" Increment="1" FormatString="0.##"
+                                   Value="{Binding SupportBracingSpacingMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing lowest brace height mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Lowest brace height" Classes="label" ToolTip.Tip="No brace foot below this height above the plate. 0 = the min branch height" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="500" Increment="1" FormatString="0.##"
+                                   Value="{Binding SupportBracingLowestHeightMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing min support height mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Min support height" Classes="label" ToolTip.Tip="Only trunks rising at least this far above the plate are braced" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="500" Increment="1" FormatString="0.##"
+                                   Value="{Binding SupportBracingMinSupportHeightMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing neighbour distance mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Neighbour distance" Classes="label" ToolTip.Tip="Largest horizontal gap between two trunks that a brace may span" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.5" Maximum="500" Increment="0.5" FormatString="0.##"
+                                   Value="{Binding SupportBracingNeighbourDistanceMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing max brace partners per trunk" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max brace partners" Classes="label" ToolTip.Tip="How many other trunks one trunk may be braced to" />
+                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="20" Increment="1" FormatString="0"
+                                   Value="{Binding SupportBracingMaxPartners, Mode=TwoWay}" />
+                </Grid>
+            </StackPanel>
+        </Expander>
+
         <Expander Header="Placement" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports placement spacing density mm" ColumnDefinitions="170,*" Margin="0,2">

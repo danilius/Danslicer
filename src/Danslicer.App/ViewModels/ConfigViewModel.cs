@@ -97,6 +97,9 @@ public sealed class ConfigViewModel : ViewModelBase
     public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
         Enum.GetValues<SupportBaseShape>();
 
+    public IReadOnlyList<BracingPattern> BracingPatterns { get; } =
+        Enum.GetValues<BracingPattern>();
+
     public IReadOnlyList<ReinforceSeedSelector> ReinforceSeedSelectors { get; } =
         Enum.GetValues<ReinforceSeedSelector>();
 
@@ -627,6 +630,61 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.AutoParenting;
         set => Update(() => Supports.AutoParenting = value);
+    }
+
+    // Bracing (K): SUPPORT-GEOMETRY-SPEC "Bracing".
+    public bool SupportAutoBracing
+    {
+        get => Supports.AutoBracing;
+        set => Update(() => Supports.AutoBracing = value);
+    }
+
+    public BracingPattern SupportBracingPattern
+    {
+        get => Supports.BracingPattern;
+        set => Update(() => Supports.BracingPattern = Enum.IsDefined(value) ? value : BracingPattern.Zigzag);
+    }
+
+    public float SupportBracingDiameter
+    {
+        get => Supports.BracingDiameter;
+        set => Update(() => Supports.BracingDiameter = Clamp(value, 0f, 20f, 0f));
+    }
+
+    public float SupportBracingAngleDegrees
+    {
+        get => Supports.BracingAngleDegrees;
+        set => Update(() => Supports.BracingAngleDegrees = Clamp(value, 0f, 80f, 45f));
+    }
+
+    public float SupportBracingSpacingMm
+    {
+        get => Supports.BracingSpacingMm;
+        set => Update(() => Supports.BracingSpacingMm = Clamp(value, 0.5f, 500f, 15f));
+    }
+
+    public float SupportBracingLowestHeightMm
+    {
+        get => Supports.BracingLowestHeightMm;
+        set => Update(() => Supports.BracingLowestHeightMm = Clamp(value, 0f, 500f, 0f));
+    }
+
+    public float SupportBracingMinSupportHeightMm
+    {
+        get => Supports.BracingMinSupportHeightMm;
+        set => Update(() => Supports.BracingMinSupportHeightMm = Clamp(value, 0f, 500f, 20f));
+    }
+
+    public float SupportBracingNeighbourDistanceMm
+    {
+        get => Supports.BracingNeighbourDistanceMm;
+        set => Update(() => Supports.BracingNeighbourDistanceMm = Clamp(value, 0.5f, 500f, 10f));
+    }
+
+    public int SupportBracingMaxPartners
+    {
+        get => Supports.BracingMaxPartners;
+        set => Update(() => Supports.BracingMaxPartners = Math.Clamp(value, 1, 20));
     }
 
     public float SupportMinBranchAttachHeightMm

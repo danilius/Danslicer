@@ -1330,6 +1330,49 @@ public sealed class ViewportControl : OpenGlControlBase
             : $"Parent: no trunk could be shared ({outcome.TrunksBefore} trunks){refused}";
     }
 
+    /// <summary>Bracing (K), from the key or the Supports pop-out button.</summary>
+    public void BraceSupports() => RunSupportCommand(BraceStatus);
+
+    /// <summary>Unbrace (Shift+K), from the key or the Supports pop-out button.</summary>
+    public void UnbraceSupports() => RunSupportCommand(UnbraceStatus);
+
+    /// <summary>Select braces, from the Supports pop-out button or the Object menu.</summary>
+    public void SelectBraces() => RunSupportCommand(SelectBracesStatus);
+
+    private void RunSupportCommand(Func<string> command)
+    {
+        if (Document is null || !SupportSelectionMode) return;
+        var status = command();
+        Focus();
+        UpdateStatus();
+        StatusText = status;
+        Redraw();
+    }
+
+    private string BraceStatus()
+    {
+        if (Document!.SupportTarget is null) return "Brace: choose the model to support first (Objects pop-out)";
+        var outcome = Document.BraceSupports();
+        if (outcome is null) return "Brace: nothing to brace (needs two or more supports)";
+        return outcome.Braces == 0
+            ? $"Brace: no brace fits ({outcome.Operands} supports · already braced, too short, too far apart or blocked)"
+            : $"Bracing: {outcome.Braces} {(outcome.Braces == 1 ? "brace" : "braces")} added, {outcome.SupportsTied} supports tied";
+    }
+
+    private string UnbraceStatus()
+    {
+        if (Document!.SupportTarget is null) return "Unbrace: choose the model to support first (Objects pop-out)";
+        var removed = Document.UnbraceSupports();
+        return removed == 0 ? "Unbrace: no braces on these supports" : $"Unbrace: {removed} {(removed == 1 ? "brace" : "braces")} removed";
+    }
+
+    private string SelectBracesStatus()
+    {
+        if (Document!.SupportTarget is null) return "Select braces: choose the model to support first (Objects pop-out)";
+        var selected = Document.SelectBraces();
+        return selected == 0 ? "Select braces: no braces on these supports" : $"Select braces: {selected} selected";
+    }
+
     private enum GuidedKind { Line, Polygon, Edge, Ring, Contour }
 
     private string? BeginLineGesture(Vector2 mouse, GuidedKind kind = GuidedKind.Line)
@@ -2165,6 +2208,9 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.D when !ctrl && SupportSelectionMode: statusAfterUpdate = DensifyStatus(); break;
                 // Parenting (SUPPORT-GEOMETRY-SPEC "Parenting"): re-route the selected supports together.
                 case Key.J when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = ParentStatus(); break;
+                // Bracing (SUPPORT-GEOMETRY-SPEC "Bracing"): K braces the selected supports, Shift+K unbraces.
+                case Key.K when !ctrl && shift && SupportSelectionMode: statusAfterUpdate = UnbraceStatus(); break;
+                case Key.K when !ctrl && SupportSelectionMode: statusAfterUpdate = BraceStatus(); break;
                 case Key.Escape when _marqueeStart is not null:
                     _marqueeStart = null;
                     _pendingClickSupport = null;
