@@ -39,10 +39,12 @@ public static class SupportBracing
     /// Plans the braces for the supports containing <paramref name="operandElementIds"/> (nodes
     /// or segments) on the target. Braces that already tie two of those trunks are kept and that
     /// pair is left alone, so running twice adds nothing. Null when there is nothing to brace.
-    /// <paramref name="meshes"/> is the model obstacle scene.
+    /// <paramref name="meshes"/> is the model obstacle scene. With <paramref name="chosen"/> (the
+    /// operands are the user's selection) and exactly two supports, the two are braced no matter
+    /// what stands between or how far apart they are (user direction 2026-09-09).
     /// </summary>
     public static (SupportGraphEdit Edit, BracingOutcome Outcome)? Plan(SupportGraph graph, Guid targetId,
-        IReadOnlyList<Guid> operandElementIds, SupportConfig settings, ICollisionScene meshes)
+        IReadOnlyList<Guid> operandElementIds, SupportConfig settings, ICollisionScene meshes, bool chosen = false)
     {
         var components = Components(graph, targetId, operandElementIds);
         if (components.Count < 2) return null;
@@ -56,7 +58,6 @@ public static class SupportBracing
         var diameter = settings.BracingDiameter > 0 ? settings.BracingDiameter : settings.BranchDiameter;
         var radius = diameter * 0.5f;
         var tan = MathF.Tan(Math.Clamp(settings.BracingAngleDegrees, 0f, 80f) * MathF.PI / 180f);
-        var spacing = MathF.Max(settings.BracingSpacingMm, radius * 2 + Epsilon);
         var lowest = settings.BracingLowestHeightMm > 0 ? settings.BracingLowestHeightMm : settings.MinBranchAttachHeightMm;
         var origin = SupportOrigin.ManualFor(targetId);
 
@@ -73,74 +74,107 @@ public static class SupportBracing
             columns[b].Partners++;
         }
 
-        // Every pair of tall enough trunks of different supports, nearest first.
-        var pairs = new List<(int A, int B, float Distance)>();
-        for (var i = 0; i < columns.Count; i++)
-        for (var j = i + 1; j < columns.Count; j++)
-        {
-            var a = columns[i];
-            var b = columns[j];
-            if (a.Support == b.Support || a.Top < minHeight || b.Top < minHeight) continue;
-            var distance = Vector2.Distance(a.Xy, b.Xy);
-            if (distance > neighbour || distance <= settings.TrunkDiameter) continue;
-            pairs.Add((i, j, distance));
-        }
-        pairs.Sort((x, y) =>
-        {
-            var byDistance = x.Distance.CompareTo(y.Distance);
-            if (byDistance != 0) return byDistance;
-            var byA = columns[x.A].Segments[0].Id.CompareTo(columns[y.A].Segments[0].Id);
-            return byA != 0 ? byA : columns[x.B].Segments[0].Id.CompareTo(columns[y.B].Segments[0].Id);
-        });
+        // Two supports chosen by hand are braced no matter what stands between or how far apart
+        // they are (user direction 2026-09-09): the other supports are not obstacles and the
+        // neighbour distance and partner cap do not apply.
+        var pairOnly = chosen && components.Count == 2;
+        var candidates = columns.Select((c, i) => (Column: c, Index: i)).Where(x => x.Column.Top >= minHeight)
+            .Select(x => x.Index).ToList();
+        bool Neighbours(int i, int j) => columns[i].Support != columns[j].Support &&
+            Vector2.Distance(columns[i].Xy, columns[j].Xy) > settings.TrunkDiameter &&
+            (pairOnly || Vector2.Distance(columns[i].Xy, columns[j].Xy) <= neighbour);
 
-        var supportsScene = new LinearCollisionScene();
-        supportsScene.AddSupportGraph(graph);
-        var added = new LinearCollisionScene();
-        var scene = new CompositeCollisionScene(meshes, supportsScene, added);
+        // Chains (user drawing 2026-09-09): from an end of a row, each trunk pairs with its nearest
+        // unvisited neighbour, and each pair's ladder runs opposite to the previous pair's.
+        var chains = new List<List<int>>();
+        var remaining = new HashSet<int>(candidates);
+        while (remaining.Count > 0)
+        {
+            var first = remaining.OrderBy(i => remaining.Count(j => j != i && Neighbours(i, j)))
+                .ThenBy(i => columns[i].Xy.X).ThenBy(i => columns[i].Xy.Y).ThenBy(i => columns[i].Segments[0].Id).First();
+            var chain = new List<int> { first };
+            remaining.Remove(first);
+            while (true)
+            {
+                var last = chain[^1];
+                var next = remaining.Where(j => Neighbours(last, j))
+                    .OrderBy(j => Vector2.Distance(columns[last].Xy, columns[j].Xy))
+                    .ThenBy(j => columns[j].Segments[0].Id).Cast<int?>().FirstOrDefault();
+                if (next is not { } n) break;
+                chain.Add(n);
+                remaining.Remove(n);
+            }
+            chains.Add(chain);
+        }
+
+        ICollisionScene scene = meshes;
+        if (!pairOnly)
+        {
+            var supportsScene = new LinearCollisionScene();
+            supportsScene.AddSupportGraph(graph);
+            scene = new CompositeCollisionScene(meshes, supportsScene);
+        }
+        // Braces never block braces: one pair's ladder crosses the next pair's freely.
+        var braceIds = graph.Segments.Where(x => x.Type == SupportSegmentType.Bracing).Select(x => x.Id).ToHashSet();
         var addedNodes = new List<SupportNode>();
         var addedSegments = new List<SupportSegment>();
         var tied = new HashSet<int>();
 
-        foreach (var (ia, ib, distance) in pairs)
+        SupportNode EndAt(Vector3 position)
         {
+            foreach (var node in addedNodes)
+                if (Vector3.Distance(node.Position, position) <= 0.01f) return node;
+            var created = new SupportNode { Type = SupportNodeType.BraceEnd, Position = position, Origin = origin };
+            addedNodes.Add(created);
+            return created;
+        }
+
+        foreach (var chain in chains)
+        for (var k = 0; k + 1 < chain.Count; k++)
+        {
+            var (ia, ib) = (chain[k], chain[k + 1]);
             var a = columns[ia];
             var b = columns[ib];
-            if (braced.Contains((ia, ib))) continue;
-            if (a.Partners >= settings.BracingMaxPartners || b.Partners >= settings.BracingMaxPartners) continue;
+            if (braced.Contains(ia < ib ? (ia, ib) : (ib, ia))) continue;
+            if (!pairOnly && (a.Partners >= settings.BracingMaxPartners || b.Partners >= settings.BracingMaxPartners)) continue;
 
+            var distance = Vector2.Distance(a.Xy, b.Xy);
             var rise = distance * tan;
             var foot = MathF.Max(lowest, MathF.Max(a.Bottom, b.Bottom) + radius);
-            var fromA = true;
+            // A chosen pair too far apart for the angle gets flatter braces rather than none.
+            if (pairOnly) rise = MathF.Max(0f, MathF.Min(rise, MathF.Min(a.Top, b.Top) - radius - foot));
+            // Continuous by default: the next brace starts where the last one ended.
+            var step = settings.BracingSpacingMm > 0 ? settings.BracingSpacingMm : rise;
+            if (step < radius * 2 + Epsilon) step = MathF.Max(rise, radius * 2 + Epsilon);
+            // Even pairs climb from the earlier trunk, odd pairs from the later one, so the
+            // ladders alternate direction along the row.
+            var fromA = k % 2 == 0;
             var laid = 0;
             while (true)
             {
                 var (from, to) = fromA ? (a, b) : (b, a);
                 var head = foot + rise;
                 if (foot > from.Top - radius || head > to.Top - radius) break;
-                var start = new Vector3(from.Xy, foot);
-                var end = new Vector3(to.Xy, head);
-                if (Clear(scene, graph, from, to, start, end, radius))
+                var startPoint = new Vector3(from.Xy, foot);
+                var endPoint = new Vector3(to.Xy, head);
+                if (Clear(scene, graph, from, to, startPoint, endPoint, radius, braceIds))
                 {
-                    var footNode = new SupportNode { Type = SupportNodeType.BraceEnd, Position = start, Origin = origin };
-                    var headNode = new SupportNode { Type = SupportNodeType.BraceEnd, Position = end, Origin = origin };
-                    var brace = new SupportSegment
+                    var footNode = EndAt(startPoint);
+                    var headNode = EndAt(endPoint);
+                    addedSegments.Add(new SupportSegment
                     {
                         Type = SupportSegmentType.Bracing, NodeA = footNode.Id, NodeB = headNode.Id,
                         Diameter = diameter, Origin = origin,
-                    };
-                    addedNodes.Add(footNode);
-                    addedNodes.Add(headNode);
-                    addedSegments.Add(brace);
-                    added.AddCapsule(start, end, radius, brace.Id);
+                    });
                     laid++;
                 }
-                foot += spacing;
+                foot += step;
                 if (settings.BracingPattern == BracingPattern.Zigzag) fromA = !fromA;
             }
             if (laid == 0) continue;
             a.Partners++;
             b.Partners++;
-            braced.Add((ia, ib));
+            braced.Add(ia < ib ? (ia, ib) : (ib, ia));
             tied.Add(a.Support);
             tied.Add(b.Support);
         }
@@ -288,9 +322,10 @@ public static class SupportBracing
     /// not a crossing, so it is ignored; anything further along a member is a real collision.
     /// </summary>
     private static bool Clear(ICollisionScene scene, SupportGraph graph, Column from, Column to,
-        Vector3 start, Vector3 end, float radius)
+        Vector3 start, Vector3 end, float radius, HashSet<Guid> braceIds)
     {
         var ignored = new HashSet<Guid>(from.SegmentIds);
+        ignored.UnionWith(braceIds);
         ignored.UnionWith(to.SegmentIds);
         foreach (var (column, point) in new[] { (from, start), (to, end) })
             foreach (var node in column.Nodes)

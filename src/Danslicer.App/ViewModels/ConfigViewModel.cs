@@ -660,7 +660,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public float SupportBracingSpacingMm
     {
         get => Supports.BracingSpacingMm;
-        set => Update(() => Supports.BracingSpacingMm = Clamp(value, 0.5f, 500f, 15f));
+        set => Update(() => Supports.BracingSpacingMm = Clamp(value, 0f, 500f, 0f));
     }
 
     public float SupportBracingLowestHeightMm

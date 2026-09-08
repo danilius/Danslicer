@@ -1079,7 +1079,8 @@ public sealed class Document
     public BracingOutcome? BraceSupports(string name = "Brace supports")
     {
         if (SupportTarget is not { } target) return null;
-        var planned = SupportBracing.Plan(Supports, target.Id, BracingOperands(target), SupportSettings with { }, MeshObstacles());
+        var planned = SupportBracing.Plan(Supports, target.Id, BracingOperands(target), SupportSettings with { }, MeshObstacles(),
+            chosen: _supportSelection.Count > 0);
         if (planned is not { } result) return null;
         if (result.Edit.AddedSegments.Count > 0)
             Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, name));

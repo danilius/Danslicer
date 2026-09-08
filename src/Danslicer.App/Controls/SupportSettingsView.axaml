@@ -281,7 +281,7 @@
 
         <Expander Header="Bracing" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
-                <TextBlock Text="K ties neighbouring supports together with braces laid as a ladder up each pair; Shift+K removes them. 0 = use the Members value."
+                <TextBlock Text="K ties neighbouring supports together with zigzag braces, pair after pair along the row; Shift+K removes them. With exactly two supports selected, K braces just those two. 0 = use the Members value."
                            Classes="label" TextWrapping="Wrap" Margin="0,0,0,4" />
                 <CheckBox Tag="supports bracing auto automatic after generation parenting"
                           Content="Auto-bracing"
@@ -304,8 +304,8 @@
                                    Value="{Binding SupportBracingAngleDegrees, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing spacing vertical pitch mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Brace spacing" Classes="label" ToolTip.Tip="Vertical pitch between the braces of one pair of trunks" />
-                    <NumericUpDown Grid.Column="1" Minimum="0.5" Maximum="500" Increment="1" FormatString="0.##"
+                    <TextBlock Text="Brace spacing" Classes="label" ToolTip.Tip="Vertical pitch between the braces of one pair of trunks. 0 = continuous: each brace starts where the last one ended" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="500" Increment="1" FormatString="0.##"
                                    Value="{Binding SupportBracingSpacingMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing lowest brace height mm" ColumnDefinitions="170,*" Margin="0,2">

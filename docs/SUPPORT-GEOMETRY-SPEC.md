@@ -451,8 +451,11 @@ stage 3, "runs after routing and can be rerun on its own".
 
 ### Which pairs get braced
 
-Bracing considers every pair of trunks of the operand supports, nearest first, and
-braces a pair when all of the following hold:
+Bracing walks the operand trunks as a **chain** (user drawing 2026-09-09): from an end of
+the row (the trunk with the fewest neighbours in range, then the lowest X, Y), each trunk
+pairs with its nearest unvisited neighbour, and the walk continues from that neighbour;
+when no neighbour is left a new chain starts. Consecutive trunks of a chain are a pair, and
+a pair is braced when all of the following hold:
 
 1. **Both trunks are tall enough.** Each rises at least **Min support height** (default
    20 mm) above the plate. Short supports do not sway and a brace on them is only more
@@ -462,10 +465,15 @@ braces a pair when all of the following hold:
    neighbour but not the next lattice row). Neither trunk may already carry
    **Max brace partners** (default 3) other trunks: a trunk braced to three neighbours
    is a frame, a fourth adds nothing.
-3. **No brace crosses another.** A candidate whose members would pass through an existing
-   brace, the model, or a third support is refused. Because pairs are taken nearest
-   first, the short braces win and the long ones that would have crossed them are
-   dropped, which is what keeps the pattern readable.
+3. **Nothing but a brace in the way.** A brace that would pass through the model or a
+   third support is refused. **Braces never block braces** (user, 2026-09-09): one pair's
+   ladder crosses the next pair's freely, which is what makes the lattice in the drawing.
+
+**Two chosen supports** (user direction 2026-09-09): when exactly two supports are selected
+and K is pressed, those two are braced no matter what stands between them or how far apart
+they are — other supports are not obstacles, and the neighbour distance and partner cap do
+not apply. If the brace angle needs more rise than the trunks have, the braces are laid
+flatter rather than not at all.
 
 Both grid and free mode brace, because bracing, like parenting, is an explicit act on
 supports that already stand, not a routing preference.
@@ -474,13 +482,19 @@ supports that already stand, not a routing preference.
 
 For a pair the braces climb the two trunks as a ladder:
 
-- The first brace leaves the lower trunk's axis at **Lowest brace height** (default 0 =
-  the Members min branch height, 10 mm) and meets the other trunk higher up at the
-  **Brace angle** (default 45° from horizontal, so on a 6 mm gap the rise is 6 mm). The
-  next leaves the far trunk one **Brace spacing** (default 15 mm) above the first's
-  foot and comes back, and so on until a brace would end above either trunk's top or
-  in a cone. Pattern **Zigzag** (default) is that alternation; **Diagonal** sends every
-  brace the same way. No X bracing and no horizontal rungs (user decision 2026-09-09).
+- The first brace leaves one trunk's axis at **Lowest brace height** (default 0 = the
+  Members min branch height, 10 mm) and meets the other trunk higher up at the **Brace
+  angle** (default 45° from horizontal, so on a 6 mm gap the rise is 6 mm). The next brace
+  starts where that one ended and comes back, and so on until a brace would end above
+  either trunk's top or in a cone. **Brace spacing** (default 0 = continuous) sets a
+  vertical pitch instead, leaving gaps between the braces of a pair. Pattern **Zigzag**
+  (default) is that alternation; **Diagonal** sends every brace the same way. No X
+  bracing and no horizontal rungs (user decision 2026-09-09).
+- **Consecutive pairs run in opposite directions** (user drawing 2026-09-09): the first
+  pair's ladder starts at its first trunk, the second pair's at its far trunk, and so on.
+  Where two pairs share a trunk, one ladder arrives as the other leaves, so along a row the
+  braces read as a continuous lattice of diamonds. Which way the first pair goes is
+  arbitrary (left to right today).
 - A brace is refused individually when its capsule touches the model (with the model
   clearance), another support, or another brace. The ladder simply skips that bay.
 - Nothing attaches below the min branch height, as for branches, and nothing attaches
@@ -520,7 +534,7 @@ For a pair the braces climb the two trunks as a ladder:
 | Pattern | Zigzag | Zigzag or Diagonal. |
 | Brace diameter | 0 (= branch diameter) | Member diameter of every brace. |
 | Brace angle ° | 45 | Rise of a brace from horizontal. |
-| Brace spacing | 15 mm | Vertical pitch between braces of one pair. |
+| Brace spacing | 0 (= continuous) | Vertical pitch between braces of one pair; 0 = each brace starts where the last ended. |
 | Lowest brace height | 0 (= min branch height) | No brace foot below this. |
 | Min support height | 20 mm | Only trunks at least this tall are braced. |
 | Neighbour distance | 10 mm | Max horizontal gap between braced trunks. |
@@ -543,11 +557,12 @@ generation and parenting. The slenderness rule goes.
 
 ### Build order
 
-1. Core builder: trunk pairs, ladder laying, brace-end nodes, collision, Zigzag only;
-   probe on the roof gripper (a run of 10 parented supports and the tilted cube's field).
-2. Document commands, undo, status line; K / Shift+K, the three buttons; the expander.
-3. Auto-bracing after generation and parenting.
-4. Diagonal pattern.
+1. ~~Core builder~~ — done 2026-09-09 (chains, continuous zigzag, brace-end nodes,
+   chosen pair; the roof gripper probe is in HANDOVER).
+2. ~~Document commands, undo, status line; K / Shift+K, the three buttons; the expander.~~
+3. ~~Auto-bracing after generation and parenting.~~
+4. ~~Diagonal pattern.~~
+5. Braces to branches (user, 2026-09-09: "once this has been sorted").
 
 ### Later, not in the first cut
 

@@ -80,19 +80,31 @@ public sealed class SupportBracingTests
         Assert.NotNull(outcome);
         Assert.Equal(2, outcome.Operands);
         Assert.Equal(2, outcome.SupportsTied);
-        // 40 mm trunks, first brace at 10 mm rising 6 mm, then every 15 mm: 10, 25 → two braces.
-        Assert.Equal(2, outcome.Braces);
-        Assert.Equal(2, Braces(document));
-        Assert.Equal(4, BraceEnds(document));
+        // 40 mm trunks, first brace at 10 mm rising 6 mm, continuous: 10–16, 16–22, 22–28, 28–34 at least.
+        Assert.True(outcome.Braces >= 4, $"{outcome.Braces} braces");
+        Assert.Equal(outcome.Braces, Braces(document));
+        // Continuous braces share their end nodes: n braces need n + 1 ends.
+        Assert.Equal(outcome.Braces + 1, BraceEnds(document));
         Assert.Equal(trunksBefore, Trunks(document));
-        Assert.Equal(elementsBefore + 6, document.Supports.Nodes.Count + document.Supports.Segments.Count);
+        Assert.Equal(elementsBefore + 2 * outcome.Braces + 1, document.Supports.Nodes.Count + document.Supports.Segments.Count);
         AssertBraceEndsSound(document);
-        // Each brace rises at 45° over the 6 mm gap and alternates sides (zigzag).
+        // Each brace rises at 45° over the 6 mm gap, starts where the last ended, and alternates sides.
         var braces = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing)
-            .Select(s => (A: document.Supports.GetNode(s.NodeA).Position, B: document.Supports.GetNode(s.NodeB).Position))
-            .OrderBy(b => MathF.Min(b.A.Z, b.B.Z)).ToList();
-        foreach (var (a, b) in braces) Assert.Equal(6f, MathF.Abs(a.Z - b.Z), 2);
-        Assert.NotEqual(braces[0].A.X, braces[1].A.X);
+            .Select(s =>
+            {
+                var a = document.Supports.GetNode(s.NodeA).Position;
+                var b = document.Supports.GetNode(s.NodeB).Position;
+                return a.Z <= b.Z ? (Foot: a, Head: b) : (Foot: b, Head: a);
+            })
+            .OrderBy(b => b.Foot.Z).ToList();
+        Assert.Equal(10f, braces[0].Foot.Z, 2);
+        for (var i = 0; i < braces.Count; i++)
+        {
+            Assert.Equal(6f, braces[i].Head.Z - braces[i].Foot.Z, 2);
+            if (i == 0) continue;
+            Assert.Equal(braces[i - 1].Head, braces[i].Foot);
+            Assert.NotEqual(braces[i - 1].Foot.X, braces[i].Foot.X);
+        }
         Assert.Equal("Brace supports", document.History.UndoName);
         // A brace end is no support of its own.
         Assert.DoesNotContain(document.Supports.Supports(),
@@ -118,6 +130,51 @@ public sealed class SupportBracingTests
         Assert.True(document.History.Redo());
         Assert.Equal(braces, Braces(document));
         AssertBraceEndsSound(document);
+    }
+
+    [Fact]
+    public void ConsecutivePairsClimbInOppositeDirectionsAndCrossFreely()
+    {
+        var (document, _) = SlabWithSingles(3, 6);
+        var outcome = document.BraceSupports();
+
+        Assert.NotNull(outcome);
+        Assert.Equal(3, outcome.SupportsTied);
+        // Pair (−6, 0) starts at −6; pair (0, +6) starts at +6: the lowest braces foot on the outer trunks.
+        var lowestFeet = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing)
+            .Select(s =>
+            {
+                var a = document.Supports.GetNode(s.NodeA).Position;
+                var b = document.Supports.GetNode(s.NodeB).Position;
+                return a.Z <= b.Z ? a : b;
+            })
+            .Where(foot => MathF.Abs(foot.Z - 10f) < 0.01f).Select(foot => MathF.Round(foot.X)).OrderBy(x => x).ToList();
+        Assert.Equal([-6f, 6f], lowestFeet);
+        // Both pairs got the full ladder: the second pair was not blocked by the first pair's braces.
+        var perPair = outcome.Braces / 2;
+        Assert.True(perPair >= 4 && outcome.Braces == perPair * 2, $"{outcome.Braces} braces");
+        AssertBraceEndsSound(document);
+    }
+
+    [Fact]
+    public void TwoSelectedSupportsAreBracedRegardlessOfDistance()
+    {
+        var (document, _) = SlabWithSingles(3, 14);
+        var outer = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip && MathF.Abs(n.Position.X) > 1)
+            .Select(n => n.Id).ToList();
+        document.SelectSupportElements(outer);
+
+        var outcome = document.BraceSupports();
+
+        Assert.NotNull(outcome);
+        Assert.Equal(2, outcome.Operands);
+        Assert.True(outcome.Braces > 0, "two chosen supports brace even beyond the neighbour distance");
+        // 45° over 28 mm would need a 28 mm rise; the chosen pair gets a flatter brace instead of none.
+        Assert.All(document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing), s =>
+            Assert.True(MathF.Abs(document.Supports.GetNode(s.NodeA).Position.Z - document.Supports.GetNode(s.NodeB).Position.Z) < 28f));
+        // The middle trunk stands between them and is not an obstacle for a chosen pair.
+        Assert.All(document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing), s =>
+            Assert.Equal(28f, MathF.Abs(document.Supports.GetNode(s.NodeA).Position.X - document.Supports.GetNode(s.NodeB).Position.X), 1));
     }
 
     [Fact]

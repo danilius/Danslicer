@@ -291,8 +291,8 @@ public sealed record SupportConfig
     public float BracingDiameter { get; set; }
     /// <summary>Rise of a brace from horizontal, degrees.</summary>
     public float BracingAngleDegrees { get; set; } = 45f;
-    /// <summary>Vertical pitch between the braces of one pair of trunks.</summary>
-    public float BracingSpacingMm { get; set; } = 15f;
+    /// <summary>Vertical pitch between the braces of one pair of trunks; 0 = continuous, each brace starts where the last ended.</summary>
+    public float BracingSpacingMm { get; set; }
     /// <summary>No brace foot below this height above the plate; 0 = <see cref="MinBranchAttachHeightMm"/>.</summary>
     public float BracingLowestHeightMm { get; set; }
     /// <summary>Only trunks rising at least this far above the plate are braced.</summary>
@@ -385,7 +385,7 @@ public sealed record SupportConfig
         if (!Enum.IsDefined(BracingPattern)) BracingPattern = BracingPattern.Zigzag;
         BracingDiameter = NonNegative(BracingDiameter);
         BracingAngleDegrees = float.IsFinite(BracingAngleDegrees) ? Math.Clamp(BracingAngleDegrees, 0f, 80f) : 45f;
-        BracingSpacingMm = Positive(BracingSpacingMm, 15f);
+        BracingSpacingMm = NonNegative(BracingSpacingMm);
         BracingLowestHeightMm = NonNegative(BracingLowestHeightMm);
         BracingMinSupportHeightMm = NonNegative(BracingMinSupportHeightMm);
         BracingNeighbourDistanceMm = Positive(BracingNeighbourDistanceMm, 10f);
