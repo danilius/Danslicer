@@ -80,7 +80,7 @@ public sealed class SupportBracingTests
         Assert.NotNull(outcome);
         Assert.Equal(2, outcome.Operands);
         Assert.Equal(2, outcome.SupportsTied);
-        // 40 mm trunks, first brace at 10 mm rising 6 mm, continuous: 10–16, 16–22, 22–28, 28–34 at least.
+        // 40 mm trunks, rungs of 6 mm rise laid from the top down to the 10 mm floor: at least four.
         Assert.True(outcome.Braces >= 4, $"{outcome.Braces} braces");
         Assert.Equal(outcome.Braces, Braces(document));
         // Continuous braces share their end nodes: n braces need n + 1 ends.
@@ -98,10 +98,13 @@ public sealed class SupportBracingTests
             })
             .OrderBy(b => b.Foot.Z).ToList();
         Assert.Equal(10f, braces[0].Foot.Z, 2);
+        var top = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Trunk)
+            .Max(s => MathF.Max(document.Supports.GetNode(s.NodeA).Position.Z, document.Supports.GetNode(s.NodeB).Position.Z));
+        Assert.Equal(top - 0.6f, braces[^1].Head.Z, 2);
         for (var i = 0; i < braces.Count; i++)
         {
-            // Every rung rises the gap (45°) except the last, laid flatter to reach the top.
-            if (i < braces.Count - 1) Assert.Equal(6f, braces[i].Head.Z - braces[i].Foot.Z, 2);
+            // Every rung rises the gap (45°) except the lowest, laid flatter down to the floor.
+            if (i > 0) Assert.Equal(6f, braces[i].Head.Z - braces[i].Foot.Z, 2);
             else Assert.InRange(braces[i].Head.Z - braces[i].Foot.Z, 1.2f, 6.01f);
             if (i == 0) continue;
             Assert.Equal(braces[i - 1].Head, braces[i].Foot);
@@ -142,20 +145,49 @@ public sealed class SupportBracingTests
 
         Assert.NotNull(outcome);
         Assert.Equal(3, outcome.SupportsTied);
-        // Pair (−6, 0) starts at −6; pair (0, +6) starts at +6: the lowest braces foot on the outer trunks.
-        var lowestFeet = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing)
+        // Pair (−6, 0) starts from −6 and pair (0, +6) from +6, so the top rungs both head to the middle trunk.
+        var topHeads = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing)
             .Select(s =>
             {
                 var a = document.Supports.GetNode(s.NodeA).Position;
                 var b = document.Supports.GetNode(s.NodeB).Position;
-                return a.Z <= b.Z ? a : b;
+                return a.Z >= b.Z ? a : b;
             })
-            .Where(foot => MathF.Abs(foot.Z - 10f) < 0.01f).Select(foot => MathF.Round(foot.X)).OrderBy(x => x).ToList();
-        Assert.Equal([-6f, 6f], lowestFeet);
+            .GroupBy(head => MathF.Round(head.X)).Select(g => (X: g.Key, Top: g.Max(h => h.Z))).ToList();
+        var highest = topHeads.Max(t => t.Top);
+        Assert.Equal([0f], topHeads.Where(t => MathF.Abs(t.Top - highest) < 0.01f).Select(t => t.X).ToList());
         // Both pairs got the full ladder: the second pair was not blocked by the first pair's braces.
         var perPair = outcome.Braces / 2;
         Assert.True(perPair >= 4 && outcome.Braces == perPair * 2, $"{outcome.Braces} braces");
         AssertBraceEndsSound(document);
+    }
+
+    [Fact]
+    public void BracesRunThroughOtherSupportsButNotTheModel()
+    {
+        // Three supports in a row 3 mm apart: at the default 10 mm neighbour distance the chain
+        // walks −3 → 0 → +3, and a brace between the outer two would have to cross the middle
+        // trunk; select the outer two so that pair is what gets braced.
+        var (document, _) = SlabWithSingles(3, 3);
+        var outer = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip && MathF.Abs(n.Position.X) > 1)
+            .Select(n => n.Id).ToList();
+        document.SelectSupportElements(outer);
+        var outcome = document.BraceSupports();
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Braces > 0, "a brace may run through another trunk");
+
+        // A wall standing between two supports does block them.
+        var blocked = new Document();
+        var slab = new SceneObject("slab", Box(new Vector3(-30, -30, 40), new Vector3(30, 30, 46)));
+        var wall = new SceneObject("wall", Box(new Vector3(-0.5f, -30, 0), new Vector3(0.5f, 30, 40)));
+        blocked.AddObject(wall);
+        blocked.AddObject(slab);
+        blocked.Select(slab);
+        blocked.SupportSettings = new SupportConfig { UseBaseGrid = false, IndependentManualSupports = true, AutoParenting = false, AutoBracing = false };
+        Assert.True(blocked.AddManualSupport(slab, new Vector3(-3, 0, 40), -Vector3.UnitZ));
+        Assert.True(blocked.AddManualSupport(slab, new Vector3(3, 0, 40), -Vector3.UnitZ));
+        var wallOutcome = blocked.BraceSupports();
+        Assert.True(wallOutcome is null || wallOutcome.Braces == 0);
     }
 
     [Fact]

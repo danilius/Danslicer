@@ -469,9 +469,10 @@ a pair is braced when all of the following hold:
    neighbour but not the next lattice row). Neither trunk may already carry
    **Max brace partners** (default 3) other trunks: a trunk braced to three neighbours
    is a frame, a fourth adds nothing.
-3. **Nothing but a brace in the way.** A brace that would pass through the model or a
-   third support is refused. **Braces never block braces** (user, 2026-09-09): one pair's
-   ladder crosses the next pair's freely, which is what makes the lattice in the drawing.
+3. **Only the model is in the way** (user, 2026-09-09). A brace that would pass through the
+   model is refused; braces may run through branches, other trunks and other braces, so a
+   row is tied wherever the geometry allows and one pair's ladder crosses the next pair's
+   freely, which is what makes the lattice in the drawing.
 
 **Two chosen supports** (user direction 2026-09-09): when exactly two supports are selected
 and K is pressed, those two are braced no matter what stands between them or how far apart
@@ -488,10 +489,12 @@ For a pair the braces climb the two trunks as a ladder:
 
 - The first brace leaves one trunk's axis at **Lowest brace height** (default 0 = the
   Members min branch height, 10 mm) and meets the other trunk higher up at the **Brace
-  angle** (default 45° from horizontal, so on a 6 mm gap the rise is 6 mm). The next brace
-  starts where that one ended and comes back, and so on up the pair. The rung that would
-  overshoot the shorter stem is laid flatter to that stem's top instead of dropped (user
-  drawing 2026-09-09), and the ladder ends there. **Brace spacing** (default 0 = continuous) sets a
+  angle** (default 45° from horizontal, so on a 6 mm gap the rise is 6 mm). Ladders are laid
+  **top-down** (user, 2026-09-09): the first rung's head is at the top of the stem it rises
+  to, the next rung ends where that one started and comes back, and so on down to the
+  floor. A first rung that would start above the stem it leaves, or a last rung that would
+  start under the floor, is laid flatter instead of dropped, so the tops are always tied and
+  the odd rung is at the bottom. **Brace spacing** (default 0 = continuous) sets a
   vertical pitch instead, leaving gaps between the braces of a pair. Pattern **Zigzag**
   (default) is that alternation; **Diagonal** sends every brace the same way. No X
   bracing and no horizontal rungs (user decision 2026-09-09).

@@ -139,15 +139,9 @@ public static class SupportBracing
             chains.Add(chain);
         }
 
-        ICollisionScene scene = meshes;
-        if (!pairOnly)
-        {
-            var supportsScene = new LinearCollisionScene();
-            supportsScene.AddSupportGraph(graph);
-            scene = new CompositeCollisionScene(meshes, supportsScene);
-        }
-        // Braces never block braces: one pair's ladder crosses the next pair's freely.
-        var braceIds = graph.Segments.Where(x => x.Type == SupportSegmentType.Bracing).Select(x => x.Id).ToHashSet();
+        // The model is the only obstacle (user, 2026-09-09): braces may run through branches,
+        // other trunks and other braces, so a row is tied wherever the geometry allows.
+        var scene = meshes;
         var addedNodes = new List<SupportNode>();
         var addedSegments = new List<SupportSegment>();
         var tied = new HashSet<int>();
@@ -170,33 +164,36 @@ public static class SupportBracing
             if (braced.Contains(ia < ib ? (ia, ib) : (ib, ia))) continue;
             if (!pairOnly && (a.Partners >= settings.BracingMaxPartners || b.Partners >= settings.BracingMaxPartners)) continue;
 
-            var foot = MathF.Max(lowest, MathF.Max(a.Bottom, b.Bottom) + radius);
-            // Even pairs climb from the earlier trunk, odd pairs from the later one, so the
-            // ladders alternate direction along the row.
+            var floor = MathF.Max(lowest, MathF.Max(a.Bottom, b.Bottom) + radius);
+            // Even pairs start from the earlier trunk, odd pairs from the later one, so the
+            // ladders alternate direction along the row. Laid top-down (user, 2026-09-09): the
+            // first rung's head is at the top of the stem it rises to, so the tops are always
+            // tied, and any rung that has to be flatter is the lowest one.
             var fromA = k % 2 == 0;
             var laid = 0;
+            var head = (fromA ? b : a).Top - radius;
+            var firstRung = true;
             while (true)
             {
                 var (from, to) = fromA ? (a, b) : (b, a);
-                if (foot > from.Top - radius) break;
-                var startPoint = from.At(foot);
-                var gap = Vector2.Distance(new(startPoint.X, startPoint.Y), new(to.At(foot).X, to.At(foot).Y));
-                var rise = gap * tan;
-                var last = false;
-                // The rung that would overshoot the shorter stem is laid flatter to its top
-                // instead of dropped (user drawing 2026-09-09), then the ladder ends.
-                if (foot + rise > to.Top - radius)
-                {
-                    rise = to.Top - radius - foot;
-                    last = true;
-                    if (rise < radius * 2) break;
-                }
-                var head = foot + rise;
-                // Continuous by default: the next brace starts where the last one ended.
-                var step = settings.BracingSpacingMm > 0 ? settings.BracingSpacingMm : rise;
-                if (step < radius * 2 + Epsilon) step = MathF.Max(rise, radius * 2 + Epsilon);
+                if (head < floor + radius * 2) break;
                 var endPoint = to.At(head);
-                if (Clear(scene, graph, from, to, startPoint, endPoint, radius, braceIds))
+                var gap = Vector2.Distance(new(endPoint.X, endPoint.Y), new(from.At(head).X, from.At(head).Y));
+                var rise = gap * tan;
+                var foot = head - rise;
+                var last = false;
+                // The first rung may not start above the stem it leaves; the last may not start
+                // under the floor: either is laid flatter instead of dropped.
+                if (firstRung && foot > from.Top - radius) foot = from.Top - radius;
+                if (foot < floor)
+                {
+                    foot = floor;
+                    last = true;
+                }
+                rise = head - foot;
+                if (rise < radius * 2 - Epsilon) break;
+                var startPoint = from.At(foot);
+                if (!scene.IntersectsCapsule(startPoint, endPoint, radius))
                 {
                     var footNode = EndAt(startPoint);
                     var headNode = EndAt(endPoint);
@@ -208,7 +205,11 @@ public static class SupportBracing
                     laid++;
                 }
                 if (last) break;
-                foot += step;
+                firstRung = false;
+                // Continuous by default: the next brace ends where this one started.
+                var step = settings.BracingSpacingMm > 0 ? settings.BracingSpacingMm : rise;
+                if (step < radius * 2 + Epsilon) step = MathF.Max(rise, radius * 2 + Epsilon);
+                head -= step;
                 if (settings.BracingPattern == BracingPattern.Zigzag) fromA = !fromA;
             }
             if (laid == 0) continue;
@@ -372,25 +373,5 @@ public static class SupportBracing
         for (var i = 0; i < columns.Count; i++)
             if (columns[i].DistanceTo(position) <= CarrierTolerance) return i;
         return -1;
-    }
-
-    /// <summary>
-    /// Whether a brace from <paramref name="start"/> on <paramref name="from"/> to
-    /// <paramref name="end"/> on <paramref name="to"/> touches nothing but those two trunks. A
-    /// member leaving either trunk at a joint the brace end sits inside is that joint's ball,
-    /// not a crossing, so it is ignored; anything further along a member is a real collision.
-    /// </summary>
-    private static bool Clear(ICollisionScene scene, SupportGraph graph, Column from, Column to,
-        Vector3 start, Vector3 end, float radius, HashSet<Guid> braceIds)
-    {
-        var ignored = new HashSet<Guid>(from.SegmentIds);
-        ignored.UnionWith(braceIds);
-        ignored.UnionWith(to.SegmentIds);
-        foreach (var (column, point) in new[] { (from, start), (to, end) })
-            foreach (var node in column.Nodes)
-                foreach (var incident in graph.SegmentsAt(node.Id))
-                    if (Vector3.Distance(node.Position, point) <= radius + incident.Diameter * 0.5f + Epsilon)
-                        ignored.Add(incident.Id);
-        return !scene.IntersectsCapsule(start, end, radius, tag => tag is not Guid id || !ignored.Contains(id));
     }
 }

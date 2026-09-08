@@ -10,7 +10,9 @@ user's drawing `ec11f83` (pairs chain along the row, alternating direction, cont
 braces never block braces, two selected supports brace regardless of distance), stems
 rework (the user drew braces over the near-vertical branches parenting leaves above short
 trunks: a branch continuing a trunk within "Max stem lean" 30° is braced as part of it, and
-the rung that would overshoot the shorter stem is laid flatter to its top). The app runs from
+the rung that would overshoot the shorter stem is laid flatter to its top), then top-down
+ladders with the model as the only obstacle (user, 2026-09-09: braces may run through
+branches and other trunks). The app runs from
 `src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe` after `dotnet build -c Debug`. Memory
 files (`~/.claude/projects/F--Git-Repos-Danslicer/memory/`) carry the roadmap and standing
 rules; read `MEMORY.md`. Every support rule is in `docs/SUPPORT-GEOMETRY-SPEC.md` — the new
@@ -54,10 +56,10 @@ Fix what they find on `bracing`; merging is their call.
   = foot + gap·tan(angle), next foot = previous head (`BracingSpacingMm` 0 = continuous,
   else that pitch), alternating sides (Zigzag) or not (Diagonal), until an end would pass
   top − radius. Even pairs of a chain start from their earlier trunk, odd pairs from the
-  later one. The rung that would overshoot the shorter stem is laid flatter to its top and
-  ends the ladder. Continuous braces share their brace-end node. Each brace is a capsule test
-  against meshes + the graph, ignoring every brace, the two columns' own segments and any
-  member whose joint ball the brace end sits inside.
+  later one. Ladders are laid top-down: the first rung's head at the top of the stem it
+  rises to, each next rung ending where the last started; a first rung starting above its
+  stem or a last rung under the floor is flattened, not dropped. Continuous braces share
+  their brace-end node. Each brace is a capsule test against the model meshes only.
 - **Brace ends are `SupportNodeType.BraceEnd` nodes on the trunk axis; the trunk is never
   split.** The carrier is found geometrically (`SupportBracing.CarrierOf`, 0.05 mm off the
   axis), so a split or replaced trunk still carries them. `SupportGraph.Supports()` skips
