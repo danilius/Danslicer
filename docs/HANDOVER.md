@@ -1,19 +1,18 @@
-# Danslicer handover
+﻿# Danslicer handover
 
 ## STATE 2026-09-09 late — READ FIRST (supersedes everything below)
 
 **Single-session work (Claude implementing directly, user screen-testing live).** main is
-`9250fac` (auto-parenting, screen-passed by the user on 2026-09-09). Branch **`bracing`** is
-13 commits ahead, head `b4adba9`, 904 tests green, NOT merged. The user has screen-tested it
-through five rounds today and shaped it with drawings; the last round (Select braces) has not
-been re-checked on screen. The app runs from `src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe`
+`9250fac` (auto-parenting, screen-passed by the user on 2026-09-09). Branch `bracing` was
+MERGED to main (`fb19310`, pushed) on 2026-09-09 after the user verified every round on screen,
+together with the layer-clip fix (the clip range now always starts at the plate, layer 0; only
+the top follows the models). 905 tests green. The app runs from `src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe`
 after `dotnet build -c Debug`. Memory files (`~/.claude/projects/F--Git-Repos-Danslicer/memory/`)
 carry the roadmap and standing rules; read `MEMORY.md`. Every support rule is in
 `docs/SUPPORT-GEOMETRY-SPEC.md`; the section "Bracing (user-approved spec, 2026-09-09)" is
 the contract and has been kept current with every user decision below.
 
-**Next step:** the user re-checks Select braces and the tilted-cube field on screen; then
-propose the merge of `bracing` (their call). Then **rafts**: write the spec section first,
+**Next step:** **rafts**: write the spec section first,
 get it approved, then code. Then braces to branches (user: "once this has been sorted").
 
 **Bracing screen-test checklist** (on `test files\roof gripper T2 single and tilted
@@ -95,7 +94,8 @@ supports, 134 braces, none untied.
   actively at a sensible stopping point. Every key-bound function needs a toolbar button
   (L/P/E/R/C/J/K have them via pop-outs).
 
-**Notes for later (user, 2026-09-08, not ordered):** manual support editing (click a
+**Notes for later (user, 2026-09-08/09, not ordered):** object shadows on the build plate,
+with a switch on/off (user, 2026-09-09); manual support editing (click a
 support, Space enters an edit mode; move base XY, trunk XY, tip across the surface); a
 manual placement MODE instead of T with a ghosted support following the cursor; split the
 overloaded Supports pop-out into toolbar functions. Bracing "Later": braces to branches,
