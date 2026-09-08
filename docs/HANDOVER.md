@@ -1,5 +1,89 @@
 # Danslicer handover
 
+## STATE 2026-09-08 evening — READ FIRST (supersedes everything below)
+
+**Single-session work (Claude implementing directly, user screen-testing live).** main is
+`a81f28f`, pushed; 880 tests green; the app runs from
+`src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe`. Branch `auto-parenting` exists off
+main with NO code yet — it is where the next task starts. Memory files (`~/.claude/projects/
+F--Git-Repos-Danslicer/memory/`) carry the roadmap and standing rules; read `MEMORY.md`.
+
+**Merged to main today, in order** (every merge pushed): guided placement (line L, polygon P,
+edge E, ring R, contour C, densify D, thin Shift+D) with a "Guided" settings expander; a
+Transform pop-out replacing the Layout right panel and a Guided pop-out with a button per
+guided key; import seating (meshes centred at import, so position fields read the model's
+place, not the STL's origin); expression fields commit on focus loss; parenting (J) in two
+modes with a "Parenting" expander; crash log + app-wide exception handler; base-lattice
+markers on the plate. Every rule is in `docs/SUPPORT-GEOMETRY-SPEC.md` sections "Guided tip
+placement" and "Parenting" — read both before touching `Supports/Guided/*`,
+`SupportParenting.cs`, `HierarchicalParenting.cs` or `TreeSupportRouter.cs`.
+
+**Parenting as it stands (user-verified on screen 2026-09-08):**
+- Explicit command (J / "Parent Supports" button in the Supports pop-out). Operands: the
+  supports containing the selection, or all of the target's when nothing is selected. A tip
+  the re-route refuses keeps its support. One undo step "Parent supports".
+- **Hierarchical tree** (default): cones → junctions; cheapest pair merges, either under the
+  midpoint or by the higher junction branching into the lower one's position (whichever
+  stays highest); repeat; each surviving junction drops a trunk — lattice points only with
+  the grid on, else straight down or a fan of clear columns. Existing trunks are NOT joined
+  in this mode yet (see auto-parenting below).
+- **Router mode** (hierarchical off): the tree router with `ShareTrunks` (sharing in free
+  mode too, any join within range beats a fresh trunk). Lattice placement stays grid-only.
+- Settings, 0 = the Members value: max branch length, max branch angle, trunk search range,
+  min tips per trunk (second pass with double range), rounds (seeds; fewest trunks wins),
+  max cone bend (the branch leaving a cone may bend this far from the cone axis; 90 lets a
+  tip on a leaning wall join sideways), max branches per trunk (growth-rule cap, default 6).
+- **Min branch height** (Members, default 10 mm): no branch attaches and no junction is made
+  below it; applies to generation, manual and both parenting modes. On the roof gripper's
+  lower edge (44 tips, 64 mm rise): 45° → four trees, 60° → one tree, plus the six lowest
+  tips as singles (their cones would end under the floor).
+
+**Guided placement rules to remember:** guided tools ignore existing supports by default
+("Guided tools ignore existing", on) and route as if alone; untick for existing-aware
+placement with "Guided tip clearance". The within-gesture duplicate radius is half the
+spacing (a full-spacing radius dropped every tip past a bend). Densify/thin work on the
+selection or the whole target.
+
+**NEXT: auto-parenting (branch `auto-parenting`, user directive).** Design agreed with
+myself, not yet with the user in detail — confirm before coding:
+1. Setting `AutoParenting` (Parenting expander, default ON): after any placement — T,
+   guided commit, densify — the new tips PLUS the tips of existing supports within the
+   trunk search range of any new tip become parenting operands, and the parenting plan runs
+   at once. Placement + parenting must be ONE undo step: add `UndoStack.MergeLastTwo(name)`
+   (composite of the last two commands) rather than threading the plan into placement.
+2. The hierarchical builder must learn to **join existing trunks**: for each surviving
+   junction, before dropping a new trunk, try the working graph's Trunk segments nearest
+   first — attach at z = min(junction.Z − horiz/tan(angle), trunk top) ≥ max(min branch
+   height, base top); split the segment (SupportGraphEdit.RemovedSegments + two Trunk
+   segments + junction) or join at the top node when the attach point is the top. Obstacle
+   capsules from `LinearCollisionScene.AddSupportGraph` are tagged with the segment id
+   (`CollisionScene.cs:67`), so exclude that trunk's own capsule when testing the branch.
+3. Status line: "Support line: 12 placed → 3 trunks".
+
+**Then:** bracing (spec section first), rafts (spec section first). **Notes for later** (user,
+2026-09-08 evening; not ordered): manual support editing (click a support, Space enters an
+edit mode; move base XY, trunk XY, tip across the surface); a manual placement MODE instead
+of T, with a ghosted support following the cursor and nothing shown where placement is
+impossible; the Supports pop-out is overloaded — split its controls into toolbar functions.
+Standing rule: every key-bound function needs a toolbar button.
+
+**Lessons from today (do not repeat):**
+- A crash reached the user twice before the crash log existed; stacks are now in
+  `%AppData%\Danslicer\logs\`. Windows event log (`Get-WinEvent`, provider ".NET Runtime")
+  has the stack for anything older.
+- A later command in a composite must not be built before the earlier ones execute
+  (`DeferredCommand`); `RemoveSupportElementsCommand` looks its ids up at construction.
+- Gate commits on the test result explicitly (`grep -q "Failed:     0"`), not on grep's
+  exit code over the output — one commit went in with two failing tests.
+- Throwaway probes (`tests\Danslicer.Tests\Zz*Probe.cs`) against the roof gripper project
+  found every parenting limit in minutes; write one before theorising, delete before commit.
+  Clear the target's supports first: laying a guided edge over saved supports with
+  ignore-existing on puts two cones on each spot and they refuse each other.
+- Avalonia commits bindings per keystroke by default; `UpdateSourceTrigger=LostFocus` on
+  every expression field.
+- Kill the running app before building (standing user rule); the user may be running it —
+  it is fine to kill, not fine to drive it on screen while the user is present.
+
 ## STATE 2026-09-07 ~11:00 — READ FIRST (supersedes everything below)
 
 **Single-session night (Claude implementing directly, user screen-testing live).** main is
