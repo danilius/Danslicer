@@ -596,6 +596,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 1f, DepthOverlay: true));
         AppendSupportLines(_depthOverlay);
         AppendBrushCursor(_overlay);
+        AppendBaseGridMarkers(_depthOverlay);
         AppendLineGesture(_depthOverlay, _overlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         if (!SupportSelectionMode) UpdateGizmo();
@@ -1965,6 +1966,38 @@ public sealed class ViewportControl : OpenGlControlBase
             lines.Add(new OverlayLine(previous, next, colour));
             previous = next;
         }
+    }
+
+    private static readonly Vector4 BaseGridMarkerColor = new(1f, 0.85f, 0.2f, 0.8f);
+    private const int MaxBaseGridMarkers = 20000;
+
+    /// <summary>
+    /// The base lattice on the plate, as small crosses at every lattice point, whenever the base
+    /// grid is on in Support mode (user request 2026-09-08): the user sees where trunks may
+    /// stand before generating or parenting. Plate-origin aligned, like the router's own rule.
+    /// Depth-tested, so the model hides the points beneath it as it hides the plate grid.
+    /// </summary>
+    private void AppendBaseGridMarkers(List<OverlayLine> lines)
+    {
+        if (Document is null || !SupportSelectionMode || !Document.SupportSettings.UseBaseGrid) return;
+        var pitch = Document.SupportSettings.BaseGridPitch;
+        if (pitch <= 0.1f) return;
+        var volume = Document.Printer.BuildVolume;
+        var halfX = volume.X * 0.5f;
+        var halfY = volume.Y * 0.5f;
+        var countX = (int)MathF.Floor(halfX / pitch);
+        var countY = (int)MathF.Floor(halfY / pitch);
+        if ((2L * countX + 1) * (2L * countY + 1) > MaxBaseGridMarkers) return;
+        var size = MathF.Min(pitch * 0.15f, 1f);
+        // A hair above the plate so the crosses do not fight the plate surface for depth.
+        const float z = 0.02f;
+        for (var i = -countX; i <= countX; i++)
+            for (var j = -countY; j <= countY; j++)
+            {
+                var p = new Vector3(i * pitch, j * pitch, z);
+                lines.Add(new OverlayLine(p - new Vector3(size, 0, 0), p + new Vector3(size, 0, 0), BaseGridMarkerColor));
+                lines.Add(new OverlayLine(p - new Vector3(0, size, 0), p + new Vector3(0, size, 0), BaseGridMarkerColor));
+            }
     }
 
     /// <summary>Four screen pixels, clamped in world space so extreme zooms stay sensible.</summary>
