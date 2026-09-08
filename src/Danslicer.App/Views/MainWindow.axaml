@@ -480,7 +480,12 @@
                                 </Grid>
                                 <Button DockPanel.Dock="Top" Content="Generate Supports"
                                         Command="{Binding GenerateSupportsScopedCommand}"
-                                        HorizontalAlignment="Stretch" Margin="0,0,0,8" />
+                                        HorizontalAlignment="Stretch" Margin="0,0,0,4" />
+                                <!-- Parenting (J): SUPPORT-GEOMETRY-SPEC "Parenting". -->
+                                <Button DockPanel.Dock="Top" Content="Parent Supports  (J)"
+                                        Click="OnParentSupportsClick"
+                                        HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                                        ToolTip.Tip="Re-route the selected supports (all of the model's when nothing is selected) together so branches share trunks. Settings under Parenting." />
                                 <!-- Support regions (DESIGN 8.3). Painting decides WHERE generation
                                      may place contacts; the operations themselves live in
                                      SupportRegionSelection and are pure set maths. -->

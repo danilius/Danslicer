@@ -338,6 +338,9 @@ status line reports "n supports → m trunks (k unchanged)".
 - **Min tips per trunk** (default 1): after the re-route, a trunk carrying fewer tips than
   this is re-routed once more with the range doubled; if it still stands alone it stays.
   Guards against a parenting pass that merges nothing.
+- **Rounds** (default 3): the re-route is run this many times with different seeds and
+  the round with the fewest trunks wins (ties: fewest refusals). The router's choices
+  depend on its seed, so a poor first outcome is not the last word (user, 2026-09-08).
 
 These default to the Members values so that parenting and generation agree unless the
 user says otherwise (configurability directive).

@@ -178,6 +178,8 @@ public partial class MainWindow : Window
     private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_raftsPopupState);
 
+    private void OnParentSupportsClick(object? sender, RoutedEventArgs e) => Viewport.ParentSupports();
+
     private void OnTransformToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_transformPopupState);
 

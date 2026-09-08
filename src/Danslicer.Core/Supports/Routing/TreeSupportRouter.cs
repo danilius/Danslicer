@@ -27,6 +27,13 @@ public sealed record TreeRoutingOptions
     /// </summary>
     public bool IgnoreExistingSupports { get; init; }
     /// <summary>
+    /// Shares trunks and sees other supports even with the base grid off. Free mode normally
+    /// routes every contact blind to every other (user decision 2026-09-07); parenting is the
+    /// one operation that asks for sharing there (SUPPORT-GEOMETRY-SPEC "Parenting"). Trunks
+    /// are still placed freely, not on any lattice.
+    /// </summary>
+    public bool ShareTrunks { get; init; }
+    /// <summary>
     /// Minimum gap between the surfaces of non-incident support members. Zero disables
     /// the additional constraint and preserves legacy routing exactly.
     /// </summary>
@@ -116,9 +123,10 @@ public sealed class TreeSupportRouter
         // Free mode (grid off): every contact gets a complete support of its own and knows
         // nothing about any other support, existing or new, even if they collide (user
         // decision 2026-09-07). Only grid mode shares trunks and keeps members apart.
+        var shares = options.UseBaseGrid || options.ShareTrunks;
         var state = new RouteState(graph, ids, clearance, angleOffset,
-            options.MinMemberSeparationMm, seesOtherSupports: options.UseBaseGrid);
-        if (existingGraph is not null && !options.IgnoreExistingSupports && options.UseBaseGrid)
+            options.MinMemberSeparationMm, seesOtherSupports: shares);
+        if (existingGraph is not null && !options.IgnoreExistingSupports && shares)
             state.SeedExistingContext();
         var unrouted = new List<RoutingTip>();
         var failures = new List<RoutingFailure>();
@@ -251,7 +259,7 @@ public sealed class TreeSupportRouter
         var snap = tipMemberLength * JunctionSnapMemberFraction;
 
         var minBranchOffset = options.BranchDiameter * 0.5f * MinBranchOffsetBranchRadii;
-        var existing = options.UseBaseGrid && branchJunction.Z > options.PlateZ + Epsilon
+        var existing = (options.UseBaseGrid || options.ShareTrunks) && branchJunction.Z > options.PlateZ + Epsilon
             ? FindTrunkAttachment(tip, branchJunction, options, state, minBranchOffset)
             : null;
 
@@ -325,9 +333,14 @@ public sealed class TreeSupportRouter
             break;
         }
 
-        var allowance = options.PreferExistingTrunks
-            ? options.BaseGridPitch * 0.5f
-            : float.NegativeInfinity;
+        // Nearer base beats farther trunk (user, 2026-09-07): a join wins only within half a
+        // pitch of a fresh trunk's cost. Parenting (ShareTrunks) exists to cut trunks, so there
+        // any join within the search range wins.
+        var allowance = options.ShareTrunks
+            ? options.ExistingTrunkBranchRange
+            : options.PreferExistingTrunks
+                ? options.BaseGridPitch * 0.5f
+                : float.NegativeInfinity;
         if (existing is { } join &&
             (own is null || join.Length <= ownLength + allowance))
         {

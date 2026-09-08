@@ -575,6 +575,36 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.GuidedThinKeepEvery = Math.Clamp(value, 2, 10));
     }
 
+    public float SupportParentingMaxBranchLength
+    {
+        get => Supports.ParentingMaxBranchLength;
+        set => Update(() => Supports.ParentingMaxBranchLength = Clamp(value, 0f, 1000f, 0f));
+    }
+
+    public float SupportParentingMaxBranchAngle
+    {
+        get => Supports.ParentingMaxBranchAngle;
+        set => Update(() => Supports.ParentingMaxBranchAngle = Clamp(value, 0f, 89f, 0f));
+    }
+
+    public float SupportParentingTrunkRange
+    {
+        get => Supports.ParentingTrunkRange;
+        set => Update(() => Supports.ParentingTrunkRange = Clamp(value, 0f, 1000f, 0f));
+    }
+
+    public int SupportParentingMinTipsPerTrunk
+    {
+        get => Supports.ParentingMinTipsPerTrunk;
+        set => Update(() => Supports.ParentingMinTipsPerTrunk = Math.Clamp(value, 1, 20));
+    }
+
+    public int SupportParentingRounds
+    {
+        get => Supports.ParentingRounds;
+        set => Update(() => Supports.ParentingRounds = Math.Clamp(value, 1, 10));
+    }
+
     public float SupportExistingTrunkBranchRange
     {
         get => Supports.ExistingTrunkBranchRange;

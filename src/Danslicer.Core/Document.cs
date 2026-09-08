@@ -931,6 +931,37 @@ public sealed class Document
         return remove.Count;
     }
 
+    /// <summary>
+    /// Parenting (J): the supports containing the selected elements — every support of the
+    /// target when nothing is selected — are taken down and their tips routed again together
+    /// with trunk sharing on, so fewer trunks stand (SUPPORT-GEOMETRY-SPEC "Parenting"). One
+    /// undo step. Null when there is nothing to parent.
+    /// </summary>
+    public ParentingOutcome? ParentSupports()
+    {
+        if (SupportTarget is not { } target) return null;
+        var tips = _supportSelection.Count > 0
+            ? _supportSelection.SelectMany(id => Supports.TryGetNode(id, out _) || Supports.TryGetSegment(id, out _)
+                    ? Supports.Component(Supports.TryGetNode(id, out _) ? id : Supports.GetSegment(id).NodeA).Nodes
+                    : [])
+                .Distinct()
+                .Where(id => Supports.GetNode(id).Type == SupportNodeType.Tip)
+                .ToList()
+            : GuidedOperandTips().Select(t => t.Id).ToList();
+        tips = tips.Where(id => (Supports.GetNode(id).ContactObjectId ?? Supports.GetNode(id).Origin.ObjectId) == target.Id).ToList();
+        if (tips.Count < 2) return null;
+
+        var planned = SupportParenting.Plan(Supports, target.Id, tips, SupportSettings with { }, MeshObstacles());
+        if (planned is not { } result) return null;
+        var (plans, outcome) = result;
+        var commands = SupportParenting.Commands(Supports, plans, "Parent supports");
+        if (commands.Count == 0) return outcome;
+        _supportSelection.Clear();
+        SupportSelectionChanged?.Invoke();
+        Execute(new CompositeCommand("Parent supports", commands));
+        return outcome;
+    }
+
     private static Mesh WorldMesh(SceneObject obj)
     {
         var world = obj.Transform.ToMatrix();

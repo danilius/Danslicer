@@ -218,6 +218,41 @@
             </StackPanel>
         </Expander>
 
+        <!-- Parenting (J): SUPPORT-GEOMETRY-SPEC "Parenting". Zero means the Members value. -->
+        <Expander Header="Parenting" IsExpanded="True">
+            <StackPanel Margin="8,2,0,6">
+                <TextBlock Text="J re-routes the selected supports together so branches share trunks. 0 = use the Members value."
+                           Classes="label" TextWrapping="Wrap" Margin="0,0,0,4" />
+                <Grid Tag="supports parenting max branch length mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max branch length" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000" Increment="0.5" FormatString="0.##"
+                                   Value="{Binding SupportParentingMaxBranchLength, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports parenting max branch angle degrees" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max branch angle °" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="89" Increment="1" FormatString="0"
+                                   Value="{Binding SupportParentingMaxBranchAngle, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports parenting trunk search range mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Trunk search range" Classes="label" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000" Increment="0.5" FormatString="0.##"
+                                   Value="{Binding SupportParentingTrunkRange, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports parenting minimum tips per trunk" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Min tips per trunk" Classes="label"
+                               ToolTip.Tip="A new trunk carrying fewer tips than this gets one more try with double range" />
+                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="20" Increment="1" FormatString="0"
+                                   Value="{Binding SupportParentingMinTipsPerTrunk, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports parenting rounds seeds" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Rounds" Classes="label"
+                               ToolTip.Tip="Re-route this many times with different seeds; the round with the fewest trunks wins" />
+                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="10" Increment="1" FormatString="0"
+                                   Value="{Binding SupportParentingRounds, Mode=TwoWay}" />
+                </Grid>
+            </StackPanel>
+        </Expander>
+
         <Expander Header="Placement" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports placement spacing density mm" ColumnDefinitions="170,*" Margin="0,2">
