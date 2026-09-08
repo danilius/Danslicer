@@ -12,7 +12,9 @@ rework (the user drew braces over the near-vertical branches parenting leaves ab
 trunks: a branch continuing a trunk within "Max stem lean" 30° is braced as part of it, and
 the rung that would overshoot the shorter stem is laid flatter to its top), then top-down
 ladders with the model as the only obstacle (user, 2026-09-09: braces may run through
-branches and other trunks). The app runs from
+branches and other trunks), then the angle as a maximum lean from vertical with no
+flattening anywhere (user screen test 2026-09-09: three flat bottom rungs circled; a rung
+that cannot fit at the angle is left out). The app runs from
 `src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe` after `dotnet build -c Debug`. Memory
 files (`~/.claude/projects/F--Git-Repos-Danslicer/memory/`) carry the roadmap and standing
 rules; read `MEMORY.md`. Every support rule is in `docs/SUPPORT-GEOMETRY-SPEC.md` — the new
@@ -56,9 +58,10 @@ Fix what they find on `bracing`; merging is their call.
   = foot + gap·tan(angle), next foot = previous head (`BracingSpacingMm` 0 = continuous,
   else that pitch), alternating sides (Zigzag) or not (Diagonal), until an end would pass
   top − radius. Even pairs of a chain start from their earlier trunk, odd pairs from the
-  later one. Ladders are laid top-down: the first rung's head at the top of the stem it
-  rises to, each next rung ending where the last started; a first rung starting above its
-  stem or a last rung under the floor is flattened, not dropped. Continuous braces share
+  later one. `BracingAngleDegrees` is the lean from vertical and every rung is laid at
+  exactly it. Ladders are laid top-down: the first rung as high as both stems allow, each
+  next rung ending where the last started; a rung that would start under the floor is
+  dropped, never flattened. Continuous braces share
   their brace-end node. Each brace is a capsule test against the model meshes only.
 - **Brace ends are `SupportNodeType.BraceEnd` nodes on the trunk axis; the trunk is never
   split.** The carrier is found geometrically (`SupportBracing.CarrierOf`, 0.05 mm off the

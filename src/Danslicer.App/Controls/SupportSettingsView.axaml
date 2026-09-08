@@ -299,8 +299,8 @@
                                    Value="{Binding SupportBracingDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing angle degrees" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Brace angle °" Classes="label" ToolTip.Tip="Rise of a brace from horizontal" />
-                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="80" Increment="5" FormatString="0"
+                    <TextBlock Text="Max brace angle °" Classes="label" ToolTip.Tip="The most a brace may lean from vertical. A rung that cannot fit at this angle is left out rather than laid flatter" />
+                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="89" Increment="5" FormatString="0"
                                    Value="{Binding SupportBracingAngleDegrees, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing spacing vertical pitch mm" ColumnDefinitions="170,*" Margin="0,2">

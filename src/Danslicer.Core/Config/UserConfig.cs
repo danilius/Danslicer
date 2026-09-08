@@ -289,7 +289,7 @@ public sealed record SupportConfig
     public BracingPattern BracingPattern { get; set; } = BracingPattern.Zigzag;
     /// <summary>Member diameter of every brace; 0 = <see cref="BranchDiameter"/>.</summary>
     public float BracingDiameter { get; set; }
-    /// <summary>Rise of a brace from horizontal, degrees.</summary>
+    /// <summary>The most a brace may lean from vertical, degrees; every rung is laid at exactly this lean.</summary>
     public float BracingAngleDegrees { get; set; } = 45f;
     /// <summary>Vertical pitch between the braces of one pair of trunks; 0 = continuous, each brace starts where the last ended.</summary>
     public float BracingSpacingMm { get; set; }
@@ -390,7 +390,7 @@ public sealed record SupportConfig
         ParentingMaxBranchesPerTrunk = Math.Clamp(ParentingMaxBranchesPerTrunk, 0, 200);
         if (!Enum.IsDefined(BracingPattern)) BracingPattern = BracingPattern.Zigzag;
         BracingDiameter = NonNegative(BracingDiameter);
-        BracingAngleDegrees = float.IsFinite(BracingAngleDegrees) ? Math.Clamp(BracingAngleDegrees, 0f, 80f) : 45f;
+        BracingAngleDegrees = float.IsFinite(BracingAngleDegrees) ? Math.Clamp(BracingAngleDegrees, 1f, 89f) : 45f;
         BracingSpacingMm = NonNegative(BracingSpacingMm);
         BracingLowestHeightMm = NonNegative(BracingLowestHeightMm);
         BracingMinSupportHeightMm = NonNegative(BracingMinSupportHeightMm);

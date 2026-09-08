@@ -89,7 +89,9 @@ public static class SupportBracing
         var neighbour = settings.BracingNeighbourDistanceMm;
         var diameter = settings.BracingDiameter > 0 ? settings.BracingDiameter : settings.BranchDiameter;
         var radius = diameter * 0.5f;
-        var tan = MathF.Tan(Math.Clamp(settings.BracingAngleDegrees, 0f, 80f) * MathF.PI / 180f);
+        // The brace angle is the most a brace may lean from vertical (user, 2026-09-09): every
+        // rung is laid at exactly that lean, and a rung that cannot fit at it is dropped.
+        var cot = 1f / MathF.Tan(Math.Clamp(settings.BracingAngleDegrees, 1f, 89f) * MathF.PI / 180f);
         var lowest = settings.BracingLowestHeightMm > 0 ? settings.BracingLowestHeightMm : settings.MinBranchAttachHeightMm;
         var origin = SupportOrigin.ManualFor(targetId);
 
@@ -167,8 +169,7 @@ public static class SupportBracing
             var floor = MathF.Max(lowest, MathF.Max(a.Bottom, b.Bottom) + radius);
             // Even pairs start from the earlier trunk, odd pairs from the later one, so the
             // ladders alternate direction along the row. Laid top-down (user, 2026-09-09): the
-            // first rung's head is at the top of the stem it rises to, so the tops are always
-            // tied, and any rung that has to be flatter is the lowest one.
+            // first rung reaches as high as both stems allow, the next ends where it started.
             var fromA = k % 2 == 0;
             var laid = 0;
             var head = (fromA ? b : a).Top - radius;
@@ -177,22 +178,19 @@ public static class SupportBracing
             {
                 var (from, to) = fromA ? (a, b) : (b, a);
                 if (head < floor + radius * 2) break;
-                var endPoint = to.At(head);
-                var gap = Vector2.Distance(new(endPoint.X, endPoint.Y), new(from.At(head).X, from.At(head).Y));
-                var rise = gap * tan;
+                var gap = Vector2.Distance(new(from.At(head).X, from.At(head).Y), new(to.At(head).X, to.At(head).Y));
+                var rise = gap * cot;
                 var foot = head - rise;
-                var last = false;
-                // The first rung may not start above the stem it leaves; the last may not start
-                // under the floor: either is laid flatter instead of dropped.
-                if (firstRung && foot > from.Top - radius) foot = from.Top - radius;
-                if (foot < floor)
+                // The first rung may not start above the stem it leaves: lower it, at its angle.
+                if (firstRung && foot > from.Top - radius)
                 {
-                    foot = floor;
-                    last = true;
+                    foot = from.Top - radius;
+                    head = foot + rise;
                 }
-                rise = head - foot;
-                if (rise < radius * 2 - Epsilon) break;
+                // A rung that would start under the floor cannot be laid at the angle: drop it.
+                if (foot < floor) break;
                 var startPoint = from.At(foot);
+                var endPoint = to.At(head);
                 if (!scene.IntersectsCapsule(startPoint, endPoint, radius))
                 {
                     var footNode = EndAt(startPoint);
@@ -204,7 +202,6 @@ public static class SupportBracing
                     });
                     laid++;
                 }
-                if (last) break;
                 firstRung = false;
                 // Continuous by default: the next brace ends where this one started.
                 var step = settings.BracingSpacingMm > 0 ? settings.BracingSpacingMm : rise;

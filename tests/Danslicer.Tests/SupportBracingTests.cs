@@ -97,15 +97,14 @@ public sealed class SupportBracingTests
                 return a.Z <= b.Z ? (Foot: a, Head: b) : (Foot: b, Head: a);
             })
             .OrderBy(b => b.Foot.Z).ToList();
-        Assert.Equal(10f, braces[0].Foot.Z, 2);
+        // Laid from the top down at exactly 45°; the rung that would start under the 10 mm floor is left out.
+        Assert.InRange(braces[0].Foot.Z, 10f, 16f);
         var top = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Trunk)
             .Max(s => MathF.Max(document.Supports.GetNode(s.NodeA).Position.Z, document.Supports.GetNode(s.NodeB).Position.Z));
         Assert.Equal(top - 0.6f, braces[^1].Head.Z, 2);
         for (var i = 0; i < braces.Count; i++)
         {
-            // Every rung rises the gap (45°) except the lowest, laid flatter down to the floor.
-            if (i > 0) Assert.Equal(6f, braces[i].Head.Z - braces[i].Foot.Z, 2);
-            else Assert.InRange(braces[i].Head.Z - braces[i].Foot.Z, 1.2f, 6.01f);
+            Assert.Equal(6f, braces[i].Head.Z - braces[i].Foot.Z, 2);
             if (i == 0) continue;
             Assert.Equal(braces[i - 1].Head, braces[i].Foot);
             Assert.NotEqual(braces[i - 1].Foot.X, braces[i].Foot.X);
@@ -193,7 +192,7 @@ public sealed class SupportBracingTests
     [Fact]
     public void TwoSelectedSupportsAreBracedRegardlessOfDistance()
     {
-        var (document, _) = SlabWithSingles(3, 14);
+        var (document, _) = SlabWithSingles(3, 10);
         var outer = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip && MathF.Abs(n.Position.X) > 1)
             .Select(n => n.Id).ToList();
         document.SelectSupportElements(outer);
@@ -203,12 +202,14 @@ public sealed class SupportBracingTests
         Assert.NotNull(outcome);
         Assert.Equal(2, outcome.Operands);
         Assert.True(outcome.Braces > 0, "two chosen supports brace even beyond the neighbour distance");
-        // 45° over 28 mm would need a 28 mm rise; the chosen pair gets a flatter brace instead of none.
+        // Still at the angle: 45° over the 20 mm gap is a 20 mm rise, and the middle trunk is no obstacle.
         Assert.All(document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing), s =>
-            Assert.True(MathF.Abs(document.Supports.GetNode(s.NodeA).Position.Z - document.Supports.GetNode(s.NodeB).Position.Z) < 28f));
-        // The middle trunk stands between them and is not an obstacle for a chosen pair.
-        Assert.All(document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing), s =>
-            Assert.Equal(28f, MathF.Abs(document.Supports.GetNode(s.NodeA).Position.X - document.Supports.GetNode(s.NodeB).Position.X), 1));
+        {
+            var a = document.Supports.GetNode(s.NodeA).Position;
+            var b = document.Supports.GetNode(s.NodeB).Position;
+            Assert.Equal(20f, MathF.Abs(a.Z - b.Z), 1);
+            Assert.Equal(20f, MathF.Abs(a.X - b.X), 1);
+        });
     }
 
     [Fact]

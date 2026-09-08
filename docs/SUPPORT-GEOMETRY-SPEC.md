@@ -477,8 +477,8 @@ a pair is braced when all of the following hold:
 **Two chosen supports** (user direction 2026-09-09): when exactly two supports are selected
 and K is pressed, those two are braced no matter what stands between them or how far apart
 they are — other supports are not obstacles, and the neighbour distance and partner cap do
-not apply. If the brace angle needs more rise than the trunks have, the braces are laid
-flatter rather than not at all.
+not apply. The brace angle still does: a pair too far apart for its stems' height gets no
+brace.
 
 Both grid and free mode brace, because bracing, like parenting, is an explicit act on
 supports that already stand, not a routing preference.
@@ -487,14 +487,15 @@ supports that already stand, not a routing preference.
 
 For a pair the braces climb the two trunks as a ladder:
 
-- The first brace leaves one trunk's axis at **Lowest brace height** (default 0 = the
-  Members min branch height, 10 mm) and meets the other trunk higher up at the **Brace
-  angle** (default 45° from horizontal, so on a 6 mm gap the rise is 6 mm). Ladders are laid
-  **top-down** (user, 2026-09-09): the first rung's head is at the top of the stem it rises
-  to, the next rung ends where that one started and comes back, and so on down to the
-  floor. A first rung that would start above the stem it leaves, or a last rung that would
-  start under the floor, is laid flatter instead of dropped, so the tops are always tied and
-  the odd rung is at the bottom. **Brace spacing** (default 0 = continuous) sets a
+- **Max brace angle** (default 45°) is the most a brace may lean from vertical (user
+  decision 2026-09-09): every rung is laid at exactly that lean (on a 6 mm gap the rise is
+  6 mm), a steeper rung would be allowed, a flatter one never is. Ladders are laid
+  **top-down** (user, 2026-09-09): the first rung reaches as high as both stems allow (its
+  head at the top of the stem it rises to, or lower when the stem it leaves is shorter),
+  the next rung ends where that one started and comes back, and so on down to **Lowest
+  brace height** (default 0 = the Members min branch height, 10 mm). A rung that would
+  start under the floor cannot be laid at the angle and is left out, never flattened (the
+  user's screen test 2026-09-09 circled three flat bottom rungs). **Brace spacing** (default 0 = continuous) sets a
   vertical pitch instead, leaving gaps between the braces of a pair. Pattern **Zigzag**
   (default) is that alternation; **Diagonal** sends every brace the same way. No X
   bracing and no horizontal rungs (user decision 2026-09-09).
@@ -541,7 +542,7 @@ For a pair the braces climb the two trunks as a ladder:
 | Auto-bracing | on | Brace after generation and after parenting. |
 | Pattern | Zigzag | Zigzag or Diagonal. |
 | Brace diameter | 0 (= branch diameter) | Member diameter of every brace. |
-| Brace angle ° | 45 | Rise of a brace from horizontal. |
+| Max brace angle ° | 45 | The most a brace may lean from vertical; rungs are laid at exactly this. |
 | Brace spacing | 0 (= continuous) | Vertical pitch between braces of one pair; 0 = each brace starts where the last ended. |
 | Lowest brace height | 0 (= min branch height) | No brace foot below this. |
 | Min support height | 20 mm | Only trunks at least this tall are braced. |

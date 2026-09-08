@@ -654,7 +654,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public float SupportBracingAngleDegrees
     {
         get => Supports.BracingAngleDegrees;
-        set => Update(() => Supports.BracingAngleDegrees = Clamp(value, 0f, 80f, 45f));
+        set => Update(() => Supports.BracingAngleDegrees = Clamp(value, 1f, 89f, 45f));
     }
 
     public float SupportBracingSpacingMm
