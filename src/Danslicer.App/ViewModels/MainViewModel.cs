@@ -599,6 +599,8 @@ public partial class MainViewModel : ViewModelBase
             Document.SupportSettings = AppConfig.Current.Supports;
             RefreshPrinterOptions();
             SupportSettings.Resins.Refresh();
+            // The viewport draws from these settings too (base lattice markers): repaint now.
+            Document.NotifySettingsChanged();
         };
         DuplicateScopedCommand = new ModeScopedCommand(
             DuplicateCommand, () => ViewMode, WorkspaceMode.Layout);

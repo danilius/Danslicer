@@ -70,6 +70,13 @@ public sealed class Document
 
     /// <summary>Raised after any command, undo or redo, and after selection changes.</summary>
     public event Action? Changed;
+
+    /// <summary>
+    /// Raises <see cref="Changed"/> for a settings edit that draws differently without touching
+    /// the document's data — the base lattice markers follow the grid toggle and pitch (user
+    /// report 2026-09-08: they only appeared after the next click).
+    /// </summary>
+    public void NotifySettingsChanged() => Changed?.Invoke();
     public event Action? SelectionChanged;
     public event Action? SupportSelectionChanged;
 
