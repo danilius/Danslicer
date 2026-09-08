@@ -1070,10 +1070,13 @@ public partial class MainViewModel : ViewModelBase
             _applyingGenerationBatch = true;
             try { batch.Complete(); }
             finally { _applyingGenerationBatch = false; }
+            // Stage 3, bracing (SUPPORT-GEOMETRY-SPEC "Bracing"): inside the generation's undo step.
+            var bracing = Document.AutoBraceAfterGeneration(obj, prepared);
+            var braced = bracing is null ? "" : $" {bracing.Braces} braces.";
             var result = prepared.Summary;
             ViewportStatus = result.CandidateCount == 0
                 ? $"Generate {label}: no support tips were needed."
-                : $"Generate {label}: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
+                : $"Generate {label}: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.{braced}";
         }
         catch (OperationCanceledException)
         {

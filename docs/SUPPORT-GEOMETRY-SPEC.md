@@ -417,7 +417,184 @@ user says otherwise (configurability directive).
   put under 100 ms per placement on the roof gripper.
 - **Centroid trunks** in free mode: a shared trunk moved to the XY centroid of its tips,
   with the branches re-fitted, when every branch then meets the angle and length limits.
-- **Bracing** between neighbouring trunks (its own section to come).
+- ~~Bracing~~ — specified 2026-09-09, see "Bracing" below.
+
+## Bracing (user-approved spec, 2026-09-09)
+
+Tall, thin supports sway while the print peels from the film, and a swaying support
+prints a wavy trunk or lets go of its tip. **Bracing** ties neighbouring supports
+together with short cross-members so a forest of single trunks behaves like one frame.
+The anatomy dictation of 2026-09-03 kept **brace** as a member type; this section says
+where braces go, how they are made, and how the user drives them. DESIGN 8.4 calls this
+stage 3, "runs after routing and can be rerun on its own".
+
+### What a brace is
+
+- A brace is a straight member of its own diameter between two **different supports**.
+  It never counts toward a support: a "whole support" (selection, hide, delete, parenting
+  operands) is still the connected tree with braces removed, as the graph already
+  defines it. Deleting either support removes the brace with it; deleting a selected
+  brace removes only the brace.
+- **Braces are added on; they never split a trunk** (user decision 2026-09-09). Each end
+  of a brace is a **brace-end node** that sits on the trunk's axis and belongs to that
+  trunk (it records the trunk segment's id), so the trunk stays one segment from base to
+  top and every routing, parenting and editing rule that reads trunks is untouched. The
+  brace's own ball at that node sits inside the trunk's body; supports that touch fuse,
+  so the slice is simply the union. Brace-end nodes are not junctions: the orphan
+  pruning that peels dead-end junctions ignores them, a support's tip count ignores
+  them, and a trunk taken down takes its brace ends and their braces with it.
+- Braces join **stems**: the trunk from its base upward, plus whichever member continues it
+  most nearly vertically while it leans at most **Max stem lean** (default 30°) from
+  vertical — parenting leaves a short trunk with a near-vertical branch above it, and the
+  user's drawing of 2026-09-09 braces those as one member. A brace end on a leaning member
+  sits on that member's axis. Cones and bases are never brace ends; branches leaning more
+  than the limit wait for the next round (see "Later").
+- Braces slice and draw exactly like other members (capsule cross-sections, the existing
+  bracing colour and the "Show bracing" display toggle), and they are obstacles for every
+  later routing, guided placement and parenting pass.
+
+### Which pairs get braced
+
+**Clusters are one stem** (user decision 2026-09-09, from a cluster of five trunks whose
+rungs had degenerated into stubs inside the trunk bodies): stems whose trunk surfaces are
+closer than **Cluster gap** (default 1 mm, transitively) form a bundle, a gap between
+surfaces, so a field at the ordinary 2.5 mm tip spacing is not a cluster (screen test
+2026-09-09). A bundle takes no braces inside
+it — its members touch or fuse anyway — and the row ties to whichever member is nearest the
+neighbour at each rung's height. A bundle's height is its tallest member's. Grid mode never
+makes clusters; manual and free-mode placement do.
+
+Bracing walks the operand bundles as a **chain** (user drawing 2026-09-09): from an end of
+the row (the bundle with the fewest neighbours in range, then the lowest X, Y), each bundle
+pairs with its nearest unvisited neighbour, and the walk continues from that neighbour;
+when no neighbour is left a new chain starts. Consecutive bundles of a chain are a pair.
+After the chains, **every remaining neighbour pair** is taken nearest first, so a field of
+supports is tied across as well as along (screen test 2026-09-09: a single path through a
+2D field left the trunks off it with nothing); the partner cap is what stops this becoming
+a thicket. A pair is braced when all of the following hold:
+
+1. **Both trunks are tall enough.** Each rises at least **Min support height** (default
+   20 mm) above the plate. Short supports do not sway and a brace on them is only more
+   to remove.
+2. **They are neighbours.** The horizontal distance between the two trunk axes is at most
+   **Neighbour distance** (default 10 mm; on the 6 mm grid that reaches the diagonal
+   neighbour but not the next lattice row). Neither trunk may already carry
+   **Max brace partners** (default 3) other trunks: a trunk braced to three neighbours
+   is a frame, a fourth adds nothing.
+3. **Only the model is in the way** (user, 2026-09-09). A brace that would pass through the
+   model is refused; braces may run through branches, other trunks and other braces, so a
+   row is tied wherever the geometry allows and one pair's ladder crosses the next pair's
+   freely, which is what makes the lattice in the drawing.
+
+**Two chosen supports** (user direction 2026-09-09): when exactly two supports are selected
+and K is pressed, those two are braced no matter what stands between them or how far apart
+they are — other supports are not obstacles, and the neighbour distance and partner cap do
+not apply. The brace angle still does: a pair too far apart for its stems' height gets no
+brace.
+
+Both grid and free mode brace, because bracing, like parenting, is an explicit act on
+supports that already stand, not a routing preference.
+
+### How the braces are laid
+
+For a pair the braces climb the two trunks as a ladder:
+
+- **Max brace angle** (default 45°) is the most a brace may lean from vertical (user
+  decision 2026-09-09): every rung is laid at exactly that lean (on a 6 mm gap the rise is
+  6 mm), a steeper rung would be allowed, a flatter one never is. Ladders are laid
+  **top-down** (user, 2026-09-09): the first rung reaches as high as both stems allow (its
+  head at the top of the stem it rises to, or lower when the stem it leaves is shorter),
+  the next rung ends where that one started and comes back, and so on down to **Lowest
+  brace height** (default 0 = the Members min branch height, 10 mm). A rung that would
+  start under the floor cannot be laid at the angle and is left out, never flattened (the
+  user's screen test 2026-09-09 circled three flat bottom rungs). **Brace spacing** (default 0 = continuous) sets a
+  vertical pitch instead, leaving gaps between the braces of a pair. Pattern **Zigzag**
+  (default) is that alternation; **Diagonal** sends every brace the same way. No X
+  bracing and no horizontal rungs (user decision 2026-09-09).
+- **Consecutive pairs run in opposite directions** (user drawing 2026-09-09): the first
+  pair's ladder starts at its first trunk, the second pair's at its far trunk, and so on.
+  Where two pairs share a trunk, one ladder arrives as the other leaves, so along a row the
+  braces read as a continuous lattice of diamonds. Which way the first pair goes is
+  arbitrary (left to right today).
+- A brace is refused individually when its capsule touches the model (with the model
+  clearance), another support, or another brace. The ladder simply skips that bay.
+- Nothing attaches below the min branch height, as for branches, and nothing attaches
+  within one brace radius of a trunk end.
+- **Brace diameter** (default 0 = the branch diameter). Braces need to hold, not carry;
+  a thinner brace snaps off more cleanly, and the user chooses.
+
+### Operations
+
+- **Brace** command: key **K** in Support mode and a **Brace** button in the Supports
+  pop-out (every key has a button). Operands are the supports containing the selection,
+  or every support of the target when nothing is selected, exactly as parenting takes
+  them. Existing braces between operands stay (re-running adds only what is missing);
+  the status line says "Bracing: 14 braces added, 9 supports tied". One undo step,
+  "Brace supports".
+- **Unbrace**: **Shift+K** and an **Unbrace** button remove every brace touching an
+  operand support. One undo step.
+- **Select braces** (user request 2026-09-09): a **Select braces** button in the Supports
+  pop-out (and Object menu item) adds every visible brace of the target to the selection,
+  irrespective of what is selected and in addition to it (user, 2026-09-09: a selected
+  brace must not be dropped by it), so Delete, H and Shift+H can act on braces as a set.
+  Whole-support selection never gathers braces; this is the way to get at them.
+- **Auto-bracing** (Bracing expander, default on): the Brace command runs by itself at
+  the end of Generate Supports, and after every parenting (J or auto-parenting) over the
+  supports the parenting touched, folded into that command's undo step as auto-parenting
+  is. Manual (T) and guided placements do not brace by themselves: a support placed one at
+  a time is the user's own arrangement until they parent or brace it, and auto-parenting
+  already re-braces whatever it rebuilds. Off, braces exist only when the user presses K.
+- Undo restores braces and brace-end nodes with their ids, so selections and hidden
+  flags survive.
+
+### Configuration ("Bracing" expander of the Supports pop-out)
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| Auto-bracing | on | Brace after generation and after parenting. |
+| Pattern | Zigzag | Zigzag or Diagonal. |
+| Brace diameter | 0 (= branch diameter) | Member diameter of every brace. |
+| Max brace angle ° | 45 | The most a brace may lean from vertical; rungs are laid at exactly this. |
+| Brace spacing | 0 (= continuous) | Vertical pitch between braces of one pair; 0 = each brace starts where the last ended. |
+| Lowest brace height | 0 (= min branch height) | No brace foot below this. |
+| Min support height | 20 mm | Only trunks at least this tall are braced. |
+| Neighbour distance | 10 mm | Max horizontal gap between braced trunks. |
+| Max brace partners | 3 | Trunks one trunk may be braced to. |
+| Max stem lean ° | 30 | A branch continuing a trunk within this lean is braced as part of it. |
+| Cluster gap | 1 mm | Stems whose trunk surfaces are closer than this are one bundle: nothing inside, the row ties to its outer member. 0 = never. |
+
+Zero means "use the Members value" where a Members value exists, as in Parenting. The
+defaults are a first guess to be tuned on screen (user, 2026-09-09).
+
+### What changes in the code
+
+`SupportBraceStage` and `BraceGrowthRule` exist from the growth-rule framework (2026-09-03)
+but nothing calls them: they join existing nodes only, never lay a ladder, and score by
+a slenderness ratio the user never sees. They are replaced by a Core `SupportBracing`
+builder in the shape of `HierarchicalParenting` (a `SupportGraphEdit` of added nodes and
+segments, obstacle capsules by segment id so a trunk is not its own obstacle), a
+`SupportNodeType.BraceEnd` carrying its trunk's segment id, a `Document.BraceSupports` /
+`UnbraceSupports` / `SelectBraces` set with one undo step per edit, `SupportConfig` fields
+with the `Bracing` prefix, the expander, the key and buttons, and the auto hook in
+generation and parenting. The slenderness rule goes.
+
+### Build order
+
+1. ~~Core builder~~ — done 2026-09-09 (chains, continuous zigzag, brace-end nodes,
+   chosen pair; the roof gripper probe is in HANDOVER).
+2. ~~Document commands, undo, status line; K / Shift+K, the three buttons; the expander.~~
+3. ~~Auto-bracing after generation and parenting.~~
+4. ~~Diagonal pattern.~~
+5. Braces to branches (user, 2026-09-09: "once this has been sorted").
+
+### Later, not in the first cut
+
+- Braces to **branches** and between the two branches of one tree (a wide V braced
+  across its throat).
+- **Manual bracing**: click two supports and get one brace where the cursor is.
+- Braces that **move with edited trunks** once manual support editing exists.
+- Bracing across **objects**: two models' forests braced to each other (the collision
+  scene already holds every object, so it is a policy question only).
 
 ## Still open
 

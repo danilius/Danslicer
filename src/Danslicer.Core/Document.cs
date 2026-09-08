@@ -311,10 +311,31 @@ public sealed class Document
             }
         }
 
+        // A brace end goes when its carrier member goes or its brace goes (SUPPORT-GEOMETRY-SPEC
+        // "Bracing"): it is no support of its own, so the fragment walk below must not judge it.
+        // One end going takes the brace, which orphans the other end: repeat until nothing changes.
+        for (var changed = true; changed;)
+        {
+            changed = false;
+            foreach (var braceEnd in Supports.Nodes)
+            {
+                if (braceEnd.Type != SupportNodeType.BraceEnd || nodes.Contains(braceEnd.Id)) continue;
+                var carried = SupportBracing.CarrierOf(Supports, braceEnd, id =>
+                    !removedSegments.Contains(id) &&
+                    !nodes.Contains(Supports.GetSegment(id).NodeA) && !nodes.Contains(Supports.GetSegment(id).NodeB)) is not null;
+                var braced = Supports.SegmentsAt(braceEnd.Id).Any(brace =>
+                    !removedSegments.Contains(brace.Id) && !nodes.Contains(brace.NodeA) && !nodes.Contains(brace.NodeB));
+                if (carried && braced) continue;
+                nodes.Add(braceEnd.Id);
+                foreach (var attached in Supports.SegmentsAt(braceEnd.Id)) removedSegments.Add(attached.Id);
+                changed = true;
+            }
+        }
+
         var visited = new HashSet<Guid>();
         foreach (var start in Supports.Nodes)
         {
-            if (nodes.Contains(start.Id) || !visited.Add(start.Id)) continue;
+            if (nodes.Contains(start.Id) || start.Type == SupportNodeType.BraceEnd || !visited.Add(start.Id)) continue;
             var fragment = new List<SupportNode> { start };
             var queue = new Queue<Guid>();
             queue.Enqueue(start.Id);
@@ -907,6 +928,7 @@ public sealed class Document
         if (commands.Count == 0) return null;
         Execute(new CompositeCommand(undoName, commands));
         History.MergeLastTwo(undoName);
+        AutoBraceAfter(obj, ParentedElements(planned.Plans, operands), undoName);
         var positions = placedTips.Select(t => t.Position).ToList();
         return new AutoParentingOutcome(positions.Count, TrunksUnder(positions), planned.Outcome.Refused);
     }
@@ -1039,8 +1061,87 @@ public sealed class Document
         _supportSelection.Clear();
         SupportSelectionChanged?.Invoke();
         Execute(new CompositeCommand("Parent supports", commands));
+        AutoBraceAfter(target, ParentedElements(plans, tips), "Parent supports");
         return outcome;
     }
+
+    /// <summary>What a parenting left standing under its operands: the elements it added plus the operand tips it kept.</summary>
+    private List<Guid> ParentedElements(IReadOnlyList<SupportParenting.ParentingPlan> plans, IEnumerable<Guid> operandTips) =>
+        plans.SelectMany(p => p.Edit.AddedNodes.Select(n => n.Id)).Concat(operandTips)
+            .Where(id => Supports.TryGetNode(id, out _)).Distinct().ToList();
+
+    /// <summary>
+    /// Bracing (K): the supports containing the selected elements — every support of the target
+    /// when nothing is selected — get braces to their neighbours (SUPPORT-GEOMETRY-SPEC
+    /// "Bracing"). One undo step. Null when there is nothing to brace; an outcome with zero
+    /// braces when every pair was refused or already braced.
+    /// </summary>
+    public BracingOutcome? BraceSupports(string name = "Brace supports")
+    {
+        if (SupportTarget is not { } target) return null;
+        var planned = SupportBracing.Plan(Supports, target.Id, BracingOperands(target), SupportSettings with { }, MeshObstacles(),
+            chosen: _supportSelection.Count > 0);
+        if (planned is not { } result) return null;
+        if (result.Edit.AddedSegments.Count > 0)
+            Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, name));
+        return result.Outcome;
+    }
+
+    /// <summary>Unbrace (Shift+K): removes every brace touching an operand support. One undo step.</summary>
+    public int UnbraceSupports()
+    {
+        if (SupportTarget is not { } target) return 0;
+        var (nodes, segments) = SupportBracing.BracesOf(Supports, target.Id, BracingOperands(target));
+        if (segments.Count == 0) return 0;
+        var removed = nodes.Concat(segments).ToHashSet();
+        if (_supportSelection.RemoveWhere(removed.Contains) > 0) SupportSelectionChanged?.Invoke();
+        Execute(new RemoveSupportElementsCommand(Supports, nodes, segments, "Unbrace supports"));
+        return segments.Count;
+    }
+
+    /// <summary>
+    /// Select braces (user request 2026-09-09): adds every visible brace of the target to the
+    /// selection, whatever is selected already (user, 2026-09-09: irrespective of the selection
+    /// and in addition to it), so Delete, H and Shift+H can act on braces. Returns how many
+    /// braces are then selected.
+    /// </summary>
+    public int SelectBraces()
+    {
+        if (SupportTarget is not { } target) return 0;
+        var allOfTarget = Supports.Nodes.Where(n => n.Type == SupportNodeType.Base && Supports.OwningObjectId(n.Id) == target.Id)
+            .Select(n => n.Id).ToList();
+        var (_, segments) = SupportBracing.BracesOf(Supports, target.Id, allOfTarget);
+        var selected = 0;
+        foreach (var id in segments)
+        {
+            if (Supports.GetSegment(id).Hidden) continue;
+            _supportSelection.Add(id);
+            selected++;
+        }
+        SupportSelectionChanged?.Invoke();
+        return selected;
+    }
+
+    /// <summary>
+    /// Auto-bracing (SUPPORT-GEOMETRY-SPEC "Bracing"): braces the supports containing
+    /// <paramref name="elementIds"/> and folds the result into the last undo step, so a
+    /// generation or parenting and its bracing are one step. Null when off or nothing was added.
+    /// </summary>
+    private BracingOutcome? AutoBraceAfter(SceneObject target, IReadOnlyList<Guid> elementIds, string undoName)
+    {
+        if (!SupportSettings.AutoBracing || elementIds.Count == 0) return null;
+        var planned = SupportBracing.Plan(Supports, target.Id, elementIds, SupportSettings with { }, MeshObstacles());
+        if (planned is not { } result || result.Edit.AddedSegments.Count == 0) return null;
+        Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, undoName));
+        History.MergeLastTwo(undoName);
+        return result.Outcome;
+    }
+
+    /// <summary>The selected elements, or one element of every support of the target.</summary>
+    private List<Guid> BracingOperands(SceneObject target) => _supportSelection.Count > 0
+        ? _supportSelection.ToList()
+        : Supports.Nodes.Where(n => n.Type == SupportNodeType.Base && Supports.OwningObjectId(n.Id) == target.Id)
+            .Select(n => n.Id).ToList();
 
     private static Mesh WorldMesh(SceneObject obj)
     {
@@ -1108,8 +1209,17 @@ public sealed class Document
         var batch = new SupportGenerationBatch(Supports, History, prepared, int.MaxValue);
         batch.CommitNextBatch();
         batch.Complete();
+        AutoBraceAfterGeneration(obj, prepared);
         return prepared.Summary;
     }
+
+    /// <summary>
+    /// Auto-bracing after a completed generation (DESIGN 8.4 stage 3): braces the supports the
+    /// generation placed, inside the generation's undo step. Null when off or nothing was added.
+    /// </summary>
+    public BracingOutcome? AutoBraceAfterGeneration(SceneObject obj, PreparedSupportGeneration prepared) =>
+        AutoBraceAfter(obj, prepared.Nodes.Select(n => n.Id).Where(id => Supports.TryGetNode(id, out _)).ToList(),
+            prepared.UndoName);
 
     /// <summary>
     /// Selects every visible support element of the support target — the model being worked on —

@@ -203,6 +203,15 @@ public sealed class PlacementConfig
     public float HeightMm { get; set; }
 }
 
+/// <summary>How the braces between one pair of trunks climb (SUPPORT-GEOMETRY-SPEC "Bracing").</summary>
+public enum BracingPattern
+{
+    /// <summary>Each brace leaves the trunk the previous one arrived at, so the pair reads as a zigzag.</summary>
+    Zigzag = 0,
+    /// <summary>Every brace leaves the same trunk and leans the same way.</summary>
+    Diagonal = 1,
+}
+
 /// <summary>Basic support generation geometry and placement settings, in millimetres/degrees.</summary>
 public sealed record SupportConfig
 {
@@ -271,6 +280,39 @@ public sealed record SupportConfig
     /// stay single until J.
     /// </summary>
     public bool AutoParenting { get; set; } = true;
+    // Bracing (K): SUPPORT-GEOMETRY-SPEC "Bracing" (user-approved 2026-09-09). Zero means "use
+    // the Members value" where one exists.
+    /// <summary>Brace after generation and after every parenting, inside that command's undo step.</summary>
+    public bool AutoBracing { get; set; } = true;
+    /// <summary>How the braces of one pair of trunks climb: alternating sides, or all one way.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public BracingPattern BracingPattern { get; set; } = BracingPattern.Zigzag;
+    /// <summary>Member diameter of every brace; 0 = <see cref="BranchDiameter"/>.</summary>
+    public float BracingDiameter { get; set; }
+    /// <summary>The most a brace may lean from vertical, degrees; every rung is laid at exactly this lean.</summary>
+    public float BracingAngleDegrees { get; set; } = 45f;
+    /// <summary>Vertical pitch between the braces of one pair of trunks; 0 = continuous, each brace starts where the last ended.</summary>
+    public float BracingSpacingMm { get; set; }
+    /// <summary>No brace foot below this height above the plate; 0 = <see cref="MinBranchAttachHeightMm"/>.</summary>
+    public float BracingLowestHeightMm { get; set; }
+    /// <summary>Only trunks rising at least this far above the plate are braced.</summary>
+    public float BracingMinSupportHeightMm { get; set; } = 20f;
+    /// <summary>Largest horizontal gap between two trunk axes that a brace may span.</summary>
+    public float BracingNeighbourDistanceMm { get; set; } = 10f;
+    /// <summary>How many other trunks one trunk may be braced to.</summary>
+    public int BracingMaxPartners { get; set; } = 3;
+    /// <summary>
+    /// A branch continuing a trunk upward within this lean from vertical counts as part of the
+    /// trunk for bracing (user drawing 2026-09-09: braces climb the near-vertical members
+    /// parenting leaves above a short trunk).
+    /// </summary>
+    public float BracingMaxStemLeanDegrees { get; set; } = 30f;
+    /// <summary>
+    /// Stems whose trunk surfaces are closer than this are one bundle for bracing: no braces
+    /// inside it, and the row ties to its outer member (user decision 2026-09-09, from a cluster
+    /// of five trunks). A gap between surfaces, so a field at the tip spacing is not a cluster.
+    /// </summary>
+    public float BracingClusterGapMm { get; set; } = 1f;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     /// <summary>
@@ -352,6 +394,16 @@ public sealed record SupportConfig
         ParentingMaxConeBend = float.IsFinite(ParentingMaxConeBend)
             ? Math.Clamp(ParentingMaxConeBend, 0f, 180f) : 0f;
         ParentingMaxBranchesPerTrunk = Math.Clamp(ParentingMaxBranchesPerTrunk, 0, 200);
+        if (!Enum.IsDefined(BracingPattern)) BracingPattern = BracingPattern.Zigzag;
+        BracingDiameter = NonNegative(BracingDiameter);
+        BracingAngleDegrees = float.IsFinite(BracingAngleDegrees) ? Math.Clamp(BracingAngleDegrees, 1f, 89f) : 45f;
+        BracingSpacingMm = NonNegative(BracingSpacingMm);
+        BracingLowestHeightMm = NonNegative(BracingLowestHeightMm);
+        BracingMinSupportHeightMm = NonNegative(BracingMinSupportHeightMm);
+        BracingNeighbourDistanceMm = Positive(BracingNeighbourDistanceMm, 10f);
+        BracingMaxPartners = Math.Clamp(BracingMaxPartners, 1, 20);
+        BracingMaxStemLeanDegrees = float.IsFinite(BracingMaxStemLeanDegrees) ? Math.Clamp(BracingMaxStemLeanDegrees, 0f, 89f) : 30f;
+        BracingClusterGapMm = NonNegative(BracingClusterGapMm);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;

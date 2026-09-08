@@ -179,6 +179,9 @@ public partial class MainWindow : Window
         ToggleViewportPopup(_raftsPopupState);
 
     private void OnParentSupportsClick(object? sender, RoutedEventArgs e) => Viewport.ParentSupports();
+    private void OnBraceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.BraceSupports();
+    private void OnUnbraceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.UnbraceSupports();
+    private void OnSelectBracesClick(object? sender, RoutedEventArgs e) => Viewport.SelectBraces();
 
     private void OnTransformToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_transformPopupState);

@@ -155,6 +155,14 @@
                 <Separator IsVisible="{Binding IsSupportView}" />
                 <MenuItem x:Name="GenerateSupportsMenuItem" Header="_Generate Supports" Command="{Binding GenerateSupportsScopedCommand}"
                           IsVisible="{Binding GenerateSupportsScopedCommand.IsAvailable}" />
+                <MenuItem Header="_Parent Supports" Click="OnParentSupportsClick" InputGesture="J"
+                          IsVisible="{Binding IsSupportView}" />
+                <MenuItem Header="_Brace Supports" Click="OnBraceSupportsClick" InputGesture="K"
+                          IsVisible="{Binding IsSupportView}" />
+                <MenuItem Header="Un_brace Supports" Click="OnUnbraceSupportsClick" InputGesture="Shift+K"
+                          IsVisible="{Binding IsSupportView}" />
+                <MenuItem Header="Select B_races" Click="OnSelectBracesClick"
+                          IsVisible="{Binding IsSupportView}" />
                 <Separator IsVisible="{Binding IsModelView}" />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
                 <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}"
@@ -484,8 +492,17 @@
                                 <!-- Parenting (J): SUPPORT-GEOMETRY-SPEC "Parenting". -->
                                 <Button DockPanel.Dock="Top" Content="Parent Supports  (J)"
                                         Click="OnParentSupportsClick"
-                                        HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                                        HorizontalAlignment="Stretch" Margin="0,0,0,4"
                                         ToolTip.Tip="Re-route the selected supports (all of the model's when nothing is selected) together so branches share trunks. Settings under Parenting." />
+                                <!-- Bracing (K / Shift+K): SUPPORT-GEOMETRY-SPEC "Bracing". -->
+                                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,4,*,4,*" Margin="0,0,0,8">
+                                    <Button Content="Brace  (K)" Click="OnBraceSupportsClick" HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="Tie the selected supports (all of the model's when nothing is selected) to their neighbours with braces. Settings under Bracing." />
+                                    <Button Grid.Column="2" Content="Unbrace  (Shift+K)" Click="OnUnbraceSupportsClick" HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="Remove every brace touching the selected supports (all of the model's when nothing is selected)." />
+                                    <Button Grid.Column="4" Content="Select braces" Click="OnSelectBracesClick" HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="Add every brace of the model to the selection, keeping whatever is selected, so Delete, H and Shift+H can act on braces." />
+                                </Grid>
                                 <!-- Support regions (DESIGN 8.3). Painting decides WHERE generation
                                      may place contacts; the operations themselves live in
                                      SupportRegionSelection and are pure set maths. -->

@@ -116,11 +116,13 @@ public sealed class LayerRangeClipViewModel : ObservableObject
     /// </summary>
     public void RefreshBounds(Aabb bounds, double fallbackMaximum, bool reset = false)
     {
-        // The plate is layer zero and the bottom of the print, so the range starts there however
-        // far a model has been rotated or dragged below it. Geometry under the plate is the
-        // user's business — the build-volume warning is what complains about it — but a clip
-        // handle numbered in negative layers is just a broken ruler.
-        double minimum = bounds.IsEmpty ? 0 : Math.Max(0, bounds.Min.Z);
+        // The plate is layer zero and the bottom of the print, so the range always starts there:
+        // supports run down to the plate below any model, and a lower handle parked at the
+        // model's underside hid their feet the moment the top handle moved (user, 2026-09-09).
+        // Geometry under the plate is the user's business — the build-volume warning is what
+        // complains about it — but a clip handle numbered in negative layers is just a broken
+        // ruler. Only the top follows the models.
+        const double minimum = 0;
         double maximum = bounds.IsEmpty ? Math.Max(1, fallbackMaximum) : Math.Max(0, bounds.Max.Z);
         if (!double.IsFinite(minimum) || !double.IsFinite(maximum)) return;
         if (maximum - minimum < 0.001)

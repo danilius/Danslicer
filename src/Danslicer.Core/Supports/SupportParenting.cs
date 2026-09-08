@@ -107,6 +107,10 @@ public static class SupportParenting
         {
             if (seen.Contains(id) || !graph.TryGetNode(id, out _)) continue;
             var component = graph.Component(id);
+            // A trunk taken down takes its braces with it (SUPPORT-GEOMETRY-SPEC "Bracing").
+            var (braceNodes, braces) = SupportBracing.BracesOn(graph, component.Segments);
+            component.Nodes.UnionWith(braceNodes);
+            component.Segments.UnionWith(braces);
             seen.UnionWith(component.Nodes);
             result.Add(component);
         }
