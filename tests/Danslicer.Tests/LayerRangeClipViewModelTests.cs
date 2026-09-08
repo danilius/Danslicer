@@ -118,6 +118,26 @@ public sealed class LayerRangeClipViewModelTests
     }
 
     [Fact]
+    public void TheRangeStartsAtThePlateWhenTheModelFloatsAboveIt()
+    {
+        // A model standing on supports at 5 mm used to open the range at layer 100, and clipping
+        // the top by one layer then hid every support foot below the model (user, 2026-09-09).
+        var model = new LayerRangeClipViewModel { LayerHeightMm = 0.05 };
+        model.RefreshBounds(new Aabb(new Vector3(0, 0, 5), new Vector3(1, 1, 20)), 100, reset: true);
+
+        Assert.Equal(0, model.MinimumZ);
+        Assert.Equal(0, model.LowerLayer);
+        Assert.Equal(400, model.UpperLayer);
+
+        model.Active = true;
+        model.UpperZ = 19.95;
+        Assert.True(model.Range.IsClipping);
+        Assert.True(model.Range.Contains(new Vector3(0, 0, 0)));   // a support base on the plate
+        Assert.True(model.Range.Contains(new Vector3(0, 0, 2.5f))); // a trunk below the model
+        Assert.False(model.Range.Contains(new Vector3(0, 0, 20)));
+    }
+
+    [Fact]
     public void LayerNumberingPutsTheFirstPrintedLayerAtOne()
     {
         const double h = 0.05;
@@ -157,7 +177,7 @@ public sealed class LayerRangeClipViewModelTests
 
         model.RefreshBounds(new Aabb(new Vector3(0, 0, 1), new Vector3(1, 1, 30)), 50);
 
-        Assert.Equal(1, model.MinimumZ);
+        Assert.Equal(0, model.MinimumZ); // the plate, whatever the box says
         Assert.Equal(30, model.MaximumZ);
         Assert.Equal(5, model.LowerZ);
         Assert.Equal(30, model.UpperZ);
@@ -197,15 +217,14 @@ public sealed class LayerRangeClipViewModelTests
     [Fact]
     public void GeneratingSupportsDoesNotMoveTheRange()
     {
-        // This test used to assert the opposite: the range stretched down to a support's base at
-        // the plate. The user's rule is that the clip range is the models' combined bounding box,
-        // so supports appearing or being deleted must leave the numbers where they were.
+        // The range runs from the plate to the models' top, so supports appearing or being
+        // deleted must leave the numbers where they were.
 
         var viewModel = new MainViewModel();
         viewModel.Document.AddObject(new SceneObject("floating", new Mesh(
             [new(0, 0, 5), new(1, 0, 5), new(0, 1, 10)], [0, 1, 2])));
 
-        Assert.Equal(5, viewModel.SupportClip.MinimumZ);
+        Assert.Equal(0, viewModel.SupportClip.MinimumZ);
         Assert.Equal(10, viewModel.SupportClip.MaximumZ);
 
         var contact = new SupportNode { Type = SupportNodeType.Tip, Position = new(0, 0, 5) };
@@ -220,7 +239,7 @@ public sealed class LayerRangeClipViewModelTests
             Diameter = 1,
         });
 
-        Assert.Equal(5, viewModel.SupportClip.MinimumZ);
+        Assert.Equal(0, viewModel.SupportClip.MinimumZ);
         Assert.Equal(10, viewModel.SupportClip.MaximumZ);
         viewModel.SupportClip.Active = true;
         // A range at both extremes clips nothing, so the trunk running down to the plate below
@@ -229,7 +248,7 @@ public sealed class LayerRangeClipViewModelTests
 
         viewModel.Document.Supports.RemoveNode(plate.Id);
 
-        Assert.Equal(5, viewModel.SupportClip.MinimumZ);
+        Assert.Equal(0, viewModel.SupportClip.MinimumZ);
         Assert.Equal(10, viewModel.SupportClip.MaximumZ);
         Assert.False(viewModel.ViewportClipRange.IsClipping);
     }
