@@ -455,10 +455,17 @@ stage 3, "runs after routing and can be rerun on its own".
 
 ### Which pairs get braced
 
-Bracing walks the operand trunks as a **chain** (user drawing 2026-09-09): from an end of
-the row (the trunk with the fewest neighbours in range, then the lowest X, Y), each trunk
+**Clusters are one stem** (user decision 2026-09-09, from a cluster of five trunks whose
+rungs had degenerated into stubs inside the trunk bodies): stems standing closer than
+**Cluster gap** (default 3 mm, transitively) form a bundle. A bundle takes no braces inside
+it — its members touch or fuse anyway — and the row ties to whichever member is nearest the
+neighbour at each rung's height. A bundle's height is its tallest member's. Grid mode never
+makes clusters; manual and free-mode placement do.
+
+Bracing walks the operand bundles as a **chain** (user drawing 2026-09-09): from an end of
+the row (the bundle with the fewest neighbours in range, then the lowest X, Y), each bundle
 pairs with its nearest unvisited neighbour, and the walk continues from that neighbour;
-when no neighbour is left a new chain starts. Consecutive trunks of a chain are a pair, and
+when no neighbour is left a new chain starts. Consecutive bundles of a chain are a pair, and
 a pair is braced when all of the following hold:
 
 1. **Both trunks are tall enough.** Each rises at least **Min support height** (default
@@ -549,6 +556,7 @@ For a pair the braces climb the two trunks as a ladder:
 | Neighbour distance | 10 mm | Max horizontal gap between braced trunks. |
 | Max brace partners | 3 | Trunks one trunk may be braced to. |
 | Max stem lean ° | 30 | A branch continuing a trunk within this lean is braced as part of it. |
+| Cluster gap | 3 mm | Stems closer than this are one bundle: nothing inside, the row ties to its outer member. 0 = never. |
 
 Zero means "use the Members value" where a Members value exists, as in Parenting. The
 defaults are a first guess to be tuned on screen (user, 2026-09-09).

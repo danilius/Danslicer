@@ -67,6 +67,29 @@ public static class SupportBracing
     }
 
     /// <summary>
+    /// A cluster of stems standing closer than the cluster gap (user decision 2026-09-09): braced
+    /// as one stem, with no braces inside it. Every lone stem is a bundle of one.
+    /// </summary>
+    private sealed class Bundle
+    {
+        public required List<Column> Members { get; init; }
+        public required HashSet<int> Supports { get; init; }
+        public Vector2 Xy => Members.Aggregate(Vector2.Zero, (sum, c) => sum + c.Xy) / Members.Count;
+        public float Top => Members.Max(c => c.Top);
+        public float Bottom => Members.Max(c => c.Bottom);
+        public Guid Id => Members.Min(c => c.Segments[0].Id);
+        public int Partners { get; set; }
+
+        /// <summary>The member that reaches <paramref name="z"/> and is nearest <paramref name="toward"/> there.</summary>
+        public Column? NearestAt(float z, Vector2 toward, float margin) =>
+            Members.Where(c => c.Top - margin >= z)
+                .OrderBy(c => Vector2.Distance(new(c.At(z).X, c.At(z).Y), toward))
+                .ThenBy(c => c.Segments[0].Id).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Plans the braces for the supports containing <paramref name="operandElementIds"/> (nodes
+    /// <summary>
     /// Plans the braces for the supports containing <paramref name="operandElementIds"/> (nodes
     /// or segments) on the target. Braces that already tie two of those trunks are kept and that
     /// pair is left alone, so running twice adds nothing. Null when there is nothing to brace.
@@ -95,45 +118,51 @@ public static class SupportBracing
         var lowest = settings.BracingLowestHeightMm > 0 ? settings.BracingLowestHeightMm : settings.MinBranchAttachHeightMm;
         var origin = SupportOrigin.ManualFor(targetId);
 
+        // Two supports chosen by hand are braced no matter what stands between or how far apart
+        // they are (user direction 2026-09-09): the other supports are not obstacles and the
+        // neighbour distance and partner cap do not apply, and they are not clustered.
+        var pairOnly = chosen && components.Count == 2;
+
+        // Bundles: stems closer than the cluster gap are one stem for bracing (user decision
+        // 2026-09-09: a cluster of trunks is already a bundle; rungs inside it would be stubs).
+        var bundles = Bundles(columns, pairOnly ? 0f : settings.BracingClusterGapMm);
+        if (bundles.Count < 2) return null;
+
         // Braces already standing: count partners and the pairs that are done.
         var braced = new HashSet<(int, int)>();
         foreach (var brace in graph.Segments)
         {
             if (brace.Type != SupportSegmentType.Bracing || brace.Disabled) continue;
-            var a = ColumnAt(columns, graph.GetNode(brace.NodeA).Position);
-            var b = ColumnAt(columns, graph.GetNode(brace.NodeB).Position);
+            var a = BundleAt(bundles, graph.GetNode(brace.NodeA).Position);
+            var b = BundleAt(bundles, graph.GetNode(brace.NodeB).Position);
             if (a < 0 || b < 0 || a == b) continue;
             if (!braced.Add(a < b ? (a, b) : (b, a))) continue;
-            columns[a].Partners++;
-            columns[b].Partners++;
+            bundles[a].Partners++;
+            bundles[b].Partners++;
         }
 
-        // Two supports chosen by hand are braced no matter what stands between or how far apart
-        // they are (user direction 2026-09-09): the other supports are not obstacles and the
-        // neighbour distance and partner cap do not apply.
-        var pairOnly = chosen && components.Count == 2;
-        var candidates = columns.Select((c, i) => (Column: c, Index: i)).Where(x => x.Column.Top >= minHeight)
-            .Select(x => x.Index).ToList();
-        bool Neighbours(int i, int j) => columns[i].Support != columns[j].Support &&
-            Vector2.Distance(columns[i].Xy, columns[j].Xy) > settings.TrunkDiameter &&
-            (pairOnly || Vector2.Distance(columns[i].Xy, columns[j].Xy) <= neighbour);
+        var candidates = bundles.Select((bundle, index) => (Bundle: bundle, Index: index))
+            .Where(x => x.Bundle.Top >= minHeight).Select(x => x.Index).ToList();
+        bool Neighbours(int i, int j) => !bundles[i].Supports.Overlaps(bundles[j].Supports) &&
+            Vector2.Distance(bundles[i].Xy, bundles[j].Xy) > settings.TrunkDiameter &&
+            (pairOnly || Vector2.Distance(bundles[i].Xy, bundles[j].Xy) <= neighbour);
 
-        // Chains (user drawing 2026-09-09): from an end of a row, each trunk pairs with its nearest
-        // unvisited neighbour, and each pair's ladder runs opposite to the previous pair's.
+        // Chains (user drawing 2026-09-09): from an end of a row, each bundle pairs with its
+        // nearest unvisited neighbour, and each pair's ladder runs opposite to the previous pair's.
         var chains = new List<List<int>>();
         var remaining = new HashSet<int>(candidates);
         while (remaining.Count > 0)
         {
             var first = remaining.OrderBy(i => remaining.Count(j => j != i && Neighbours(i, j)))
-                .ThenBy(i => columns[i].Xy.X).ThenBy(i => columns[i].Xy.Y).ThenBy(i => columns[i].Segments[0].Id).First();
+                .ThenBy(i => bundles[i].Xy.X).ThenBy(i => bundles[i].Xy.Y).ThenBy(i => bundles[i].Id).First();
             var chain = new List<int> { first };
             remaining.Remove(first);
             while (true)
             {
                 var last = chain[^1];
                 var next = remaining.Where(j => Neighbours(last, j))
-                    .OrderBy(j => Vector2.Distance(columns[last].Xy, columns[j].Xy))
-                    .ThenBy(j => columns[j].Segments[0].Id).Cast<int?>().FirstOrDefault();
+                    .OrderBy(j => Vector2.Distance(bundles[last].Xy, bundles[j].Xy))
+                    .ThenBy(j => bundles[j].Id).Cast<int?>().FirstOrDefault();
                 if (next is not { } n) break;
                 chain.Add(n);
                 remaining.Remove(n);
@@ -161,13 +190,13 @@ public static class SupportBracing
         for (var k = 0; k + 1 < chain.Count; k++)
         {
             var (ia, ib) = (chain[k], chain[k + 1]);
-            var a = columns[ia];
-            var b = columns[ib];
+            var a = bundles[ia];
+            var b = bundles[ib];
             if (braced.Contains(ia < ib ? (ia, ib) : (ib, ia))) continue;
             if (!pairOnly && (a.Partners >= settings.BracingMaxPartners || b.Partners >= settings.BracingMaxPartners)) continue;
 
             var floor = MathF.Max(lowest, MathF.Max(a.Bottom, b.Bottom) + radius);
-            // Even pairs start from the earlier trunk, odd pairs from the later one, so the
+            // Even pairs start from the earlier bundle, odd pairs from the later one, so the
             // ladders alternate direction along the row. Laid top-down (user, 2026-09-09): the
             // first rung reaches as high as both stems allow, the next ends where it started.
             var fromA = k % 2 == 0;
@@ -178,19 +207,25 @@ public static class SupportBracing
             {
                 var (from, to) = fromA ? (a, b) : (b, a);
                 if (head < floor + radius * 2) break;
-                var gap = Vector2.Distance(new(from.At(head).X, from.At(head).Y), new(to.At(head).X, to.At(head).Y));
+                // A rung lands on the member of each bundle nearest the other bundle at its height.
+                var toStem = to.NearestAt(head, from.Xy, radius);
+                if (toStem is null) { head -= radius * 2; continue; }
+                var toXy = new Vector2(toStem.At(head).X, toStem.At(head).Y);
+                var fromStem = from.NearestAt(MathF.Min(head, from.Top - radius), toXy, radius);
+                if (fromStem is null) break;
+                var gap = Vector2.Distance(new(fromStem.At(head).X, fromStem.At(head).Y), toXy);
                 var rise = gap * cot;
                 var foot = head - rise;
                 // The first rung may not start above the stem it leaves: lower it, at its angle.
-                if (firstRung && foot > from.Top - radius)
+                if (firstRung && foot > fromStem.Top - radius)
                 {
-                    foot = from.Top - radius;
+                    foot = fromStem.Top - radius;
                     head = foot + rise;
                 }
                 // A rung that would start under the floor cannot be laid at the angle: drop it.
                 if (foot < floor) break;
-                var startPoint = from.At(foot);
-                var endPoint = to.At(head);
+                var startPoint = fromStem.At(foot);
+                var endPoint = toStem.At(head);
                 if (!scene.IntersectsCapsule(startPoint, endPoint, radius))
                 {
                     var footNode = EndAt(startPoint);
@@ -213,8 +248,8 @@ public static class SupportBracing
             a.Partners++;
             b.Partners++;
             braced.Add(ia < ib ? (ia, ib) : (ib, ia));
-            tied.Add(a.Support);
-            tied.Add(b.Support);
+            tied.UnionWith(a.Supports);
+            tied.UnionWith(b.Supports);
         }
 
         if (addedSegments.Count == 0)
@@ -365,10 +400,30 @@ public static class SupportBracing
         }
     }
 
-    private static int ColumnAt(List<Column> columns, Vector3 position)
+    /// <summary>Groups stems whose axes stand within <paramref name="gap"/> of each other (transitively).</summary>
+    private static List<Bundle> Bundles(List<Column> columns, float gap)
     {
-        for (var i = 0; i < columns.Count; i++)
-            if (columns[i].DistanceTo(position) <= CarrierTolerance) return i;
+        var parent = Enumerable.Range(0, columns.Count).ToArray();
+        int Find(int i) => parent[i] == i ? i : parent[i] = Find(parent[i]);
+        if (gap > 0)
+            for (var i = 0; i < columns.Count; i++)
+            for (var j = i + 1; j < columns.Count; j++)
+                if (Vector2.Distance(columns[i].Xy, columns[j].Xy) <= gap) parent[Find(i)] = Find(j);
+        return columns.Select((c, i) => (Column: c, Root: Find(i)))
+            .GroupBy(x => x.Root)
+            .Select(g => new Bundle
+            {
+                Members = g.Select(x => x.Column).ToList(),
+                Supports = g.Select(x => x.Column.Support).ToHashSet(),
+            })
+            .OrderBy(b => b.Id).ToList();
+    }
+
+    private static int BundleAt(List<Bundle> bundles, Vector3 position)
+    {
+        for (var i = 0; i < bundles.Count; i++)
+            if (bundles[i].Members.Any(c => c.DistanceTo(position) <= CarrierTolerance)) return i;
         return -1;
     }
+
 }

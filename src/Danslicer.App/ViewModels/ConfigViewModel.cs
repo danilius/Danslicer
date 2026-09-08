@@ -693,6 +693,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.BracingMaxStemLeanDegrees = Clamp(value, 0f, 89f, 30f));
     }
 
+    public float SupportBracingClusterGapMm
+    {
+        get => Supports.BracingClusterGapMm;
+        set => Update(() => Supports.BracingClusterGapMm = Clamp(value, 0f, 100f, 3f));
+    }
+
     public float SupportMinBranchAttachHeightMm
     {
         get => Supports.MinBranchAttachHeightMm;

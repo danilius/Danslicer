@@ -190,6 +190,44 @@ public sealed class SupportBracingTests
     }
 
     [Fact]
+    public void AClusterIsBracedAsOneBundleWithNothingInside()
+    {
+        // Three trunks 1.5 mm apart (a cluster) and a lone trunk 6 mm beyond them.
+        var document = new Document();
+        var slab = new SceneObject("slab", Box(new Vector3(-30, -30, 40), new Vector3(30, 30, 46)));
+        document.AddObject(slab);
+        document.Select(slab);
+        document.SupportSettings = new SupportConfig
+        {
+            UseBaseGrid = false, IndependentManualSupports = true, AutoParenting = false, AutoBracing = false,
+        };
+        foreach (var x in new[] { -1.5f, 0f, 1.5f, 7.5f })
+            Assert.True(document.AddManualSupport(slab, new Vector3(x, 0, 40), -Vector3.UnitZ));
+
+        var outcome = document.BraceSupports();
+
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Braces >= 4, $"{outcome.Braces} braces");
+        // Every brace runs between the cluster's outer trunk (1.5) and the lone one (7.5): none inside.
+        Assert.All(document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing), s =>
+        {
+            var xs = new[] { document.Supports.GetNode(s.NodeA).Position.X, document.Supports.GetNode(s.NodeB).Position.X }.OrderBy(x => x).ToList();
+            Assert.Equal(1.5f, xs[0], 2);
+            Assert.Equal(7.5f, xs[1], 2);
+        });
+        // The bundle counts as tied with all its members.
+        Assert.Equal(4, outcome.SupportsTied);
+
+        // With the cluster gap off, the cluster's members chain among themselves as well.
+        document.History.Undo();
+        document.SupportSettings = document.SupportSettings with { BracingClusterGapMm = 0f };
+        var separate = document.BraceSupports();
+        Assert.NotNull(separate);
+        Assert.Contains(document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing), s =>
+            MathF.Abs(document.Supports.GetNode(s.NodeA).Position.X - document.Supports.GetNode(s.NodeB).Position.X) < 2f);
+    }
+
+    [Fact]
     public void TwoSelectedSupportsAreBracedRegardlessOfDistance()
     {
         var (document, _) = SlabWithSingles(3, 10);

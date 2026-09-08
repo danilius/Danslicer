@@ -307,6 +307,11 @@ public sealed record SupportConfig
     /// parenting leaves above a short trunk).
     /// </summary>
     public float BracingMaxStemLeanDegrees { get; set; } = 30f;
+    /// <summary>
+    /// Stems standing closer than this are one bundle for bracing: no braces inside it, and the
+    /// row ties to its outer member (user decision 2026-09-09, from a cluster of five trunks).
+    /// </summary>
+    public float BracingClusterGapMm { get; set; } = 3f;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     /// <summary>
@@ -397,6 +402,7 @@ public sealed record SupportConfig
         BracingNeighbourDistanceMm = Positive(BracingNeighbourDistanceMm, 10f);
         BracingMaxPartners = Math.Clamp(BracingMaxPartners, 1, 20);
         BracingMaxStemLeanDegrees = float.IsFinite(BracingMaxStemLeanDegrees) ? Math.Clamp(BracingMaxStemLeanDegrees, 0f, 89f) : 30f;
+        BracingClusterGapMm = NonNegative(BracingClusterGapMm);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;
