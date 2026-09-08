@@ -534,10 +534,10 @@ For a pair the braces climb the two trunks as a ladder:
 - **Unbrace**: **Shift+K** and an **Unbrace** button remove every brace touching an
   operand support. One undo step.
 - **Select braces** (user request 2026-09-09): a **Select braces** button in the Supports
-  pop-out (and Object menu item) replaces the selection with every visible brace of the
-  target, or of the operand supports when supports are selected, so Delete, H and
-  Shift+H then act on braces alone. Whole-support selection never gathers braces; this
-  is the way to get at them as a set.
+  pop-out (and Object menu item) adds every visible brace of the target to the selection,
+  irrespective of what is selected and in addition to it (user, 2026-09-09: a selected
+  brace must not be dropped by it), so Delete, H and Shift+H can act on braces as a set.
+  Whole-support selection never gathers braces; this is the way to get at them.
 - **Auto-bracing** (Bracing expander, default on): the Brace command runs by itself at
   the end of Generate Supports, and after every parenting (J or auto-parenting) over the
   supports the parenting touched, folded into that command's undo step as auto-parenting

@@ -1100,19 +1100,26 @@ public sealed class Document
     }
 
     /// <summary>
-    /// Select braces (user request 2026-09-09): the selection becomes every visible brace of
-    /// the operand supports — all of the target's when nothing is selected — so Delete, H and
-    /// Shift+H act on braces alone. Returns how many were selected.
+    /// Select braces (user request 2026-09-09): adds every visible brace of the target to the
+    /// selection, whatever is selected already (user, 2026-09-09: irrespective of the selection
+    /// and in addition to it), so Delete, H and Shift+H can act on braces. Returns how many
+    /// braces are then selected.
     /// </summary>
     public int SelectBraces()
     {
         if (SupportTarget is not { } target) return 0;
-        var (_, segments) = SupportBracing.BracesOf(Supports, target.Id, BracingOperands(target));
-        _supportSelection.Clear();
+        var allOfTarget = Supports.Nodes.Where(n => n.Type == SupportNodeType.Base && Supports.OwningObjectId(n.Id) == target.Id)
+            .Select(n => n.Id).ToList();
+        var (_, segments) = SupportBracing.BracesOf(Supports, target.Id, allOfTarget);
+        var selected = 0;
         foreach (var id in segments)
-            if (!Supports.GetSegment(id).Hidden) _supportSelection.Add(id);
+        {
+            if (Supports.GetSegment(id).Hidden) continue;
+            _supportSelection.Add(id);
+            selected++;
+        }
         SupportSelectionChanged?.Invoke();
-        return _supportSelection.Count;
+        return selected;
     }
 
     /// <summary>

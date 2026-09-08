@@ -501,7 +501,7 @@
                                     <Button Grid.Column="2" Content="Unbrace  (Shift+K)" Click="OnUnbraceSupportsClick" HorizontalAlignment="Stretch"
                                             ToolTip.Tip="Remove every brace touching the selected supports (all of the model's when nothing is selected)." />
                                     <Button Grid.Column="4" Content="Select braces" Click="OnSelectBracesClick" HorizontalAlignment="Stretch"
-                                            ToolTip.Tip="Select every brace of the selected supports (all of the model's when nothing is selected), so Delete, H and Shift+H act on braces alone." />
+                                            ToolTip.Tip="Add every brace of the model to the selection, keeping whatever is selected, so Delete, H and Shift+H can act on braces." />
                                 </Grid>
                                 <!-- Support regions (DESIGN 8.3). Painting decides WHERE generation
                                      may place contacts; the operations themselves live in

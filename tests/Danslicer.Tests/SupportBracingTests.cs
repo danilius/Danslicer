@@ -337,6 +337,18 @@ public sealed class SupportBracingTests
         var braces = Braces(document);
         Assert.True(braces > 0);
 
+        // Additive and independent of the selection: a selected brace stays selected, a
+        // selected tip stays selected, and every brace joins them.
+        var oneBrace = document.Supports.Segments.First(s => s.Type == SupportSegmentType.Bracing).Id;
+        var oneTip = document.Supports.Nodes.First(n => n.Type == SupportNodeType.Tip).Id;
+        document.SelectSupportElements([oneBrace, oneTip]);
+        Assert.Equal(braces, document.SelectBraces());
+        Assert.Equal(braces + 1, document.SupportSelection.Count);
+        Assert.Contains(oneBrace, document.SupportSelection);
+        Assert.Contains(oneTip, document.SupportSelection);
+        Assert.Equal(braces, document.SupportSelection.Count(id => document.Supports.TryGetSegment(id, out var s) && s.Type == SupportSegmentType.Bracing));
+
+        document.ClearSupportSelection();
         Assert.Equal(braces, document.SelectBraces());
         Assert.All(document.SupportSelection, id => Assert.Equal(SupportSegmentType.Bracing, document.Supports.GetSegment(id).Type));
 
