@@ -8,7 +8,6 @@ public enum GrowthOperation
     Grow,
     Branch,
     Merge,
-    Brace,
     Tip,
     Land,
     Reinforce,
@@ -81,7 +80,6 @@ public sealed class GrowthRuleSet
         new LeanGrowthRule(),
         new BranchGrowthRule(),
         new MergeGrowthRule(),
-        new BraceGrowthRule(),
         new ReinforceGrowthRule(),
         new TaperGrowthRule(),
         new ClearanceGrowthRule(),
@@ -108,28 +106,6 @@ public sealed class ReinforceGrowthRule : IGrowthRule
     // Tip expansion is consumed before routing because it creates complete routing inputs rather
     // than changing one segment proposal.
     public void Evaluate(GrowthContext context) { }
-}
-
-public sealed class BraceGrowthRule : IGrowthRule
-{
-    public string Name => "Brace";
-    public bool Enabled { get; set; } = true;
-    public float MinHeight { get; set; } = 5;
-    public float MinSlenderness { get; set; } = 6;
-    public float PreferredAngleDegrees { get; set; } = 35;
-    public float MaxLength { get; set; } = 12;
-    public float NeighbourDistance { get; set; } = 10;
-
-    public void Evaluate(GrowthContext context)
-    {
-        if (context.Operation != GrowthOperation.Brace) return;
-        var delta = context.DesiredEnd - context.Start;
-        var horizontal = new Vector2(delta.X, delta.Y).Length();
-        if (MathF.Min(context.Start.Z, context.DesiredEnd.Z) < MinHeight ||
-            context.Slenderness < MinSlenderness || delta.Length() > MaxLength ||
-            horizontal > NeighbourDistance)
-            context.Allowed = false;
-    }
 }
 
 public sealed class LeanGrowthRule : IGrowthRule

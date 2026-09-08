@@ -10,6 +10,13 @@ public enum SupportNodeType
     Junction,
     /// <summary>Contact with the plate, or with the model when landing on the model is allowed.</summary>
     Base,
+    /// <summary>
+    /// The end of a brace, sitting on the axis of the trunk that carries it (SUPPORT-GEOMETRY-SPEC
+    /// "Bracing", user decision 2026-09-09: braces are added on, they never split a trunk). Its
+    /// carrier is found geometrically, so a split or replaced trunk still carries it. Never a
+    /// junction: it joins no member of its own support.
+    /// </summary>
+    BraceEnd,
 }
 
 /// <summary>
@@ -334,6 +341,8 @@ public sealed class SupportGraph
         foreach (var id in _nodes.Keys)
         {
             if (visited.Contains(id)) continue;
+            // A brace end joins only a brace, so on its own it is no support at all.
+            if (_nodes[id].Type == SupportNodeType.BraceEnd) { visited.Add(id); continue; }
             var component = Component(id);
             visited.UnionWith(component.Nodes);
             yield return component;
