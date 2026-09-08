@@ -21,18 +21,49 @@ public static class SupportBracing
     public const float CarrierTolerance = 0.05f;
     private const float Epsilon = 1e-3f;
 
-    /// <summary>One support's vertical run of trunk segments sharing an axis.</summary>
+    /// <summary>
+    /// One support's stem: the trunk from its base upward, plus any branch that continues it
+    /// within the max lean (user drawing 2026-09-09: the near-vertical branches parenting
+    /// leaves above a short trunk are what the braces climb). A polyline in Z order.
+    /// </summary>
     private sealed class Column
     {
         public required int Support { get; init; }
-        public required Vector2 Xy { get; init; }
+        /// <summary>Axis points from the bottom node up to the top node.</summary>
+        public required List<Vector3> Points { get; init; }
         /// <summary>Lowest point a brace may sit: the base top, or the lowest node.</summary>
         public required float Bottom { get; init; }
-        public required float Top { get; init; }
+        public float Top => Points[^1].Z;
+        public Vector2 Xy => new(Points[0].X, Points[0].Y);
         public required List<SupportSegment> Segments { get; init; }
         public required HashSet<Guid> SegmentIds { get; init; }
         public required List<SupportNode> Nodes { get; init; }
         public int Partners { get; set; }
+
+        /// <summary>The axis point at height <paramref name="z"/>, clamped to the stem's ends.</summary>
+        public Vector3 At(float z)
+        {
+            if (z <= Points[0].Z) return Points[0];
+            for (var i = 1; i < Points.Count; i++)
+            {
+                if (z > Points[i].Z) continue;
+                var a = Points[i - 1];
+                var b = Points[i];
+                var t = b.Z - a.Z < 1e-6f ? 1f : (z - a.Z) / (b.Z - a.Z);
+                return Vector3.Lerp(a, b, t);
+            }
+            return Points[^1];
+        }
+
+        /// <summary>Distance from <paramref name="position"/> to the stem's axis.</summary>
+        public float DistanceTo(Vector3 position)
+        {
+            var best = float.MaxValue;
+            for (var i = 1; i < Points.Count; i++)
+                best = MathF.Min(best, Vector3.Distance(position,
+                    GeometryDistance.ClosestPointOnSegment(position, Points[i - 1], Points[i])));
+            return best;
+        }
     }
 
     /// <summary>
@@ -50,7 +81,8 @@ public static class SupportBracing
         if (components.Count < 2) return null;
 
         var columns = new List<Column>();
-        for (var i = 0; i < components.Count; i++) columns.AddRange(Columns(graph, components[i].Segments, i));
+        for (var i = 0; i < components.Count; i++)
+            columns.AddRange(Columns(graph, components[i].Segments, i, settings.BracingMaxStemLeanDegrees));
         if (columns.Count < 2) return null;
 
         var minHeight = settings.BracingMinSupportHeightMm;
@@ -138,14 +170,7 @@ public static class SupportBracing
             if (braced.Contains(ia < ib ? (ia, ib) : (ib, ia))) continue;
             if (!pairOnly && (a.Partners >= settings.BracingMaxPartners || b.Partners >= settings.BracingMaxPartners)) continue;
 
-            var distance = Vector2.Distance(a.Xy, b.Xy);
-            var rise = distance * tan;
             var foot = MathF.Max(lowest, MathF.Max(a.Bottom, b.Bottom) + radius);
-            // A chosen pair too far apart for the angle gets flatter braces rather than none.
-            if (pairOnly) rise = MathF.Max(0f, MathF.Min(rise, MathF.Min(a.Top, b.Top) - radius - foot));
-            // Continuous by default: the next brace starts where the last one ended.
-            var step = settings.BracingSpacingMm > 0 ? settings.BracingSpacingMm : rise;
-            if (step < radius * 2 + Epsilon) step = MathF.Max(rise, radius * 2 + Epsilon);
             // Even pairs climb from the earlier trunk, odd pairs from the later one, so the
             // ladders alternate direction along the row.
             var fromA = k % 2 == 0;
@@ -153,10 +178,24 @@ public static class SupportBracing
             while (true)
             {
                 var (from, to) = fromA ? (a, b) : (b, a);
+                if (foot > from.Top - radius) break;
+                var startPoint = from.At(foot);
+                var gap = Vector2.Distance(new(startPoint.X, startPoint.Y), new(to.At(foot).X, to.At(foot).Y));
+                var rise = gap * tan;
+                var last = false;
+                // The rung that would overshoot the shorter stem is laid flatter to its top
+                // instead of dropped (user drawing 2026-09-09), then the ladder ends.
+                if (foot + rise > to.Top - radius)
+                {
+                    rise = to.Top - radius - foot;
+                    last = true;
+                    if (rise < radius * 2) break;
+                }
                 var head = foot + rise;
-                if (foot > from.Top - radius || head > to.Top - radius) break;
-                var startPoint = new Vector3(from.Xy, foot);
-                var endPoint = new Vector3(to.Xy, head);
+                // Continuous by default: the next brace starts where the last one ended.
+                var step = settings.BracingSpacingMm > 0 ? settings.BracingSpacingMm : rise;
+                if (step < radius * 2 + Epsilon) step = MathF.Max(rise, radius * 2 + Epsilon);
+                var endPoint = to.At(head);
                 if (Clear(scene, graph, from, to, startPoint, endPoint, radius, braceIds))
                 {
                     var footNode = EndAt(startPoint);
@@ -168,6 +207,7 @@ public static class SupportBracing
                     });
                     laid++;
                 }
+                if (last) break;
                 foot += step;
                 if (settings.BracingPattern == BracingPattern.Zigzag) fromA = !fromA;
             }
@@ -273,32 +313,56 @@ public static class SupportBracing
         return result;
     }
 
-    /// <summary>The vertical trunk runs of one support, one column per axis.</summary>
-    private static IEnumerable<Column> Columns(SupportGraph graph, IEnumerable<Guid> segmentIds, int support)
+    /// <summary>
+    /// The stems of one support: from each base, upward through the trunk and then whichever
+    /// member continues most nearly vertically, while it leans at most <paramref name="maxLean"/>
+    /// from vertical. Cones never count.
+    /// </summary>
+    private static IEnumerable<Column> Columns(SupportGraph graph, IEnumerable<Guid> segmentIds, int support, float maxLean)
     {
-        var byAxis = new Dictionary<(int, int), List<SupportSegment>>();
-        foreach (var id in segmentIds)
+        var members = new HashSet<Guid>(segmentIds);
+        var cosLimit = MathF.Cos(maxLean * MathF.PI / 180f);
+        var bases = members.SelectMany(id => new[] { graph.GetSegment(id).NodeA, graph.GetSegment(id).NodeB })
+            .Distinct().Select(graph.GetNode).Where(n => n.Type == SupportNodeType.Base)
+            .OrderBy(n => n.Id).ToList();
+        foreach (var baseNode in bases)
         {
-            var segment = graph.GetSegment(id);
-            if (segment.Type != SupportSegmentType.Trunk || segment.Disabled) continue;
-            var a = graph.GetNode(segment.NodeA).Position;
-            var b = graph.GetNode(segment.NodeB).Position;
-            if (Vector2.Distance(new(a.X, a.Y), new(b.X, b.Y)) > 0.01f) continue;
-            var key = ((int)MathF.Round(a.X * 50), (int)MathF.Round(a.Y * 50));
-            if (!byAxis.TryGetValue(key, out var list)) byAxis[key] = list = [];
-            list.Add(segment);
-        }
-        foreach (var list in byAxis.Values.OrderBy(l => l[0].Id))
-        {
-            var nodes = list.SelectMany(s => new[] { graph.GetNode(s.NodeA), graph.GetNode(s.NodeB) })
-                .DistinctBy(n => n.Id).ToList();
-            var bottom = nodes.Min(n => n.Type == SupportNodeType.Base ? n.Position.Z + n.BaseHeight : n.Position.Z);
-            var top = nodes.Max(n => n.Position.Z);
-            var first = graph.GetNode(list[0].NodeA).Position;
+            var points = new List<Vector3> { baseNode.Position };
+            var nodes = new List<SupportNode> { baseNode };
+            var segments = new List<SupportSegment>();
+            var current = baseNode;
+            while (true)
+            {
+                SupportSegment? next = null;
+                SupportNode? nextNode = null;
+                var bestCos = cosLimit;
+                foreach (var segment in graph.SegmentsAt(current.Id))
+                {
+                    if (!members.Contains(segment.Id) || segment.Disabled || segments.Contains(segment)) continue;
+                    if (segment.Type is not (SupportSegmentType.Trunk or SupportSegmentType.Branch)) continue;
+                    var other = graph.GetNode(segment.NodeA == current.Id ? segment.NodeB : segment.NodeA);
+                    if (other.Type == SupportNodeType.Tip) continue;
+                    var delta = other.Position - current.Position;
+                    var length = delta.Length();
+                    if (length < 1e-6f || delta.Z <= 0) continue;
+                    var cos = delta.Z / length;
+                    if (cos < bestCos - 1e-6f) continue;
+                    if (next is not null && MathF.Abs(cos - bestCos) <= 1e-6f && segment.Id.CompareTo(next.Id) >= 0) continue;
+                    bestCos = cos;
+                    next = segment;
+                    nextNode = other;
+                }
+                if (next is null || nextNode is null) break;
+                segments.Add(next);
+                nodes.Add(nextNode);
+                points.Add(nextNode.Position);
+                current = nextNode;
+            }
+            if (segments.Count == 0) continue;
             yield return new Column
             {
-                Support = support, Xy = new Vector2(first.X, first.Y), Bottom = bottom, Top = top,
-                Segments = list, SegmentIds = list.Select(s => s.Id).ToHashSet(), Nodes = nodes,
+                Support = support, Points = points, Bottom = baseNode.Position.Z + baseNode.BaseHeight,
+                Segments = segments, SegmentIds = segments.Select(x => x.Id).ToHashSet(), Nodes = nodes,
             };
         }
     }
@@ -306,12 +370,7 @@ public static class SupportBracing
     private static int ColumnAt(List<Column> columns, Vector3 position)
     {
         for (var i = 0; i < columns.Count; i++)
-        {
-            var column = columns[i];
-            if (Vector2.Distance(column.Xy, new Vector2(position.X, position.Y)) > CarrierTolerance) continue;
-            if (position.Z < column.Bottom - CarrierTolerance || position.Z > column.Top + CarrierTolerance) continue;
-            return i;
-        }
+            if (columns[i].DistanceTo(position) <= CarrierTolerance) return i;
         return -1;
     }
 

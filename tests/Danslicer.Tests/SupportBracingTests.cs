@@ -100,7 +100,9 @@ public sealed class SupportBracingTests
         Assert.Equal(10f, braces[0].Foot.Z, 2);
         for (var i = 0; i < braces.Count; i++)
         {
-            Assert.Equal(6f, braces[i].Head.Z - braces[i].Foot.Z, 2);
+            // Every rung rises the gap (45°) except the last, laid flatter to reach the top.
+            if (i < braces.Count - 1) Assert.Equal(6f, braces[i].Head.Z - braces[i].Foot.Z, 2);
+            else Assert.InRange(braces[i].Head.Z - braces[i].Foot.Z, 1.2f, 6.01f);
             if (i == 0) continue;
             Assert.Equal(braces[i - 1].Head, braces[i].Foot);
             Assert.NotEqual(braces[i - 1].Foot.X, braces[i].Foot.X);

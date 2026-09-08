@@ -443,8 +443,12 @@ stage 3, "runs after routing and can be rerun on its own".
   so the slice is simply the union. Brace-end nodes are not junctions: the orphan
   pruning that peels dead-end junctions ignores them, a support's tip count ignores
   them, and a trunk taken down takes its brace ends and their braces with it.
-- Braces join **trunks** — the vertical members, including the raised part of a raised
-  trunk. Branches, cones and bases are never brace ends in this cut (see "Later").
+- Braces join **stems**: the trunk from its base upward, plus whichever member continues it
+  most nearly vertically while it leans at most **Max stem lean** (default 30°) from
+  vertical — parenting leaves a short trunk with a near-vertical branch above it, and the
+  user's drawing of 2026-09-09 braces those as one member. A brace end on a leaning member
+  sits on that member's axis. Cones and bases are never brace ends; branches leaning more
+  than the limit wait for the next round (see "Later").
 - Braces slice and draw exactly like other members (capsule cross-sections, the existing
   bracing colour and the "Show bracing" display toggle), and they are obstacles for every
   later routing, guided placement and parenting pass.
@@ -485,8 +489,9 @@ For a pair the braces climb the two trunks as a ladder:
 - The first brace leaves one trunk's axis at **Lowest brace height** (default 0 = the
   Members min branch height, 10 mm) and meets the other trunk higher up at the **Brace
   angle** (default 45° from horizontal, so on a 6 mm gap the rise is 6 mm). The next brace
-  starts where that one ended and comes back, and so on until a brace would end above
-  either trunk's top or in a cone. **Brace spacing** (default 0 = continuous) sets a
+  starts where that one ended and comes back, and so on up the pair. The rung that would
+  overshoot the shorter stem is laid flatter to that stem's top instead of dropped (user
+  drawing 2026-09-09), and the ladder ends there. **Brace spacing** (default 0 = continuous) sets a
   vertical pitch instead, leaving gaps between the braces of a pair. Pattern **Zigzag**
   (default) is that alternation; **Diagonal** sends every brace the same way. No X
   bracing and no horizontal rungs (user decision 2026-09-09).
@@ -539,6 +544,7 @@ For a pair the braces climb the two trunks as a ladder:
 | Min support height | 20 mm | Only trunks at least this tall are braced. |
 | Neighbour distance | 10 mm | Max horizontal gap between braced trunks. |
 | Max brace partners | 3 | Trunks one trunk may be braced to. |
+| Max stem lean ° | 30 | A branch continuing a trunk within this lean is braced as part of it. |
 
 Zero means "use the Members value" where a Members value exists, as in Parenting. The
 defaults are a first guess to be tuned on screen (user, 2026-09-09).

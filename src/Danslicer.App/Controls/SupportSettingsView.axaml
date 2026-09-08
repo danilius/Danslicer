@@ -328,6 +328,12 @@
                     <NumericUpDown Grid.Column="1" Minimum="1" Maximum="20" Increment="1" FormatString="0"
                                    Value="{Binding SupportBracingMaxPartners, Mode=TwoWay}" />
                 </Grid>
+                <Grid Tag="supports bracing max stem lean degrees branch continues trunk" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max stem lean °" Classes="label"
+                               ToolTip.Tip="A branch continuing a trunk upward within this lean from vertical is braced as part of the trunk" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="89" Increment="5" FormatString="0"
+                                   Value="{Binding SupportBracingMaxStemLeanDegrees, Mode=TwoWay}" />
+                </Grid>
             </StackPanel>
         </Expander>
 

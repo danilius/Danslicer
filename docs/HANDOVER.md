@@ -7,14 +7,19 @@ was screen-tested by the user on 2026-09-09: checklist items 1–4 all passed. B
 (off main `9250fac`) carries the bracing work, 899 tests green, NOT merged and NOT screen-tested:
 spec `db8f32e`, Core `0198d1f`, UI `9ee0bd4`, round-trip test `c676cf8`, chain rework to the
 user's drawing `ec11f83` (pairs chain along the row, alternating direction, continuous zigzag,
-braces never block braces, two selected supports brace regardless of distance). The app runs from
+braces never block braces, two selected supports brace regardless of distance), stems
+rework (the user drew braces over the near-vertical branches parenting leaves above short
+trunks: a branch continuing a trunk within "Max stem lean" 30° is braced as part of it, and
+the rung that would overshoot the shorter stem is laid flatter to its top). The app runs from
 `src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe` after `dotnet build -c Debug`. Memory
 files (`~/.claude/projects/F--Git-Repos-Danslicer/memory/`) carry the roadmap and standing
 rules; read `MEMORY.md`. Every support rule is in `docs/SUPPORT-GEOMETRY-SPEC.md` — the new
 section "Bracing (user-approved spec, 2026-09-09)" is the contract for this branch.
 
 **Screen-test checklist for bracing** (on `test files\roof gripper T2 single and tilted
-cube.danslicer`; the probe put 67 braces on the gripper's 29 supports in 49 ms with defaults):
+cube.danslicer`; the probe put 73 braces on the gripper's 29 supports, heads up to 60 mm, with
+defaults — the saved gripper's trunks end at junctions at 1–65 mm with near-vertical branches
+above them, which is why the first cut stopped half way up):
 1. Support mode, nothing selected, K — status "Bracing: n braces added, m supports tied";
    braces draw in the bracing colour as a continuous zigzag up each pair of neighbouring
    trunks, consecutive pairs running opposite ways so a row reads as diamonds (the user's
@@ -36,6 +41,9 @@ Fix what they find on `bracing`; merging is their call.
 - Operands: the supports containing the selection, else every support of the target (one
   base per support). Each support's vertical trunk segments sharing an axis form a *column*
   (bottom = base top, top = highest trunk node).
+- A column ("stem") is a polyline from a base up the trunk and then whichever member
+  continues most nearly vertically, while it leans ≤ `BracingMaxStemLeanDegrees` (30);
+  brace ends are interpolated along it (`Column.At(z)`), cones never count.
 - Columns with top ≥ `BracingMinSupportHeightMm` (20) are walked as chains: start at the
   column with the fewest neighbours in `BracingNeighbourDistanceMm` (10), then its nearest
   unvisited neighbour, and so on; consecutive chain members are a pair. A pair already
@@ -46,7 +54,8 @@ Fix what they find on `bracing`; merging is their call.
   = foot + gap·tan(angle), next foot = previous head (`BracingSpacingMm` 0 = continuous,
   else that pitch), alternating sides (Zigzag) or not (Diagonal), until an end would pass
   top − radius. Even pairs of a chain start from their earlier trunk, odd pairs from the
-  later one. Continuous braces share their brace-end node. Each brace is a capsule test
+  later one. The rung that would overshoot the shorter stem is laid flatter to its top and
+  ends the ladder. Continuous braces share their brace-end node. Each brace is a capsule test
   against meshes + the graph, ignoring every brace, the two columns' own segments and any
   member whose joint ball the brace end sits inside.
 - **Brace ends are `SupportNodeType.BraceEnd` nodes on the trunk axis; the trunk is never

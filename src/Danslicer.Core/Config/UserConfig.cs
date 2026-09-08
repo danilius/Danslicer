@@ -301,6 +301,12 @@ public sealed record SupportConfig
     public float BracingNeighbourDistanceMm { get; set; } = 10f;
     /// <summary>How many other trunks one trunk may be braced to.</summary>
     public int BracingMaxPartners { get; set; } = 3;
+    /// <summary>
+    /// A branch continuing a trunk upward within this lean from vertical counts as part of the
+    /// trunk for bracing (user drawing 2026-09-09: braces climb the near-vertical members
+    /// parenting leaves above a short trunk).
+    /// </summary>
+    public float BracingMaxStemLeanDegrees { get; set; } = 30f;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
     /// <summary>
@@ -390,6 +396,7 @@ public sealed record SupportConfig
         BracingMinSupportHeightMm = NonNegative(BracingMinSupportHeightMm);
         BracingNeighbourDistanceMm = Positive(BracingNeighbourDistanceMm, 10f);
         BracingMaxPartners = Math.Clamp(BracingMaxPartners, 1, 20);
+        BracingMaxStemLeanDegrees = float.IsFinite(BracingMaxStemLeanDegrees) ? Math.Clamp(BracingMaxStemLeanDegrees, 0f, 89f) : 30f;
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;
