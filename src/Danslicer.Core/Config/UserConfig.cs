@@ -258,8 +258,20 @@ public sealed record SupportConfig
     public float ParentingMaxConeBend { get; set; }
     /// <summary>Branches one trunk may carry when parented; 0 = the growth rule's default (6).</summary>
     public int ParentingMaxBranchesPerTrunk { get; set; }
+    /// <summary>
+    /// Parenting builds a hierarchical tree — tips pair into junctions, junctions pair again,
+    /// one trunk carries the lot (user direction 2026-09-08 from a reference image). Off, it
+    /// joins each tip straight onto a trunk with the tree router instead.
+    /// </summary>
+    public bool ParentingHierarchical { get; set; } = true;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
+    /// <summary>
+    /// No branch joins a trunk, and no junction is made, below this height above the plate
+    /// (user decision 2026-09-08: branches may connect at almost any height, but not near the
+    /// bottom; 10 mm for now).
+    /// </summary>
+    public float MinBranchAttachHeightMm { get; set; } = 10f;
     public bool UseBaseGrid { get; set; } = true;
     public float BaseGridPitch { get; set; } = 6f;
 
@@ -320,6 +332,7 @@ public sealed record SupportConfig
         MaxBranchLength = Positive(MaxBranchLength, 8f);
         ExistingTrunkBranchRange = Positive(ExistingTrunkBranchRange, 8f);
         MinMemberSeparationMm = NonNegative(MinMemberSeparationMm);
+        MinBranchAttachHeightMm = float.IsFinite(MinBranchAttachHeightMm) ? Math.Clamp(MinBranchAttachHeightMm, 0f, 500f) : 10f;
         GuidedExistingClearanceMm = Positive(GuidedExistingClearanceMm, 2.5f);
         GuidedDensifyInsertions = Math.Clamp(GuidedDensifyInsertions, 1, 10);
         GuidedThinKeepEvery = Math.Clamp(GuidedThinKeepEvery, 2, 10);

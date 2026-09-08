@@ -118,6 +118,12 @@
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportMinMemberSeparationMm, Mode=TwoWay}" />
                 </Grid>
+                <Grid Tag="supports members minimum branch attach height above plate mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Min branch height" Classes="label"
+                               ToolTip.Tip="No branch joins a trunk, and no junction is made, below this height above the plate" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="500" Increment="1" FormatString="0.##"
+                                   Value="{Binding SupportMinBranchAttachHeightMm, Mode=TwoWay}" />
+                </Grid>
             </StackPanel>
         </Expander>
 
@@ -223,6 +229,10 @@
             <StackPanel Margin="8,2,0,6">
                 <TextBlock Text="J re-routes the selected supports together so branches share trunks. 0 = use the Members value."
                            Classes="label" TextWrapping="Wrap" Margin="0,0,0,4" />
+                <CheckBox Tag="supports parenting hierarchical tree junctions pair"
+                          Content="Hierarchical tree"
+                          ToolTip.Tip="Tips pair into junctions, junctions pair again, one trunk carries the lot. Off: each tip joins a trunk directly."
+                          IsChecked="{Binding SupportParentingHierarchical, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports parenting max branch length mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max branch length" Classes="label" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000" Increment="0.5" FormatString="0.##"

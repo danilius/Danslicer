@@ -319,6 +319,31 @@ that one re-route:
 support it had. The whole command is one undo step, named "Parent supports", and the
 status line reports "n supports → m trunks (k unchanged)".
 
+### Hierarchical tree (user direction, 2026-09-08, from a reference image)
+
+The reference shows tips pairing into junctions, junctions pairing again, and one trunk
+carrying the lot; the user's words: it should be possible to have every tip of a run on
+one trunk. The tree router only ever joins a tip straight onto a trunk, so with a steep
+branch-angle limit its branches just grow long (the 10° screen test). Parenting therefore
+builds the tree itself when **Hierarchical tree** (default on) is set:
+
+1. Every tip's cone ends at a junction, along the contact normal clamped to 45° from
+   vertical (else straight down), if clear of the model and other supports.
+2. The two junctions whose merge costs the least branch length are joined at the point
+   below them where both branches lean at most the branch angle; the new junction takes
+   their place. Repeat until nothing can merge within the length, angle, cone-bend, height
+   and clearance limits.
+3. Each surviving junction drops a trunk: straight down, or in grid mode by a branch to
+   the nearest reachable lattice point. A cluster with no clear trunk keeps its old
+   supports.
+
+Off, parenting joins each tip straight onto a trunk with the tree router, as before.
+
+**Minimum branch height** (Members, default 10 mm, user decision 2026-09-08): branches may
+connect at almost any height on a trunk, but never below this height above the plate,
+and no junction is made below it. It applies to generation, manual placement and both
+parenting modes.
+
 ### Modes
 
 - **Grid mode** (base grid on): trunks on lattice points; sharing, snapping onto trunk

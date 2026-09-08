@@ -40,6 +40,11 @@ public sealed record TreeRoutingOptions
     /// a tip on a leaning wall can reach a trunk sideways along the edge.
     /// </summary>
     public float MaxConeBendDegrees { get; init; }
+    /// <summary>
+    /// No branch attaches to a trunk below this height above the plate (user decision
+    /// 2026-09-08). Zero keeps the old rule, which only stayed above the base itself.
+    /// </summary>
+    public float MinBranchAttachHeightMm { get; init; }
 
     internal float ConeBendLimitDegrees => MaxConeBendDegrees > 0 ? MaxConeBendDegrees : MaxMemberAngleDegrees;
     /// <summary>
@@ -696,7 +701,7 @@ public sealed class TreeSupportRouter
 
         void AddCandidate(TrunkRecord trunk, float attachZ, bool raisesTrunk)
         {
-            if (attachZ < options.PlateZ + options.BaseHeight + Epsilon) return;
+            if (attachZ < options.PlateZ + MathF.Max(options.BaseHeight, options.MinBranchAttachHeightMm) + Epsilon) return;
             var attach = new Vector3(trunk.Xy.X, trunk.Xy.Y, attachZ);
             var branchLength = Vector3.Distance(j1, attach);
             if (branchLength > options.ExistingTrunkBranchRange + Epsilon) return;

@@ -141,6 +141,24 @@ public static class SupportParenting
             // Sharing is the point of parenting, so it is on in free mode too (ShareTrunks), and
             // a route that shares trunks must see the other supports as obstacles.
             ICollisionScene obstacles = new CompositeCollisionScene(meshes, SupportScene(working));
+
+            if (settings.ParentingHierarchical)
+            {
+                // Tips pair into junctions, junctions pair again, one trunk carries the lot.
+                var (edit, refusedTips) = HierarchicalParenting.Build(tips.Select(t => t.Tip).ToList(),
+                    settings, obstacles, SupportOrigin.ManualFor(targetId), seed, rangeFactor);
+                if (refusedTips.Count > 0)
+                {
+                    var before = kept.Count;
+                    foreach (var unrouted in refusedTips)
+                        foreach (var (tip, component) in tips)
+                            if (tip.SurfacePoint == unrouted.SurfacePoint) kept.Add(component);
+                    if (kept.Count > before && kept.Count < components.Count) continue;
+                    if (kept.Count == components.Count)
+                        return new Step([], [], new SupportGraphEdit([], [], []), components.Count, BaseCount(graph, targetId));
+                }
+                return Finish(edit);
+            }
             var rules = GrowthRuleSet.FromConfig(settings);
             // Aggressive parenting (user screen test 2026-09-08): a trunk may carry more branches
             // than the growth rule's default when the user asks for it.
@@ -183,6 +201,11 @@ public static class SupportParenting
                     return new Step([], [], new SupportGraphEdit([], [], []), components.Count, BaseCount(graph, targetId));
             }
 
+            return Finish(result.Edit);
+        }
+
+        Step Finish(SupportGraphEdit edit)
+        {
             var removedNodes = new HashSet<Guid>();
             var removedSegments = new HashSet<Guid>();
             for (var i = 0; i < components.Count; i++)
@@ -193,8 +216,8 @@ public static class SupportParenting
             }
             var bases = BaseCount(graph, targetId)
                 - removedNodes.Count(id => graph.GetNode(id).Type == SupportNodeType.Base)
-                + result.Edit.AddedNodes.Count(n => n.Type == SupportNodeType.Base);
-            return new Step(removedNodes, removedSegments, result.Edit, kept.Count, bases);
+                + edit.AddedNodes.Count(n => n.Type == SupportNodeType.Base);
+            return new Step(removedNodes, removedSegments, edit, kept.Count, bases);
         }
     }
 

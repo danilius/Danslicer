@@ -617,6 +617,18 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.ParentingMaxBranchesPerTrunk = Math.Clamp(value, 0, 200));
     }
 
+    public bool SupportParentingHierarchical
+    {
+        get => Supports.ParentingHierarchical;
+        set => Update(() => Supports.ParentingHierarchical = value);
+    }
+
+    public float SupportMinBranchAttachHeightMm
+    {
+        get => Supports.MinBranchAttachHeightMm;
+        set => Update(() => Supports.MinBranchAttachHeightMm = Clamp(value, 0f, 500f, 10f));
+    }
+
     public float SupportExistingTrunkBranchRange
     {
         get => Supports.ExistingTrunkBranchRange;

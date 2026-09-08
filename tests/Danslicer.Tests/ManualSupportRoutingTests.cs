@@ -197,6 +197,7 @@ public sealed class ManualSupportRoutingTests
             UseBaseGrid = true,
             BaseGridPitch = 20f,
             IndependentManualSupports = false,
+            MinBranchAttachHeightMm = 0f, // the box floats at 8 mm: the join sits below the default 10 mm floor
         };
         Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
         var originalNodes = document.Supports.Nodes.OrderBy(node => node.Id)
@@ -281,7 +282,7 @@ public sealed class ManualSupportRoutingTests
     public void AttachedManualTipHasSaneComponentVisibilityAndDeletion()
     {
         var (document, box) = FloatingBoxDocument();
-        document.SupportSettings = new SupportConfig { UseBaseGrid = true, BaseGridPitch = 20f };
+        document.SupportSettings = new SupportConfig { UseBaseGrid = true, BaseGridPitch = 20f, MinBranchAttachHeightMm = 0f };
         Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
         Assert.True(document.AddManualSupport(box, new Vector3(4, 0, 8), -Vector3.UnitZ));
         var attachedTip = document.Supports.Nodes.Single(node =>
