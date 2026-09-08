@@ -25,6 +25,9 @@ public static class HierarchicalParenting
     private const float ConeLeanLimitDegrees = 45f;
     private const float Epsilon = 1e-4f;
 
+    /// <summary>Diagnostics: why a tip or cluster was refused. Null in production.</summary>
+    public static Action<string>? Trace { get; set; }
+
     private sealed record MemberTag(int A, int B);
 
     private sealed class Node
@@ -89,6 +92,7 @@ public static class HierarchicalParenting
             }
             if (end is not { } junctionPosition || axis is not { } coneAxis)
             {
+                Trace?.Invoke($"cone refused at {tip.SurfacePoint} normal {tip.InwardSurfaceNormal}");
                 refused.Add(tip);
                 continue;
             }
@@ -116,23 +120,39 @@ public static class HierarchicalParenting
                 {
                     var a = active[i];
                     var b = active[j];
-                    if (Merge(a, b) is not { } m) continue;
-                    var cost = Vector3.Distance(a.Position, m) + Vector3.Distance(b.Position, m)
-                               + jitter.NextSingle() * 0.01f;
-                    if (cost >= bestCost) continue;
-                    if (!BranchClear(a, m) || !BranchClear(b, m)) continue;
-                    bestCost = cost;
-                    bestA = a;
-                    bestB = b;
-                    bestMerge = m;
+                    foreach (var m in MergeCandidates(a, b))
+                    {
+                        var cost = Vector3.Distance(a.Position, m) + Vector3.Distance(b.Position, m)
+                                   + jitter.NextSingle() * 0.01f;
+                        if (cost >= bestCost) continue;
+                        // Members meeting at a shared junction are not obstacles to each other.
+                        var hostIndex = AtNode(a, m) ? a.Index : AtNode(b, m) ? b.Index : -1;
+                        if (!AtNode(a, m) && !BranchClear(a, m, hostIndex)) continue;
+                        if (!AtNode(b, m) && !BranchClear(b, m, hostIndex)) continue;
+                        bestCost = cost;
+                        bestA = a;
+                        bestB = b;
+                        bestMerge = m;
+                        break;
+                    }
                 }
-            if (bestA is null || bestB is null) break;
+            if (bestA is null || bestB is null)
+            {
+                if (Trace is not null && active.Count > 1)
+                    for (var i = 0; i < active.Count; i++)
+                        for (var j = i + 1; j < active.Count; j++)
+                            Trace(WhyNot(active[i], active[j]));
+                break;
+            }
 
-            var merged = new SupportNode { Type = SupportNodeType.Junction, Position = bestMerge, Origin = origin };
-            addedNodes.Add(merged);
-            var index = nextIndex++;
+            // Joining at one junction's own position reuses that junction; otherwise a new one.
+            var host = AtNode(bestA, bestMerge) ? bestA : AtNode(bestB, bestMerge) ? bestB : null;
+            var merged = host?.Graph ?? new SupportNode { Type = SupportNodeType.Junction, Position = bestMerge, Origin = origin };
+            if (host is null) addedNodes.Add(merged);
+            var index = host?.Index ?? nextIndex++;
             foreach (var child in new[] { bestA, bestB })
             {
+                if (ReferenceEquals(child, host)) continue;
                 addedSegments.Add(new SupportSegment
                 {
                     Type = SupportSegmentType.Branch, NodeA = child.Graph.Id, NodeB = merged.Id,
@@ -152,7 +172,9 @@ public static class HierarchicalParenting
         // Stage 3: a trunk under every surviving junction.
         foreach (var node in active)
         {
-            if (!DropTrunk(node)) refused.AddRange(node.Tips.Select(t => tips[t]));
+            if (DropTrunk(node)) continue;
+            Trace?.Invoke($"trunk failed for cluster of {node.Tips.Count} at {node.Position}");
+            refused.AddRange(node.Tips.Select(t => tips[t]));
         }
 
         // A refused tip's elements are withdrawn: the caller keeps its old support instead.
@@ -165,16 +187,57 @@ public static class HierarchicalParenting
         }
         return (new SupportGraphEdit(addedNodes, addedSegments, []), refused);
 
-        Vector3? Merge(Node a, Node b)
+        // Two ways to join a pair, and the one that stays highest wins, because height is what
+        // later merges spend: a junction under the midpoint (both branches lean equally), or the
+        // higher junction sending a branch down into the lower one's own position — which costs
+        // the lower cluster no height at all, and is how a long run on a sloping edge ends up on
+        // one trunk (the reference image, 2026-09-08).
+        IEnumerable<Vector3> MergeCandidates(Node a, Node b)
         {
             var horizontal = Vector2.Distance(new(a.Position.X, a.Position.Y), new(b.Position.X, b.Position.Y));
+            var lower = a.Position.Z <= b.Position.Z ? a : b;
+            var higher = ReferenceEquals(lower, a) ? b : a;
+
             var mid = (a.Position + b.Position) * 0.5f;
-            var drop = MathF.Max(horizontal * 0.5f / tan, 0.5f);
-            var m = new Vector3(mid.X, mid.Y, MathF.Min(a.Position.Z, b.Position.Z) - drop);
-            if (m.Z < minZ) return null;
-            if (Vector3.Distance(a.Position, m) > maxLength || Vector3.Distance(b.Position, m) > maxLength) return null;
-            if (Bend(a, m) > coneBend || Bend(b, m) > coneBend) return null;
-            return m;
+            var midpoint = new Vector3(mid.X, mid.Y, MathF.Min(a.Position.Z, b.Position.Z) - MathF.Max(horizontal * 0.5f / tan, 0.5f));
+            // At the lower junction itself when the higher one's branch fits the angle from
+            // there; otherwise directly below it, as far down as that branch needs.
+            var intoLower = new Vector3(lower.Position.X, lower.Position.Y,
+                MathF.Min(lower.Position.Z, higher.Position.Z - horizontal / tan));
+
+            foreach (var m in new[] { intoLower, midpoint }.OrderByDescending(p => p.Z))
+            {
+                if (m.Z < minZ) continue;
+                if (Vector3.Distance(a.Position, m) > maxLength || Vector3.Distance(b.Position, m) > maxLength) continue;
+                if (Bend(a, m) > coneBend || Bend(b, m) > coneBend) continue;
+                yield return m;
+            }
+        }
+
+        static bool AtNode(Node node, Vector3 m) => Vector3.DistanceSquared(node.Position, m) < Epsilon * Epsilon;
+
+        string WhyNot(Node a, Node b)
+        {
+            var horizontal = Vector2.Distance(new(a.Position.X, a.Position.Y), new(b.Position.X, b.Position.Y));
+            var lower = a.Position.Z <= b.Position.Z ? a : b;
+            var higher = ReferenceEquals(lower, a) ? b : a;
+            var mid = (a.Position + b.Position) * 0.5f;
+            var midpoint = new Vector3(mid.X, mid.Y, MathF.Min(a.Position.Z, b.Position.Z) - MathF.Max(horizontal * 0.5f / tan, 0.5f));
+            var intoLower = new Vector3(lower.Position.X, lower.Position.Y, MathF.Min(lower.Position.Z, higher.Position.Z - horizontal / tan));
+            var reasons = new List<string>();
+            foreach (var (name, m) in new[] { ("intoLower", intoLower), ("midpoint", midpoint) })
+            {
+                if (m.Z < minZ) { reasons.Add($"{name}: z {m.Z:0.0} < min {minZ:0.0}"); continue; }
+                var la = Vector3.Distance(a.Position, m); var lb = Vector3.Distance(b.Position, m);
+                if (la > maxLength || lb > maxLength) { reasons.Add($"{name}: length {la:0.0}/{lb:0.0} > {maxLength}"); continue; }
+                var ba = Bend(a, m) * 180 / MathF.PI; var bb = Bend(b, m) * 180 / MathF.PI;
+                if (Bend(a, m) > coneBend || Bend(b, m) > coneBend) { reasons.Add($"{name}: bend {ba:0}/{bb:0} > {coneBend * 180 / MathF.PI:0}"); continue; }
+                var hostIndex = AtNode(a, m) ? a.Index : AtNode(b, m) ? b.Index : -1;
+                var ca = AtNode(a, m) || BranchClear(a, m, hostIndex);
+                var cb = AtNode(b, m) || BranchClear(b, m, hostIndex);
+                reasons.Add($"{name}: clear {ca}/{cb}");
+            }
+            return $"pair {a.Tips.Count}t@{a.Position:0.0} / {b.Tips.Count}t@{b.Position:0.0} hd {horizontal:0.0}: {string.Join("; ", reasons)}";
         }
 
         static float Bend(Node node, Vector3 m)
@@ -185,9 +248,11 @@ public static class HierarchicalParenting
             return MathF.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(incoming), Vector3.Normalize(d)), -1f, 1f));
         }
 
-        bool BranchClear(Node from, Vector3 to) =>
+        bool BranchClear(Node from, Vector3 to, int alsoExclude = -1) =>
             !scene.IntersectsCapsule(from.Position, to, branchRadius,
-                tag => tag is not MemberTag member || (member.A != from.Index && member.B != from.Index));
+                tag => tag is not MemberTag member ||
+                       (member.A != from.Index && member.B != from.Index &&
+                        member.A != alsoExclude && member.B != alsoExclude));
 
         bool DropTrunk(Node node)
         {
@@ -196,6 +261,18 @@ public static class HierarchicalParenting
             if (settings.UseBaseGrid)
                 tops.AddRange(BaseLattice.NearestSquarePoints(xy, settings.BaseGridPitch, maxLength)
                     .Where(p => Vector2.Distance(p, xy) > Epsilon));
+            else
+            {
+                // A straight drop under a leaning model hits the model: fan out, nearest reach
+                // first, so the trunk stands where the column down to the plate is clear.
+                var reach = MathF.Min(maxLength, node.Position.Z - minZ) * MathF.Sin(angle);
+                foreach (var fraction in new[] { 0.15f, 0.3f, 0.5f, 0.75f, 1f })
+                    for (var k = 0; k < 12; k++)
+                    {
+                        var a = k * MathF.Tau / 12f + seed * 0.1f;
+                        tops.Add(xy + new Vector2(MathF.Cos(a), MathF.Sin(a)) * reach * fraction);
+                    }
+            }
             foreach (var top in tops)
             {
                 var horizontal = Vector2.Distance(top, xy);

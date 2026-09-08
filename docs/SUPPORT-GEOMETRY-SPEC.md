@@ -329,10 +329,18 @@ builds the tree itself when **Hierarchical tree** (default on) is set:
 
 1. Every tip's cone ends at a junction, along the contact normal clamped to 45° from
    vertical (else straight down), if clear of the model and other supports.
-2. The two junctions whose merge costs the least branch length are joined at the point
-   below them where both branches lean at most the branch angle; the new junction takes
-   their place. Repeat until nothing can merge within the length, angle, cone-bend, height
-   and clearance limits.
+2. The two junctions whose merge costs the least branch length are joined, either at a
+   new junction under their midpoint where both branches lean at most the branch angle, or
+   by the higher junction sending a branch straight into the lower junction's own position
+   (or directly below it, as far as that branch's angle needs). Whichever stays highest
+   wins, because height is what later merges spend; the into-the-lower form is how a long
+   run on a sloping edge ends up on one trunk. Repeat until nothing can merge within the
+   length, angle, cone-bend, height and clearance limits.
+   *Probe, roof gripper lower edge, 44 tips over a 64 mm rise, 2026-09-08:* at 45° four
+   trees, at 60° one tree, plus the six lowest tips as singles — a tip whose cone would end
+   under the 10 mm floor cannot have a junction at all, and a pair whose merge point would
+   fall under the floor cannot join. The floor and the branch angle are the remaining
+   limits, and both are the user's settings.
 3. Each surviving junction drops a trunk: straight down, or in grid mode by a branch to
    the nearest reachable lattice point. A cluster with no clear trunk keeps its old
    supports.
