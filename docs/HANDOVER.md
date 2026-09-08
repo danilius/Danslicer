@@ -5,17 +5,22 @@
 **Single-session work (Claude implementing directly, user screen-testing live).** Auto-parenting
 was screen-tested by the user on 2026-09-09: checklist items 1–4 all passed. Branch **`bracing`**
 (off main `9250fac`) carries the bracing work, 899 tests green, NOT merged and NOT screen-tested:
-spec `db8f32e`, Core `0198d1f`, UI `9ee0bd4`, round-trip test `c676cf8`. The app runs from
+spec `db8f32e`, Core `0198d1f`, UI `9ee0bd4`, round-trip test `c676cf8`, chain rework to the
+user's drawing `ec11f83` (pairs chain along the row, alternating direction, continuous zigzag,
+braces never block braces, two selected supports brace regardless of distance). The app runs from
 `src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe` after `dotnet build -c Debug`. Memory
 files (`~/.claude/projects/F--Git-Repos-Danslicer/memory/`) carry the roadmap and standing
 rules; read `MEMORY.md`. Every support rule is in `docs/SUPPORT-GEOMETRY-SPEC.md` — the new
 section "Bracing (user-approved spec, 2026-09-09)" is the contract for this branch.
 
 **Screen-test checklist for bracing** (on `test files\roof gripper T2 single and tilted
-cube.danslicer`; the probe put 27 braces on the gripper's 29 supports in 41 ms with defaults):
+cube.danslicer`; the probe put 67 braces on the gripper's 29 supports in 49 ms with defaults):
 1. Support mode, nothing selected, K — status "Bracing: n braces added, m supports tied";
-   braces draw in the bracing colour between neighbouring trunks as a zigzag ladder, and no
-   trunk is split (select a trunk: still one segment base to top).
+   braces draw in the bracing colour as a continuous zigzag up each pair of neighbouring
+   trunks, consecutive pairs running opposite ways so a row reads as diamonds (the user's
+   drawing of 2026-09-09), and no trunk is split (select a trunk: still one segment).
+1b. Select exactly two supports, K — just those two are braced, even far apart or with
+   another trunk between them.
 2. K again — "no brace fits" and nothing changes. One undo removes every brace.
 3. Select a few supports, K — only those get braces. Shift+K — their braces go, one undo.
 4. "Select braces" button (Supports pop-out) or Object > Select Braces — only braces selected;
@@ -31,15 +36,19 @@ Fix what they find on `bracing`; merging is their call.
 - Operands: the supports containing the selection, else every support of the target (one
   base per support). Each support's vertical trunk segments sharing an axis form a *column*
   (bottom = base top, top = highest trunk node).
-- Pairs of columns of different supports, both tops ≥ `BracingMinSupportHeightMm` (20),
-  axis gap ≤ `BracingNeighbourDistanceMm` (10) and > trunk diameter, nearest first. A pair
-  already tied by a brace is skipped (idempotent); a column at `BracingMaxPartners` (3) is
-  skipped.
+- Columns with top ≥ `BracingMinSupportHeightMm` (20) are walked as chains: start at the
+  column with the fewest neighbours in `BracingNeighbourDistanceMm` (10), then its nearest
+  unvisited neighbour, and so on; consecutive chain members are a pair. A pair already
+  tied by a brace is skipped (idempotent); a column at `BracingMaxPartners` (3) is skipped.
+  With `chosen` (an explicit selection) and exactly two supports, distance, partners and
+  other supports are ignored and the rise is flattened to fit.
 - Ladder: foot at max(`BracingLowestHeightMm` or min branch height, bottoms + radius), head
-  = foot + gap·tan(angle), then up by `BracingSpacingMm` (15), alternating sides (Zigzag)
-  or not (Diagonal), until an end would pass top − radius. Each brace is a capsule test
-  against meshes + the whole graph + braces laid this run, ignoring the two columns' own
-  segments and any member whose joint ball the brace end sits inside.
+  = foot + gap·tan(angle), next foot = previous head (`BracingSpacingMm` 0 = continuous,
+  else that pitch), alternating sides (Zigzag) or not (Diagonal), until an end would pass
+  top − radius. Even pairs of a chain start from their earlier trunk, odd pairs from the
+  later one. Continuous braces share their brace-end node. Each brace is a capsule test
+  against meshes + the graph, ignoring every brace, the two columns' own segments and any
+  member whose joint ball the brace end sits inside.
 - **Brace ends are `SupportNodeType.BraceEnd` nodes on the trunk axis; the trunk is never
   split.** The carrier is found geometrically (`SupportBracing.CarrierOf`, 0.05 mm off the
   axis), so a split or replaced trunk still carries them. `SupportGraph.Supports()` skips
