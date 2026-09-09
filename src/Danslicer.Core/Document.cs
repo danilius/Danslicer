@@ -841,6 +841,65 @@ public sealed class Document
     }
 
     /// <summary>
+    /// Applies the current support settings to the selected elements (user, 2026-09-09: editing
+    /// a setting with supports selected changes those supports at once). Only what an element
+    /// carries as its own parameter changes: a tip's diameter, cone, ball and embedding; a
+    /// base's shape and sizes; a trunk's, branch's or brace's diameter. Nothing is re-routed.
+    /// Returns the number of elements changed; one undo step, none when nothing differs.
+    /// </summary>
+    public int ApplySupportSettingsToSelection()
+    {
+        if (_supportSelection.Count == 0) return 0;
+        var settings = SupportSettings;
+        var entries = new List<SetSupportParametersCommand.Entry>();
+        var changed = 0;
+
+        void Field<T>(T current, T target, Action<T> set) where T : IEquatable<T>
+        {
+            if (current.Equals(target)) return;
+            entries.Add(new SetSupportParametersCommand.Entry(() => set(target), () => set(current)));
+        }
+
+        foreach (var id in _supportSelection)
+        {
+            var before = entries.Count;
+            if (Supports.TryGetNode(id, out var node))
+            {
+                if (node.Type == SupportNodeType.Tip)
+                {
+                    Field(node.TipDiameter, settings.TipDiameter, v => node.TipDiameter = v);
+                    Field(node.ConeLength, settings.ConeLength, v => node.ConeLength = v);
+                    Field(node.BallDiameter, settings.BallDiameter, v => node.BallDiameter = v);
+                    Field(node.PenetrationDepth, settings.PenetrationDepth, v => node.PenetrationDepth = v);
+                }
+                else if (node.Type == SupportNodeType.Base)
+                {
+                    Field((int)node.BaseShape, (int)settings.BaseShape, v => node.BaseShape = (SupportBaseShape)v);
+                    Field(node.BaseDiameter, settings.BaseDiameter, v => node.BaseDiameter = v);
+                    Field(node.BaseHeight, settings.BaseHeight, v => node.BaseHeight = v);
+                    Field(node.BaseConeHeight, settings.BaseConeHeight, v => node.BaseConeHeight = v);
+                }
+            }
+            else if (Supports.TryGetSegment(id, out var segment))
+            {
+                var diameter = segment.Type switch
+                {
+                    SupportSegmentType.Trunk => settings.TrunkDiameter,
+                    SupportSegmentType.Branch => settings.BranchDiameter,
+                    SupportSegmentType.Bracing => settings.BracingDiameter > 0 ? settings.BracingDiameter : settings.BranchDiameter,
+                    _ => (float?)null, // a tip segment takes its section from the cone, not its own diameter
+                };
+                if (diameter is { } d) Field(segment.Diameter, d, v => segment.Diameter = v);
+            }
+            if (entries.Count > before) changed++;
+        }
+
+        if (entries.Count == 0) return 0;
+        Execute(new SetSupportParametersCommand(Supports, entries));
+        return changed;
+    }
+
+    /// <summary>
     /// Routes the support a T placement at this contact would add, without adding it: the ghost
     /// the placement mode shows under the cursor (user note 2026-09-08). Null when the model is
     /// not the support target or no route exists; the same call, applied, is exactly what

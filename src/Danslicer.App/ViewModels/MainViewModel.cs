@@ -603,6 +603,9 @@ public partial class MainViewModel : ViewModelBase
             Document.SupportSettings = AppConfig.Current.Supports;
             RefreshPrinterOptions();
             SupportSettings.Resins.Refresh();
+            // With supports selected, the edit lands on them at once (user, 2026-09-09).
+            var applied = Document.ApplySupportSettingsToSelection();
+            if (applied > 0) ViewportStatus = applied == 1 ? "Settings applied to 1 selected element" : $"Settings applied to {applied} selected elements";
             // The viewport draws from these settings too (base lattice markers): repaint now.
             Document.NotifySettingsChanged();
         };
