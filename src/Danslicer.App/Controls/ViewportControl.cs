@@ -1637,6 +1637,8 @@ public sealed class ViewportControl : OpenGlControlBase
     // the cursor; where no support can be placed, nothing is shown.
 
     private static readonly Vector3 PlacementGhostColor = new(0.55f, 0.95f, 1f);
+    /// <summary>A red tip alone says "nothing can go here" without leaving the mode silent (user, 2026-09-09).</summary>
+    private static readonly Vector3 PlacementRefusedColor = new(1f, 0.25f, 0.2f);
     private const float PlacementGhostOpacity = 0.45f;
     /// <summary>Cursor travel on the surface below which the ghost is not re-routed.</summary>
     private const float PlacementGhostStepMm = 0.15f;
@@ -1698,12 +1700,18 @@ public sealed class ViewportControl : OpenGlControlBase
         var hit = PickSurface(mouse, out _, out var point, out var normal);
         if (hit is null)
         {
-            if (_placementGhost.Count > 0 || _placementRefusal is not null)
-            {
-                ClearPlacementGhost();
-                UpdateStatus();
-                Redraw();
-            }
+            // Off the model the mode still shows: a red tip hangs where the cursor meets the
+            // plate, or a little way down the view ray when it misses the plate too.
+            var ray = Camera.ScreenToRay(mouse.X, mouse.Y, (float)Bounds.Width, (float)Bounds.Height);
+            var t = MathF.Abs(ray.Direction.Z) > 1e-5f ? -ray.Origin.Z / ray.Direction.Z : -1f;
+            point = t > 0f ? ray.At(t) : ray.At(Camera.Distance);
+            normal = -Vector3.UnitZ;
+            if (_placementGhostPoint is { } lastOff && Vector3.Distance(lastOff, point) < PlacementGhostStepMm) return;
+            _placementGhostPoint = point;
+            _placementRefusal = "no model under the cursor";
+            ShowRefusedTip(point, normal);
+            UpdateStatus();
+            Redraw();
             return;
         }
         if (_placementGhostPoint is { } last && Vector3.Distance(last, point) < PlacementGhostStepMm) return;
@@ -1729,8 +1737,46 @@ public sealed class ViewportControl : OpenGlControlBase
                     _placementGhost.Add(new AuxMeshDraw(part.Mesh, PlacementGhostColor, PlacementGhostOpacity));
             }
         }
+        if (_placementRefusal is not null) ShowRefusedTip(point, normal);
         UpdateStatus();
         Redraw();
+    }
+
+    /// <summary>
+    /// The ghost when nothing can be placed: just the tip cone, red, at the cursor's contact
+    /// (or the free point below the cursor), built at the current tip settings so it reads as
+    /// the same tip the cyan ghost would have carried.
+    /// </summary>
+    private void ShowRefusedTip(Vector3 point, Vector3 outwardNormal)
+    {
+        if (Document is null) return;
+        _placementGhost.Clear();
+        var settings = Document.SupportSettings;
+        var ghost = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = point,
+            SurfaceNormal = outwardNormal,
+            TipShape = SupportTipShape.Cone,
+            ConeLength = settings.ConeLength,
+            TipDiameter = settings.TipDiameter,
+            BallDiameter = settings.BallDiameter,
+        };
+        // The cone runs along the outward normal, as a placed cone would before any clamp.
+        var junction = new SupportNode
+        {
+            Type = SupportNodeType.Junction,
+            Position = point + Vector3.Normalize(outwardNormal) * settings.ConeLength,
+        };
+        ghost.AddNode(tip);
+        ghost.AddNode(junction);
+        ghost.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = settings.TipDiameter,
+        });
+        foreach (var part in SupportRenderMesh.Build(ghost))
+            _placementGhost.Add(new AuxMeshDraw(part.Mesh, PlacementRefusedColor, PlacementGhostOpacity + 0.2f));
     }
 
     // ----- Support edit mode (Space with a support selected) -----
@@ -2716,7 +2762,7 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_placementMode)
         {
             var refused = _placementRefusal is { } reason ? $"{reason} · " : "";
-            StatusText = $"Place supports: {refused}click to place the ghosted support · nothing shows where none fits · RMB/T/Esc leave";
+            StatusText = $"Place supports: {refused}click to place the ghosted support · a red tip means nothing fits here · RMB/T/Esc leave";
             return;
         }
         if (_editDrag is { } editDrag)
