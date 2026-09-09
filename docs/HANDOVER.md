@@ -4,9 +4,9 @@
 
 The user passed branch 11 on screen and approved the merge: `integration-2026-09-09` (the
 twelve branches below plus two more) went into main as one merge and was pushed. Branch 8
-(`slicer-chain-recovery`) was merged without the gripper slice check; do that slice when
-convenient (no empty layers near 5.8 mm and 69 mm). The feature branches still exist locally;
-delete them once the user confirms. Next: **rafts** (spec section first, get it approved).
+(`slicer-chain-recovery`) was slice-checked by the user afterwards: fine. The fourteen feature
+branches and the integration branch are deleted. Next: **rafts** (spec section first, get it
+approved).
 
 Two branches added after the end-of-day section, both user-passed on screen:
 
