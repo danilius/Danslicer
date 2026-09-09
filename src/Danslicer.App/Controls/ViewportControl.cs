@@ -1799,7 +1799,8 @@ public sealed class ViewportControl : OpenGlControlBase
     private Vector3 _editDragAnchor;
     /// <summary>One gizmo per handle, rebuilt each frame (user, 2026-09-09: X/Y on base and trunk, XYZ on junctions and tips).</summary>
     private readonly List<(SupportHandle Handle, Gizmo Gizmo)> _editGizmos = new();
-    private const float EditGizmoPixels = 48f;
+    private static float EditGizmoPixels => Configuration.AppConfig.Current.Viewport.SupportGizmoSizePixels;
+    private static float EditGizmoLineWidth => Configuration.AppConfig.Current.Viewport.SupportGizmoLineWidth;
     private bool _editFollowingSelection;
 
     public bool IsEditingSupport => _editSupport is not null;
@@ -1885,7 +1886,9 @@ public sealed class ViewportControl : OpenGlControlBase
         while (_editGizmos.Count > handles.Count) _editGizmos.RemoveAt(_editGizmos.Count - 1);
         for (var i = 0; i < handles.Count; i++)
         {
-            var gizmo = i < _editGizmos.Count ? _editGizmos[i].Gizmo : new Gizmo { PixelSize = EditGizmoPixels };
+            var gizmo = i < _editGizmos.Count ? _editGizmos[i].Gizmo : new Gizmo();
+            gizmo.PixelSize = EditGizmoPixels;
+            gizmo.LineWidth = EditGizmoLineWidth;
             gizmo.ShowZ = handles[i].Kind is SupportHandleKind.Junction or SupportHandleKind.Tip;
             gizmo.Update(Camera, new Aabb(handles[i].Position, handles[i].Position), height);
             var active = _editDrag == handles[i] ? _editDragAxis
@@ -2044,9 +2047,9 @@ public sealed class ViewportControl : OpenGlControlBase
                 _ => EditTrunkColor,
             };
             var p = handle.Position;
-            var size = ContactMarkerHalfSize(p);
-            lines.Add(new OverlayLine(p - Camera.Right * size, p + Camera.Right * size, colour));
-            lines.Add(new OverlayLine(p - Camera.Up * size, p + Camera.Up * size, colour));
+            var size = ContactMarkerHalfSize(p) * 1.5f;
+            lines.Add(new OverlayLine(p - Camera.Right * size, p + Camera.Right * size, colour, EditGizmoLineWidth));
+            lines.Add(new OverlayLine(p - Camera.Up * size, p + Camera.Up * size, colour, EditGizmoLineWidth));
             gizmo.AppendLines(Camera, lines);
         }
     }

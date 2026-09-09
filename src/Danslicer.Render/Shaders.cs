@@ -209,6 +209,39 @@ internal static class Shaders
         }
         """;
 
+    /// <summary>
+    /// Expands a segment to a pixel width on screen: both ends go to clip space, the screen
+    /// direction between them gives the perpendicular, and the vertex steps sideways by its
+    /// signed half-width in pixels. Shares <see cref="LineFragment"/>.
+    /// </summary>
+    public const string WideLineVertex = """
+        layout(location = 0) in vec3 aPosition;
+        layout(location = 1) in vec3 aOther;
+        layout(location = 2) in float aSide;
+        layout(location = 3) in vec4 aColor;
+
+        uniform mat4 uViewProjection;
+        uniform vec2 uViewport; // width, height in pixels
+
+        out vec4 vColor;
+        out vec3 vWorldPosition;
+
+        void main()
+        {
+            vColor = aColor;
+            vWorldPosition = aPosition;
+            vec4 self = uViewProjection * vec4(aPosition, 1.0);
+            vec4 other = uViewProjection * vec4(aOther, 1.0);
+            vec2 selfScreen = self.xy / max(self.w, 1e-5) * uViewport * 0.5;
+            vec2 otherScreen = other.xy / max(other.w, 1e-5) * uViewport * 0.5;
+            vec2 dir = otherScreen - selfScreen;
+            float len = length(dir);
+            vec2 normal = len > 1e-4 ? vec2(-dir.y, dir.x) / len : vec2(0.0, 1.0);
+            vec2 offset = normal * aSide / (uViewport * 0.5) * self.w;
+            gl_Position = self + vec4(offset, 0.0, 0.0);
+        }
+        """;
+
     public const string LineFragment = """
         in vec4 vColor;
         in vec3 vWorldPosition;

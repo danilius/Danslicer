@@ -27,6 +27,8 @@ public sealed class Gizmo
     public float PixelSize { get; set; } = 90f;
     /// <summary>False leaves out the Z arrow and the two vertical plane squares: an X/Y gizmo.</summary>
     public bool ShowZ { get; set; } = true;
+    /// <summary>Stroke width in pixels; 1 is a hairline.</summary>
+    public float LineWidth { get; set; } = 1f;
     private const int RingSegments = 64;
 
     public bool ShowMove { get; set; } = true;
@@ -202,7 +204,7 @@ public sealed class Gizmo
         foreach (var (handle, a, b, color) in Segments(camera))
         {
             var lit = handle == Active || (Active == GizmoHandle.None && handle == Hovered);
-            lines.Add(new OverlayLine(a, b, lit ? highlight : color));
+            lines.Add(new OverlayLine(a, b, lit ? highlight : color, LineWidth));
         }
     }
 

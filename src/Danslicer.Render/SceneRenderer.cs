@@ -93,6 +93,7 @@ public sealed partial class SceneRenderer : IDisposable
     private readonly GL _gl;
     private readonly ShaderProgram _meshShader;
     private readonly ShaderProgram _lineShader;
+    private readonly ShaderProgram _wideLineShader;
     private readonly ShaderProgram _wireShader;
     private readonly LineBatch _depthLines;
     private readonly LineBatch _overlayLines;
@@ -116,6 +117,7 @@ public sealed partial class SceneRenderer : IDisposable
         var preamble = Shaders.Preamble(IsGles);
         _meshShader = new ShaderProgram(_gl, preamble + Shaders.MeshVertex, preamble + Shaders.MeshFragment);
         _lineShader = new ShaderProgram(_gl, preamble + Shaders.LineVertex, preamble + Shaders.LineFragment);
+        _wideLineShader = new ShaderProgram(_gl, preamble + Shaders.WideLineVertex, preamble + Shaders.LineFragment);
         _wireShader = new ShaderProgram(_gl, preamble + Shaders.WireVertex, preamble + Shaders.WireFragment);
         _depthLines = new LineBatch(_gl);
         _overlayLines = new LineBatch(_gl);
@@ -391,15 +393,28 @@ public sealed partial class SceneRenderer : IDisposable
         foreach (var line in frame.DepthOverlay) _depthLines.Add(line);
         BindClip(_lineShader, frame.ClipRange);
         _depthLines.Draw();
+        DrawWide(_depthLines, frame, viewProjection, frame.ClipRange);
 
         gl.Disable(EnableCap.DepthTest);
         _overlayLines.Clear();
         foreach (var line in frame.Overlay) _overlayLines.Add(line);
+        _lineShader.Use();
         BindClip(_lineShader, default);
         _overlayLines.Draw();
+        DrawWide(_overlayLines, frame, viewProjection, default);
 
         gl.Enable(EnableCap.DepthTest);
         gl.Disable(EnableCap.Blend);
+    }
+
+    private void DrawWide(LineBatch batch, RenderFrame frame, in Matrix4x4 viewProjection, ViewportClipRange clip)
+    {
+        if (!batch.HasWide) return;
+        _wideLineShader.Use();
+        _wideLineShader.Set("uViewProjection", viewProjection);
+        _wideLineShader.Set("uViewport", new Vector2(frame.Width, frame.Height));
+        BindClip(_wideLineShader, clip);
+        batch.DrawWide();
     }
 
     private static void BindClip(ShaderProgram shader, ViewportClipRange clip)
@@ -474,6 +489,7 @@ public sealed partial class SceneRenderer : IDisposable
         _overlayLines.Dispose();
         _meshShader.Dispose();
         _lineShader.Dispose();
+        _wideLineShader.Dispose();
         _wireShader.Dispose();
     }
 }
