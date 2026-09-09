@@ -1,6 +1,14 @@
 ﻿# Danslicer handover
 
-## STATE 2026-09-10 small hours — lip reworked, T crash fixed, snapping open (supersedes everything below)
+## STATE 2026-09-10 — ALL MERGED (supersedes everything below)
+
+main is `cdaa37f`, pushed: rafts (spec + feature, outside lip, Delaunay web), position fields
+on the bounding box, tooltips, the T-ghost crash fix; 965 tests. The five branches and the
+integration branch are deleted. Only `grid-routing-prototype` (in the Danslicer-chatgpt
+worktree) and `view-cube-drag-orbit` remain, both unmerged and old. Next: braces to branches
+(spec "Bracing › Later"), manual bracing, then the rest of the notes.
+
+## STATE 2026-09-10 small hours — lip reworked, T crash fixed, snapping open (superseded by the section above)
 
 Branches unmerged, in merge order: `rafts-spec` → `rafts` (+ ebfb13e: the scraper lip is on
 the raft's OUTSIDE only and wider at the top than the bottom, so a scraper slides under it;
