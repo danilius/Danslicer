@@ -1,21 +1,10 @@
-namespace Danslicer.Core.Supports.Rafts;
+﻿namespace Danslicer.Core.Supports.Rafts;
 
 /// <summary>Plate: one filled silhouette of the feet. Web: a disc per foot joined by flat bars.</summary>
 public enum RaftType
 {
     Plate = 0,
     Web = 1,
-}
-
-/// <summary>
-/// How a Web raft finds each foot's immediate neighbours (user, 2026-09-09: both to be tested
-/// on screen). Rays: rays in the plate plane, the first disc each hits is a neighbour, so a foot
-/// hidden behind a nearer one is not. Delaunay: every edge of the feet's triangulation.
-/// </summary>
-public enum RaftNeighbourRule
-{
-    Rays = 0,
-    Delaunay = 1,
 }
 
 /// <summary>
@@ -28,15 +17,16 @@ public sealed record RaftParameters
     public RaftType Type { get; init; } = RaftType.Plate;
     /// <summary>Height of the raft on the plate.</summary>
     public float Thickness { get; init; } = 1f;
-    /// <summary>Slope of the raft's edge; 90 = vertical.</summary>
+    /// <summary>
+    /// Angle from vertical of the scraper lip on the raft's outside: the top overhangs the plate
+    /// footprint by Thickness / tan(angle), so the bottom is narrower than the top (user,
+    /// 2026-09-09). 90 = no lip.
+    /// </summary>
     public float EdgeAngleDegrees { get; init; } = 45f;
     /// <summary>Disc under each foot (Web), and each foot's footprint for the Plate silhouette.</summary>
     public float DiscDiameter { get; init; } = 5f;
     /// <summary>Width of the flat bars between neighbouring feet (Web).</summary>
     public float BarWidth { get; init; } = 4f;
-    public RaftNeighbourRule Neighbours { get; init; } = RaftNeighbourRule.Rays;
-    /// <summary>Angular step of the rays (Web, Rays).</summary>
-    public float RayStepDegrees { get; init; } = 5f;
     /// <summary>Bars longer than this are not laid; 0 = no limit (Web).</summary>
     public float MaxBarLength { get; init; } = 15f;
     /// <summary>How far the plate extends beyond the outermost feet (Plate).</summary>
@@ -53,7 +43,6 @@ public sealed record RaftParameters
         EdgeAngleDegrees = float.IsFinite(EdgeAngleDegrees) ? Math.Clamp(EdgeAngleDegrees, 5f, 90f) : 45f,
         DiscDiameter = Sane(DiscDiameter, 0.1f, 5f),
         BarWidth = Sane(BarWidth, 0.1f, 4f),
-        RayStepDegrees = float.IsFinite(RayStepDegrees) ? Math.Clamp(RayStepDegrees, 0.5f, 90f) : 5f,
         MaxBarLength = float.IsFinite(MaxBarLength) ? MathF.Max(0f, MaxBarLength) : 15f,
         Margin = float.IsFinite(Margin) ? MathF.Max(0f, Margin) : 2f,
         BridgingDistance = float.IsFinite(BridgingDistance) ? MathF.Max(0f, BridgingDistance) : 8f,

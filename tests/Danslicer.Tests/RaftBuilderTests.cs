@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Clipper2Lib;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports.Rafts;
@@ -18,8 +18,7 @@ public class RaftBuilderTests
     private static readonly RaftParameters Web = new()
     {
         Type = RaftType.Web, Thickness = 1f, EdgeAngleDegrees = 45f,
-        DiscDiameter = 5f, BarWidth = 4f, Neighbours = RaftNeighbourRule.Rays,
-        RayStepDegrees = 5f, MaxBarLength = 15f,
+        DiscDiameter = 5f, BarWidth = 4f, MaxBarLength = 15f,
     };
 
     private static double AreaMm2(Paths64 paths) => MeshSlicer.AreaMm2(paths);
@@ -87,32 +86,11 @@ public class RaftBuilderTests
     }
 
     [Fact]
-    public void RaysDoNotSeeAFootHiddenBehindANearerOne()
-    {
-        Vector2[] feet = [new(0, 0), new(10, 0), new(20, 0)];
-
-        var pairs = RaftBuilder.Neighbours(feet, Web with { MaxBarLength = 0f });
-
-        Assert.Equal([(0, 1), (1, 2)], pairs);
-    }
-
-    [Fact]
-    public void RaysJoinEveryFootOfASquareToItsSidesAndDiagonals()
-    {
-        Vector2[] feet = [new(0, 0), new(10, 0), new(10, 10), new(0, 10)];
-
-        var pairs = RaftBuilder.Neighbours(feet, Web with { MaxBarLength = 0f });
-
-        // Nothing hides anything on a square: all six pairs see each other.
-        Assert.Equal(6, pairs.Count);
-    }
-
-    [Fact]
     public void DelaunayJoinsASquareWithItsSidesAndOneDiagonal()
     {
         Vector2[] feet = [new(0, 0), new(10, 0), new(10, 10), new(0, 10)];
 
-        var pairs = RaftBuilder.Neighbours(feet, Web with { Neighbours = RaftNeighbourRule.Delaunay, MaxBarLength = 0f });
+        var pairs = RaftBuilder.Neighbours(feet, Web with { MaxBarLength = 0f });
 
         Assert.Equal(5, pairs.Count);
         Assert.Contains((0, 1), pairs);
@@ -126,40 +104,55 @@ public class RaftBuilderTests
     {
         Vector2[] feet = [new(20, 0), new(0, 0), new(10, 0)];
 
-        var pairs = RaftBuilder.Neighbours(feet, Web with { Neighbours = RaftNeighbourRule.Delaunay, MaxBarLength = 0f });
+        var pairs = RaftBuilder.Neighbours(feet, Web with { MaxBarLength = 0f });
 
         Assert.Equal([(0, 2), (1, 2)], pairs);
     }
 
     [Fact]
-    public void MaxBarLengthDropsLongBarsUnderBothRules()
+    public void MaxBarLengthDropsLongBars()
     {
         Vector2[] feet = [new(0, 0), new(10, 0), new(10, 10), new(0, 10)];
 
-        foreach (var rule in new[] { RaftNeighbourRule.Rays, RaftNeighbourRule.Delaunay })
-        {
-            var pairs = RaftBuilder.Neighbours(feet, Web with { Neighbours = rule, MaxBarLength = 12f });
-            Assert.Equal(4, pairs.Count); // the 14.1 mm diagonals go, the 10 mm sides stay
-        }
+        var pairs = RaftBuilder.Neighbours(feet, Web with { MaxBarLength = 12f });
+        Assert.Equal(4, pairs.Count); // the 14.1 mm diagonal goes, the 10 mm sides stay
         Assert.Empty(RaftBuilder.Neighbours([new(0, 0), new(30, 0)], Web));
         Assert.Single(RaftBuilder.Neighbours([new(0, 0), new(30, 0)], Web with { MaxBarLength = 0f }));
     }
 
     [Fact]
-    public void TheEdgeSlopesFromThePlateToTheTop()
+    public void TheLipGrowsFromNothingAtThePlateToItsWidthAtTheTop()
     {
         var outline = RaftBuilder.TopOutline([Vector2.Zero], Web);
-        var top = Web.DiscDiameter / 2;
+        var foot = Web.DiscDiameter / 2;
 
-        // 45°, 1 mm thick: 1 mm wider at the plate, 0.5 mm halfway, the outline itself at the top.
-        AssertDisc(RaftBuilder.SectionAt(outline, Web, 0.0), top + 1.0);
-        AssertDisc(RaftBuilder.SectionAt(outline, Web, 0.5), top + 0.5);
-        AssertDisc(RaftBuilder.SectionAt(outline, Web, 0.999), top + 0.001);
+        // 45°, 1 mm thick: the footprint itself at the plate, 0.5 mm wider halfway, 1 mm at the top.
+        AssertDisc(RaftBuilder.SectionAt(outline, Web, 0.0), foot);
+        AssertDisc(RaftBuilder.SectionAt(outline, Web, 0.5), foot + 0.5);
+        AssertDisc(RaftBuilder.SectionAt(outline, Web, 0.999), foot + 0.999);
         Assert.Empty(RaftBuilder.SectionAt(outline, Web, 1.0));
         Assert.Empty(RaftBuilder.SectionAt(outline, Web, -0.01));
+        Assert.Equal(1.0, RaftBuilder.LipWidth(Web), 6);
 
-        // A vertical edge does not grow at all.
-        AssertDisc(RaftBuilder.SectionAt(outline, Web with { EdgeAngleDegrees = 90f }, 0.0), top);
+        // 90° = no lip.
+        AssertDisc(RaftBuilder.SectionAt(outline, Web with { EdgeAngleDegrees = 90f }, 0.999), foot);
+    }
+
+    [Fact]
+    public void TheLipIsOnTheOutsideOnly()
+    {
+        // Four feet in a square joined by bars enclose a void; the void keeps its size while the
+        // outer contour grows, so the lip adds area outside and none inside.
+        Vector2[] feet = [new(0, 0), new(20, 0), new(20, 20), new(0, 20)];
+        var web = Web with { MaxBarLength = 25f, BarWidth = 2f };
+        var outline = Clipper.Union(RaftBuilder.TopOutline(feet, web), FillRule.NonZero);
+        var hole = Assert.Single(outline.Where(p => !Clipper.IsPositive(p)));
+
+        var top = Clipper.Union(RaftBuilder.SectionAt(outline, web, 0.999), FillRule.NonZero);
+
+        var topHole = Assert.Single(top.Where(p => !Clipper.IsPositive(p)));
+        Assert.Equal(Math.Abs(Clipper.Area(hole)), Math.Abs(Clipper.Area(topHole)), Math.Abs(Clipper.Area(hole)) * 0.01);
+        Assert.True(AreaMm2(top) > AreaMm2(outline));
     }
 
     [Fact]

@@ -70,7 +70,7 @@ public static class RaftGeometry
     }
 
     /// <summary>
-    /// The XY extent of the rafts at the plate, where they are widest, in millimetres: what the
+    /// The XY extent of the rafts at their widest, the lip at the top, in millimetres: what the
     /// build-area check must count. Null when there is no raft.
     /// </summary>
     public static (double MinX, double MinY, double MaxX, double MaxY)? PlateBounds(IReadOnlyList<RaftShape> rafts)
@@ -78,9 +78,9 @@ public static class RaftGeometry
         (double MinX, double MinY, double MaxX, double MaxY)? bounds = null;
         foreach (var raft in rafts)
         {
-            var bottom = raft.SectionAt(0);
-            if (bottom.Count == 0) continue;
-            var b = Clipper.GetBounds(bottom);
+            var widest = RaftBuilder.WithLip(raft.TopOutline, RaftBuilder.LipWidth(raft.Parameters));
+            if (widest.Count == 0) continue;
+            var b = Clipper.GetBounds(widest);
             var candidate = (b.left / MeshSlicer.UnitsPerMm, b.top / MeshSlicer.UnitsPerMm,
                 b.right / MeshSlicer.UnitsPerMm, b.bottom / MeshSlicer.UnitsPerMm);
             bounds = bounds is { } current
@@ -92,13 +92,13 @@ public static class RaftGeometry
     }
 
     /// <summary>
-    /// A render mesh of the raft: the top face at the raft's top, the bottom face on the plate,
-    /// and the sloped edge as one smooth wall between them (user, 2026-09-09: a slope, not
-    /// steps). The wall is built vertex by vertex: each top vertex is pushed out along its
-    /// outline normal by the plate-level edge offset, mitred at the corners, so the top and
-    /// bottom rings share a vertex count and quads join them exactly. The slice uses the exact
-    /// round-join offset per layer; the two agree to within the mitre at sharp corners. Faces
-    /// wind counter-clockwise seen from outside. Null for an empty outline.
+    /// A render mesh of the raft: the footprint on the plate, the top face with the scraper lip,
+    /// and the walls between. Only the outer contours lean outward for the lip (bottom narrower
+    /// than top, user 2026-09-09); a hole's wall, the inside of a Web's bars, is vertical. The lip
+    /// wall is built vertex by vertex: each outer vertex is pushed out along its outline normal
+    /// by the lip width, mitred at the corners, so the top and bottom rings share a vertex count
+    /// and quads join them exactly. Faces wind counter-clockwise seen from outside. Null for an
+    /// empty outline.
     /// </summary>
     public static Mesh? BuildMesh(RaftShape raft)
     {
@@ -107,18 +107,18 @@ public static class RaftGeometry
         if (raft.TopOutline.Count == 0 || thickness <= 0) return null;
 
         var builder = new MeshBuilder();
-        var offset = RaftBuilder.EdgeOffsetAt(parameters, 0);
-        var bottom = new Paths64();
+        var lip = RaftBuilder.LipWidth(parameters);
+        var top = new Paths64();
         foreach (var path in raft.TopOutline)
         {
             if (path.Count < 3) continue;
             var outer = Clipper.Area(path) > 0;
-            var pushed = PushOut(path, outer ? offset : -offset);
-            bottom.Add(pushed);
-            AppendWall(builder, path, pushed, thickness, outer);
+            var topRing = outer && lip > 0 ? PushOut(path, lip) : path;
+            top.Add(topRing);
+            AppendWall(builder, path, topRing, thickness, outer);
         }
-        AppendCap(builder, bottom, 0, up: false);
-        AppendCap(builder, raft.TopOutline, thickness, up: true);
+        AppendCap(builder, raft.TopOutline, 0, up: false);
+        AppendCap(builder, top, thickness, up: true);
         return builder.ToMesh();
     }
 
@@ -156,7 +156,7 @@ public static class RaftGeometry
         }
     }
 
-    private static void AppendWall(MeshBuilder builder, Path64 top, Path64 bottom, double thickness, bool outer)
+    private static void AppendWall(MeshBuilder builder, Path64 bottom, Path64 top, double thickness, bool outer)
     {
         var n = top.Count;
         for (var i = 0; i < n; i++)

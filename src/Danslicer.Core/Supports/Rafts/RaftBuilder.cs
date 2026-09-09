@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Clipper2Lib;
 using Danslicer.Core.Slicing;
 
@@ -12,15 +12,14 @@ namespace Danslicer.Core.Supports.Rafts;
 public static class RaftBuilder
 {
     /// <summary>
-    /// Which feet are joined by a bar in a Web raft, as index pairs with A &lt; B, each pair once.
-    /// Both rules drop pairs further apart than <see cref="RaftParameters.MaxBarLength"/>.
+    /// Which feet are joined by a bar in a Web raft, as index pairs with A &lt; B, each pair once:
+    /// the edges of the feet's Delaunay triangulation (user, 2026-09-09: Delaunay works better
+    /// than rays), dropping pairs further apart than <see cref="RaftParameters.MaxBarLength"/>.
     /// </summary>
     public static IReadOnlyList<(int A, int B)> Neighbours(IReadOnlyList<Vector2> feet, RaftParameters parameters)
     {
         parameters = parameters.Normalize();
-        var pairs = parameters.Neighbours == RaftNeighbourRule.Delaunay
-            ? DelaunayPairs(feet)
-            : RayPairs(feet, parameters);
+        var pairs = DelaunayPairs(feet);
         var maxLength = parameters.MaxBarLength;
         var result = new List<(int, int)>();
         foreach (var (a, b) in pairs.OrderBy(p => p.A).ThenBy(p => p.B))
@@ -74,76 +73,54 @@ public static class RaftBuilder
     }
 
     /// <summary>
-    /// How far the raft's edge stands outside the top outline at height <paramref name="z"/>, in
-    /// millimetres: the edge slopes at the edge angle from the plate to the top.
+    /// How far the scraper lip stands outside the footprint at height <paramref name="z"/>, in
+    /// millimetres: nothing at the plate, growing at the edge angle to <see cref="LipWidth"/>
+    /// at the top, so the bottom of the lip is narrower than the top (user, 2026-09-09).
     /// </summary>
     public static double EdgeOffsetAt(RaftParameters parameters, double z)
     {
         parameters = parameters.Normalize();
-        var remaining = parameters.Thickness - z;
-        if (remaining <= 0) return 0;
-        var angle = parameters.EdgeAngleDegrees * Math.PI / 180.0;
-        return remaining / Math.Tan(angle);
+        if (z <= 0) return 0;
+        var t = Math.Min(z / parameters.Thickness, 1.0);
+        return LipWidth(parameters) * t;
+    }
+
+    /// <summary>The lip's overhang at the raft's top: Thickness / tan(edge angle); 0 at 90°.</summary>
+    public static double LipWidth(RaftParameters parameters)
+    {
+        parameters = parameters.Normalize();
+        if (parameters.EdgeAngleDegrees >= 90f - 1e-3f) return 0;
+        return parameters.Thickness / Math.Tan(parameters.EdgeAngleDegrees * Math.PI / 180.0);
     }
 
     /// <summary>
-    /// The raft's cross-section at height <paramref name="z"/>: the top outline pushed out by
-    /// <see cref="EdgeOffsetAt"/>. Empty below the plate and from the raft's top upward.
+    /// The raft's cross-section at height <paramref name="z"/>: the footprint, with the scraper
+    /// lip pushing its OUTER contours out by <see cref="EdgeOffsetAt"/>. Holes (the voids a Web's
+    /// bars enclose) keep their shape: the lip exists only on the outside of the raft (user,
+    /// 2026-09-09). Empty below the plate and from the raft's top upward.
     /// </summary>
-    public static Paths64 SectionAt(Paths64 topOutline, RaftParameters parameters, double z)
+    public static Paths64 SectionAt(Paths64 footprint, RaftParameters parameters, double z)
     {
         parameters = parameters.Normalize();
-        if (topOutline.Count == 0 || z < 0 || z >= parameters.Thickness) return new Paths64();
+        if (footprint.Count == 0 || z < 0 || z >= parameters.Thickness) return new Paths64();
         var offset = EdgeOffsetAt(parameters, z);
-        if (offset <= 1e-9) return new Paths64(topOutline);
-        return Clipper.InflatePaths(topOutline, offset * MeshSlicer.UnitsPerMm, JoinType.Round, EndType.Polygon);
+        if (offset <= 1e-9) return new Paths64(footprint);
+        return WithLip(footprint, offset);
+    }
+
+    /// <summary>The footprint with its outer contours pushed out by <paramref name="offsetMm"/>, holes untouched.</summary>
+    public static Paths64 WithLip(Paths64 footprint, double offsetMm)
+    {
+        var outers = new Paths64();
+        var holes = new Paths64();
+        foreach (var path in footprint) (Clipper.IsPositive(path) ? outers : holes).Add(path);
+        var lipped = Clipper.InflatePaths(outers, offsetMm * MeshSlicer.UnitsPerMm, JoinType.Round, EndType.Polygon);
+        if (holes.Count == 0) return lipped;
+        lipped.AddRange(holes);
+        return Clipper.Union(lipped, FillRule.NonZero);
     }
 
     // ----- Neighbour rules -----
-
-    /// <summary>
-    /// From each foot, a ray every step; the nearest disc a ray hits is a neighbour. A foot behind
-    /// another along a ray is hidden by it. Pairs are symmetric.
-    /// </summary>
-    internal static HashSet<(int A, int B)> RayPairs(IReadOnlyList<Vector2> feet, RaftParameters parameters)
-    {
-        var pairs = new HashSet<(int, int)>();
-        var radius = parameters.DiscDiameter * 0.5f;
-        var step = parameters.RayStepDegrees * MathF.PI / 180f;
-        var rays = Math.Max(1, (int)MathF.Round(2 * MathF.PI / step));
-        for (int i = 0; i < feet.Count; i++)
-        {
-            var origin = feet[i];
-            for (int r = 0; r < rays; r++)
-            {
-                var angle = r * (2 * MathF.PI / rays);
-                var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-                var nearest = -1;
-                var nearestT = float.PositiveInfinity;
-                for (int j = 0; j < feet.Count; j++)
-                {
-                    if (j == i) continue;
-                    var t = RayCircle(origin, direction, feet[j], radius);
-                    if (t < nearestT) { nearestT = t; nearest = j; }
-                }
-                if (nearest >= 0) pairs.Add((Math.Min(i, nearest), Math.Max(i, nearest)));
-            }
-        }
-        return pairs;
-    }
-
-    /// <summary>Distance along the ray to the first crossing of the circle, or +inf if it misses.</summary>
-    private static float RayCircle(Vector2 origin, Vector2 direction, Vector2 centre, float radius)
-    {
-        var toCentre = centre - origin;
-        var along = Vector2.Dot(toCentre, direction);
-        if (along <= 0) return float.PositiveInfinity;
-        var perpendicular2 = toCentre.LengthSquared() - along * along;
-        var r2 = radius * radius;
-        if (perpendicular2 > r2) return float.PositiveInfinity;
-        var t = along - MathF.Sqrt(r2 - perpendicular2);
-        return t > 0 ? t : along; // the origin lies inside the disc: count the centre's distance
-    }
 
     /// <summary>
     /// Bowyer–Watson Delaunay triangulation; every triangle edge between real feet is a pair.

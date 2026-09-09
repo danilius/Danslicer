@@ -103,8 +103,6 @@ public sealed class ConfigViewModel : ViewModelBase
 
     public IReadOnlyList<RaftType> RaftTypes { get; } = Enum.GetValues<RaftType>();
 
-    public IReadOnlyList<RaftNeighbourRule> RaftNeighbourRules { get; } = Enum.GetValues<RaftNeighbourRule>();
-
     public IReadOnlyList<ReinforceSeedSelector> ReinforceSeedSelectors { get; } =
         Enum.GetValues<ReinforceSeedSelector>();
 
@@ -533,18 +531,6 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.RaftBarWidth;
         set => Update(() => Supports.RaftBarWidth = Clamp(value, 0.1f, 100f, 4f));
-    }
-
-    public RaftNeighbourRule SupportRaftNeighbours
-    {
-        get => Supports.RaftNeighbours;
-        set => Update(() => Supports.RaftNeighbours = Enum.IsDefined(value) ? value : RaftNeighbourRule.Rays);
-    }
-
-    public float SupportRaftRayStepDegrees
-    {
-        get => Supports.RaftRayStepDegrees;
-        set => Update(() => Supports.RaftRayStepDegrees = Clamp(value, 0.5f, 90f, 5f));
     }
 
     public float SupportRaftMaxBarLength

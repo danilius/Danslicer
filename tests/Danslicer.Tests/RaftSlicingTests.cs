@@ -87,7 +87,7 @@ public class RaftSlicingTests
     public void TheRaftMeshSpansThePlateToTheTopAndFacesOutward()
     {
         // One foot: a convex raft, so "away from the centre at plate level" is outward for every
-        // face (walls sideways, ledges and top up, bottom flat).
+        // face (the lip wall leans out and down, the top up, the bottom flat).
         var parameters = new RaftParameters { Thickness = 1f, EdgeAngleDegrees = 45f, DiscDiameter = 5f };
         var shape = new RaftShape(parameters, RaftBuilder.TopOutline([Vector2.Zero], parameters));
 
@@ -96,10 +96,13 @@ public class RaftSlicingTests
         Assert.NotNull(mesh);
         Assert.Equal(0f, mesh.Bounds.Min.Z, 4);
         Assert.Equal(1f, mesh.Bounds.Max.Z, 4);
-        // Widest at the plate: the bottom is the top outline pushed out by 1 mm at 45°.
-        var top = Clipper2Lib.Clipper.GetBounds(shape.TopOutline);
-        Assert.Equal(top.left / MeshSlicer.UnitsPerMm - 1.0, mesh.Bounds.Min.X, 2);
-        Assert.Equal(top.right / MeshSlicer.UnitsPerMm + 1.0, mesh.Bounds.Max.X, 2);
+        // Widest at the top: the lip pushes the footprint out by 1 mm at 45°, the bottom is the
+        // footprint itself.
+        var footprint = Clipper2Lib.Clipper.GetBounds(shape.TopOutline);
+        Assert.Equal(footprint.right / MeshSlicer.UnitsPerMm + 1.0, mesh.Bounds.Max.X, 2);
+        var bottomVertices = mesh.Positions.Where(p => p.Z < 1e-4f).ToList();
+        Assert.NotEmpty(bottomVertices);
+        Assert.Equal(footprint.right / MeshSlicer.UnitsPerMm, bottomVertices.Max(p => p.X), 2);
         // Every triangle's normal points away from the raft's centre: outward faces.
         var centre = mesh.Bounds.Center with { Z = 0f };
         var outward = 0;

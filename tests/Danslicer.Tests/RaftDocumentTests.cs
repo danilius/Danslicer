@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -173,7 +173,7 @@ public class RaftDocumentTests
     public void TheRaftRoundTripsThroughTheProjectFile()
     {
         var (document, obj) = Supported(1);
-        document.SupportSettings = document.SupportSettings with { RaftType = RaftType.Web, RaftBarWidth = 3.5f };
+        document.SupportSettings = document.SupportSettings with { RaftType = RaftType.Web, RaftBarWidth = 3.5f, RaftEdgeAngleDegrees = 60f };
         document.AddRaftToSelection();
         var path = Path.Combine(Path.GetTempPath(), $"raft-{Guid.NewGuid():N}.danslicer");
         try

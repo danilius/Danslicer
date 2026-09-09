@@ -636,27 +636,23 @@ instead of spanning them as a hull would. The interior is solid.
 
 **Web**: a **disc** of Thickness and **Disc diameter** (default 5 mm) under every foot, and
 a **flat bar** of Thickness and **Bar width** (default 4 mm) from each foot to each of its
-immediate neighbours. Two ways of finding the neighbours, both to be tested on screen
-(user, 2026-09-09):
+immediate neighbours: the edges of the feet's **Delaunay** triangulation, dropping bars
+longer than **Max bar length** (default 15 mm; 0 = no limit). (A rays rule was tried
+alongside it and removed: "Delaunay works better", user 2026-09-09 after the screen test.)
 
-- **Rays** (default): from the foot centre, rays are cast in the plate plane every **Ray
-  step** degrees (default 5°); the first foot disc each ray hits is a neighbour, so a foot
-  hidden behind a nearer one is not. Pairs are symmetric: a bar is laid once per pair.
-- **Delaunay**: the feet are triangulated and every edge of the triangulation is a bar.
-
-Both drop bars longer than **Max bar length** (default 15 mm; 0 = no limit).
-
-For both types the **edge slopes** at **Edge angle** (default 45°, 90° = vertical): the
-outline at the plate is the top outline offset outward by Thickness / tan(angle), and the
-cross-section between them is linear, so nothing overhangs and a scraper has a lip to get
-under. Offsets with round joins give rounded corners for free.
+**Scraper lip** (user, 2026-09-09): the raft's **outside** edge overhangs outward, the bottom
+narrower than the top, so a scraper slides under the lip. At **Edge angle** (default 45°
+from vertical; 90° = no lip) the top outline stands Thickness / tan(angle) outside the
+footprint and the wall between is straight. Only the outer contours lean: the inside faces of
+a Web's bars, and any void the bars enclose, are vertical. Offsets with round joins give
+rounded corners for free.
 
 ### Slicing and drawing
 
-- `SupportSliceGeometry` gains a **raft section** at z: the top outline offset by
-  (Thickness − z) / tan(Edge angle) for 0 ≤ z < Thickness, unioned into the layer with
-  the model and support sections as they already are. The raft counts toward the
-  build-volume check like any content.
+- `SupportSliceGeometry` gains a **raft section** at z: the footprint with its outer contours
+  offset by z / tan(Edge angle) for 0 ≤ z < Thickness, unioned into the layer with the
+  model and support sections as they already are. The raft counts toward the build-volume
+  check like any content, at its widest (the top).
 - The viewport draws the raft as a mesh extruded from the outline with the slope, in the
   base colour, under a new **Show rafts** toggle alongside Show bases in the support
   display settings; hidden and ghosted objects draw no raft. The raft is an obstacle for
@@ -684,11 +680,9 @@ under. Offsets with round joins give rounded corners for free.
 | --- | --- | --- |
 | Type | Plate | Plate or Web. |
 | Thickness | 1 mm | Height of the raft on the plate. |
-| Edge angle ° | 45 | Slope of the raft's edge; 90 = vertical. |
+| Edge angle ° | 45 | The scraper lip on the outside: the top overhangs the footprint at this angle from vertical; 90 = no lip. |
 | Disc diameter | 5 mm | Disc under each foot (Web), and each foot's footprint for the Plate silhouette. |
-| Bar width | 4 mm | Width of the flat bars between neighbouring feet (Web). |
-| Neighbours | Rays | Rays or Delaunay (Web). |
-| Ray step ° | 5 | Angular step of the rays (Web, Rays). |
+| Bar width | 4 mm | Width of the flat bars between Delaunay-neighbouring feet (Web). |
 | Max bar length | 15 mm | Bars longer than this are not laid; 0 = no limit (Web). |
 | Margin | 2 mm | How far the plate extends beyond the outermost feet (Plate). |
 | Bridging distance | 8 mm | The widest gap between feet that the plate fills in (Plate). |
