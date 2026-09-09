@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Geometry;
 using Danslicer.Render;
 
@@ -21,8 +21,12 @@ public enum GizmoHandle
 /// </summary>
 public sealed class Gizmo
 {
-    private const float PixelSize = 90f;
     private const float HitRadiusPixels = 9f;
+
+    /// <summary>On-screen arrow length in pixels; the object gizmo's 90, smaller for support handles.</summary>
+    public float PixelSize { get; set; } = 90f;
+    /// <summary>False leaves out the Z arrow and the two vertical plane squares: an X/Y gizmo.</summary>
+    public bool ShowZ { get; set; } = true;
     private const int RingSegments = 64;
 
     public bool ShowMove { get; set; } = true;
@@ -88,6 +92,7 @@ public sealed class Gizmo
         {
             foreach (var (axis, dir) in Axes)
             {
+                if (axis == AxisConstraint.Z && !ShowZ) continue;
                 var handle = axis switch { AxisConstraint.X => GizmoHandle.MoveX, AxisConstraint.Y => GizmoHandle.MoveY, _ => GizmoHandle.MoveZ };
                 var color = ModalTransform.AxisColor(axis);
                 var from = Pivot + dir * (s * 0.18f);
@@ -108,6 +113,7 @@ public sealed class Gizmo
                 (GizmoHandle.MoveZX, Vector3.UnitZ, Vector3.UnitX),
             })
             {
+                if (!ShowZ && handle != GizmoHandle.MoveXY) continue;
                 var color = Vector4.Lerp(AxisColorOf(a), AxisColorOf(b), 0.5f);
                 var c = Pivot + (a + b) * (s * 0.40f);
                 var ha = a * (s * 0.09f);

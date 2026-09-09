@@ -142,6 +142,14 @@ public static class SupportEditing
         graph.NotifyChanged();
     }
 
+    /// <summary>As <see cref="TranslateXY"/>, with a full 3D offset (junction and tip gizmos have Z).</summary>
+    public static void Translate(SupportGraph graph,
+        IReadOnlyList<(SupportNode Node, Vector3 Origin)> nodes, Vector3 delta)
+    {
+        foreach (var (node, origin) in nodes) node.Position = origin + delta;
+        graph.NotifyChanged();
+    }
+
     /// <summary>The nearest point of the plate-origin-aligned base grid.</summary>
     public static Vector2 SnapToBaseGrid(Vector2 xy, float pitch) =>
         pitch <= 0f ? xy : new Vector2(MathF.Round(xy.X / pitch) * pitch, MathF.Round(xy.Y / pitch) * pitch);

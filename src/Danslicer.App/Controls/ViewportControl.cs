@@ -808,9 +808,9 @@ public sealed class ViewportControl : OpenGlControlBase
             return;
         }
         if (_editSupport is not null && props.IsLeftButtonPressed &&
-            HitSupportEditHandle(MouseVector(e)) is { } editHandle)
+            HitSupportEditHandle(MouseVector(e)) is { } editHit)
         {
-            BeginSupportEditDrag(editHandle, MouseVector(e));
+            BeginSupportEditDrag(editHit.Handle, editHit.Axis, MouseVector(e));
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
@@ -1043,9 +1043,11 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             UpdatePlacementGhost(MouseVector(e));
         }
-        else if (_editSupport is not null && HitSupportEditHandle(MouseVector(e)) is var hover && hover != _editHover)
+        else if (_editSupport is not null && HitSupportEditHandle(MouseVector(e)) is var hover &&
+                 (hover?.Handle != _editHover || (hover?.Axis ?? GizmoHandle.None) != _editHoverAxis))
         {
-            _editHover = hover;
+            _editHover = hover?.Handle;
+            _editHoverAxis = hover?.Axis ?? GizmoHandle.None;
             Redraw();
         }
         else if (_modal is { IsActive: true })
@@ -1743,10 +1745,15 @@ public sealed class ViewportControl : OpenGlControlBase
     /// <summary>The seed element of the support being edited, or null outside edit mode.</summary>
     private Guid? _editSupport;
     private SupportHandle? _editHover;
+    private GizmoHandle _editHoverAxis;
     private SupportHandle? _editDrag;
+    private GizmoHandle _editDragAxis;
     private List<(SupportNode Node, Vector3 Position, Vector3 Normal)>? _editDragBefore;
-    /// <summary>Where on the handle's horizontal plane the drag started; XY drags are offsets from it.</summary>
+    /// <summary>The world point the drag started from on its constraint (axis line or plane).</summary>
     private Vector3 _editDragAnchor;
+    /// <summary>One gizmo per handle, rebuilt each frame (user, 2026-09-09: X/Y on base and trunk, XYZ on junctions and tips).</summary>
+    private readonly List<(SupportHandle Handle, Gizmo Gizmo)> _editGizmos = new();
+    private const float EditGizmoPixels = 48f;
     private bool _editFollowingSelection;
 
     public bool IsEditingSupport => _editSupport is not null;
@@ -1776,6 +1783,7 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_placementMode) EndPlacementMode();
         _editSupport = element;
         _editHover = null;
+        _editHoverAxis = GizmoHandle.None;
         _editFollowingSelection = true;
         try { SelectDisplayedSupportComponent(element, additive: false); }
         finally { _editFollowingSelection = false; }
@@ -1819,77 +1827,106 @@ public sealed class ViewportControl : OpenGlControlBase
         return handles;
     }
 
-    /// <summary>Nearest handle within the pick radius on screen; node handles beat trunk handles.</summary>
-    private SupportHandle? HitSupportEditHandle(Vector2 mouse)
+    /// <summary>
+    /// The gizmos of the edited support, one per handle, sized and placed for this frame. Base
+    /// and trunk handles get an X/Y gizmo (they stay on the plate and vertical); junctions and
+    /// tips get XYZ (user, 2026-09-09).
+    /// </summary>
+    private void RefreshSupportEditGizmos()
     {
+        var handles = SupportEditHandles();
+        var height = (float)Bounds.Height;
+        while (_editGizmos.Count > handles.Count) _editGizmos.RemoveAt(_editGizmos.Count - 1);
+        for (var i = 0; i < handles.Count; i++)
+        {
+            var gizmo = i < _editGizmos.Count ? _editGizmos[i].Gizmo : new Gizmo { PixelSize = EditGizmoPixels };
+            gizmo.ShowZ = handles[i].Kind is SupportHandleKind.Junction or SupportHandleKind.Tip;
+            gizmo.Update(Camera, new Aabb(handles[i].Position, handles[i].Position), height);
+            var active = _editDrag == handles[i] ? _editDragAxis
+                : _editDrag is null && _editHover == handles[i] ? _editHoverAxis : GizmoHandle.None;
+            gizmo.Hovered = active;
+            gizmo.Active = _editDrag == handles[i] ? _editDragAxis : GizmoHandle.None;
+            if (i < _editGizmos.Count) _editGizmos[i] = (handles[i], gizmo);
+            else _editGizmos.Add((handles[i], gizmo));
+        }
+    }
+
+    /// <summary>The handle and gizmo arrow or square under the mouse, nearest first.</summary>
+    private (SupportHandle Handle, GizmoHandle Axis)? HitSupportEditHandle(Vector2 mouse)
+    {
+        RefreshSupportEditGizmos();
         var w = (float)Bounds.Width;
         var h = (float)Bounds.Height;
-        SupportHandle? best = null;
-        var bestRank = int.MaxValue;
-        var bestDistance = float.MaxValue;
-        foreach (var handle in SupportEditHandles())
+        foreach (var (handle, gizmo) in _editGizmos)
         {
-            if (Camera.WorldToScreen(handle.Position, w, h) is not { } screen) continue;
-            var distance = Vector2.Distance(screen, mouse);
-            if (distance > EditHandlePickRadiusPixels) continue;
-            var rank = handle.Kind == SupportHandleKind.Trunk ? 1 : 0;
-            if (rank > bestRank || (rank == bestRank && distance >= bestDistance)) continue;
-            best = handle;
-            bestRank = rank;
-            bestDistance = distance;
+            var axis = gizmo.HitTest(Camera, mouse, w, h);
+            if (axis != GizmoHandle.None) return (handle, axis);
         }
-        return best;
+        return null;
     }
 
-    /// <summary>The mouse ray meeting the horizontal plane at <paramref name="z"/>, if it does.</summary>
-    private Vector3? DragPlanePoint(Vector2 mouse, float z)
+    /// <summary>
+    /// Where the mouse lands on the drag's constraint: the plane through <paramref name="origin"/>
+    /// for a square, the closest point on the axis line for an arrow. Null when the ray runs
+    /// parallel to the constraint or behind the eye.
+    /// </summary>
+    private Vector3? DragConstraintPoint(Vector2 mouse, Vector3 origin, GizmoHandle axis)
     {
         var ray = Camera.ScreenToRay(mouse.X, mouse.Y, (float)Bounds.Width, (float)Bounds.Height);
-        if (MathF.Abs(ray.Direction.Z) < 1e-5f) return null;
-        var t = (z - ray.Origin.Z) / ray.Direction.Z;
-        return t < 0f ? null : ray.At(t);
+        var (_, constraint, plane) = Gizmo.ToTransform(axis);
+        var dir = ModalTransform.AxisVector(constraint);
+        if (plane)
+        {
+            var denom = Vector3.Dot(ray.Direction, dir);
+            if (MathF.Abs(denom) < 1e-5f) return null;
+            var t = Vector3.Dot(origin - ray.Origin, dir) / denom;
+            return t < 0f ? null : ray.At(t);
+        }
+        // Closest point on the axis line to the mouse ray.
+        var w0 = origin - ray.Origin;
+        var b = Vector3.Dot(dir, ray.Direction);
+        var d = Vector3.Dot(dir, w0);
+        var e = Vector3.Dot(ray.Direction, w0);
+        var det = 1f - b * b;
+        if (det < 1e-6f) return null;
+        var s = (b * e - d) / det;
+        return origin + dir * s;
     }
 
-    private void BeginSupportEditDrag(SupportHandle handle, Vector2 mouse)
+    private void BeginSupportEditDrag(SupportHandle handle, GizmoHandle axis, Vector2 mouse)
     {
         if (Document is null) return;
         _editDragBefore = SupportEditing.AffectedByHandle(Document.Supports, handle)
             .Select(n => (n, n.Position, n.SurfaceNormal)).ToList();
-        _editDragAnchor = DragPlanePoint(mouse, handle.Position.Z) ?? handle.Position;
+        _editDragAnchor = DragConstraintPoint(mouse, handle.Position, axis) ?? handle.Position;
         _editDrag = handle;
+        _editDragAxis = axis;
         UpdateStatus();
     }
 
     private void UpdateSupportEditDrag(Vector2 mouse, KeyModifiers modifiers)
     {
         if (Document is null || _editDrag is not { } handle || _editDragBefore is null) return;
-        var graph = Document.Supports;
-        if (handle.Kind == SupportHandleKind.Tip)
-        {
-            // Across the surface of the mesh the tip contacts; the cone re-aims from its junction.
-            var tip = graph.GetNode(handle.ElementId);
-            var hit = PickSurface(mouse, out _, out var point, out var normal);
-            if (hit is null || (tip.ContactObjectId is { } contactId && hit.Id != contactId)) return;
-            tip.Position = point;
-            tip.SurfaceNormal = normal;
-            graph.NotifyChanged();
-            return;
-        }
-
-        if (DragPlanePoint(mouse, handle.Position.Z) is not { } planePoint) return;
-        var delta = new Vector2(planePoint.X - _editDragAnchor.X, planePoint.Y - _editDragAnchor.Y);
+        if (DragConstraintPoint(mouse, _editDragAnchor, _editDragAxis) is not { } point) return;
+        var delta = point - _editDragAnchor;
+        var (_, constraint, plane) = Gizmo.ToTransform(_editDragAxis);
+        var movesX = plane ? constraint != AxisConstraint.X : constraint == AxisConstraint.X;
+        var movesY = plane ? constraint != AxisConstraint.Y : constraint == AxisConstraint.Y;
         var snaps = handle.Kind is SupportHandleKind.Base or SupportHandleKind.Trunk &&
             Document.SupportSettings.UseBaseGrid && !modifiers.HasFlag(KeyModifiers.Shift);
         if (snaps)
         {
             // The base lands on the grid (SUPPORT-GEOMETRY-SPEC "Bases sit on an imaginary grid")
-            // and the rest of the column keeps its offset from the base.
+            // along the axes being dragged, and the rest of the column keeps its offset.
             var anchor = _editDragBefore.FirstOrDefault(b => b.Node.Type == SupportNodeType.Base);
             if (anchor.Node is null) anchor = _editDragBefore[0];
             var origin = new Vector2(anchor.Position.X, anchor.Position.Y);
-            delta = SupportEditing.SnapToBaseGrid(origin + delta, Document.SupportSettings.BaseGridPitch) - origin;
+            var snapped = SupportEditing.SnapToBaseGrid(origin + new Vector2(delta.X, delta.Y),
+                Document.SupportSettings.BaseGridPitch) - origin;
+            if (movesX) delta.X = snapped.X;
+            if (movesY) delta.Y = snapped.Y;
         }
-        SupportEditing.TranslateXY(graph,
+        SupportEditing.Translate(Document.Supports,
             _editDragBefore.Select(b => (b.Node, b.Position)).ToList(), delta);
     }
 
@@ -1914,6 +1951,7 @@ public sealed class ViewportControl : OpenGlControlBase
             }
         }
         _editDrag = null;
+        _editDragAxis = GizmoHandle.None;
         _editDragBefore = null;
         UpdateStatus();
     }
@@ -1930,29 +1968,29 @@ public sealed class ViewportControl : OpenGlControlBase
             Document.Supports.NotifyChanged();
         }
         _editDrag = null;
+        _editDragAxis = GizmoHandle.None;
         _editDragBefore = null;
         UpdateStatus();
     }
 
     /// <summary>
-    /// Camera-facing squares on the node handles and diamonds on the trunk handles, drawn
-    /// through everything so a base under the model or a junction inside a forest can still be
-    /// grabbed. The hovered or dragged handle is white and larger.
+    /// A gizmo on every handle, drawn through everything so a base under the model or a
+    /// junction inside a forest can still be grabbed; a small marker at each pivot names the
+    /// handle kind by colour.
     /// </summary>
     private void AppendSupportEditHandles(List<OverlayLine> lines)
     {
         if (_editSupport is null || Document is null) return;
-        var handles = SupportEditHandles();
-        if (handles.Count == 0)
+        RefreshSupportEditGizmos();
+        if (_editGizmos.Count == 0)
         {
             // The support was deleted or undone away under us.
             EndSupportEdit();
             return;
         }
-        foreach (var handle in handles)
+        foreach (var (handle, gizmo) in _editGizmos)
         {
-            var active = _editDrag == handle || (_editDrag is null && _editHover == handle);
-            var colour = active ? EditActiveColor : handle.Kind switch
+            var colour = handle.Kind switch
             {
                 SupportHandleKind.Base => EditBaseColor,
                 SupportHandleKind.Junction => EditJunctionColor,
@@ -1960,23 +1998,10 @@ public sealed class ViewportControl : OpenGlControlBase
                 _ => EditTrunkColor,
             };
             var p = handle.Position;
-            var size = ContactMarkerHalfSize(p) * (active ? 3f : 2f);
-            var right = Camera.Right * size;
-            var up = Camera.Up * size;
-            if (handle.Kind == SupportHandleKind.Trunk)
-            {
-                lines.Add(new OverlayLine(p - right, p + up, colour));
-                lines.Add(new OverlayLine(p + up, p + right, colour));
-                lines.Add(new OverlayLine(p + right, p - up, colour));
-                lines.Add(new OverlayLine(p - up, p - right, colour));
-            }
-            else
-            {
-                lines.Add(new OverlayLine(p - right - up, p + right - up, colour));
-                lines.Add(new OverlayLine(p + right - up, p + right + up, colour));
-                lines.Add(new OverlayLine(p + right + up, p - right + up, colour));
-                lines.Add(new OverlayLine(p - right + up, p - right - up, colour));
-            }
+            var size = ContactMarkerHalfSize(p);
+            lines.Add(new OverlayLine(p - Camera.Right * size, p + Camera.Right * size, colour));
+            lines.Add(new OverlayLine(p - Camera.Up * size, p + Camera.Up * size, colour));
+            gizmo.AppendLines(Camera, lines);
         }
     }
 
@@ -2698,16 +2723,16 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             StatusText = editDrag.Kind switch
             {
-                SupportHandleKind.Tip => "Move tip: drag across the surface · release confirm · RMB/Esc cancel",
-                SupportHandleKind.Base => "Move base: drag in XY (base grid snaps · Shift free) · release confirm · RMB/Esc cancel",
-                SupportHandleKind.Trunk => "Move trunk: drag the column in XY (base grid snaps · Shift free) · release confirm · RMB/Esc cancel",
-                _ => "Move junction: drag in XY · release confirm · RMB/Esc cancel",
+                SupportHandleKind.Tip => "Move tip: drag the arrow or square · release confirm · RMB/Esc cancel",
+                SupportHandleKind.Base => "Move base: drag the arrow or square (base grid snaps · Shift free) · release confirm · RMB/Esc cancel",
+                SupportHandleKind.Trunk => "Move trunk: drag the column by the arrow or square (base grid snaps · Shift free) · release confirm · RMB/Esc cancel",
+                _ => "Move junction: drag the arrow or square · release confirm · RMB/Esc cancel",
             };
             return;
         }
         if (_editSupport is not null)
         {
-            StatusText = "Edit support: drag a handle · base / trunk / junction move in XY, tip across the surface · click another support to edit it · Space/Esc leave";
+            StatusText = "Edit support: drag a gizmo · base and trunk in X/Y, junctions and tip in XYZ · click another support to edit it · Space/Esc leave";
             return;
         }
         if (_tipDrag is not null)
