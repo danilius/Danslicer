@@ -182,6 +182,7 @@ public partial class MainWindow : Window
     private void OnBraceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.BraceSupports();
     private void OnUnbraceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.UnbraceSupports();
     private void OnSelectBracesClick(object? sender, RoutedEventArgs e) => Viewport.SelectBraces();
+    private void OnEditSupportClick(object? sender, RoutedEventArgs e) => Viewport.ToggleSupportEdit();
 
     private void OnTransformToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_transformPopupState);

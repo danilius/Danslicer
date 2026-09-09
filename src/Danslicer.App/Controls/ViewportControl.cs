@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -290,6 +290,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 _subscribed.SelectionChanged -= MarkClipCapsDirty;
                 _subscribed.SupportSelectionChanged -= Redraw;
                 _subscribed.SupportSelectionChanged -= MarkSelectionMeshDirty;
+                _subscribed.SupportSelectionChanged -= FollowSelectionInSupportEdit;
                 _subscribed.Supports.Changed -= MarkSupportMeshesDirty;
                 _subscribed.Changed -= MarkSupportMeshesDirty;
                 _subscribed.Changed -= MarkRegionOverlayDirty;
@@ -307,6 +308,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 // graph mesh rebuilds only when the graph itself changes (a full rebuild froze
                 // the app for seconds after a marquee selection on a generated forest).
                 _subscribed.SupportSelectionChanged += MarkSelectionMeshDirty;
+                _subscribed.SupportSelectionChanged += FollowSelectionInSupportEdit;
                 _subscribed.Supports.Changed += MarkSupportMeshesDirty;
                 // Hiding a model hides its supports, and that is an object change, not a graph
                 // change — without this the supports stayed on screen until something else
@@ -348,6 +350,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 waterline.SupportModeActive = SupportSelectionMode;
             // A guided gesture is Support-mode only; leaving the mode abandons it.
             if (!SupportSelectionMode && _lineGesture is not null) CancelLineGesture();
+            if (!SupportSelectionMode && _editSupport is not null) EndSupportEdit();
             _supportMeshesDirty = true;
             // The region overlay is Support-mode only, so a mode change rebuilds it too.
             MarkRegionOverlayDirty();
@@ -598,6 +601,7 @@ public sealed class ViewportControl : OpenGlControlBase
         AppendBrushCursor(_overlay);
         AppendBaseGridMarkers(_depthOverlay);
         AppendLineGesture(_depthOverlay, _overlay);
+        AppendSupportEditHandles(_overlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         if (!SupportSelectionMode) UpdateGizmo();
         // Hide the gizmo during keyboard-driven modals; keep it while dragging a handle.
@@ -772,6 +776,23 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (props.IsLeftButtonPressed) CommitTipDrag();
             else if (props.IsRightButtonPressed) CancelTipDrag();
+            e.Handled = true;
+            return;
+        }
+
+        if (_editDrag is not null)
+        {
+            // The left button is already down; any other press cancels the drag.
+            CancelSupportEditDrag();
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+        if (_editSupport is not null && props.IsLeftButtonPressed &&
+            HitSupportEditHandle(MouseVector(e)) is { } editHandle)
+        {
+            BeginSupportEditDrag(editHandle, MouseVector(e));
+            e.Pointer.Capture(this);
             e.Handled = true;
             return;
         }
@@ -995,6 +1016,15 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             UpdateTipDrag(MouseVector(e));
         }
+        else if (_editDrag is not null)
+        {
+            UpdateSupportEditDrag(MouseVector(e), e.KeyModifiers);
+        }
+        else if (_editSupport is not null && HitSupportEditHandle(MouseVector(e)) is var hover && hover != _editHover)
+        {
+            _editHover = hover;
+            Redraw();
+        }
         else if (_modal is { IsActive: true })
         {
             ApplySnap(e.KeyModifiers);
@@ -1035,6 +1065,13 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_editDrag is not null)
+        {
+            CommitSupportEditDrag();
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
         if (_brushing)
         {
             _brushing = false;
@@ -1566,6 +1603,254 @@ public sealed class ViewportControl : OpenGlControlBase
             depthLines.Add(new OverlayLine(point + right - up, point + right + up, LineRouteColor));
             depthLines.Add(new OverlayLine(point + right + up, point - right + up, LineRouteColor));
             depthLines.Add(new OverlayLine(point - right + up, point - right - up, LineRouteColor));
+        }
+    }
+
+    // ----- Support edit mode (Space with a support selected) -----
+
+    private static readonly Vector4 EditBaseColor = new(0.35f, 0.6f, 1f, 1f);
+    private static readonly Vector4 EditJunctionColor = new(1f, 0.85f, 0.2f, 1f);
+    private static readonly Vector4 EditTipColor = new(0.3f, 1f, 0.4f, 1f);
+    private static readonly Vector4 EditTrunkColor = new(0.85f, 0.55f, 1f, 1f);
+    private static readonly Vector4 EditActiveColor = new(1f, 1f, 1f, 1f);
+    private const float EditHandlePickRadiusPixels = 10f;
+
+    /// <summary>The seed element of the support being edited, or null outside edit mode.</summary>
+    private Guid? _editSupport;
+    private SupportHandle? _editHover;
+    private SupportHandle? _editDrag;
+    private List<(SupportNode Node, Vector3 Position, Vector3 Normal)>? _editDragBefore;
+    /// <summary>Where on the handle's horizontal plane the drag started; XY drags are offsets from it.</summary>
+    private Vector3 _editDragAnchor;
+    private bool _editFollowingSelection;
+
+    public bool IsEditingSupport => _editSupport is not null;
+
+    /// <summary>
+    /// Space, or the Edit button: enters edit mode on the selected support (the whole support
+    /// containing the first selected element) and shows its handles; in edit mode, leaves it.
+    /// </summary>
+    public void ToggleSupportEdit()
+    {
+        if (Document is null) return;
+        if (_editSupport is not null)
+        {
+            EndSupportEdit();
+            return;
+        }
+        if (!SupportSelectionMode || Document.SupportSelection.Count == 0)
+        {
+            StatusText = "Edit support: select a support first";
+            return;
+        }
+        BeginSupportEdit(Document.SupportSelection.First());
+    }
+
+    private void BeginSupportEdit(Guid element)
+    {
+        _editSupport = element;
+        _editHover = null;
+        _editFollowingSelection = true;
+        try { SelectDisplayedSupportComponent(element, additive: false); }
+        finally { _editFollowingSelection = false; }
+        UpdateStatus();
+        Redraw();
+    }
+
+    private void EndSupportEdit()
+    {
+        if (_editDrag is not null) CancelSupportEditDrag();
+        _editSupport = null;
+        _editHover = null;
+        UpdateStatus();
+        Redraw();
+    }
+
+    /// <summary>
+    /// Edit mode follows the selection: clicking another support edits that one, an empty click
+    /// leaves. A drag in progress is not disturbed.
+    /// </summary>
+    private void FollowSelectionInSupportEdit()
+    {
+        if (_editFollowingSelection || _editDrag is not null || Document is null ||
+            _editSupport is not { } element) return;
+        if (Document.IsSupportSelected(element)) return;
+        if (Document.SupportSelection.Count == 0)
+        {
+            EndSupportEdit();
+            return;
+        }
+        BeginSupportEdit(Document.SupportSelection.First());
+    }
+
+    /// <summary>The displayed handles of the edited support; empty once it is gone.</summary>
+    private List<SupportHandle> SupportEditHandles()
+    {
+        if (Document is null || _editSupport is not { } element) return [];
+        var handles = SupportEditing.HandlesOf(Document.Supports, element);
+        handles.RemoveAll(h => !SupportDisplayPolicy.IsElementDisplayed(
+            Document.Supports, h.ElementId, SupportDisplay, ClipRange));
+        return handles;
+    }
+
+    /// <summary>Nearest handle within the pick radius on screen; node handles beat trunk handles.</summary>
+    private SupportHandle? HitSupportEditHandle(Vector2 mouse)
+    {
+        var w = (float)Bounds.Width;
+        var h = (float)Bounds.Height;
+        SupportHandle? best = null;
+        var bestRank = int.MaxValue;
+        var bestDistance = float.MaxValue;
+        foreach (var handle in SupportEditHandles())
+        {
+            if (Camera.WorldToScreen(handle.Position, w, h) is not { } screen) continue;
+            var distance = Vector2.Distance(screen, mouse);
+            if (distance > EditHandlePickRadiusPixels) continue;
+            var rank = handle.Kind == SupportHandleKind.Trunk ? 1 : 0;
+            if (rank > bestRank || (rank == bestRank && distance >= bestDistance)) continue;
+            best = handle;
+            bestRank = rank;
+            bestDistance = distance;
+        }
+        return best;
+    }
+
+    /// <summary>The mouse ray meeting the horizontal plane at <paramref name="z"/>, if it does.</summary>
+    private Vector3? DragPlanePoint(Vector2 mouse, float z)
+    {
+        var ray = Camera.ScreenToRay(mouse.X, mouse.Y, (float)Bounds.Width, (float)Bounds.Height);
+        if (MathF.Abs(ray.Direction.Z) < 1e-5f) return null;
+        var t = (z - ray.Origin.Z) / ray.Direction.Z;
+        return t < 0f ? null : ray.At(t);
+    }
+
+    private void BeginSupportEditDrag(SupportHandle handle, Vector2 mouse)
+    {
+        if (Document is null) return;
+        _editDragBefore = SupportEditing.AffectedByHandle(Document.Supports, handle)
+            .Select(n => (n, n.Position, n.SurfaceNormal)).ToList();
+        _editDragAnchor = DragPlanePoint(mouse, handle.Position.Z) ?? handle.Position;
+        _editDrag = handle;
+        UpdateStatus();
+    }
+
+    private void UpdateSupportEditDrag(Vector2 mouse, KeyModifiers modifiers)
+    {
+        if (Document is null || _editDrag is not { } handle || _editDragBefore is null) return;
+        var graph = Document.Supports;
+        if (handle.Kind == SupportHandleKind.Tip)
+        {
+            // Across the surface of the mesh the tip contacts; the cone re-aims from its junction.
+            var tip = graph.GetNode(handle.ElementId);
+            var hit = PickSurface(mouse, out _, out var point, out var normal);
+            if (hit is null || (tip.ContactObjectId is { } contactId && hit.Id != contactId)) return;
+            tip.Position = point;
+            tip.SurfaceNormal = normal;
+            graph.NotifyChanged();
+            return;
+        }
+
+        if (DragPlanePoint(mouse, handle.Position.Z) is not { } planePoint) return;
+        var delta = new Vector2(planePoint.X - _editDragAnchor.X, planePoint.Y - _editDragAnchor.Y);
+        var snaps = handle.Kind is SupportHandleKind.Base or SupportHandleKind.Trunk &&
+            Document.SupportSettings.UseBaseGrid && !modifiers.HasFlag(KeyModifiers.Shift);
+        if (snaps)
+        {
+            // The base lands on the grid (SUPPORT-GEOMETRY-SPEC "Bases sit on an imaginary grid")
+            // and the rest of the column keeps its offset from the base.
+            var anchor = _editDragBefore.FirstOrDefault(b => b.Node.Type == SupportNodeType.Base);
+            if (anchor.Node is null) anchor = _editDragBefore[0];
+            var origin = new Vector2(anchor.Position.X, anchor.Position.Y);
+            delta = SupportEditing.SnapToBaseGrid(origin + delta, Document.SupportSettings.BaseGridPitch) - origin;
+        }
+        SupportEditing.TranslateXY(graph,
+            _editDragBefore.Select(b => (b.Node, b.Position)).ToList(), delta);
+    }
+
+    private void CommitSupportEditDrag()
+    {
+        if (Document is not null && _editDrag is { } handle && _editDragBefore is not null)
+        {
+            var entries = _editDragBefore
+                .Select(b => new SetSupportPositionsCommand.Entry(b.Node, b.Position, b.Normal, b.Node.Position, b.Node.SurfaceNormal))
+                .Where(e => e.BeforePosition != e.AfterPosition || e.BeforeNormal != e.AfterNormal)
+                .ToList();
+            if (entries.Count > 0)
+            {
+                var name = handle.Kind switch
+                {
+                    SupportHandleKind.Base => "Move base",
+                    SupportHandleKind.Trunk => "Move trunk",
+                    SupportHandleKind.Tip => "Move tip",
+                    _ => "Move junction",
+                };
+                Document.Execute(new SetSupportPositionsCommand(Document.Supports, entries, name));
+            }
+        }
+        _editDrag = null;
+        _editDragBefore = null;
+        UpdateStatus();
+    }
+
+    private void CancelSupportEditDrag()
+    {
+        if (Document is not null && _editDragBefore is not null)
+        {
+            foreach (var (node, position, normal) in _editDragBefore)
+            {
+                node.Position = position;
+                node.SurfaceNormal = normal;
+            }
+            Document.Supports.NotifyChanged();
+        }
+        _editDrag = null;
+        _editDragBefore = null;
+        UpdateStatus();
+    }
+
+    /// <summary>
+    /// Camera-facing squares on the node handles and diamonds on the trunk handles, drawn
+    /// through everything so a base under the model or a junction inside a forest can still be
+    /// grabbed. The hovered or dragged handle is white and larger.
+    /// </summary>
+    private void AppendSupportEditHandles(List<OverlayLine> lines)
+    {
+        if (_editSupport is null || Document is null) return;
+        var handles = SupportEditHandles();
+        if (handles.Count == 0)
+        {
+            // The support was deleted or undone away under us.
+            EndSupportEdit();
+            return;
+        }
+        foreach (var handle in handles)
+        {
+            var active = _editDrag == handle || (_editDrag is null && _editHover == handle);
+            var colour = active ? EditActiveColor : handle.Kind switch
+            {
+                SupportHandleKind.Base => EditBaseColor,
+                SupportHandleKind.Junction => EditJunctionColor,
+                SupportHandleKind.Tip => EditTipColor,
+                _ => EditTrunkColor,
+            };
+            var p = handle.Position;
+            var size = ContactMarkerHalfSize(p) * (active ? 3f : 2f);
+            var right = Camera.Right * size;
+            var up = Camera.Up * size;
+            if (handle.Kind == SupportHandleKind.Trunk)
+            {
+                lines.Add(new OverlayLine(p - right, p + up, colour));
+                lines.Add(new OverlayLine(p + up, p + right, colour));
+                lines.Add(new OverlayLine(p + right, p - up, colour));
+                lines.Add(new OverlayLine(p - up, p - right, colour));
+            }
+            else
+            {
+                lines.Add(new OverlayLine(p - right - up, p + right - up, colour));
+                lines.Add(new OverlayLine(p + right - up, p + right + up, colour));
+                lines.Add(new OverlayLine(p + right + up, p - right + up, colour));
+                lines.Add(new OverlayLine(p - right + up, p - right - up, colour));
+            }
         }
     }
 
@@ -2170,6 +2455,10 @@ public sealed class ViewportControl : OpenGlControlBase
             {
                 case Key.Enter when _tipDrag is not null: CommitTipDrag(); break;
                 case Key.Escape when _tipDrag is not null: CancelTipDrag(); break;
+                // Support edit mode (user, 2026-09-08): Space enters and leaves, handles drag.
+                case Key.Escape when _editDrag is not null: CancelSupportEditDrag(); break;
+                case Key.Space when !ctrl && SupportSelectionMode: ToggleSupportEdit(); break;
+                case Key.Escape when _editSupport is not null: EndSupportEdit(); break;
                 // G with one tip selected moves the tip along the surface; otherwise the object modal.
                 case Key.G when !ctrl && SupportSelectionMode && SelectedTip() is { } tipId: BeginTipDrag(tipId); break;
                 case Key.G when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Move, mouse, w, h); break;
@@ -2271,6 +2560,22 @@ public sealed class ViewportControl : OpenGlControlBase
             StatusText = $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  {lineGesture.Hint} · wheel/digits pitch · RMB/Esc cancel";
             return;
         }
+        if (_editDrag is { } editDrag)
+        {
+            StatusText = editDrag.Kind switch
+            {
+                SupportHandleKind.Tip => "Move tip: drag across the surface · release confirm · RMB/Esc cancel",
+                SupportHandleKind.Base => "Move base: drag in XY (base grid snaps · Shift free) · release confirm · RMB/Esc cancel",
+                SupportHandleKind.Trunk => "Move trunk: drag the column in XY (base grid snaps · Shift free) · release confirm · RMB/Esc cancel",
+                _ => "Move junction: drag in XY · release confirm · RMB/Esc cancel",
+            };
+            return;
+        }
+        if (_editSupport is not null)
+        {
+            StatusText = "Edit support: drag a handle · base / trunk / junction move in XY, tip across the surface · click another support to edit it · Space/Esc leave";
+            return;
+        }
         if (_tipDrag is not null)
         {
             StatusText = "Move tip: drag over the surface · LMB/Enter confirm · RMB/Esc cancel";
@@ -2292,7 +2597,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · J parent · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · Space edit support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · J parent · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

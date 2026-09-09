@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
@@ -162,6 +162,8 @@
                 <MenuItem Header="Un_brace Supports" Click="OnUnbraceSupportsClick" InputGesture="Shift+K"
                           IsVisible="{Binding IsSupportView}" />
                 <MenuItem Header="Select B_races" Click="OnSelectBracesClick"
+                          IsVisible="{Binding IsSupportView}" />
+                <MenuItem Header="_Edit Support" Click="OnEditSupportClick" InputGesture="Space"
                           IsVisible="{Binding IsSupportView}" />
                 <Separator IsVisible="{Binding IsModelView}" />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
@@ -503,6 +505,11 @@
                                     <Button Grid.Column="4" Content="Select braces" Click="OnSelectBracesClick" HorizontalAlignment="Stretch"
                                             ToolTip.Tip="Add every brace of the model to the selection, keeping whatever is selected, so Delete, H and Shift+H can act on braces." />
                                 </Grid>
+                                <!-- Edit mode (Space): handles on the selected support; base / trunk / junction drag in XY, tip across the surface. -->
+                                <Button DockPanel.Dock="Top" Content="Edit Support  (Space)"
+                                        Click="OnEditSupportClick"
+                                        HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                                        ToolTip.Tip="Show handles on the selected support: drag the base, a junction or the trunk in XY (the base grid snaps, Shift frees), or the tip across the surface. Space or Esc leaves." />
                                 <!-- Support regions (DESIGN 8.3). Painting decides WHERE generation
                                      may place contacts; the operations themselves live in
                                      SupportRegionSelection and are pure set maths. -->
