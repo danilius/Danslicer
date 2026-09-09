@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Clipper2Lib;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Slicing;
@@ -47,6 +47,110 @@ internal static class IslandFinder
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Islands by the strict definition (user, 2026-09-09): a connected solid region of a layer
+    /// that overlaps NOTHING below it, i.e. a place where printing starts off the plate. A
+    /// region that overlaps the previous layer anywhere — a slanted plate advancing each layer,
+    /// a cantilever growing out of its post, a table top over its legs — is an overhang, not an
+    /// island. The previous layer is inflated by the overhang allowance before the test so a
+    /// self-supporting rim counts as carried. The first solid layer sits on the plate when the
+    /// mesh does; a mesh clear of the plate starts with islands.
+    /// </summary>
+    public static List<Island> FindStarts(
+        IReadOnlyList<SliceLayer> layers,
+        float meshMinZ,
+        float layerHeight,
+        float minAreaMm2,
+        float plateZ,
+        float overhangAngleDegrees = 45f)
+    {
+        var result = new List<Island>();
+        if (layers.Count == 0) return result;
+
+        var theta = Math.Clamp(overhangAngleDegrees, 1f, 89f) * Math.PI / 180.0;
+        var inflateMm = layerHeight * Math.Tan(theta) + 0.02;
+        var sitsOnPlate = meshMinZ <= plateZ + layerHeight + 1e-4;
+        // Overlap below this is a numerical sliver, not support (a hundredth of a square millimetre).
+        var minOverlap = 0.01 * MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm;
+
+        Paths64? previous = null;
+        var firstSolidSeen = false;
+        foreach (var layer in layers)
+        {
+            var polygons = layer.Polygons;
+            if (polygons.Count == 0)
+            {
+                previous = polygons;
+                continue;
+            }
+            if (!firstSolidSeen)
+            {
+                firstSolidSeen = true;
+                if (sitsOnPlate)
+                {
+                    previous = polygons;
+                    continue;
+                }
+            }
+
+            var carried = previous is null || previous.Count == 0
+                ? null
+                : Clipper.InflatePaths(previous, inflateMm * MeshSlicer.UnitsPerMm, JoinType.Round, EndType.Polygon);
+            foreach (var (outer, holes) in Regions(polygons))
+            {
+                if (carried is not null)
+                {
+                    var region = new Paths64 { outer };
+                    region.AddRange(holes);
+                    var overlap = Clipper.Intersect(region, carried, FillRule.NonZero);
+                    if (Math.Abs(MeshSlicer.AreaMm2(overlap)) * MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm > minOverlap)
+                        continue;
+                }
+                var net = Clipper.Area(outer) + holes.Sum(Clipper.Area);
+                var areaMm2 = net / (MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm);
+                if (areaMm2 < minAreaMm2) continue;
+                var c = CentroidOnSolid(outer, holes);
+                result.Add(new Island(new Vector3(c.X, c.Y, layer.Z), (float)areaMm2, layer.Z, layer.Index));
+            }
+            previous = polygons;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// The connected solid regions of a layer: each outer contour (positive) with the holes
+    /// (negative) directly inside it. Solids nested inside holes are regions of their own.
+    /// </summary>
+    private static IEnumerable<(Path64 Outer, List<Path64> Holes)> Regions(Paths64 polygons)
+    {
+        var tree = new PolyTree64();
+        Clipper.BooleanOp(ClipType.Union, polygons, null, tree, FillRule.NonZero);
+        var pending = new Stack<PolyPath64>();
+        for (var i = 0; i < tree.Count; i++) pending.Push(tree[i]);
+        while (pending.Count > 0)
+        {
+            var node = pending.Pop();
+            if (node.Polygon is null) continue;
+            var outer = LayerStack.OrientedPositive(node.Polygon);
+            var holes = new List<Path64>();
+            for (var h = 0; h < node.Count; h++)
+            {
+                var hole = node[h];
+                if (hole.Polygon is not null) holes.Add(OrientedNegative(hole.Polygon));
+                for (var k = 0; k < hole.Count; k++) pending.Push(hole[k]);
+            }
+            yield return (outer, holes);
+        }
+    }
+
+    private static Path64 OrientedNegative(Path64 path)
+    {
+        if (Clipper.Area(path) <= 0) return path;
+        var copy = new Path64(path);
+        copy.Reverse();
+        return copy;
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports.Generation;
 
@@ -27,7 +27,7 @@ public static class PrintChecker
             var layers = LayerStack.Slice(mesh, p.LayerHeightMm);
             SuctionCupDetector.Find(layers, p, i, findings);
 
-            foreach (var island in IslandFinder.Find(
+            foreach (var island in IslandFinder.FindStarts(
                          layers, mesh.Bounds.Min.Z, p.LayerHeightMm, p.MinIslandAreaMm2, p.PlateZ, p.OverhangAngleDegrees))
             {
                 findings.Add(new CheckFinding
