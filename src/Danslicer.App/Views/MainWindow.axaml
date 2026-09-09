@@ -165,6 +165,8 @@
                           IsVisible="{Binding IsSupportView}" />
                 <MenuItem Header="_Edit Support" Click="OnEditSupportClick" InputGesture="Space"
                           IsVisible="{Binding IsSupportView}" />
+                <MenuItem Header="Place Suppor_ts" Click="OnPlaceSupportsClick" InputGesture="T"
+                          IsVisible="{Binding IsSupportView}" />
                 <Separator IsVisible="{Binding IsModelView}" />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
                 <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}"
@@ -628,6 +630,9 @@
                                 </Grid>
                                 <TextBlock Text="Each tool works on the support target. Settings are under Supports › Guided."
                                            Classes="label" TextWrapping="Wrap" Margin="0,4,0,6" />
+                                <Button Tag="Place" Content="Place  (T)" Click="OnGuidedToolButtonClick" Margin="0,2,0,8"
+                                        HorizontalAlignment="Stretch"
+                                        ToolTip.Tip="Placement mode: a ghost of the routed support follows the cursor, a click places it; nothing shows where none fits. T, Esc or right-click leaves." />
                                 <Button Tag="Line" Content="Line  (L)" Click="OnGuidedToolButtonClick" Margin="0,2"
                                         HorizontalAlignment="Stretch"
                                         ToolTip.Tip="Click points along the surface; double-click or Enter places tips at pitch along the route" />

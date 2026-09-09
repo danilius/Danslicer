@@ -351,6 +351,7 @@ public sealed class ViewportControl : OpenGlControlBase
             // A guided gesture is Support-mode only; leaving the mode abandons it.
             if (!SupportSelectionMode && _lineGesture is not null) CancelLineGesture();
             if (!SupportSelectionMode && _editSupport is not null) EndSupportEdit();
+            if (!SupportSelectionMode && _placementMode) EndPlacementMode();
             _supportMeshesDirty = true;
             // The region overlay is Support-mode only, so a mode change rebuilds it too.
             MarkRegionOverlayDirty();
@@ -589,6 +590,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 Vector3.DistanceSquared(Camera.Eye, batch.SortOrigin))
             : _supportMeshes;
         foreach (var batch in supportBatches) _combinedAuxMeshes.Add(batch.Draw);
+        _combinedAuxMeshes.AddRange(_placementGhost);
         _combinedAuxMeshes.AddRange(_regionOverlays);
         _combinedAuxMeshes.AddRange(_clipCaps);
         if (_islandMarkerMesh is { } markers)
@@ -776,6 +778,22 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (props.IsLeftButtonPressed) CommitTipDrag();
             else if (props.IsRightButtonPressed) CancelTipDrag();
+            e.Handled = true;
+            return;
+        }
+
+        if (_placementMode)
+        {
+            if (props.IsLeftButtonPressed)
+            {
+                var placed = TryAddSupport(MouseVector(e));
+                // The graph changed under the ghost: drop it until the cursor moves again.
+                ClearPlacementGhost();
+                UpdateStatus();
+                if (placed is not null) StatusText = placed;
+                Redraw();
+            }
+            else if (props.IsRightButtonPressed) EndPlacementMode();
             e.Handled = true;
             return;
         }
@@ -1019,6 +1037,10 @@ public sealed class ViewportControl : OpenGlControlBase
         else if (_editDrag is not null)
         {
             UpdateSupportEditDrag(MouseVector(e), e.KeyModifiers);
+        }
+        else if (_placementMode)
+        {
+            UpdatePlacementGhost(MouseVector(e));
         }
         else if (_editSupport is not null && HitSupportEditHandle(MouseVector(e)) is var hover && hover != _editHover)
         {
@@ -1302,7 +1324,7 @@ public sealed class ViewportControl : OpenGlControlBase
     /// message when the gesture cannot start.
     /// </summary>
     /// <summary>Which guided placement tool a toolbar button starts (user rule 2026-09-08: every key has a button).</summary>
-    public enum GuidedTool { Line, Polygon, Edge, Ring, Contour, Densify, Thin }
+    public enum GuidedTool { Place, Line, Polygon, Edge, Ring, Contour, Densify, Thin }
 
     /// <summary>
     /// Starts a guided tool from the toolbar, exactly as its key would from the cursor's last
@@ -1315,6 +1337,7 @@ public sealed class ViewportControl : OpenGlControlBase
         var mouse = new Vector2((float)_lastPointer.X, (float)_lastPointer.Y);
         string? status = tool switch
         {
+            GuidedTool.Place => PlacementToggleStatus(),
             GuidedTool.Line => BeginLineGesture(mouse),
             GuidedTool.Polygon => BeginLineGesture(mouse, GuidedKind.Polygon),
             GuidedTool.Edge => BeginLineGesture(mouse, GuidedKind.Edge),
@@ -1606,6 +1629,107 @@ public sealed class ViewportControl : OpenGlControlBase
         }
     }
 
+    // ----- Manual placement mode (T in Support mode) -----
+    // User note 2026-09-08: a mode instead of a one-shot key, with a ghosted support following
+    // the cursor; where no support can be placed, nothing is shown.
+
+    private static readonly Vector3 PlacementGhostColor = new(0.55f, 0.95f, 1f);
+    private const float PlacementGhostOpacity = 0.45f;
+    /// <summary>Cursor travel on the surface below which the ghost is not re-routed.</summary>
+    private const float PlacementGhostStepMm = 0.15f;
+
+    private bool _placementMode;
+    private readonly List<AuxMeshDraw> _placementGhost = new();
+    private Vector3? _placementGhostPoint;
+    private string? _placementRefusal;
+
+    public bool IsPlacingSupports => _placementMode;
+
+    private void TogglePlacementMode()
+    {
+        if (_placementMode) EndPlacementMode();
+        else BeginPlacementMode();
+    }
+
+    private string? PlacementToggleStatus()
+    {
+        TogglePlacementMode();
+        return null;
+    }
+
+    private void BeginPlacementMode()
+    {
+        if (Document is null || !SupportSelectionMode) return;
+        if (_editSupport is not null) EndSupportEdit();
+        if (_lineGesture is not null) CancelLineGesture();
+        _placementMode = true;
+        _placementRefusal = null;
+        UpdatePlacementGhost(new Vector2((float)_lastPointer.X, (float)_lastPointer.Y));
+        UpdateStatus();
+        Redraw();
+    }
+
+    private void EndPlacementMode()
+    {
+        _placementMode = false;
+        ClearPlacementGhost();
+        UpdateStatus();
+        Redraw();
+    }
+
+    private void ClearPlacementGhost()
+    {
+        _placementGhost.Clear();
+        _placementGhostPoint = null;
+        _placementRefusal = null;
+    }
+
+    /// <summary>
+    /// Routes the support a click here would place and shows it translucent, exactly as it
+    /// would be built. Off the model, on a model that is not the target, or where routing
+    /// refuses, the ghost is cleared and the refusal named in the status line.
+    /// </summary>
+    private void UpdatePlacementGhost(Vector2 mouse)
+    {
+        if (Document is null) return;
+        var hit = PickSurface(mouse, out _, out var point, out var normal);
+        if (hit is null)
+        {
+            if (_placementGhost.Count > 0 || _placementRefusal is not null)
+            {
+                ClearPlacementGhost();
+                UpdateStatus();
+                Redraw();
+            }
+            return;
+        }
+        if (_placementGhostPoint is { } last && Vector3.Distance(last, point) < PlacementGhostStepMm) return;
+        _placementGhostPoint = point;
+
+        _placementGhost.Clear();
+        _placementRefusal = SupportTargetPolicy.RefusalMessage(Document.SupportTarget, hit);
+        if (_placementRefusal is null)
+        {
+            var edit = Document.PreviewManualSupport(hit, point, normal, out var reason);
+            if (edit is null)
+            {
+                _placementRefusal = reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
+                    ? "contact is too tight to the surface"
+                    : "no clear path to the plate from here";
+            }
+            else
+            {
+                var ghost = new SupportGraph();
+                foreach (var node in edit.AddedNodes) ghost.AddNode(node);
+                foreach (var segment in edit.AddedSegments) ghost.AddSegment(segment);
+                foreach (var part in SupportRenderMesh.Build(ghost))
+                    _placementGhost.Add(new AuxMeshDraw(part.Mesh, PlacementGhostColor, PlacementGhostOpacity));
+            }
+        }
+        UpdateStatus();
+        Redraw();
+    }
+
     // ----- Support edit mode (Space with a support selected) -----
 
     private static readonly Vector4 EditBaseColor = new(0.35f, 0.6f, 1f, 1f);
@@ -1648,6 +1772,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void BeginSupportEdit(Guid element)
     {
+        if (_placementMode) EndPlacementMode();
         _editSupport = element;
         _editHover = null;
         _editFollowingSelection = true;
@@ -2457,6 +2582,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.Escape when _tipDrag is not null: CancelTipDrag(); break;
                 // Support edit mode (user, 2026-09-08): Space enters and leaves, handles drag.
                 case Key.Escape when _editDrag is not null: CancelSupportEditDrag(); break;
+                case Key.Escape when _placementMode: EndPlacementMode(); break;
                 case Key.Space when !ctrl && SupportSelectionMode: ToggleSupportEdit(); break;
                 case Key.Escape when _editSupport is not null: EndSupportEdit(); break;
                 // G with one tip selected moves the tip along the surface; otherwise the object modal.
@@ -2483,9 +2609,10 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.H when shift && !ctrl && SupportSelectionMode: Document.HideUnselectedSupportElements(); break;
                 case Key.H when !ctrl && SupportSelectionMode: Document.HideSelectedSupportElements(); break;
                 case Key.H when !ctrl: Document.HideSelection(); break;
-                // Manual support under the cursor (Support mode only), routed around the model.
-                // (Shift+T's blind straight drop was removed 2026-09-03 at the user's request.)
-                case Key.T when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = TryAddSupport(mouse); break;
+                // Manual placement mode (user note 2026-09-08): T toggles it, a ghost of the routed
+                // support follows the cursor, a click places it. (Shift+T's blind straight drop
+                // was removed 2026-09-03 at the user's request.)
+                case Key.T when !ctrl && !shift && SupportSelectionMode: TogglePlacementMode(); break;
                 // Guided line of supports (SUPPORT-GEOMETRY-SPEC "Guided tip placement").
                 case Key.L when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse); break;
                 case Key.P when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Polygon); break;
@@ -2560,6 +2687,12 @@ public sealed class ViewportControl : OpenGlControlBase
             StatusText = $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  {lineGesture.Hint} · wheel/digits pitch · RMB/Esc cancel";
             return;
         }
+        if (_placementMode)
+        {
+            var refused = _placementRefusal is { } reason ? $"{reason} · " : "";
+            StatusText = $"Place supports: {refused}click to place the ghosted support · nothing shows where none fits · RMB/T/Esc leave";
+            return;
+        }
         if (_editDrag is { } editDrag)
         {
             StatusText = editDrag.Kind switch
@@ -2597,7 +2730,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · Space edit support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · J parent · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · Space edit support · G move tip · T place supports · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · J parent · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Commands;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -833,10 +833,27 @@ public sealed class Document
     {
         failureReason = null;
         parenting = null;
+        if (PreviewManualSupport(obj, contact, surfaceNormal, out failureReason) is not { } edit) return false;
+        var command = new ApplySupportGraphEditCommand(Supports, edit);
+        Execute(command);
+        parenting = AutoParentAfterPlacement(obj, edit, command.Name);
+        return true;
+    }
+
+    /// <summary>
+    /// Routes the support a T placement at this contact would add, without adding it: the ghost
+    /// the placement mode shows under the cursor (user note 2026-09-08). Null when the model is
+    /// not the support target or no route exists; the same call, applied, is exactly what
+    /// <see cref="AddManualSupport(SceneObject, Vector3, Vector3)"/> places.
+    /// </summary>
+    public SupportGraphEdit? PreviewManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason)
+    {
+        failureReason = null;
         // A click on a model that is not the support target is refused before any routing work:
         // this is not a routing failure, so it carries no routing reason. The caller turns it
         // into the status line from SupportTargetPolicy.
-        if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return false;
+        if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return null;
         var settings = SupportSettings with { };
         var (router, options) = ManualRouting(obj, settings,
             HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount));
@@ -849,14 +866,9 @@ public sealed class Document
         if (result.UnroutedTips.Count > 0)
         {
             failureReason = result.Failures.Single().Reason;
-            return false;
+            return null;
         }
-
-        failureReason = null;
-        var command = new ApplySupportGraphEditCommand(Supports, result.Edit);
-        Execute(command);
-        parenting = AutoParentAfterPlacement(obj, result.Edit, command.Name);
-        return true;
+        return result.Edit;
     }
 
     /// <summary>
