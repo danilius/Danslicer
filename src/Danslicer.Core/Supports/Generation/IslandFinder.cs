@@ -75,6 +75,11 @@ internal static class IslandFinder
         // Overlap below this is a numerical sliver, not support (a hundredth of a square millimetre).
         var minOverlap = 0.01 * MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm;
 
+        // What the next layer may rest on: the regions of this layer that are themselves
+        // carried, plus islands big enough to have been reported (they get their own tips). A
+        // start still under the minimum area is left out, so the region growing from it is
+        // tested again next layer and reported once it is worth a tip — otherwise a 0.01 mm²
+        // first sliver at a leaning edge hides the island for good (roof gripper, 2026-09-09).
         Paths64? previous = null;
         var firstSolidSeen = false;
         foreach (var layer in layers)
@@ -98,23 +103,28 @@ internal static class IslandFinder
             var carried = previous is null || previous.Count == 0
                 ? null
                 : Clipper.InflatePaths(previous, inflateMm * MeshSlicer.UnitsPerMm, JoinType.Round, EndType.Polygon);
+            var carriesNext = new Paths64();
             foreach (var (outer, holes) in Regions(polygons))
             {
+                var region = new Paths64 { outer };
+                region.AddRange(holes);
                 if (carried is not null)
                 {
-                    var region = new Paths64 { outer };
-                    region.AddRange(holes);
                     var overlap = Clipper.Intersect(region, carried, FillRule.NonZero);
                     if (Math.Abs(MeshSlicer.AreaMm2(overlap)) * MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm > minOverlap)
+                    {
+                        carriesNext.AddRange(region);
                         continue;
+                    }
                 }
                 var net = Clipper.Area(outer) + holes.Sum(Clipper.Area);
                 var areaMm2 = net / (MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm);
                 if (areaMm2 < minAreaMm2) continue;
+                carriesNext.AddRange(region);
                 var c = CentroidOnSolid(outer, holes);
                 result.Add(new Island(new Vector3(c.X, c.Y, layer.Z), (float)areaMm2, layer.Z, layer.Index));
             }
-            previous = polygons;
+            previous = carriesNext;
         }
         return result;
     }
