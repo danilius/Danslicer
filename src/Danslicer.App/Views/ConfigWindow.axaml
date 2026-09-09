@@ -26,6 +26,14 @@
             <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
             <Setter Property="FontSize" Value="12" />
         </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="MaxWidth" Value="620" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
         <Style Selector="TextBlock.section">
             <Setter Property="Foreground" Value="{DynamicResource AppTextMuted}" />
             <Setter Property="FontSize" Value="13" />
@@ -92,6 +100,7 @@
                                   ItemsSource="{Binding ThemeNames}"
                                   SelectedIndex="{Binding SelectedThemeIndex, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="The colour scheme of every window. Applies at once; the viewport keeps its own model colours." />
                     <TextBlock Tag="appearance theme note restart" Classes="label" TextWrapping="Wrap"
                                Margin="0,6,0,0"
                                Text="Applies immediately across every open window." />
@@ -106,6 +115,7 @@
                         <NumericUpDown Grid.Column="2" Minimum="10" Maximum="89" Increment="1" FormatString="0"
                                        Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Faces that lean down more than this from vertical are tinted as overhangs in the viewport. It is a reading aid only: generation uses the overhang angle in the support settings." />
                     <Grid Tag="viewport plate bed transparency opacity below underneath" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Plate opacity, edge-on and below" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0" Maximum="1"
@@ -113,12 +123,14 @@
                         <NumericUpDown Grid.Column="2" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00"
                                        Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="How solid the build plate is drawn when the camera looks along it or up from underneath, so a model's underside stays readable through it. 1 = always opaque." />
                     <Grid Tag="viewport overhang checker colour color picker first" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Overhang colour A" Classes="label" />
                         <ColorPicker Grid.Column="1" HorizontalAlignment="Left" MinWidth="110"
                                      IsAlphaEnabled="False" IsAlphaVisible="False"
                                      Color="{Binding OverhangColorA, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="The two colours of the overhang tint's checker pattern; the checker makes the tinted area's slope and size easier to judge than a flat colour." />
                     <Grid Tag="viewport overhang checker colour color picker second" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Overhang colour B" Classes="label" />
                         <ColorPicker Grid.Column="1" HorizontalAlignment="Left" MinWidth="110"
@@ -132,6 +144,7 @@
                         <NumericUpDown Grid.Column="2" Minimum="0.5" Maximum="20" Increment="0.5" FormatString="0.0"
                                        Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Size of each square of that checker, mm on the model." />
                     <Grid Tag="viewport view cube corner navigation size pixels" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="View cube size" Classes="label" />
                         <Slider Grid.Column="1" Minimum="48" Maximum="192" TickFrequency="8" IsSnapToTickEnabled="True"
@@ -139,6 +152,7 @@
                         <NumericUpDown Grid.Column="2" Minimum="48" Maximum="192" Increment="8" FormatString="0"
                                        Value="{Binding ViewCubeSizePixels, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Size of the orientation cube in the viewport's top-right corner, pixels. Click a face for that view, drag it to orbit." />
                     <Grid Tag="viewport support edit gizmo handle size pixels" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Support gizmo size" Classes="label" />
                         <Slider Grid.Column="1" Minimum="24" Maximum="400" TickFrequency="8" IsSnapToTickEnabled="True"
@@ -146,6 +160,7 @@
                         <NumericUpDown Grid.Column="2" Minimum="24" Maximum="400" Increment="8" FormatString="0"
                                        Value="{Binding SupportGizmoSizePixels, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Size of the transform gizmos drawn on a support's handles in edit mode (Space in Support mode), pixels on screen." />
                     <Grid Tag="viewport support edit gizmo line width thickness pixels" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Support gizmo line width" Classes="label" />
                         <Slider Grid.Column="1" Minimum="1" Maximum="12" TickFrequency="0.5" IsSnapToTickEnabled="True"
@@ -153,6 +168,7 @@
                         <NumericUpDown Grid.Column="2" Minimum="1" Maximum="12" Increment="0.5" FormatString="0.0"
                                        Value="{Binding SupportGizmoLineWidth, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Stroke width of those gizmos, pixels." />
                 </StackPanel>
 
                 <StackPanel x:Name="KeymapSection">
@@ -217,14 +233,17 @@
                                 <TextBox Grid.Column="1" Text="{Binding Printers.NameDraft}" />
                                 <Button Grid.Column="2" Content="Rename" Command="{Binding Printers.RenameCommand}" />
                             </Grid>
+                    <TextBlock Classes="hint" Text="How the printer is listed in Danslicer and saved with the project." />
                             <Grid ColumnDefinitions="130,*" Margin="0,2">
                                 <TextBlock Text="Machine name" Classes="label" />
                                 <TextBox Grid.Column="1" Text="{Binding Printers.MachineName, Mode=TwoWay}" />
                             </Grid>
+                    <TextBlock Classes="hint" Text="The name written into the print file's header. Some printers refuse a file whose machine name is not their own." />
                             <Grid ColumnDefinitions="130,*" Margin="0,2">
                                 <TextBlock Text="File extension" Classes="label" />
                                 <TextBox Grid.Column="1" Text="{Binding Printers.FileExtension, Mode=TwoWay}" />
                             </Grid>
+                    <TextBlock Classes="hint" Text="The print file format this printer reads, for example pwmx; it decides how the layers are packed." />
                             <ItemsControl ItemsSource="{Binding Printers.Fields}"
                                           ItemTemplate="{StaticResource PrinterFieldTemplate}" />
                             <WrapPanel Margin="0,4,0,0">
@@ -236,6 +255,7 @@
                                        IsVisible="{Binding Printers.HasValidationMessage}"
                                        Foreground="{DynamicResource AppAccent}" FontSize="12" Margin="0,6,0,0" />
                         </StackPanel>
+                    <TextBlock Classes="hint" Text="Flip every layer image on that axis before writing, for printers whose screen is mirrored relative to the plate. Wrong here prints a mirrored model." />
                     </Grid>
                 </StackPanel>
 
@@ -277,6 +297,7 @@
 
                 <StackPanel x:Name="SupportsSection">
                     <TextBlock Text="Supports" Classes="section" />
+                    <TextBlock Classes="hint" Text="The recipe every generation, placement, parenting and bracing uses; the same settings as the Support settings pop-out in Support mode. Hover any setting for what it does. Presets snapshot the whole recipe." />
                     <controls:SupportSettingsView DataContext="{Binding}" />
                 </StackPanel>
 
@@ -284,7 +305,7 @@
                     <TextBlock Text="External tools" Classes="section" />
                     <Grid Tag="external tools uvtools executable application path browse validation"
                           ColumnDefinitions="190,*,Auto" ColumnSpacing="6" Margin="0,2">
-                        <TextBlock Text="UVtools executable" Classes="label" />
+                        <TextBlock Text="UVtools executable" Classes="label" ToolTip.Tip="Path to UVtools, used by the UV check button in Slicing to open the exported file." />
                         <TextBox Grid.Column="1"
                                  Text="{Binding UvtoolsExecutablePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  PlaceholderText="Path to UVtools" />
@@ -310,38 +331,45 @@
                         <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
                                        Value="{Binding SpaceMouseOrbitSensitivity, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Multiplier on how fast a tilt or twist of the cap orbits the view." />
                     <Grid Tag="spacemouse pan slide sensitivity speed" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Pan sensitivity" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMousePanSensitivity, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
                                        Value="{Binding SpaceMousePanSensitivity, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Multiplier on how fast sliding the cap pans the view." />
                     <Grid Tag="spacemouse zoom push sensitivity speed" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Zoom sensitivity" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseZoomSensitivity, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
                                        Value="{Binding SpaceMouseZoomSensitivity, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Multiplier on how fast pushing or pulling the cap zooms." />
                     <Grid Tag="spacemouse deadzone drift threshold" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Deadzone" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0" Maximum="0.2" Value="{Binding SpaceMouseDeadzone, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0" Maximum="0.2" Increment="0.005" FormatString="0.000"
                                        Value="{Binding SpaceMouseDeadzone, Mode=TwoWay}" />
                     </Grid>
+                    <TextBlock Classes="hint" Text="Cap movement below this fraction of full deflection is ignored, so a resting cap does not drift the view." />
                     <StackPanel Tag="spacemouse invert orbit yaw pitch direction flip" Orientation="Horizontal" Spacing="16" Margin="0,6,0,0">
                         <TextBlock Text="Invert orbit" Classes="label" Width="174" />
                         <CheckBox Content="Yaw (twist)" IsChecked="{Binding SpaceMouseInvertOrbitYaw, Mode=TwoWay}" />
                         <CheckBox Content="Pitch (tilt)" IsChecked="{Binding SpaceMouseInvertOrbitPitch, Mode=TwoWay}" />
                     </StackPanel>
+                    <TextBlock Classes="hint" Text="Reverse the direction of a twist (yaw) or tilt (pitch) of the cap." />
                     <StackPanel Tag="spacemouse invert pan direction flip horizontal vertical" Orientation="Horizontal" Spacing="16" Margin="0,2,0,0">
                         <TextBlock Text="Invert pan" Classes="label" Width="174" />
                         <CheckBox Content="X (left/right)" IsChecked="{Binding SpaceMouseInvertPanX, Mode=TwoWay}" />
                         <CheckBox Content="Y (up/down)" IsChecked="{Binding SpaceMouseInvertPanY, Mode=TwoWay}" />
                     </StackPanel>
+                    <TextBlock Classes="hint" Text="Reverse the direction the view pans when the cap slides left/right or up/down." />
                     <StackPanel Tag="spacemouse invert zoom push pull direction flip" Orientation="Horizontal" Spacing="16" Margin="0,2,0,0">
                         <TextBlock Text="Invert zoom" Classes="label" Width="174" />
                         <CheckBox Content="Push/pull" IsChecked="{Binding SpaceMouseInvertZoom, Mode=TwoWay}" />
                     </StackPanel>
+                    <TextBlock Classes="hint" Text="Reverse push and pull." />
                 </StackPanel>
 
             </StackPanel>

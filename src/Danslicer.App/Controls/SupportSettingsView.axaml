@@ -25,7 +25,7 @@
 
     <StackPanel>
         <StackPanel Margin="0,0,0,6" IsVisible="{Binding ShowSupportPresetControls}">
-            <TextBlock Text="Preset" Classes="label" Margin="0,0,0,2" />
+            <TextBlock Text="Preset" Classes="label" Margin="0,0,0,2" ToolTip.Tip="A named snapshot of every support setting. Save keeps the current values in the selected preset; Save As makes a new one." />
             <Grid ColumnDefinitions="*,Auto">
                 <ComboBox ItemsSource="{Binding SupportPresetDisplayNames}"
                           SelectedIndex="{Binding SelectedSupportPresetIndex, Mode=TwoWay}"
@@ -57,17 +57,17 @@
         <Expander Header="Tip" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports tip contact diameter mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Tip diameter" Classes="label" />
+                    <TextBlock Text="Tip diameter" Classes="label" ToolTip.Tip="Diameter of the tip's end where it meets the model, mm. Smaller leaves a smaller mark and holds less." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportTipDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports tip ball snap diameter none zero mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Ball diameter (0 = none)" Classes="label" />
+                    <TextBlock Text="Ball diameter (0 = none)" Classes="label" ToolTip.Tip="A sphere at the very tip, mm, for a rounder contact that snaps off cleanly. 0 = the cone ends flat." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportBallDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports tip penetration depth embedding mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Penetration depth" Classes="label" />
+                    <TextBlock Text="Penetration depth" Classes="label" ToolTip.Tip="How far the tip sinks into the model surface along its axis, mm, so the contact bonds rather than touches." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportPenetrationDepth, Mode=TwoWay}" />
                 </Grid>
@@ -77,27 +77,27 @@
         <Expander Header="Members" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports members trunk diameter mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Trunk diameter" Classes="label" />
+                    <TextBlock Text="Trunk diameter" Classes="label" ToolTip.Tip="Diameter of the vertical member rising from the base, mm." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportTrunkDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members branch diameter mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Branch diameter" Classes="label" />
+                    <TextBlock Text="Branch diameter" Classes="label" ToolTip.Tip="Diameter of the angled members that carry tips to a trunk, mm." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportBranchDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members angle degrees maximum" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Member angle °" Classes="label" />
+                    <TextBlock Text="Member angle °" Classes="label" ToolTip.Tip="The most any angled member (branch or tip cone) may lean from vertical, degrees. 45 is what a resin print holds without sagging." />
                     <NumericUpDown Grid.Column="1" Minimum="1" Maximum="89" Increment="1" FormatString="0"
                                    Value="{Binding SupportMemberAngleDegrees, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members tip member length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Cone length" Classes="label" />
+                    <TextBlock Text="Cone length" Classes="label" ToolTip.Tip="Length of the cone from the tip's end back to where it joins its branch or trunk, mm." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportTipMemberLength, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members maximum branch length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max branch length" Classes="label" />
+                    <TextBlock Text="Max branch length" Classes="label" ToolTip.Tip="The longest branch the router will lay from a tip to a trunk, mm; a tip further than this gets its own trunk." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
                                    Value="{Binding SupportMaxBranchLength, Mode=TwoWay}" />
                 </Grid>
@@ -108,13 +108,13 @@
                           ToolTip.Tip="Manual T placements ignore other supports but still avoid models"
                           IsChecked="{Binding SupportIndependentManualSupports, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports members existing trunk branch range mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Existing trunk range" Classes="label" />
+                    <TextBlock Text="Existing trunk range" Classes="label" ToolTip.Tip="How far around a new tip the router looks for a trunk already standing to branch onto, mm." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.5" FormatString="0.##"
                                    Value="{Binding SupportExistingTrunkBranchRange, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members minimum surface gap separation mm disabled zero"
                       ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Min surface gap" Classes="label" />
+                    <TextBlock Text="Min surface gap" Classes="label" ToolTip.Tip="Minimum gap between the surfaces of members that do not meet, mm, so neighbours do not fuse. 0 = no rule." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportMinMemberSeparationMm, Mode=TwoWay}" />
                 </Grid>
@@ -130,22 +130,22 @@
         <Expander Header="Base" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports base shape disc cone none" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Shape" Classes="label" />
+                    <TextBlock Text="Shape" Classes="label" ToolTip.Tip="Disc: a flat disc on the plate. Disc + cone: the disc with a cone up to the trunk. None: the trunk ends on the plate." />
                     <ComboBox Grid.Column="1" ItemsSource="{Binding SupportBaseShapes}"
                               SelectedItem="{Binding SupportBaseShapeValue, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports base diameter mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Base diameter" Classes="label" />
+                    <TextBlock Text="Base diameter" Classes="label" ToolTip.Tip="Diameter of the base disc on the plate, mm. Bases never shrink to fit; a base that would hit the model moves instead." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportBaseDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports base height thickness mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Base height" Classes="label" />
+                    <TextBlock Text="Base height" Classes="label" ToolTip.Tip="Height of the base disc, mm." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportBaseHeight, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports base cone height mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Base cone height" Classes="label" />
+                    <TextBlock Text="Base cone height" Classes="label" ToolTip.Tip="Height of the cone from the disc up to the trunk diameter (Disc + cone), mm." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportBaseConeHeight, Mode=TwoWay}" />
                 </Grid>
@@ -157,7 +157,7 @@
                 <CheckBox Tag="supports base grid enable disable free placement" Content="Use base grid"
                           IsChecked="{Binding SupportUseBaseGrid, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports base square grid pitch spacing mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Grid pitch" Classes="label" />
+                    <TextBlock Text="Grid pitch" Classes="label" ToolTip.Tip="Spacing of the imaginary grid bases snap to, mm. Coarser gives a tidier forest, finer reaches more tips." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="1" FormatString="0.##"
                                    Value="{Binding SupportBaseGridPitch, Mode=TwoWay}" />
                 </Grid>
@@ -171,23 +171,23 @@
                           IsChecked="{Binding SupportReinforceEnabled, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports reinforce seed selection object region critical tips"
                       ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Seed selector" Classes="label" />
+                    <TextBlock Text="Seed selector" Classes="label" ToolTip.Tip="Where the reinforcing ring is centred: the lowest point of the object, or of each island." />
                     <ComboBox Grid.Column="1" ItemsSource="{Binding ReinforceSeedSelectors}"
                               SelectedItem="{Binding SupportReinforceSeedSelector, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports reinforce ring contact count" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Ring tip count" Classes="label" />
+                    <TextBlock Text="Ring tip count" Classes="label" ToolTip.Tip="How many extra tips the ring places around the seed." />
                     <NumericUpDown Grid.Column="1" Minimum="1" Maximum="100" Increment="1" FormatString="0"
                                    Value="{Binding SupportReinforceCount, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports reinforce ring radius mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Ring radius" Classes="label" />
+                    <TextBlock Text="Ring radius" Classes="label" ToolTip.Tip="Radius of the ring of extra tips around the seed, mm." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportReinforceRingRadius, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports reinforce ring tip diameter multiplier"
                       ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Tip diameter multiplier" Classes="label" />
+                    <TextBlock Text="Tip diameter multiplier" Classes="label" ToolTip.Tip="The ring's tips use the tip diameter times this: heavier tips where the print starts." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="100" Increment="0.05" FormatString="0.##"
                                    Value="{Binding SupportReinforceRingDiameterMultiplier, Mode=TwoWay}" />
                 </Grid>
@@ -238,17 +238,17 @@
                           ToolTip.Tip="After T, a guided tool or densify, the new supports and their neighbours within the trunk search range are parented at once, as part of the same undo step. Off: supports stay single until J."
                           IsChecked="{Binding SupportAutoParenting, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports parenting max branch length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max branch length" Classes="label" />
+                    <TextBlock Text="Max branch length" Classes="label" ToolTip.Tip="How far a tip may reach to join a trunk when parented (J), mm. 0 = the Members value." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000" Increment="0.5" FormatString="0.##"
                                    Value="{Binding SupportParentingMaxBranchLength, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports parenting max branch angle degrees" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max branch angle °" Classes="label" />
+                    <TextBlock Text="Max branch angle °" Classes="label" ToolTip.Tip="The steepest branch parenting may lay, degrees from vertical; shallower keeps branches short and stiff. 0 = the Members value." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="89" Increment="1" FormatString="0"
                                    Value="{Binding SupportParentingMaxBranchAngle, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports parenting trunk search range mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Trunk search range" Classes="label" />
+                    <TextBlock Text="Trunk search range" Classes="label" ToolTip.Tip="How far around a tip parenting looks for a trunk to join before raising its own, mm. 0 = the Members existing trunk range." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000" Increment="0.5" FormatString="0.##"
                                    Value="{Binding SupportParentingTrunkRange, Mode=TwoWay}" />
                 </Grid>
@@ -346,40 +346,40 @@
         <Expander Header="Placement" IsExpanded="True">
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports placement spacing density mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Spacing" Classes="label" />
+                    <TextBlock Text="Spacing" Classes="label" ToolTip.Tip="Distance between neighbouring tips on an overhang, mm. Closer holds better and marks more." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportSpacing, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement island spacing dedup radius mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Island spacing" Classes="label" />
+                    <TextBlock Text="Island spacing" Classes="label" ToolTip.Tip="Tip spacing inside an island, mm; islands start the print off the plate, so they get denser tips than an ordinary overhang." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportIslandSpacingMm, Mode=TwoWay}" />
                 </Grid>
                 <!-- Painted regions only: the even grid replaces overhang sampling there, and
                      vertical rows are the axis that has to stay even. -->
                 <Grid Tag="supports placement painted region grid vertical row pitch mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Painted row pitch (Z)" Classes="label" />
+                    <TextBlock Text="Painted row pitch (Z)" Classes="label" ToolTip.Tip="Row pitch in Z for a painted region, mm: rows are what matters most on a wall." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportRegionGridVerticalPitchMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement painted region grid horizontal along surface pitch mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Painted row spacing" Classes="label" />
+                    <TextBlock Text="Painted row spacing" Classes="label" ToolTip.Tip="Spacing along each painted row, measured along the surface, mm." />
                     <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportRegionGridHorizontalPitchMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement overhang angle degrees threshold" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Overhang angle °" Classes="label" />
+                    <TextBlock Text="Overhang angle °" Classes="label" ToolTip.Tip="Faces that lean down more than this from vertical get supports, degrees. 0 is a wall, 90 a flat underside." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="90" Increment="1" FormatString="0"
                                    Value="{Binding SupportOverhangAngleDegrees, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement minimum island area square mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Min island area mm²" Classes="label" />
+                    <TextBlock Text="Min island area mm²" Classes="label" ToolTip.Tip="An island smaller than this is ignored, mm². Below the minimum a region does not carry the layer above it." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.1" FormatString="0.##"
                                    Value="{Binding SupportMinIslandAreaMm2, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement contact face maximum angle from straight down degrees eligible"
                       ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max angle from down °" Classes="label" />
+                    <TextBlock Text="Max angle from down °" Classes="label" ToolTip.Tip="A contact is only placed on a face within this angle of straight down, degrees. 90 = every downward face." />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="90" Increment="1" FormatString="0"
                                    Value="{Binding SupportMaxContactFaceAngleDegrees, Mode=TwoWay}" />
                 </Grid>
