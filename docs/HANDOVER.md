@@ -15,7 +15,27 @@ one branch per feature and merges are their call:
 | 4 | `supports-toolbar` | `placement-mode` | Supports pop-out = settings only; Generate button; Structure pop-out (Parent, Brace, Unbrace, Select braces, Edit); Region pop-out |
 
 Branches 2→3→4 are stacked (3 and 4 reference edit mode), so merge them in that order;
-`plate-shadows` is independent. This HANDOVER update sits on `supports-toolbar`.
+`plate-shadows` is independent. The throwaway `integration-2026-09-09` holds all of them
+merged (the build the user tested).
+
+**Second round (user feedback 2026-09-09 evening), stacked on the integration branch, in order:**
+
+| order | branch | what |
+|---|---|---|
+| 5 | `edit-gizmos` | edit mode draws a small transform gizmo per handle: X/Y (arrows + square) on base and trunk mid, XYZ on junctions and tips; arrow = axis drag, square = plane drag; base/trunk snap to the base grid on the dragged axes, Shift frees; the tip no longer re-lands on the surface |
+| 6 | `placement-red-ghost` | T mode: off the model / off the target / routing refused → a red translucent tip cone at the cursor (on the contact, or where the view ray meets the plate), status names why |
+| 7 | `island-definition` | Detect Islands and the print check use the STRICT definition: a connected region of a layer overlapping nothing below (after the overhang inflation) = where printing starts off-plate; a start under the minimum area does not carry the next layer, so the region is reported once it reaches the minimum. Tip placement keeps the old newborn-area seeds (changing that is the user's call) |
+| 8 | `slicer-chain-recovery` | MeshSlicer.ChainSegments: a dead-ended chain takes the nearest unused start within 0.1 mm and closes on its own start within that reach. Found because the gripper's layer 1379 (187 mm²) sliced EMPTY — a printed-layer bug, not just a detection one. Three unit tests |
+
+Screen checks for round two: gizmo arrows and squares drag as expected in each direction;
+red tip appears off the model and on a refused spot; Detect Islands on the gripper in the
+user's pose reports two islands (the saved project pose reports one — its far end is not the
+lowest point there — plus the raised cube's corner); Slice the gripper and look for missing
+layers around 69 mm (there should be none now).
+
+Probe numbers on `test files\roof gripper T2 single and tilted cube.danslicer`: before the
+chain fix, layers 115, 123 and 1379 sliced empty and the strict detector reported four
+gripper islands; after it, one (layer 101, z 5.075) plus the cube's (layer 104).
 
 **User screen checklist per branch:**
 1. Shadows: a soft-edged dark footprint offset slightly to -X/-Y under every model, on both
