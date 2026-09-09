@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -7,6 +7,7 @@ using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 
 namespace Danslicer.Core.IO;
 
@@ -33,7 +34,7 @@ public static class ProjectFile
 {
     public const string Extension = "danslicer";
     public const int CurrentMajorVersion = 1;
-    public const int CurrentMinorVersion = 0;
+    public const int CurrentMinorVersion = 1; // 1.1: per-object raft (2026-09-09)
 
     private const uint MeshMagic = 0x48534D44; // DMSH, little endian
     private const int MeshVersion = 1;
@@ -370,6 +371,11 @@ public static class ProjectFile
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? SourcePath { get; set; }
 
+        /// <summary>The raft under the object's supports (format 1.1). Omitted when there is
+        /// none, so a 1.0 project loads unchanged.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public RaftParameters? Raft { get; set; }
+
         public static ObjectDto From(SceneObject obj, string mesh) => new()
         {
             Id = obj.Id,
@@ -385,6 +391,7 @@ public static class ProjectFile
                 ? null
                 : [.. obj.Regions.KeepCleanFaces.Order()],
             SourcePath = obj.SourcePath,
+            Raft = obj.Raft,
         };
 
         public SceneObject ToObject(Mesh mesh) => new(Name, mesh, Id)
@@ -393,6 +400,7 @@ public static class ProjectFile
             RenderState = RenderState,
             Regions = ObjectSupportRegions.From(RegionFaces, KeepCleanFaces),
             SourcePath = SourcePath,
+            Raft = Raft?.Normalize(),
         };
     }
 

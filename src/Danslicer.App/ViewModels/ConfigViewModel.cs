@@ -4,6 +4,7 @@ using Danslicer.App.Configuration;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 
@@ -99,6 +100,8 @@ public sealed class ConfigViewModel : ViewModelBase
 
     public IReadOnlyList<BracingPattern> BracingPatterns { get; } =
         Enum.GetValues<BracingPattern>();
+
+    public IReadOnlyList<RaftType> RaftTypes { get; } = Enum.GetValues<RaftType>();
 
     public IReadOnlyList<ReinforceSeedSelector> ReinforceSeedSelectors { get; } =
         Enum.GetValues<ReinforceSeedSelector>();
@@ -490,6 +493,62 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => SupportDisplay.ShowBracing;
         set => UpdateSupportDisplay(display => display with { ShowBracing = value });
+    }
+
+    public bool ShowSupportRafts
+    {
+        get => SupportDisplay.ShowRafts;
+        set => UpdateSupportDisplay(display => display with { ShowRafts = value });
+    }
+
+    // Rafts (SUPPORT-GEOMETRY-SPEC "Rafts"): what Add raft snapshots onto the object.
+
+    public RaftType SupportRaftType
+    {
+        get => Supports.RaftType;
+        set => Update(() => Supports.RaftType = Enum.IsDefined(value) ? value : RaftType.Plate);
+    }
+
+    public float SupportRaftThickness
+    {
+        get => Supports.RaftThickness;
+        set => Update(() => Supports.RaftThickness = Clamp(value, 0.05f, 20f, 1f));
+    }
+
+    public float SupportRaftEdgeAngleDegrees
+    {
+        get => Supports.RaftEdgeAngleDegrees;
+        set => Update(() => Supports.RaftEdgeAngleDegrees = Clamp(value, 5f, 90f, 45f));
+    }
+
+    public float SupportRaftDiscDiameter
+    {
+        get => Supports.RaftDiscDiameter;
+        set => Update(() => Supports.RaftDiscDiameter = Clamp(value, 0.1f, 100f, 5f));
+    }
+
+    public float SupportRaftBarWidth
+    {
+        get => Supports.RaftBarWidth;
+        set => Update(() => Supports.RaftBarWidth = Clamp(value, 0.1f, 100f, 4f));
+    }
+
+    public float SupportRaftMaxBarLength
+    {
+        get => Supports.RaftMaxBarLength;
+        set => Update(() => Supports.RaftMaxBarLength = Clamp(value, 0f, 500f, 15f));
+    }
+
+    public float SupportRaftMargin
+    {
+        get => Supports.RaftMargin;
+        set => Update(() => Supports.RaftMargin = Clamp(value, 0f, 100f, 2f));
+    }
+
+    public float SupportRaftBridgingDistance
+    {
+        get => Supports.RaftBridgingDistance;
+        set => Update(() => Supports.RaftBridgingDistance = Clamp(value, 0f, 500f, 8f));
     }
 
     // Supports

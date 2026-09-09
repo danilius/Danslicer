@@ -3,6 +3,7 @@ using Danslicer.Core.Commands;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Supports.Routing;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Guided;
@@ -544,6 +545,8 @@ public sealed class Document
                 Regions = original.Regions,
                 // Same mesh, same file: the copy's update button reloads what the original's does.
                 SourcePath = original.SourcePath,
+                // The copy's supports are the original's moved, so the raft under them is too.
+                Raft = original.Raft,
             };
             var requested = original.Transform with
             {
@@ -875,10 +878,20 @@ public sealed class Document
     /// </summary>
     public int ApplySupportSettingsToSelection()
     {
-        if (_supportSelection.Count == 0) return 0;
         var settings = SupportSettings;
         var entries = new List<SetSupportParametersCommand.Entry>();
         var changed = 0;
+
+        // Selected rafted objects re-take the raft settings (spec "Rafts": settings edits land
+        // on the selection). The raft is derived from its parameters, so this is the whole edit.
+        var raft = settings.ToRaftParameters();
+        foreach (var obj in _selection)
+        {
+            if (obj.Raft is null || obj.Raft == raft) continue;
+            var (before, o) = (obj.Raft, obj);
+            entries.Add(new SetSupportParametersCommand.Entry(() => o.Raft = raft, () => o.Raft = before));
+            changed++;
+        }
 
         void Field<T>(T current, T target, Action<T> set) where T : IEquatable<T>
         {
@@ -898,7 +911,7 @@ public sealed class Document
                     Field(node.BallDiameter, settings.BallDiameter, v => node.BallDiameter = v);
                     Field(node.PenetrationDepth, settings.PenetrationDepth, v => node.PenetrationDepth = v);
                 }
-                else if (node.Type == SupportNodeType.Base)
+                else if (node.Type == SupportNodeType.Base && !StandsOnRaft(node))
                 {
                     Field((int)node.BaseShape, (int)settings.BaseShape, v => node.BaseShape = (SupportBaseShape)v);
                     Field(node.BaseDiameter, settings.BaseDiameter, v => node.BaseDiameter = v);
@@ -925,6 +938,109 @@ public sealed class Document
         return changed;
     }
 
+    // ----- Rafts (SUPPORT-GEOMETRY-SPEC "Rafts", user 2026-09-09) -----
+
+    /// <summary>
+    /// The settings an operation on <paramref name="obj"/> works with: the current ones, with
+    /// no base shape when the object has a raft, so every foot it makes is born baseless.
+    /// </summary>
+    private SupportConfig SettingsFor(SceneObject obj) => obj.Raft is null
+        ? SupportSettings with { }
+        : SupportSettings with { BaseShape = SupportBaseShape.None };
+
+    /// <summary>True when the foot belongs to an object that has a raft.</summary>
+    private bool StandsOnRaft(SupportNode node) =>
+        node.Origin.ObjectId is { } owner && Scene.Objects.FirstOrDefault(o => o.Id == owner)?.Raft is not null;
+
+    /// <summary>Every foot of <paramref name="obj"/>: its enabled base nodes.</summary>
+    public IReadOnlyList<SupportNode> FeetOf(SceneObject obj) =>
+        Supports.Nodes.Where(n => n.Type == SupportNodeType.Base && !n.Disabled && n.Origin.ObjectId == obj.Id).ToList();
+
+    /// <summary>
+    /// Gives every selected object a raft with the current raft settings and strips the bases
+    /// of its feet; an object that already has one re-takes the settings. One undo step named
+    /// "Add raft". The model does not move (user, 2026-09-09). Returns the objects rafted.
+    /// </summary>
+    public int AddRaftToSelection()
+    {
+        var parameters = SupportSettings.ToRaftParameters();
+        var objects = Scene.Objects.Where(_selection.Contains).ToList();
+        if (objects.Count == 0) return 0;
+        var commands = new List<IDocumentCommand>();
+        var entries = new List<SetSupportParametersCommand.Entry>();
+        foreach (var obj in objects)
+        {
+            commands.Add(new SetObjectRaftCommand(obj, parameters, "Add raft"));
+            foreach (var foot in FeetOf(obj))
+            {
+                var (node, before) = (foot, foot.BaseShape);
+                if (before == SupportBaseShape.None) continue;
+                entries.Add(new SetSupportParametersCommand.Entry(
+                    () => node.BaseShape = SupportBaseShape.None, () => node.BaseShape = before));
+            }
+        }
+        if (entries.Count > 0) commands.Add(new SetSupportParametersCommand(Supports, entries, "Add raft"));
+        var name = objects.Count == 1 ? "Add raft" : $"Add raft to {objects.Count} objects";
+        Execute(new CompositeCommand(name, commands));
+        return objects.Count;
+    }
+
+    /// <summary>
+    /// Takes the raft away from every selected rafted object and gives each of its feet the base
+    /// the current settings say. One undo step named "Remove raft". Returns the objects changed.
+    /// </summary>
+    public int RemoveRaftFromSelection()
+    {
+        var settings = SupportSettings;
+        var objects = Scene.Objects.Where(o => _selection.Contains(o) && o.Raft is not null).ToList();
+        if (objects.Count == 0) return 0;
+        var commands = new List<IDocumentCommand>();
+        var entries = new List<SetSupportParametersCommand.Entry>();
+        foreach (var obj in objects)
+        {
+            commands.Add(new SetObjectRaftCommand(obj, null, "Remove raft"));
+            foreach (var foot in FeetOf(obj))
+            {
+                var node = foot;
+                var before = (node.BaseShape, node.BaseDiameter, node.BaseHeight, node.BaseConeHeight);
+                entries.Add(new SetSupportParametersCommand.Entry(
+                    () =>
+                    {
+                        node.BaseShape = settings.BaseShape;
+                        node.BaseDiameter = settings.BaseDiameter;
+                        node.BaseHeight = settings.BaseHeight;
+                        node.BaseConeHeight = settings.BaseConeHeight;
+                    },
+                    () => (node.BaseShape, node.BaseDiameter, node.BaseHeight, node.BaseConeHeight) = before));
+            }
+        }
+        if (entries.Count > 0) commands.Add(new SetSupportParametersCommand(Supports, entries, "Remove raft"));
+        var name = objects.Count == 1 ? "Remove raft" : $"Remove raft from {objects.Count} objects";
+        Execute(new CompositeCommand(name, commands));
+        return objects.Count;
+    }
+
+    private readonly Dictionary<Guid, (RaftParameters Parameters, int FeetHash, Clipper2Lib.Paths64 Outline)> _raftOutlines = new();
+
+    /// <summary>
+    /// The raft's top outline under <paramref name="obj"/> in Clipper units (see
+    /// <see cref="RaftBuilder.TopOutline"/>), recomputed when its parameters or feet change;
+    /// null when the object has no raft. Cheap to call from the render and slice loops.
+    /// </summary>
+    public Clipper2Lib.Paths64? RaftTopOutline(SceneObject obj)
+    {
+        if (obj.Raft is not { } parameters) return null;
+        var feet = FeetOf(obj).Select(n => new Vector2(n.Position.X, n.Position.Y)).ToList();
+        var hash = new HashCode();
+        foreach (var foot in feet) hash.Add(foot);
+        var feetHash = hash.ToHashCode();
+        if (_raftOutlines.TryGetValue(obj.Id, out var cached) && cached.Parameters == parameters && cached.FeetHash == feetHash)
+            return cached.Outline;
+        var outline = RaftBuilder.TopOutline(feet, parameters);
+        _raftOutlines[obj.Id] = (parameters, feetHash, outline);
+        return outline;
+    }
+
     /// <summary>
     /// Routes the support a T placement at this contact would add, without adding it: the ghost
     /// the placement mode shows under the cursor (user note 2026-09-08). Null when the model is
@@ -939,7 +1055,7 @@ public sealed class Document
         // this is not a routing failure, so it carries no routing reason. The caller turns it
         // into the status line from SupportTargetPolicy.
         if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return null;
-        var settings = SupportSettings with { };
+        var settings = SettingsFor(obj);
         var (router, options) = ManualRouting(obj, settings,
             HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount));
         var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
@@ -976,7 +1092,7 @@ public sealed class Document
         refused = 0;
         parenting = null;
         if (candidates.Count == 0 || !SupportTargetPolicy.CanSupport(SupportTarget, obj)) return 0;
-        var settings = SupportSettings with { };
+        var settings = SettingsFor(obj);
         var first = candidates[0].Point;
         // Ignoring existing supports is the user's explicit choice (2026-09-07): by default a
         // guided gesture routes as if alone, so a second edge beside a supported one is not
@@ -1020,7 +1136,7 @@ public sealed class Document
             if (placedTips.Any(p => Vector3.Distance(p.Position, node.Position) <= range)) operands.Add(node.Id);
         }
         if (operands.Count < 2) return null;
-        if (SupportParenting.Plan(Supports, obj.Id, operands, settings with { }, MeshObstacles()) is not { } planned) return null;
+        if (SupportParenting.Plan(Supports, obj.Id, operands, SettingsFor(obj), MeshObstacles()) is not { } planned) return null;
         var commands = SupportParenting.Commands(Supports, planned.Plans, undoName);
         if (commands.Count == 0) return null;
         Execute(new CompositeCommand(undoName, commands));
@@ -1150,7 +1266,7 @@ public sealed class Document
         tips = tips.Where(id => (Supports.GetNode(id).ContactObjectId ?? Supports.GetNode(id).Origin.ObjectId) == target.Id).ToList();
         if (tips.Count < 2) return null;
 
-        var planned = SupportParenting.Plan(Supports, target.Id, tips, SupportSettings with { }, MeshObstacles());
+        var planned = SupportParenting.Plan(Supports, target.Id, tips, SettingsFor(target), MeshObstacles());
         if (planned is not { } result) return null;
         var (plans, outcome) = result;
         var commands = SupportParenting.Commands(Supports, plans, "Parent supports");
@@ -1375,7 +1491,7 @@ public sealed class Document
         var scene = Scene.Objects.Select(o => new SceneMeshSnapshot(o.Mesh, o.Transform.ToMatrix())).ToList();
         return new SupportGenerationRequest(obj.Id,
             new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), scene, CloneGraph(Supports), seed,
-            SupportSettings with { }, scope)
+            SettingsFor(obj), scope)
         {
             Regions = obj.Regions,
         };

@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Config;
@@ -169,10 +169,10 @@ public sealed class ObjectReloadTests
             viewModel.ImportMesh(path);
             Assert.Equal(3f, viewModel.Document.Scene.Objects[^1].WorldBounds.Min.Z, 4);
 
-            // Placement off leaves the model at the height it was authored at.
+            // Placement off still drops an import onto the plate, once (user, 2026-09-09).
             viewModel.Document.PlacementMode = PlacementMode.Off;
             viewModel.ImportMesh(path);
-            Assert.Equal(12f, viewModel.Document.Scene.Objects[^1].WorldBounds.Min.Z, 4);
+            Assert.Equal(0f, viewModel.Document.Scene.Objects[^1].WorldBounds.Min.Z, 4);
         }
         finally
         {

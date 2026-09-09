@@ -1,5 +1,85 @@
 ﻿# Danslicer handover
 
+## STATE 2026-09-10 small hours — lip reworked, T crash fixed, snapping open (supersedes everything below)
+
+Branches unmerged, in merge order: `rafts-spec` → `rafts` (+ ebfb13e: the scraper lip is on
+the raft's OUTSIDE only and wider at the top than the bottom, so a scraper slides under it;
+holes and bar insides stay vertical; the Rays neighbour rule is gone, Web = Delaunay), then
+`object-position-bbox`, `tooltips`, `placement-ghost-crash` (all off main, independent).
+`integration-2026-09-09b` holds all five, 965 tests, and is the build on disk.
+
+**T crash (log 2026-09-09 23:45, "Both segment endpoints must be in the graph"):** the ghost
+built a throwaway graph from the preview edit; a preview that branched onto an existing trunk
+referenced a document node. Fixed: `SupportEditPreview.ToGraph` borrows the node.
+
+**Grid snapping report (user, 2026-09-09) — CLOSED, leave as is (user, 2026-09-10):** on the
+saved "roof gripper T2 single and tilted cube" project, 8 of 11 bases sit on the grid and a
+fresh placement snaps; the 3 strays are the router's last-resort off-grid base (user rule of
+2026-09-07, `TreeSupportRouter` "the grid is a preference, not a reason to refuse"), which
+fires when the tilted cube's small underside has every reachable grid point taken. Not a
+regression. The user chose to keep the behaviour.
+
+## STATE 2026-09-09 late night — rafts seen on screen, three more branches (superseded by the section above)
+
+main is `38ab725`. Branches, unmerged, in merge order: `rafts-spec` → `rafts` (raft feature +
+the user's first screen feedback: smooth sloped edge, raft settings in the Rafts pop-out),
+then `object-position-bbox` and `tooltips` (independent, both off main). The throwaway
+**`integration-2026-09-09b`** holds all four merged (one conflict resolved in the visibility
+checkboxes), 960 tests green, and is the build on disk.
+
+**User screen feedback on rafts (2026-09-09):** the Web/Delaunay raft drew and sliced; the
+stepped edge was wrong (now one smooth wall, mitred push-out of the top outline) and the
+scrape edge must slant outward, wider at the plate (it is: check on screen). Raft settings
+now live in the Rafts pop-out under Add raft / Remove raft (`RaftSettingsView`), not in
+Support settings.
+
+**`object-position-bbox`:** the Transform pop-out's Position is the object's anchor, the
+bounding box's centre-bottom (`MainViewModel.Anchor`), recomputed after rotation and scale;
+editing it moves that point. Import seats the mesh and lands on the plate even with Auto
+Drop off (the ObjectReloadTests expectation changed accordingly).
+
+**`tooltips`:** every support setting, every pop-out control, every toolbar button (with its
+keys; keymap-bound ones read the user's keys in `MainWindow.ApplyKeymapTooltips`), header
+strip toggles, and hint lines under the Preferences settings (`TextBlock.hint`).
+
+**Screen checklist:** raft edge is a smooth outward slope; Rafts pop-out shows the settings and
+Add raft re-takes them; rotate a model 90° in Layout and the Position fields show the box's
+centre-bottom, typing Z 0 seats it; import with Auto Drop off lands on the plate; hover the
+toolbar buttons for keys (Ctrl+I on Add object, Ctrl+G on Generate); Preferences shows the
+hint lines.
+
+## STATE 2026-09-09 night — RAFTS BUILT, NOT SCREEN-TESTED (superseded by the section above)
+
+main is `38ab725` (everything through the auto-drop toggle merged and pushed). Two branches:
+`rafts-spec` (the approved spec section in SUPPORT-GEOMETRY-SPEC.md, user-directed: rafts
+replace bases, the model stays put, Plate and Web types) and **`rafts`** stacked on it, four
+commits, one per build-order step, 957 tests green. Merge `rafts-spec` then `rafts`.
+
+**What rafts are (user, 2026-09-09):** a raft replaces the bases of the selected object's
+supports. Add raft (Rafts pop-out, Object › Add Raft, Support mode) snapshots the Rafts
+settings onto the object (`SceneObject.Raft`), strips its feet's bases; nothing moves; a trunk's
+foot node already sits on the plate so every trunk runs through the raft. Remove raft restores
+the bases the settings say. New feet on a rafted object are born baseless (`Document.SettingsFor`).
+The raft's shape is derived from the feet each time it is drawn or sliced (`RaftGeometry`,
+`RaftBuilder`; cached per object in `Document.RaftTopOutline`). Plate = silhouette of the foot
+discs, margin, bridging (closing), holes filled. Web = disc per foot + bars to neighbours by
+Rays (default) or Delaunay, trimmed by max bar length. Edge slopes at Edge angle (45°).
+Project format 1.1 carries the raft; 1.0 files load unchanged. Show rafts sits beside Show
+bases (forced on in Layout).
+
+**User screen checklist:** Support mode, select the gripper, Add raft → bases vanish, a slab
+appears under the feet in the base colour, the Objects list shows the raft glyph, one undo
+restores the bases; Remove raft the same in reverse. Switch Type to Web, Add raft again →
+discs and bars; Neighbours Rays vs Delaunay (user: "we test them both"). Slice → the first
+layers show the raft, the layer above its top does not. Hide the object → raft gone from the
+viewport and the slice. Clip the view below the raft top → the cap shows the raft section.
+Layout mode still draws the raft. Save, reopen → raft still there.
+
+**Not done / later (spec):** lift tab, drain holes / hollow grid, plate-wide raft, rafts under a
+model standing flat on the plate, per-object raft recipes. The print-file thumbnail does not
+draw the raft. Also outstanding from before: braces to branches, manual bracing, braces
+following edited trunks, cross-object bracing, support recipes, the physical test print.
+
 ## STATE 2026-09-09 late — MERGED (supersedes everything below)
 
 The user passed branch 11 on screen and approved the merge: `integration-2026-09-09` (the

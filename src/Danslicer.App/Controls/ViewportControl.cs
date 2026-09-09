@@ -17,6 +17,7 @@ using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Render;
 
@@ -518,6 +519,20 @@ public sealed class ViewportControl : OpenGlControlBase
         AddCategory(SupportSegmentType.Trunk, TrunkColor);
         AddCategory(SupportSegmentType.Bracing, BracingColor);
         AddCategory(null, BaseColor, SupportNodeType.Base);
+        if (Document is not null && SupportDisplayPolicy.ShowsRafts(SupportDisplay))
+        {
+            var raftSections = new Clipper2Lib.Paths64();
+            foreach (var obj in Document.Scene.Objects)
+            {
+                if (obj.RenderState == RenderState.Hidden || obj.Raft is not { } parameters) continue;
+                var outline = Document.RaftTopOutline(obj);
+                if (outline is null) continue;
+                raftSections.AddRange(RaftBuilder.SectionAt(outline, parameters, z));
+            }
+            if (raftSections.Count > 0)
+                AddCap(ClipCapBuilder.Build(raftSections, z, face),
+                    new Vector3(BaseColor.X, BaseColor.Y, BaseColor.Z), opacity);
+        }
         return;
 
         void AddCategory(SupportSegmentType? segmentType, Vector4 rgba,
@@ -1730,9 +1745,8 @@ public sealed class ViewportControl : OpenGlControlBase
             }
             else
             {
-                var ghost = new SupportGraph();
-                foreach (var node in edit.AddedNodes) ghost.AddNode(node);
-                foreach (var segment in edit.AddedSegments) ghost.AddSegment(segment);
+                // The ghost borrows the existing node a branch joins (SupportEditPreview).
+                var ghost = edit.ToGraph(Document.Supports);
                 foreach (var part in SupportRenderMesh.Build(ghost))
                     _placementGhost.Add(new AuxMeshDraw(part.Mesh, PlacementGhostColor, PlacementGhostOpacity));
             }
@@ -2362,6 +2376,7 @@ public sealed class ViewportControl : OpenGlControlBase
                     .Aggregate(Vector3.Zero, (sum, point) => sum + point) / componentNodes.Count;
                 AddSupportParts(parts, origin, TransparentSupportOpacity);
             }
+            AppendRaftMeshes(display, TransparentSupportOpacity);
             return;
         }
 
@@ -2375,6 +2390,27 @@ public sealed class ViewportControl : OpenGlControlBase
             includeHidden: display.ShowHiddenElements);
         foreach (var part in visibleParts)
             AddSupportPart(part, part.Mesh.Bounds.Center, 1f);
+        AppendRaftMeshes(display, 1f);
+    }
+
+    /// <summary>
+    /// One mesh per visible rafted object, in the base colour: the raft replaces the bases
+    /// (spec "Rafts"). The document caches the outline; the mesh is cheap to rebuild with the
+    /// support meshes, which are rebuilt exactly when the feet may have moved.
+    /// </summary>
+    private void AppendRaftMeshes(SupportDisplayConfig display, float opacity)
+    {
+        if (Document is null || !SupportDisplayPolicy.ShowsRafts(display)) return;
+        foreach (var obj in Document.Scene.Objects)
+        {
+            if (obj.RenderState == RenderState.Hidden || obj.Raft is not { } parameters) continue;
+            var outline = Document.RaftTopOutline(obj);
+            if (outline is null || outline.Count == 0) continue;
+            var mesh = RaftGeometry.BuildMesh(new RaftShape(parameters, outline));
+            if (mesh is null) continue;
+            _supportMeshes.Add(new SupportMeshBatch(new AuxMeshDraw(mesh,
+                new Vector3(BaseColor.X, BaseColor.Y, BaseColor.Z), opacity), mesh.Bounds.Center));
+        }
     }
 
     private const float TransparentSupportOpacity = 0.28f;

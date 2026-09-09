@@ -1,6 +1,7 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 
 namespace Danslicer.Core.Scene;
 
@@ -61,6 +62,29 @@ public sealed class SceneObject : INotifyPropertyChanged
     /// (a duplicate, a mirrored copy, a project written before this existed).
     /// </summary>
     public string? SourcePath { get; set; }
+
+    /// <summary>
+    /// The raft under this object's supports, or null for none (SUPPORT-GEOMETRY-SPEC "Rafts").
+    /// The parameters are the snapshot taken when the raft was added; the raft's shape is
+    /// computed from them and the feet whenever it is drawn or sliced. Go through
+    /// <see cref="Danslicer.Core.Document"/> to change it, which makes the edit undoable.
+    /// </summary>
+    public RaftParameters? Raft
+    {
+        get => _raft;
+        set
+        {
+            if (Equals(_raft, value)) return;
+            _raft = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Raft)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasRaft)));
+        }
+    }
+
+    private RaftParameters? _raft;
+
+    /// <summary>The form the object list's glyph wants; follows undo like <see cref="IsVisible"/>.</summary>
+    public bool HasRaft => _raft is not null;
 
     public SceneObject(string name, Mesh mesh, Guid? id = null)
     {
