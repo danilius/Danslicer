@@ -12,13 +12,12 @@ holes and bar insides stay vertical; the Rays neighbour rule is gone, Web = Dela
 built a throwaway graph from the preview edit; a preview that branched onto an existing trunk
 referenced a document node. Fixed: `SupportEditPreview.ToGraph` borrows the node.
 
-**OPEN — "snap to grid for supports does not seem to be working anymore" (user):** Core
-probes (`BaseGridSnapProbeTests`) show a manual placement lands its base on a grid point with
-UseBaseGrid on, with a disc base and with none. So it is not the router. Ask the user which
-snapping: T/guided placement, Generate, or the edit-mode base drag (Shift frees it); and
-whether Support settings › Grid is on (the grid flag is saved per preset:
-`ConfigViewModel.SupportUseBaseGrid`, `saveGridToPreset`). Note branch-first routing joins a
-nearby existing trunk instead of making a new base, which shows no snap at all.
+**Grid snapping report (user, 2026-09-09) — CLOSED, leave as is (user, 2026-09-10):** on the
+saved "roof gripper T2 single and tilted cube" project, 8 of 11 bases sit on the grid and a
+fresh placement snaps; the 3 strays are the router's last-resort off-grid base (user rule of
+2026-09-07, `TreeSupportRouter` "the grid is a preference, not a reason to refuse"), which
+fires when the tilted cube's small underside has every reachable grid point taken. Not a
+regression. The user chose to keep the behaviour.
 
 ## STATE 2026-09-09 late night — rafts seen on screen, three more branches (superseded by the section above)
 
