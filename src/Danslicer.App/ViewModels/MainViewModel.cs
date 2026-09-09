@@ -649,9 +649,15 @@ public partial class MainViewModel : ViewModelBase
             DetectIslandsScopedCommand,
             SliceScopedCommand,
         ];
-        Position = MakeAxisFields(UnitKind.Length, "0.###", (t, axis, v) => t with { Translation = SetAxis(t.Translation, axis, (float)v) });
-        Rotation = MakeAxisFields(UnitKind.Angle, "0.##", (t, axis, v) => t with { EulerDegrees = SetAxis(t.EulerDegrees, axis, (float)v) });
-        Scale = MakeAxisFields(UnitKind.Scalar, "0.####", (t, axis, v) => t with { Scale = SetAxis(t.Scale, axis, (float)v) });
+        // Position is the object's anchor: the centre-bottom of its world bounding box (user,
+        // 2026-09-09), recomputed after every rotation and scale, so an edit moves that point.
+        Position = MakeAxisFields(UnitKind.Length, "0.###", (obj, t, axis, v) =>
+        {
+            var delta = (float)v - Component(Anchor(obj), axis);
+            return t with { Translation = t.Translation + SetAxis(Vector3.Zero, axis, delta) };
+        });
+        Rotation = MakeAxisFields(UnitKind.Angle, "0.##", (_, t, axis, v) => t with { EulerDegrees = SetAxis(t.EulerDegrees, axis, (float)v) });
+        Scale = MakeAxisFields(UnitKind.Scalar, "0.####", (_, t, axis, v) => t with { Scale = SetAxis(t.Scale, axis, (float)v) });
         var placement = AppConfig.Current.Placement;
         placement.HeightMm = MathF.Max(0, placement.HeightMm);
         Document.PlacementHeightMm = placement.HeightMm;
@@ -696,7 +702,18 @@ public partial class MainViewModel : ViewModelBase
         OnDocumentChanged();
     }
 
-    private NumericField[] MakeAxisFields(UnitKind kind, string format, Func<Transform, int, double, Transform> edit)
+    /// <summary>
+    /// The point the position fields describe: the centre of the object's world bounding box in
+    /// X and Y and its lowest point in Z, so X/Y read as where the model stands on the plate
+    /// and Z as its height above it, whatever its rotation (user, 2026-09-09).
+    /// </summary>
+    public static Vector3 Anchor(SceneObject obj)
+    {
+        var bounds = obj.WorldBounds;
+        return new Vector3(bounds.Center.X, bounds.Center.Y, bounds.Min.Z);
+    }
+
+    private NumericField[] MakeAxisFields(UnitKind kind, string format, Func<SceneObject, Transform, int, double, Transform> edit)
     {
         var labels = new[] { "X", "Y", "Z" };
         var fields = new NumericField[3];
@@ -708,7 +725,7 @@ public partial class MainViewModel : ViewModelBase
                 var obj = SelectedObject;
                 if (obj is null) return;
                 var before = obj.Transform;
-                var requested = edit(before, a, value);
+                var requested = edit(obj, before, a, value);
                 if (requested == before) return;
                 Document.CommitTransform(obj, before, requested, "Edit transform");
             });
@@ -839,9 +856,10 @@ public partial class MainViewModel : ViewModelBase
 
         var t = obj.Transform;
         var euler = t.EulerDegrees;
+        var anchor = Anchor(obj);
         for (int i = 0; i < 3; i++)
         {
-            Position[i].SetValue(Component(t.Translation, i));
+            Position[i].SetValue(Component(anchor, i));
             Rotation[i].SetValue(Component(euler, i));
             Scale[i].SetValue(Component(t.Scale, i));
         }
@@ -854,20 +872,17 @@ public partial class MainViewModel : ViewModelBase
 
     public void ImportMesh(string path)
     {
-        // The file's own offset is baked into the mesh (XY centred, lowest point at Z = 0), so
-        // the transform's translation is the model's place on the plate and the position fields
-        // read as such (user report 2026-09-08). The height is the placement mode's business:
-        // an import lands exactly where Auto Drop (or the raise-above-plate offset) says it
-        // should. With placement off the model keeps the height it was authored at, carried in
-        // the translation where the position field shows it honestly.
+        // The file's own offset is baked into the mesh (XY centred on the origin, lowest point at
+        // Z = 0), so the object's origin is the centre-bottom of its bounding box and the
+        // transform's translation is its place on the plate (user, 2026-09-08 and 2026-09-09).
+        // An import always lands on the plate: with Auto Drop off it is dropped there once
+        // (user, 2026-09-09); with it on, the raise-above-plate offset applies as usual.
         var raw = MeshFile.Read(path);
-        var seat = raw.SeatTranslation;
-        var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), raw.Translated(seat))
+        var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), raw.Seated())
         {
             SourcePath = System.IO.Path.GetFullPath(path),
         };
-        obj.Transform = Document.ApplyPlacement(obj,
-            Transform.Identity with { Translation = new Vector3(0f, 0f, -seat.Z) });
+        obj.Transform = Document.ApplyPlacement(obj, Transform.Identity);
         Document.AddObject(obj);
     }
 
