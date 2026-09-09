@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -36,6 +36,8 @@ public sealed class RenderFrame
     public float OverhangAngleDegrees { get; init; } = 45f;
     /// <summary>Plate opacity when the view grazes or passes under it: 0 invisible, 1 opaque (no fade).</summary>
     public float PlateOpacityFromBelow { get; init; } = 1f;
+    /// <summary>Each visible object's shadow on the plate (design "Shadow"); both paths.</summary>
+    public bool ShowPlateShadows { get; init; } = true;
     /// <summary>The two overhang checker colours and the checker cell edge in millimetres.</summary>
     public Vector3 OverhangColorA { get; init; } = new(0.98f, 0.80f, 0.15f);
     public Vector3 OverhangColorB { get; init; } = new(0.90f, 0.12f, 0.10f);
@@ -77,6 +79,16 @@ public sealed partial class SceneRenderer : IDisposable
     private static readonly Vector3 ObjectColor = new(0.70f, 0.71f, 0.74f);
     private static readonly Vector3 SelectedColor = new(0.96f, 0.60f, 0.18f);
     private static readonly Vector3 PlateColor = new(0.20f, 0.21f, 0.23f);
+    /// <summary>The shadow is the plate colour in shade, so it reads as the plate, not paint.</summary>
+    private static readonly Vector3 PlateShadowColor = PlateColor * 0.62f;
+    /// <summary>
+    /// A fixed overhead light leaning a little toward -X/-Y (world space), so the shadow steps
+    /// slightly out from under the model instead of being its exact footprint. Steep enough that
+    /// a tall part never throws its shadow across the plate.
+    /// </summary>
+    private static readonly Vector3 PlateShadowLight = Vector3.Normalize(new Vector3(-0.18f, -0.12f, -1f));
+    /// <summary>Between the plate face at -0.05 and the grid lines at 0, so neither Z-fights it.</summary>
+    private const float PlateShadowZ = -0.025f;
 
     private readonly GL _gl;
     private readonly ShaderProgram _meshShader;
@@ -153,7 +165,11 @@ public sealed partial class SceneRenderer : IDisposable
         // stays visible; it then draws after the opaque passes so blending sees them.
         var plateOpacity = PlateFade.OpacityFor(frame.Camera, frame.PlateOpacityFromBelow);
         var plateFaded = plateOpacity < 1f;
-        if (!plateFaded) DrawPlate(frame.Printer, view, projection, 1f);
+        if (!plateFaded)
+        {
+            DrawPlate(frame.Printer, view, projection, 1f);
+            if (frame.ShowPlateShadows) DrawPlateShadows(frame, view, projection);
+        }
         DrawObjects(frame, view, projection, ghosted: false);
         DrawWireframe(frame, view, projection);
         DrawAuxMeshes(frame, view, projection);
@@ -193,6 +209,37 @@ public sealed partial class SceneRenderer : IDisposable
             gl.Disable(EnableCap.Blend);
             gl.DepthMask(true);
         }
+    }
+
+    /// <summary>
+    /// The visible objects again, each flattened onto the plate by the vertex shader (see
+    /// <c>uShadow</c> in <see cref="Shaders.MeshVertex"/>). Drawn opaque right after the plate, so
+    /// overlapping triangles cannot darken twice and the model then wins the depth test above it.
+    /// Ghosted and hidden objects throw no shadow; nor does anything when the plate has faded.
+    /// </summary>
+    private void DrawPlateShadows(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection)
+    {
+        foreach (var obj in frame.Scene.Objects)
+        {
+            if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+            if (!_meshes.TryGetValue(obj.Mesh, out var gpu))
+            {
+                gpu = new GpuMesh(_gl, obj.Mesh);
+                _meshes[obj.Mesh] = gpu;
+            }
+            BindMeshShader(obj.Transform.ToMatrix(), view, projection, PlateShadowColor, 1f,
+                backfaceTint: 0f, warnOutsideBuildVolume: false, overhangCos: 2f, clip: default);
+            BindShadow(_meshShader, true);
+            gpu.Draw();
+            BindShadow(_meshShader, false);
+        }
+    }
+
+    private static void BindShadow(ShaderProgram shader, bool on)
+    {
+        shader.Set("uShadow", on ? 1f : 0f);
+        shader.Set("uShadowDir", PlateShadowLight);
+        shader.Set("uShadowZ", PlateShadowZ);
     }
 
     private void DrawObjects(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection, bool ghosted)
@@ -296,6 +343,7 @@ public sealed partial class SceneRenderer : IDisposable
         _meshShader.Set("uOverhangColorA", _overhangColorA);
         _meshShader.Set("uOverhangColorB", _overhangColorB);
         _meshShader.Set("uOverhangCell", _overhangCell);
+        BindShadow(_meshShader, false);
         BindClip(_meshShader, clip);
         _meshShader.Set("uWaterlineEnabled", waterlineZ.HasValue ? 1f : 0f);
         _meshShader.Set("uWaterlineZ", waterlineZ.GetValueOrDefault());

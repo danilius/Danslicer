@@ -1,4 +1,4 @@
-namespace Danslicer.Render;
+﻿namespace Danslicer.Render;
 
 /// <summary>
 /// GLSL for the deferred path. The geometry fragment keeps the classic shader's tinting
@@ -28,6 +28,7 @@ internal static class DeferredShaders
         uniform float uClipEnabled;
         uniform float uClipLowerZ;
         uniform float uClipUpperZ;
+        uniform float uShadow;         // 1 = this draw is a plate shadow (see the vertex stage)
 
         layout(location = 0) out vec4 gAlbedo; // rgb base colour, a = 1 marks lit geometry
         layout(location = 1) out vec4 gNormal; // view-space normal * 0.5 + 0.5
@@ -39,7 +40,8 @@ internal static class DeferredShaders
                 (vWorldPosition.z < uClipLowerZ || vWorldPosition.z > uClipUpperZ)) discard;
 
             vec3 n = normalize(vViewNormal);
-            bool back = !gl_FrontFacing;
+            // A shadow is one flat surface whatever the winding of the triangles that made it.
+            bool back = !gl_FrontFacing && uShadow < 0.5;
             if (back) n = -n;
 
             vec3 color = uColor;
