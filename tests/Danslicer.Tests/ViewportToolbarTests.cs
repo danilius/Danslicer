@@ -28,7 +28,8 @@ public sealed class ViewportToolbarTests
     public void SupportModeShowsTheCompleteContextualToolSet()
     {
         Assert.Equal(
-            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.Guided, ViewportTool.IslandSupport,
+            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.Generate, ViewportTool.Guided,
+             ViewportTool.Structure, ViewportTool.Region, ViewportTool.IslandSupport,
                 ViewportTool.IslandDetection, ViewportTool.Visibility, ViewportTool.Rafts],
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Support));
     }

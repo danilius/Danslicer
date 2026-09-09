@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -152,6 +152,7 @@ public partial class MainViewModel : ViewModelBase
         nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
         nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible),
         nameof(IsUvtoolsCheckToolVisible), nameof(IsTransformToolVisible), nameof(IsGuidedToolVisible),
+        nameof(IsGenerateToolVisible), nameof(IsStructureToolVisible), nameof(IsRegionToolVisible),
         nameof(EffectiveSupportDisplay))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
@@ -167,6 +168,9 @@ public partial class MainViewModel : ViewModelBase
         ViewportToolbarPolicy.IsAvailable(ViewportTool.UvtoolsCheck, ViewMode);
     public bool IsTransformToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Transform, ViewMode);
     public bool IsGuidedToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Guided, ViewMode);
+    public bool IsGenerateToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Generate, ViewMode);
+    public bool IsStructureToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Structure, ViewMode);
+    public bool IsRegionToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Region, ViewMode);
 
     /// <summary>
     /// Object rows are live wherever an object selection means something: Layout arranges the
