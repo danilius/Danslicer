@@ -716,12 +716,13 @@ union, the display toggle, the expander, the pop-out and the menu items.
 
 ### Build order
 
-1. Core `RaftBuilder` and its slice section, with tests on synthetic feet (one foot; a row
-   that bridges and one that does not; the Rays rule hiding a foot behind another; the
-   Delaunay rule; the max bar length; the slope at three heights).
-2. `AddRaft` / `RemoveRaft` / settings-to-selection with undo; new feet born baseless.
-3. Slicer union and the render mesh with its display toggle.
-4. Pop-out buttons, expander, Object menu items, Objects-list glyph.
+1. ~~Core `RaftBuilder` and its slice section~~ — done 2026-09-09 (branch `rafts`). The Plate
+   closing radius is b/2 + b²/(8·R0), which makes "gap up to the bridging distance" exact
+   for a pair of margin-grown discs; holes are dropped so the interior is solid.
+2. ~~`AddRaft` / `RemoveRaft` / settings-to-selection with undo; new feet born baseless.~~
+3. ~~Slicer union and the render mesh with its display toggle.~~ The viewport mesh draws the
+   slope as three exact slabs with ledges; the slice uses the exact slope per layer.
+4. ~~Pop-out buttons, expander, Object menu items, Objects-list glyph.~~ Not yet screen-tested.
 
 ### Later, not in the first cut
 
