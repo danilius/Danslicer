@@ -692,12 +692,19 @@ public sealed class Document
         {
             var after = applyPlacement ? ApplyPlacement(obj, requested) : requested;
             obj.Transform = after;
-            if (after == before) continue;
-            commands.Add(new SetTransformCommand(obj, before, after, name));
             // See SupportTransformRule: a transform keeps this object's supports only if it maps
-            // every contact exactly. Only objects that actually moved are considered, so a
-            // multi-object selection never discards supports on an object that stayed put.
-            if (SupportTransformRule.MapsContactsExactly(before, after))
+            // every contact exactly. The rule is asked about the move the user REQUESTED, not
+            // the re-seated result: auto-drop puts a lifted model straight back on the plate,
+            // and the user still moved it in Z (user, 2026-09-09), so its supports go even
+            // though the transform ends where it started.
+            var mapsExactly = SupportTransformRule.MapsContactsExactly(before, requested);
+            if (after == before)
+            {
+                if (!mapsExactly) discardedSupportNodes.UnionWith(AssociatedSupportNodeIds(obj));
+                continue;
+            }
+            commands.Add(new SetTransformCommand(obj, before, after, name));
+            if (mapsExactly)
                 AppendAssociatedSupportTransform(obj, before, after, supportBefore, supportEntries);
             else
                 discardedSupportNodes.UnionWith(AssociatedSupportNodeIds(obj));
