@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Clipper2Lib;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Scene;
@@ -91,14 +91,14 @@ public static class RaftGeometry
         return bounds;
     }
 
-    /// <summary>Slabs the sloped edge is drawn as; the slice uses the exact slope per layer.</summary>
-    public const int RenderSteps = 3;
-
     /// <summary>
-    /// A render mesh of the raft: the top face at the raft's top, and the sloped edge as
-    /// <see cref="RenderSteps"/> vertical slabs with a flat ledge between each pair, each slab
-    /// the exact section at its own height. Faces wind counter-clockwise seen from outside.
-    /// Null for an empty outline.
+    /// A render mesh of the raft: the top face at the raft's top, the bottom face on the plate,
+    /// and the sloped edge as one smooth wall between them (user, 2026-09-09: a slope, not
+    /// steps). The wall is built vertex by vertex: each top vertex is pushed out along its
+    /// outline normal by the plate-level edge offset, mitred at the corners, so the top and
+    /// bottom rings share a vertex count and quads join them exactly. The slice uses the exact
+    /// round-join offset per layer; the two agree to within the mitre at sharp corners. Faces
+    /// wind counter-clockwise seen from outside. Null for an empty outline.
     /// </summary>
     public static Mesh? BuildMesh(RaftShape raft)
     {
@@ -107,24 +107,71 @@ public static class RaftGeometry
         if (raft.TopOutline.Count == 0 || thickness <= 0) return null;
 
         var builder = new MeshBuilder();
-        var steps = Math.Max(1, RenderSteps);
-        var sections = new Paths64[steps + 1];
-        for (var k = 0; k < steps; k++) sections[k] = raft.SectionAt(thickness * k / steps);
-        sections[steps] = raft.TopOutline;
-
-        // Bottom face, looking down.
-        AppendCap(builder, sections[0], 0, up: false);
-        for (var k = 0; k < steps; k++)
+        var offset = RaftBuilder.EdgeOffsetAt(parameters, 0);
+        var bottom = new Paths64();
+        foreach (var path in raft.TopOutline)
         {
-            var zLow = thickness * k / steps;
-            var zHigh = thickness * (k + 1) / steps;
-            AppendWalls(builder, sections[k], zLow, zHigh);
-            // The ledge where this slab's outline steps in to the next one's.
-            var ledge = Clipper.Difference(sections[k], sections[k + 1], FillRule.NonZero);
-            AppendCap(builder, ledge, zHigh, up: true);
+            if (path.Count < 3) continue;
+            var outer = Clipper.Area(path) > 0;
+            var pushed = PushOut(path, outer ? offset : -offset);
+            bottom.Add(pushed);
+            AppendWall(builder, path, pushed, thickness, outer);
         }
-        AppendCap(builder, sections[steps], thickness, up: true);
+        AppendCap(builder, bottom, 0, up: false);
+        AppendCap(builder, raft.TopOutline, thickness, up: true);
         return builder.ToMesh();
+    }
+
+    /// <summary>
+    /// The path with every vertex moved outward (for a counter-clockwise outer contour; a hole
+    /// passes a negative distance) along the bisector of its two edge normals, mitre-limited
+    /// to twice the distance so a sharp corner does not spike.
+    /// </summary>
+    internal static Path64 PushOut(Path64 path, double distanceMm)
+    {
+        var n = path.Count;
+        var result = new Path64(n);
+        var scale = distanceMm * MeshSlicer.UnitsPerMm;
+        for (var i = 0; i < n; i++)
+        {
+            var previous = path[(i + n - 1) % n];
+            var current = path[i];
+            var next = path[(i + 1) % n];
+            // Outward normal of a counter-clockwise edge (dx, dy) is (dy, -dx).
+            var n1 = Normal(previous, current);
+            var n2 = Normal(current, next);
+            var bisector = Vector2.Normalize(n1 + n2);
+            if (!float.IsFinite(bisector.X)) bisector = n2;
+            var cosHalf = Math.Max(Vector2.Dot(bisector, n2), 0.5f); // mitre limit 2×
+            var move = bisector * (float)(scale / cosHalf);
+            result.Add(new Point64((long)Math.Round(current.X + move.X), (long)Math.Round(current.Y + move.Y)));
+        }
+        return result;
+
+        static Vector2 Normal(Point64 a, Point64 b)
+        {
+            var d = new Vector2(b.X - a.X, b.Y - a.Y);
+            var normal = new Vector2(d.Y, -d.X);
+            return normal.LengthSquared() > 0 ? Vector2.Normalize(normal) : Vector2.UnitX;
+        }
+    }
+
+    private static void AppendWall(MeshBuilder builder, Path64 top, Path64 bottom, double thickness, bool outer)
+    {
+        var n = top.Count;
+        for (var i = 0; i < n; i++)
+        {
+            var j = (i + 1) % n;
+            // For a counter-clockwise outer contour the edge runs left to right seen from
+            // outside; a hole runs the other way, so swap to keep the quad facing out.
+            var (a, b) = outer ? (i, j) : (j, i);
+            var aLow = builder.AddVertex(ToMm(bottom[a], 0));
+            var bLow = builder.AddVertex(ToMm(bottom[b], 0));
+            var bHigh = builder.AddVertex(ToMm(top[b], thickness));
+            var aHigh = builder.AddVertex(ToMm(top[a], thickness));
+            builder.AddTriangle(aLow, bLow, bHigh);
+            builder.AddTriangle(aLow, bHigh, aHigh);
+        }
     }
 
     private static void AppendCap(MeshBuilder builder, Paths64 polygons, double z, bool up)
@@ -143,29 +190,6 @@ public static class RaftGeometry
             var ib = builder.AddVertex(b);
             var ic = builder.AddVertex(c);
             builder.AddTriangle(ia, ib, ic);
-        }
-    }
-
-    private static void AppendWalls(MeshBuilder builder, Paths64 outline, double zLow, double zHigh)
-    {
-        foreach (var path in outline)
-        {
-            if (path.Count < 3) continue;
-            // Outer contours run counter-clockwise (positive area) and holes clockwise, so the
-            // same quad orientation faces outward from the slab on both.
-            var outer = Clipper.Area(path) > 0;
-            for (var i = 0; i < path.Count; i++)
-            {
-                var p = path[i];
-                var q = path[(i + 1) % path.Count];
-                var (a, b) = outer ? (p, q) : (q, p);
-                var aLow = builder.AddVertex(ToMm(a, zLow));
-                var bLow = builder.AddVertex(ToMm(b, zLow));
-                var bHigh = builder.AddVertex(ToMm(b, zHigh));
-                var aHigh = builder.AddVertex(ToMm(a, zHigh));
-                builder.AddTriangle(aLow, bLow, bHigh);
-                builder.AddTriangle(aLow, bHigh, aHigh);
-            }
         }
     }
 

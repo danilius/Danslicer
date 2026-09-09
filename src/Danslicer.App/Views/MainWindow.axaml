@@ -856,7 +856,7 @@
                            PlacementTarget="{Binding #RaftsToolButton}"
                            IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
                            Closed="OnViewportPopupClosed">
-                        <Border x:Name="RaftsPopupContent" Width="240" Padding="10"
+                        <Border x:Name="RaftsPopupContent" Width="320" MaxHeight="700" Padding="10"
                                 Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
@@ -866,13 +866,17 @@
                                         <PathIcon Data="{DynamicResource IconClose}" />
                                     </Button>
                                 </Grid>
-                                <TextBlock Text="A raft replaces the bases of the selected object's supports with one slab on the plate; the model does not move. Settings are under Support settings › Rafts."
+                                <TextBlock Text="A raft replaces the bases of the selected object's supports with one slab on the plate; the model does not move. Add raft takes the settings below; press it again to re-take changed ones."
                                            Classes="label" TextWrapping="Wrap" Margin="0,0,0,8" />
                                 <TextBlock Text="{Binding RaftSelectionText}" Classes="label" Margin="0,0,0,6" />
                                 <Button Content="Add raft" Command="{Binding AddRaftCommand}" HorizontalAlignment="Stretch" Margin="0,2"
                                         ToolTip.Tip="Give the selected objects a raft with the current raft settings and strip their feet's bases. On a rafted object: re-take the settings." />
                                 <Button Content="Remove raft" Command="{Binding RemoveRaftCommand}" HorizontalAlignment="Stretch" Margin="0,2"
                                         ToolTip.Tip="Take the raft away and give the feet the bases the settings say." />
+                                <TextBlock Text="Raft settings" Classes="section" Margin="0,10,0,2" />
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" MaxHeight="440">
+                                    <controls:RaftSettingsView DataContext="{Binding SupportSettings}" />
+                                </ScrollViewer>
                             </StackPanel>
                         </Border>
                     </Popup>
