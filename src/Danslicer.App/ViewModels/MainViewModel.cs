@@ -785,7 +785,11 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnAutoDropEnabledChanged(bool value)
     {
-        if (!_loadingPlacement) ApplyAutoPlacementMode(save: true);
+        if (_loadingPlacement) return;
+        ApplyAutoPlacementMode(save: true);
+        // Switching it on seats the selection at once (user, 2026-09-09); imports already land
+        // where the mode says (ImportMesh).
+        if (value) Document.PlaceSelection();
     }
 
     private void ApplyAutoPlacementMode(bool save)

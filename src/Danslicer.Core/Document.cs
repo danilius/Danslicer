@@ -652,6 +652,25 @@ public sealed class Document
         if (transforms.Count > 0) CommitTransforms(transforms, "Drop to plate", applyPlacement: false);
     }
 
+    /// <summary>
+    /// Re-seats each selected object per the placement mode, as switching Auto Drop on should
+    /// (user, 2026-09-09). The seat is committed as the REQUESTED move, so the Z rule applies:
+    /// a model that actually moves loses its supports; one already seated is left alone.
+    /// </summary>
+    public void PlaceSelection()
+    {
+        if (PlacementMode == PlacementMode.Off) return;
+        var transforms = new List<(SceneObject Object, Transform Before, Transform Requested)>();
+        foreach (var o in _selection)
+        {
+            var before = o.Transform;
+            var placed = ApplyPlacement(o, before);
+            if (MathF.Abs(placed.Translation.Z - before.Translation.Z) < 1e-6f) continue;
+            transforms.Add((o, before, placed));
+        }
+        if (transforms.Count > 0) CommitTransforms(transforms, "Auto drop", applyPlacement: false);
+    }
+
     /// <summary>Re-seats an input transform according to the configured placement mode.</summary>
     public Transform ApplyPlacement(SceneObject obj, Transform requested) =>
         ApplyPlacement(obj.Mesh, requested);
