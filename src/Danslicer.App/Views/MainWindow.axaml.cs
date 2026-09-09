@@ -597,6 +597,23 @@ public partial class MainWindow : Window
         GenerateSupportsMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.GenerateSupports);
         SliceMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Slice);
         PrintExportMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.ExportPrint);
+        ApplyKeymapTooltips();
+    }
+
+    /// <summary>
+    /// Toolbar buttons whose function has a keymap binding show it in the tooltip (user,
+    /// 2026-09-09); the keys are the user's, so the text is built here rather than in XAML.
+    /// </summary>
+    private void ApplyKeymapTooltips()
+    {
+        static string Key(string actionId) => WindowKeymap.GetGestureText(AppConfig.Current, actionId);
+        ToolTip.SetTip(AddObjectToolButton, $"Add object: import an STL or OBJ mesh into the layout ({Key(WindowKeymap.ImportMesh)})");
+        ToolTip.SetTip(GenerateToolButton, $"Generate supports for the support target, with the recipe under Support settings ({Key(WindowKeymap.GenerateSupports)})");
+        ToolTip.SetTip(RegionFacingDownButton, $"Add every face that points down past the Down angle to the region ({Key(WindowKeymap.RegionFacingDown)})");
+        ToolTip.SetTip(RegionInvertButton, $"Swap painted and unpainted faces ({Key(WindowKeymap.RegionInvert)})");
+        ToolTip.SetTip(RegionGrowButton, $"Add the faces next to the region ({Key(WindowKeymap.RegionGrow)})");
+        ToolTip.SetTip(RegionShrinkButton, $"Remove the region's outermost ring of faces ({Key(WindowKeymap.RegionShrink)})");
+        ToolTip.SetTip(RegionConnectedButton, $"Extend the region to every face connected to it ({Key(WindowKeymap.RegionConnected)})");
     }
 
     private sealed class TextInputGuardCommand(Window owner, Func<ICommand?> command) : ICommand
