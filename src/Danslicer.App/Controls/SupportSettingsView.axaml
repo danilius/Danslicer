@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Danslicer.App.ViewModels"
              x:Class="Danslicer.App.Controls.SupportSettingsView"
@@ -339,6 +339,65 @@
                                ToolTip.Tip="Trunks whose surfaces are closer than this are braced as one bundle: no braces inside the cluster, the row ties to its outer trunk. 0 = never" />
                     <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.5" FormatString="0.##"
                                    Value="{Binding SupportBracingClusterGapMm, Mode=TwoWay}" />
+                </Grid>
+            </StackPanel>
+        </Expander>
+
+        <Expander Header="Rafts" IsExpanded="True">
+            <StackPanel Margin="8,2,0,6">
+                <TextBlock Text="A raft replaces the bases: Add raft (Rafts pop-out, Object menu) gives the selected object a slab on the plate with these settings and strips its feet's bases; the model does not move. Press Add raft again to re-take changed settings."
+                           Classes="label" TextWrapping="Wrap" Margin="0,0,0,4" />
+                <Grid Tag="supports raft type plate web" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Type" Classes="label"
+                               ToolTip.Tip="Plate: one filled shape following the silhouette of the feet. Web: a disc under each foot joined to its neighbours by flat bars." />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding RaftTypes}"
+                              SelectedItem="{Binding SupportRaftType, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft thickness height mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Thickness" Classes="label" ToolTip.Tip="Height of the raft on the plate" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.05" Maximum="20" Increment="0.1" FormatString="0.##"
+                                   Value="{Binding SupportRaftThickness, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft edge angle bevel slope degrees" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Edge angle °" Classes="label" ToolTip.Tip="Slope of the raft's edge, wider at the plate: a lip for the scraper. 90 = vertical" />
+                    <NumericUpDown Grid.Column="1" Minimum="5" Maximum="90" Increment="5" FormatString="0"
+                                   Value="{Binding SupportRaftEdgeAngleDegrees, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft disc diameter foot mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Disc diameter" Classes="label" ToolTip.Tip="Disc under each foot (Web), and each foot's footprint for the Plate silhouette" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.1" Maximum="100" Increment="0.5" FormatString="0.##"
+                                   Value="{Binding SupportRaftDiscDiameter, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft bar width web mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Bar width" Classes="label" ToolTip.Tip="Width of the flat bars between neighbouring feet (Web)" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.1" Maximum="100" Increment="0.5" FormatString="0.##"
+                                   Value="{Binding SupportRaftBarWidth, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft neighbours rays delaunay web" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Neighbours" Classes="label"
+                               ToolTip.Tip="Rays: rays from each foot, the first disc each hits is a neighbour, so a foot behind another is not. Delaunay: every edge of the feet's triangulation (Web)" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding RaftNeighbourRules}"
+                              SelectedItem="{Binding SupportRaftNeighbours, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft ray step degrees web" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Ray step °" Classes="label" ToolTip.Tip="Angular step of the rays (Web, Rays)" />
+                    <NumericUpDown Grid.Column="1" Minimum="0.5" Maximum="90" Increment="1" FormatString="0.#"
+                                   Value="{Binding SupportRaftRayStepDegrees, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft max bar length web mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max bar length" Classes="label" ToolTip.Tip="Bars longer than this are not laid. 0 = no limit (Web)" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="500" Increment="1" FormatString="0.##"
+                                   Value="{Binding SupportRaftMaxBarLength, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft margin plate mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Margin" Classes="label" ToolTip.Tip="How far the plate extends beyond the outermost feet (Plate)" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.5" FormatString="0.##"
+                                   Value="{Binding SupportRaftMargin, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports raft bridging distance gap plate mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Bridging distance" Classes="label" ToolTip.Tip="The widest gap between feet that the plate fills in; a wider one stays a notch (Plate)" />
+                    <NumericUpDown Grid.Column="1" Minimum="0" Maximum="500" Increment="1" FormatString="0.##"
+                                   Value="{Binding SupportRaftBridgingDistance, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
         </Expander>

@@ -170,6 +170,11 @@
                           IsVisible="{Binding IsSupportView}" />
                 <MenuItem Header="Place Suppor_ts" Click="OnPlaceSupportsClick" InputGesture="T"
                           IsVisible="{Binding IsSupportView}" />
+                <Separator IsVisible="{Binding IsSupportView}" />
+                <MenuItem x:Name="AddRaftMenuItem" Header="Add Ra_ft" Command="{Binding AddRaftScopedCommand}"
+                          IsVisible="{Binding AddRaftScopedCommand.IsAvailable}" />
+                <MenuItem x:Name="RemoveRaftMenuItem" Header="Remove Raft" Command="{Binding RemoveRaftScopedCommand}"
+                          IsVisible="{Binding RemoveRaftScopedCommand.IsAvailable}" />
                 <Separator IsVisible="{Binding IsModelView}" />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
                 <MenuItem Header="Move _Gizmo" ToggleType="CheckBox" IsChecked="{Binding ShowMoveGizmo, Mode=TwoWay}"
@@ -459,8 +464,12 @@
                                                           ToolTip.Tip="Show or hide this model, with its supports"
                                                           Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).ToggleObjectVisibilityCommand}"
                                                           CommandParameter="{Binding}" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12"
-                                                           VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" />
+                                                    <!-- A rafted object: the raft replaces its bases. -->
+                                                    <PathIcon Data="{DynamicResource IconRafts}" Width="11" Height="11" Margin="6,0,0,0"
+                                                              IsVisible="{Binding HasRaft}" ToolTip.Tip="This object has a raft" />
+                                                </StackPanel>
                                                 <!-- Only for models that came from a file: re-read
                                                      it after the model was edited elsewhere. -->
                                                 <Button Grid.Column="2" Classes="popupClose" Margin="6,0,0,0"
@@ -857,7 +866,13 @@
                                         <PathIcon Data="{DynamicResource IconClose}" />
                                     </Button>
                                 </Grid>
-                                <TextBlock Text="Rafts are coming soon." Classes="label" />
+                                <TextBlock Text="A raft replaces the bases of the selected object's supports with one slab on the plate; the model does not move. Settings are under Support settings › Rafts."
+                                           Classes="label" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                <TextBlock Text="{Binding RaftSelectionText}" Classes="label" Margin="0,0,0,6" />
+                                <Button Content="Add raft" Command="{Binding AddRaftCommand}" HorizontalAlignment="Stretch" Margin="0,2"
+                                        ToolTip.Tip="Give the selected objects a raft with the current raft settings and strip their feet's bases. On a rafted object: re-take the settings." />
+                                <Button Content="Remove raft" Command="{Binding RemoveRaftCommand}" HorizontalAlignment="Stretch" Margin="0,2"
+                                        ToolTip.Tip="Take the raft away and give the feet the bases the settings say." />
                             </StackPanel>
                         </Border>
                     </Popup>

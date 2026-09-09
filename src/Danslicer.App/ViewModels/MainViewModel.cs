@@ -99,6 +99,8 @@ public partial class MainViewModel : ViewModelBase
         AppConfig.Current.Viewport.SupportDisplay, ViewMode == WorkspaceMode.Layout);
 
     public ModeScopedCommand DropToPlateScopedCommand { get; }
+    public ModeScopedCommand AddRaftScopedCommand { get; }
+    public ModeScopedCommand RemoveRaftScopedCommand { get; }
     public ModeScopedCommand DuplicateScopedCommand { get; }
     public ModeScopedCommand MirrorXScopedCommand { get; }
     public ModeScopedCommand MirrorYScopedCommand { get; }
@@ -620,6 +622,10 @@ public partial class MainViewModel : ViewModelBase
             MirrorZCommand, () => ViewMode, WorkspaceMode.Layout);
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
+        AddRaftScopedCommand = new ModeScopedCommand(
+            AddRaftCommand, () => ViewMode, WorkspaceMode.Support);
+        RemoveRaftScopedCommand = new ModeScopedCommand(
+            RemoveRaftCommand, () => ViewMode, WorkspaceMode.Support);
         HideScopedCommand = new ModeScopedCommand(
             HideCommand, () => ViewMode, WorkspaceMode.Layout, WorkspaceMode.Support);
         UnhideAllScopedCommand = new ModeScopedCommand(
@@ -641,6 +647,8 @@ public partial class MainViewModel : ViewModelBase
             MirrorYScopedCommand,
             MirrorZScopedCommand,
             DropToPlateScopedCommand,
+            AddRaftScopedCommand,
+            RemoveRaftScopedCommand,
             HideScopedCommand,
             UnhideAllScopedCommand,
             HideUnselectedSupportsScopedCommand,
@@ -743,6 +751,9 @@ public partial class MainViewModel : ViewModelBase
         MirrorYCommand.NotifyCanExecuteChanged();
         MirrorZCommand.NotifyCanExecuteChanged();
         DropToPlateCommand.NotifyCanExecuteChanged();
+        AddRaftCommand.NotifyCanExecuteChanged();
+        RemoveRaftCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(RaftSelectionText));
         HideCommand.NotifyCanExecuteChanged();
         GenerateSupportsCommand.NotifyCanExecuteChanged();
         GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
@@ -807,6 +818,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnDocumentChanged()
     {
+        OnPropertyChanged(nameof(RaftSelectionText));
         if (IsGeneratingSupports && !_applyingGenerationBatch)
             _generationCancellation?.Cancel();
         if (DetectedIslands.Count > 0) DetectedIslands = [];
@@ -992,6 +1004,42 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void DropToPlate() => Document.DropSelectionToPlate();
+
+    // ----- Rafts (SUPPORT-GEOMETRY-SPEC "Rafts") -----
+
+    /// <summary>The Rafts pop-out's line: how many of the selected objects stand on a raft.</summary>
+    public string RaftSelectionText
+    {
+        get
+        {
+            var selected = Document.Selection.Count;
+            if (selected == 0) return "Select an object to raft it.";
+            var rafted = Document.Selection.Count(o => o.Raft is not null);
+            return selected == 1
+                ? rafted == 1 ? "The selected object has a raft." : "The selected object has no raft."
+                : $"{rafted} of {selected} selected objects have a raft.";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void AddRaft()
+    {
+        var count = Document.AddRaftToSelection();
+        ViewportStatus = count == 0
+            ? "Nothing selected to raft."
+            : count == 1 ? "Raft added; the feet lost their bases." : $"Rafts added to {count} objects.";
+        OnPropertyChanged(nameof(RaftSelectionText));
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void RemoveRaft()
+    {
+        var count = Document.RemoveRaftFromSelection();
+        ViewportStatus = count == 0
+            ? "No selected object has a raft."
+            : count == 1 ? "Raft removed; the feet have their bases back." : $"Rafts removed from {count} objects.";
+        OnPropertyChanged(nameof(RaftSelectionText));
+    }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void Duplicate()

@@ -69,7 +69,22 @@ public sealed class SceneObject : INotifyPropertyChanged
     /// computed from them and the feet whenever it is drawn or sliced. Go through
     /// <see cref="Danslicer.Core.Document"/> to change it, which makes the edit undoable.
     /// </summary>
-    public RaftParameters? Raft { get; set; }
+    public RaftParameters? Raft
+    {
+        get => _raft;
+        set
+        {
+            if (Equals(_raft, value)) return;
+            _raft = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Raft)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasRaft)));
+        }
+    }
+
+    private RaftParameters? _raft;
+
+    /// <summary>The form the object list's glyph wants; follows undo like <see cref="IsVisible"/>.</summary>
+    public bool HasRaft => _raft is not null;
 
     public SceneObject(string name, Mesh mesh, Guid? id = null)
     {
