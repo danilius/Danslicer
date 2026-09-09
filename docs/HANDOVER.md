@@ -1,6 +1,26 @@
 ﻿# Danslicer handover
 
-## STATE 2026-09-09 late night — rafts seen on screen, three more branches (supersedes everything below)
+## STATE 2026-09-10 small hours — lip reworked, T crash fixed, snapping open (supersedes everything below)
+
+Branches unmerged, in merge order: `rafts-spec` → `rafts` (+ ebfb13e: the scraper lip is on
+the raft's OUTSIDE only and wider at the top than the bottom, so a scraper slides under it;
+holes and bar insides stay vertical; the Rays neighbour rule is gone, Web = Delaunay), then
+`object-position-bbox`, `tooltips`, `placement-ghost-crash` (all off main, independent).
+`integration-2026-09-09b` holds all five, 965 tests, and is the build on disk.
+
+**T crash (log 2026-09-09 23:45, "Both segment endpoints must be in the graph"):** the ghost
+built a throwaway graph from the preview edit; a preview that branched onto an existing trunk
+referenced a document node. Fixed: `SupportEditPreview.ToGraph` borrows the node.
+
+**OPEN — "snap to grid for supports does not seem to be working anymore" (user):** Core
+probes (`BaseGridSnapProbeTests`) show a manual placement lands its base on a grid point with
+UseBaseGrid on, with a disc base and with none. So it is not the router. Ask the user which
+snapping: T/guided placement, Generate, or the edit-mode base drag (Shift frees it); and
+whether Support settings › Grid is on (the grid flag is saved per preset:
+`ConfigViewModel.SupportUseBaseGrid`, `saveGridToPreset`). Note branch-first routing joins a
+nearby existing trunk instead of making a new base, which shows no snap at all.
+
+## STATE 2026-09-09 late night — rafts seen on screen, three more branches (superseded by the section above)
 
 main is `38ab725`. Branches, unmerged, in merge order: `rafts-spec` → `rafts` (raft feature +
 the user's first screen feedback: smooth sloped edge, raft settings in the Rafts pop-out),
