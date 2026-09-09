@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Generation;
@@ -176,41 +176,36 @@ public class TipPlacementTests
     [Fact]
     public void SmallIslandsCanBeIgnored()
     {
-        // A 0.4 x 0.4 mm tab is below the 0.5 mm² default; a 4 x 4 mm tab is not.
-        var tiny = Meshes.Table(top: 0.6f, topThickness: 0.4f, leg: 0.2f, height: 3f);
+        // A 0.4 x 0.4 mm floating tab is below the 0.5 mm² default; a 4 x 4 mm one is not.
+        var tiny = Meshes.FloatingBox(0.4f, 0.4f, 1f, z: 3f);
         var tinyTips = Place(tiny, P(spacing: 2f, minSpacing: 0.5f, minIsland: 0.5f, layer: 0.1f));
         Assert.DoesNotContain(tinyTips, c => c.Strategy == TipStrategy.Island);
 
-        var table = Meshes.Table(top: 16, topThickness: 2, leg: 2, height: 8);
-        var tableTips = Place(table, P(spacing: 4f, minSpacing: 2f, minIsland: 0.5f));
-        Assert.Contains(tableTips, c => c.Strategy == TipStrategy.Island);
+        var tab = Meshes.FloatingBox(4f, 4f, 1f, z: 3f);
+        var tabTips = Place(tab, P(spacing: 4f, minSpacing: 2f, minIsland: 0.5f));
+        Assert.Contains(tabTips, c => c.Strategy == TipStrategy.Island);
     }
 
     [Fact]
-    public void TableGetsIslandTipsUnderTheTopNotOnThePlate()
+    public void TableTopIsAnOverhangNotAnIslandAndStillGetsTipsUnderIt()
     {
+        // Strict islands (user, 2026-09-09): the top grows out of its legs, so printing never
+        // starts off-plate there. The underside is still covered, by the overhang strategies.
         var mesh = Meshes.Table(top: 20, topThickness: 2, leg: 2, height: 10);
         var tips = Place(mesh, P(spacing: 4f, minSpacing: 2f));
-        var islands = tips.Where(c => c.Strategy == TipStrategy.Island).ToList();
-        Assert.NotEmpty(islands);
-        Assert.All(islands, c =>
-        {
-            Assert.InRange(c.Point.Z, 9.5f, 10.5f);
-            Assert.InRange(c.Point.X, -10.1f, 10.1f);
-            Assert.InRange(c.Point.Y, -10.1f, 10.1f);
-        });
+        Assert.DoesNotContain(tips, c => c.Strategy == TipStrategy.Island);
+        Assert.Contains(tips, c => c.Point.Z is > 9.5f and < 10.5f);
         Assert.All(tips, c => Assert.True(c.Point.Z > 0.2f, "no tips on the plate"));
     }
 
     [Fact]
-    public void CantileverArmProducesAnIsland()
+    public void CantileverArmIsAnOverhangNotAnIsland()
     {
         var mesh = Meshes.Cantilever();
         var tips = Place(mesh, P(spacing: 4f, minSpacing: 2f));
-        var islands = tips.Where(c => c.Strategy == TipStrategy.Island).ToList();
-        Assert.NotEmpty(islands);
-        // Arm underside is at z=16, extending in +X past the 4 mm post.
-        Assert.Contains(islands, c => c.Point.X > 3f && c.Point.Z > 15f);
+        Assert.DoesNotContain(tips, c => c.Strategy == TipStrategy.Island);
+        // Arm underside is at z=16, extending in +X past the 4 mm post: still supported.
+        Assert.Contains(tips, c => c.Point.X > 3f && c.Point.Z > 15f);
     }
 
     [Fact]
@@ -367,7 +362,9 @@ public class TipPlacementTests
     {
         var mesh = Meshes.DownwardSpike();
         var tips = Place(mesh, P(spacing: 5f, minSpacing: 1f, overhang: 20f));
-        var minima = tips.Where(c => c.Strategy == TipStrategy.LocalMinimum).ToList();
+        // The apex is both the first strict island (once its layer region reaches the minimum
+        // area) and a local minimum; whichever is placed first holds the point.
+        var minima = tips.Where(IsRequired).ToList();
         Assert.NotEmpty(minima);
         var tip = minima.MinBy(c => c.Point.Z);
         Assert.InRange(tip.Point.X, -0.3f, 0.3f);
