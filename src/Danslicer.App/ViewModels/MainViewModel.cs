@@ -153,7 +153,7 @@ public partial class MainViewModel : ViewModelBase
         nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible),
         nameof(IsUvtoolsCheckToolVisible), nameof(IsTransformToolVisible), nameof(IsGuidedToolVisible),
         nameof(IsGenerateToolVisible), nameof(IsStructureToolVisible), nameof(IsRegionToolVisible),
-        nameof(EffectiveSupportDisplay))]
+        nameof(IsAddObjectToolVisible), nameof(EffectiveSupportDisplay))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
@@ -171,6 +171,7 @@ public partial class MainViewModel : ViewModelBase
     public bool IsGenerateToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Generate, ViewMode);
     public bool IsStructureToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Structure, ViewMode);
     public bool IsRegionToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Region, ViewMode);
+    public bool IsAddObjectToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.AddObject, ViewMode);
 
     /// <summary>
     /// Object rows are live wherever an object selection means something: Layout arranges the

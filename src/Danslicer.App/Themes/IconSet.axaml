@@ -8,6 +8,8 @@
     <StreamGeometry x:Key="IconTransform">M8,1 L11,4 L9,4 L9,7 L12,7 L12,5 L15,8 L12,11 L12,9 L9,9 L9,12 L11,12 L8,15 L5,12 L7,12 L7,9 L4,9 L4,11 L1,8 L4,5 L4,7 L7,7 L7,4 L5,4 Z</StreamGeometry>
     <!-- Guided placement: a dotted line of tips along a curve. -->
     <StreamGeometry x:Key="IconGuided">M2,12 A2,2 0 1 1 2,12.01 Z M5,8 A1.5,1.5 0 1 1 5,8.01 Z M8,5 A1.5,1.5 0 1 1 8,5.01 Z M11.5,3 A1.5,1.5 0 1 1 11.5,3.01 Z M2,3 L4,3 L4,5 L2,5 Z M12,11 L14,11 L14,13 L12,13 Z</StreamGeometry>
+    <!-- Add object: one cube with a plus at the top-right. -->
+    <StreamGeometry x:Key="IconAddObject">M1.5,6 L6.5,3.5 L11.5,6 L6.5,8.5 Z M1.5,7.5 L5.75,9.6 L5.75,14.5 L1.5,12.4 Z M11.5,7.5 L7.25,9.6 L7.25,14.5 L11.5,12.4 Z M12.3,0.5 L13.7,0.5 L13.7,2.3 L15.5,2.3 L15.5,3.7 L13.7,3.7 L13.7,5.5 L12.3,5.5 L12.3,3.7 L10.5,3.7 L10.5,2.3 L12.3,2.3 Z</StreamGeometry>
     <!-- Objects: three stacked cubes (isometric hint of a scene). -->
     <StreamGeometry x:Key="IconObjects">M2,5 L8,2 L14,5 L8,8 Z M2,6.5 L7.25,9.1 L7.25,14 L2,11.4 Z M14,6.5 L8.75,9.1 L8.75,14 L14,11.4 Z</StreamGeometry>
 

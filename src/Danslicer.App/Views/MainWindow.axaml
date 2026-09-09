@@ -133,6 +133,9 @@
                 <MenuItem x:Name="PreferencesMenuItem" Header="_Preferences..." Click="OnPreferencesClick" />
             </MenuItem>
             <MenuItem Header="_Object" IsVisible="{Binding IsModelView}">
+                <MenuItem x:Name="InsertObjectMenuItem" Header="_Insert Object..." Click="OnImportClick"
+                          IsVisible="{Binding IsLayoutView}" />
+                <Separator IsVisible="{Binding IsLayoutView}" />
                 <MenuItem x:Name="DuplicateObjectsMenuItem" Header="_Duplicate" Command="{Binding DuplicateScopedCommand}"
                           IsVisible="{Binding DuplicateScopedCommand.IsAvailable}" />
                 <MenuItem Header="_Mirror" IsVisible="{Binding MirrorXScopedCommand.IsAvailable}">
@@ -322,8 +325,9 @@
                                                 ToolTip.Tip="Lowest-point offset above the plate (0 = on plate)" />
                         <TextBlock Text="mm" Classes="label" Margin="4,0,4,0" />
                     </StackPanel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <TextBlock Text="Workspace" Classes="label" Margin="0,0,8,0" />
+                    <!-- The workspace toggles sit at the centre of the whole strip, not of the
+                         spare column, so they stay put whichever mode's controls fill the left. -->
+                    <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center">
                         <ToggleButton Classes="tool" Content="Layout" IsChecked="{Binding IsLayoutView}" />
                         <ToggleButton Classes="tool" Content="Support" IsChecked="{Binding IsSupportView}" />
                         <ToggleButton Classes="tool" Content="Slicing" IsChecked="{Binding IsLayersView}" />
@@ -551,6 +555,14 @@
                             </StackPanel>
                         </Border>
                     </Popup>
+
+                    <!-- Add object (Layout): the same mesh import as File > Import (user, 2026-09-09). -->
+                    <Button x:Name="AddObjectToolButton" Classes="viewportTool"
+                            IsVisible="{Binding IsAddObjectToolVisible}"
+                            ToolTip.Tip="Add object: import an STL or OBJ mesh into the layout"
+                            Click="OnImportClick">
+                        <PathIcon Data="{DynamicResource IconAddObject}" />
+                    </Button>
 
                     <!-- Transform (Layout): the object's name, size and transform fields, formerly the
                          right-hand panel (user decision 2026-09-08). -->
