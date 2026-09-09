@@ -1,6 +1,42 @@
 ﻿# Danslicer handover
 
-## STATE 2026-09-09 late — READ FIRST (supersedes everything below)
+## STATE 2026-09-09 night — READ FIRST (supersedes everything below)
+
+**Single-session work (Claude implementing directly, user screen-testing live).** main is
+`654e1f7` (bracing merged, layer clip from the plate). Four feature branches are built,
+Claude-screen-verified with the roof gripper, 912 tests green, NOT merged — the user asked for
+one branch per feature and merges are their call:
+
+| order | branch | on top of | what |
+|---|---|---|---|
+| 1 | `plate-shadows` | main | each object throws a shadow on the plate; View › Plate Shadows and a view-settings checkbox (config `PlateShadowsEnabled`, default on) |
+| 2 | `support-editing` | main | Space edit mode: handles on the selected support, drag base / junction / trunk in XY (base grid snaps, Shift frees), tip across the surface; Edit Support button + Object menu |
+| 3 | `placement-mode` | `support-editing` | T toggles a placement mode with a ghosted routed support under the cursor; click places; Place (T) button in the Guided pop-out + Object menu |
+| 4 | `supports-toolbar` | `placement-mode` | Supports pop-out = settings only; Generate button; Structure pop-out (Parent, Brace, Unbrace, Select braces, Edit); Region pop-out |
+
+Branches 2→3→4 are stacked (3 and 4 reference edit mode), so merge them in that order;
+`plate-shadows` is independent. This HANDOVER update sits on `supports-toolbar`.
+
+**User screen checklist per branch:**
+1. Shadows: a soft-edged dark footprint offset slightly to -X/-Y under every model, on both
+   render paths; ghosted/hidden objects throw none; none when the plate fades from below;
+   View › Plate Shadows (and the gear pop-out) switches it off and the choice persists.
+2. Edit mode: select a support, Space → coloured handles (blue base, yellow junctions, green
+   tips, purple trunk diamonds) drawn through everything; drag each; every drag is one undo
+   step named "Move base/junction/trunk/tip"; trunk drag carries brace ends; Esc/Space leaves;
+   clicking another support retargets; leaving Support mode leaves. Not screen-tested by
+   Claude: junction drag, Shift free-drag, Edit button, edit mode on a braced forest.
+3. Placement: T → status "Place supports: …", cyan ghost follows the cursor over the target,
+   click places (auto-parenting applies as before), nothing shows off the target or where
+   routing refuses (status names why); RMB/T/Esc leave. Not screen-tested: the Place button,
+   the refusal status text on screen.
+4. Toolbar: Support mode column is Objects, Support settings, Generate, Guided, Structure,
+   Region, I+, I?, eye, rafts. Generate needs the target picked in Objects. Not screen-tested:
+   the Region pop-out's operations (same bindings as before, only moved).
+
+**Then**: rafts (spec section first), braces to branches, the rest of the notes list below.
+
+## STATE 2026-09-09 late (superseded by the section above)
 
 **Single-session work (Claude implementing directly, user screen-testing live).** main is
 `9250fac` (auto-parenting, screen-passed by the user on 2026-09-09). Branch `bracing` was
@@ -94,12 +130,11 @@ supports, 134 braces, none untied.
   actively at a sensible stopping point. Every key-bound function needs a toolbar button
   (L/P/E/R/C/J/K have them via pop-outs).
 
-**Notes for later (user, 2026-09-08/09, not ordered):** object shadows on the build plate,
-with a switch on/off (user, 2026-09-09); manual support editing (click a
-support, Space enters an edit mode; move base XY, trunk XY, tip across the surface); a
-manual placement MODE instead of T with a ghosted support following the cursor; split the
-overloaded Supports pop-out into toolbar functions. Bracing "Later": braces to branches,
-manual bracing (click two supports), braces following edited trunks, cross-object bracing.
+**Notes for later (user, 2026-09-08/09):** all four (plate shadows, manual support editing,
+placement mode, Supports pop-out split) are BUILT on the branches listed at the top, awaiting
+the user's merge. Bracing "Later": braces to branches, manual bracing (click two supports),
+braces following edited trunks (edit mode now moves brace ends with a trunk, nothing
+re-validates the brace angle), cross-object bracing.
 
 ## STATE 2026-09-08 evening — READ FIRST (supersedes everything below)
 
