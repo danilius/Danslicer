@@ -1730,9 +1730,8 @@ public sealed class ViewportControl : OpenGlControlBase
             }
             else
             {
-                var ghost = new SupportGraph();
-                foreach (var node in edit.AddedNodes) ghost.AddNode(node);
-                foreach (var segment in edit.AddedSegments) ghost.AddSegment(segment);
+                // The ghost borrows the existing node a branch joins (SupportEditPreview).
+                var ghost = edit.ToGraph(Document.Supports);
                 foreach (var part in SupportRenderMesh.Build(ghost))
                     _placementGhost.Add(new AuxMeshDraw(part.Mesh, PlacementGhostColor, PlacementGhostOpacity));
             }
