@@ -1,6 +1,21 @@
 ﻿# Danslicer handover
 
-## STATE 2026-09-09 end of day — READ FIRST (supersedes everything below)
+## STATE 2026-09-09 late — MERGED (supersedes everything below)
+
+The user passed branch 11 on screen and approved the merge: `integration-2026-09-09` (the
+twelve branches below plus two more) went into main as one merge and was pushed. Branch 8
+(`slicer-chain-recovery`) was merged without the gripper slice check; do that slice when
+convenient (no empty layers near 5.8 mm and 69 mm). The feature branches still exist locally;
+delete them once the user confirms. Next: **rafts** (spec section first, get it approved).
+
+Two branches added after the end-of-day section, both user-passed on screen:
+
+| # | branch | head | what |
+|---|---|---|---|
+| 13 | `layout-add-object` | 7d6f4df | Layout: Add Object toolbar button (same picker as File › Import), Object › Insert Object… (Layout only); workspace toggles centred on the header strip, "Workspace" label gone |
+| 14 | `auto-drop-toggle` | 83640ba | switching Auto Drop on seats the selection at once (`Document.PlaceSelection`, one "Auto drop" undo step; the Z rule applies, so a moved model loses its supports); imports already landed per the mode |
+
+## STATE 2026-09-09 end of day (superseded by the section above)
 
 **Single-session work (Claude implementing directly, user screen-testing live).** main is
 `654e1f7` (bracing merged, layer clip from the plate). NOTHING built today is merged: the user
