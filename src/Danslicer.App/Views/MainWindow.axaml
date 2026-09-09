@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
@@ -193,6 +193,8 @@
                 <Separator />
                 <MenuItem Header="Toggle _Perspective/Orthographic" Click="OnToggleProjectionClick" InputGesture="D5" />
                 <Separator />
+                <MenuItem x:Name="PlateShadowsMenuItem" Header="Plate Shado_ws" ToggleType="CheckBox"
+                          Click="OnTogglePlateShadowsClick" />
                 <!-- Check states mirror the persisted viewport config; see SyncRenderPathMenu.
                      Deferred is the renderer, not a choice: it left preview on 2026-09-06 and
                      the config value survives only as the automatic fallback for a GL failure. -->
@@ -817,6 +819,8 @@
                                           Click="OnToggleWireframeClick" />
                                 <CheckBox x:Name="PopViewCube" Content="View cube"
                                           Click="OnToggleViewCubeClick" />
+                                <CheckBox x:Name="PopPlateShadows" Content="Plate shadows"
+                                          Click="OnTogglePlateShadowsClick" />
                                 <CheckBox Content="Overhang tint"
                                           IsChecked="{Binding ShowOverhangs, Mode=TwoWay}" />
                                 <CheckBox Content="Hover waterline"

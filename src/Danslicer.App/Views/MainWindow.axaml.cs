@@ -629,6 +629,7 @@ public partial class MainWindow : Window
         CavityMenuItem.IsChecked = viewport.CavityEnabled;
         OutlinesMenuItem.IsChecked = viewport.OutlinesEnabled;
         FxaaMenuItem.IsChecked = viewport.FxaaEnabled;
+        PlateShadowsMenuItem.IsChecked = viewport.PlateShadowsEnabled;
         SyncViewSettingsPopup();
     }
 
@@ -661,6 +662,7 @@ public partial class MainWindow : Window
             PopFxaa.IsEnabled = deferred;
             PopWireframe.IsChecked = viewport.WireframeEnabled;
             PopViewCube.IsChecked = viewport.ViewCubeEnabled;
+            PopPlateShadows.IsChecked = viewport.PlateShadowsEnabled;
         }
         finally
         {
@@ -679,6 +681,13 @@ public partial class MainWindow : Window
     {
         var viewport = AppConfig.Current.Viewport;
         viewport.WireframeEnabled = !viewport.WireframeEnabled;
+        ApplyRenderPathChange();
+    }
+
+    private void OnTogglePlateShadowsClick(object? sender, RoutedEventArgs e)
+    {
+        var viewport = AppConfig.Current.Viewport;
+        viewport.PlateShadowsEnabled = !viewport.PlateShadowsEnabled;
         ApplyRenderPathChange();
     }
 

@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
@@ -134,6 +134,25 @@ public sealed partial class SceneRenderer
             BindGBufferShader(model, view, projection, PlateColor, backfaceTint: 0f,
                 warnOutsideBuildVolume: false, overhangCos: 2f, plateId, selected: false, clip: default);
             _plate!.Draw();
+            // Shadows carry the plate id: no outline between shadow and plate, and picking one
+            // picks the plate, i.e. nothing. See the classic DrawPlateShadows for the rest.
+            if (frame.ShowPlateShadows)
+            {
+                foreach (var obj in frame.Scene.Objects)
+                {
+                    if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+                    if (!_meshes.TryGetValue(obj.Mesh, out var gpu))
+                    {
+                        gpu = new GpuMesh(gl, obj.Mesh);
+                        _meshes[obj.Mesh] = gpu;
+                    }
+                    BindGBufferShader(obj.Transform.ToMatrix(), view, projection, PlateShadowColor,
+                        backfaceTint: 0f, warnOutsideBuildVolume: false, overhangCos: 2f, plateId,
+                        selected: false, clip: default);
+                    BindShadow(pipeline.GBufferShader, true);
+                    gpu.Draw();
+                }
+            }
         }
 
         foreach (var obj in frame.Scene.Objects)
@@ -353,6 +372,7 @@ public sealed partial class SceneRenderer
         shader.Set("uOverhangCell", _overhangCell);
         shader.Set("uId", DeferredIds.Pack(id));
         shader.Set("uSelected", selected ? 1f : 0f);
+        BindShadow(shader, false);
         BindClip(shader, clip);
     }
 

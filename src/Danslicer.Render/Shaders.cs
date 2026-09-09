@@ -1,4 +1,4 @@
-namespace Danslicer.Render;
+﻿namespace Danslicer.Render;
 
 /// <summary>GLSL sources. A preamble selects GL 3.3 core or GL ES 3.0 at runtime.</summary>
 internal static class Shaders
@@ -16,6 +16,9 @@ internal static class Shaders
         uniform mat4 uProjection;
         uniform mat4 uNormalMatrix;      // transpose(inverse(model * view)), see ShaderProgram.Set
         uniform mat4 uModelNormalMatrix; // transpose(inverse(model)), for world-space normals
+        uniform float uShadow;           // 1 = project the mesh onto the plate as its shadow
+        uniform vec3 uShadowDir;         // direction the shadow light travels (z < 0), world space
+        uniform float uShadowZ;          // world Z of the shadow surface
 
         out vec3 vViewNormal;
         out vec3 vWorldNormal;
@@ -25,11 +28,21 @@ internal static class Shaders
         void main()
         {
             vec4 world = uModel * vec4(aPosition, 1.0);
+            vec3 viewNormal = normalize(mat3(uNormalMatrix) * aNormal);
+            vec3 worldNormal = normalize(mat3(uModelNormalMatrix) * aNormal);
+            if (uShadow > 0.5)
+            {
+                // Every vertex slides along the light until it meets the shadow plane, so the
+                // mesh collapses to its lit footprint; the surface faces up whatever the source.
+                world.xyz += uShadowDir * ((uShadowZ - world.z) / uShadowDir.z);
+                worldNormal = vec3(0.0, 0.0, 1.0);
+                viewNormal = normalize(mat3(uView) * worldNormal);
+            }
             vec4 view = uView * world;
             vWorldPosition = world.xyz;
             vViewPosition = view.xyz;
-            vViewNormal = normalize(mat3(uNormalMatrix) * aNormal);
-            vWorldNormal = normalize(mat3(uModelNormalMatrix) * aNormal);
+            vViewNormal = viewNormal;
+            vWorldNormal = worldNormal;
             gl_Position = uProjection * view;
         }
         """;
@@ -56,6 +69,7 @@ internal static class Shaders
         uniform float uClipEnabled;
         uniform float uClipLowerZ;
         uniform float uClipUpperZ;
+        uniform float uShadow;         // 1 = this draw is a plate shadow (see the vertex stage)
         uniform float uWaterlineEnabled;
         uniform float uWaterlineZ;
 
@@ -69,7 +83,8 @@ internal static class Shaders
                 (vWorldPosition.z < uClipLowerZ || vWorldPosition.z > uClipUpperZ)) discard;
 
             vec3 n = normalize(vViewNormal);
-            bool back = !gl_FrontFacing;
+            // A shadow is one flat surface whatever the winding of the triangles that made it.
+            bool back = !gl_FrontFacing && uShadow < 0.5;
             if (back) n = -n;
             vec3 v = normalize(-vViewPosition);
 
