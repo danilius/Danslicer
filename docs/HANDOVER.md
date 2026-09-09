@@ -27,6 +27,18 @@ merged (the build the user tested).
 | 7 | `island-definition` | Detect Islands and the print check use the STRICT definition: a connected region of a layer overlapping nothing below (after the overhang inflation) = where printing starts off-plate; a start under the minimum area does not carry the next layer, so the region is reported once it reaches the minimum. Tip placement keeps the old newborn-area seeds (changing that is the user's call) |
 | 8 | `slicer-chain-recovery` | MeshSlicer.ChainSegments: a dead-ended chain takes the nearest unused start within 0.1 mm and closes on its own start within that reach. Found because the gripper's layer 1379 (187 mm²) sliced EMPTY — a printed-layer bug, not just a detection one. Three unit tests |
 
+**Third round (user feedback 2026-09-09 afternoon), stacked on round two, in order:**
+
+| order | branch | what |
+|---|---|---|
+| 9 | `gizmo-size` | edit gizmos 144 px (3×) with 3 px strokes; Preferences › Viewport "Support gizmo size" / "Support gizmo line width"; OverlayLine has a Width, wide lines are screen-space quads via a new wide-line shader (LineBatch.DrawWide) |
+| 10 | `island-generation` | TipPlacer's Island strategy uses the strict IslandFinder.FindStarts too, so Generate island supports matches Detect Islands; table tops / cantilevers are overhangs (tests updated) |
+| 11 | `z-move-clears-supports` | SupportTransformRule: a Z translation no longer maps contacts exactly → CommitTransforms discards the object's supports (same undo step); X/Y moves still carry them |
+| 12 | `settings-to-selection` | Document.ApplySupportSettingsToSelection on every settings save: selected tips take tip diameter / cone / ball / embedding, bases their shape and sizes, trunk / branch / brace segments their diameters; one undo step, nothing re-routed |
+
+Integration branch rebuilt with all twelve; 925 tests. Round three headless-tested only; the
+app was launched once to confirm the wide-line shader compiles.
+
 Screen checks for round two: gizmo arrows and squares drag as expected in each direction;
 red tip appears off the model and on a refused spot; Detect Islands on the gripper in the
 user's pose reports two islands (the saved project pose reports one — its far end is not the
