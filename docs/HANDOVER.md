@@ -8,6 +8,10 @@ integration branch are deleted. Only `grid-routing-prototype` (in the Danslicer-
 worktree) and `view-cube-drag-orbit` remain, both unmerged and old. Next: braces to branches
 (spec "Bracing › Later"), manual bracing, then the rest of the notes.
 
+**Mirror-X test print: DONE, PASSED (user, 2026-09-10).** The Photon Mono X definition's
+MirrorX = true is confirmed by a real print; every older mention below of "the physical
+test print" is closed.
+
 ## STATE 2026-09-10 small hours — lip reworked, T crash fixed, snapping open (superseded by the section above)
 
 Branches unmerged, in merge order: `rafts-spec` → `rafts` (+ ebfb13e: the scraper lip is on
