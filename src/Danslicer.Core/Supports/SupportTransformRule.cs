@@ -23,6 +23,10 @@ namespace Danslicer.Core.Supports;
 /// Scale moves the surface under the contact: the stored point no longer lies where the
 /// geometry now is, and the tip would hang in air or bury itself.</para>
 ///
+/// <para>Translation splits on the axis too: a move across the plate carries the tree; a move up
+/// or down (user decision 2026-09-09) discards it, because the tree stands on the plate and
+/// its trunks are the height they are — see <see cref="SameHeight"/>.</para>
+///
 /// <para>Rotation splits on the axis, and this is where the second half of the rule earns its
 /// keep. A support tree is not just a set of contacts: it stands on the plate, its trunks are
 /// vertical, and which faces need supporting at all depends on which way is down. A rotation
@@ -53,7 +57,19 @@ public static class SupportTransformRule
     /// about the vertical qualify; scale and any tilt do not.
     /// </summary>
     public static bool MapsContactsExactly(Transform before, Transform after) =>
-        SameScale(before.Scale, after.Scale) && KeepsVerticalAxis(before.Rotation, after.Rotation);
+        SameScale(before.Scale, after.Scale) && KeepsVerticalAxis(before.Rotation, after.Rotation) &&
+        SameHeight(before.Translation.Z, after.Translation.Z);
+
+    /// <summary>
+    /// A lift or a drop is the one translation that does not leave the tree standing: the
+    /// contacts still sit on the surface, but every trunk would need a new length and every
+    /// base would leave the plate or sink into it. Those supports are discarded (user decision
+    /// 2026-09-09); a move in X and Y carries them along.
+    /// </summary>
+    private static bool SameHeight(float before, float after) => MathF.Abs(before - after) <= HeightEpsilon;
+
+    /// <summary>A hundredth of a layer: float noise from matrix round-trips, never a move.</summary>
+    private const float HeightEpsilon = 5e-4f;
 
     /// <summary>
     /// The change in orientation, as a world rotation: does it leave the up direction alone? That

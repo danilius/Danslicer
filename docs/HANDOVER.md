@@ -1,6 +1,164 @@
 ﻿# Danslicer handover
 
-## STATE 2026-09-09 late — READ FIRST (supersedes everything below)
+## STATE 2026-09-09 late — MERGED (supersedes everything below)
+
+The user passed branch 11 on screen and approved the merge: `integration-2026-09-09` (the
+twelve branches below plus two more) went into main as one merge and was pushed. Branch 8
+(`slicer-chain-recovery`) was merged without the gripper slice check; do that slice when
+convenient (no empty layers near 5.8 mm and 69 mm). The feature branches still exist locally;
+delete them once the user confirms. Next: **rafts** (spec section first, get it approved).
+
+Two branches added after the end-of-day section, both user-passed on screen:
+
+| # | branch | head | what |
+|---|---|---|---|
+| 13 | `layout-add-object` | 7d6f4df | Layout: Add Object toolbar button (same picker as File › Import), Object › Insert Object… (Layout only); workspace toggles centred on the header strip, "Workspace" label gone |
+| 14 | `auto-drop-toggle` | 83640ba | switching Auto Drop on seats the selection at once (`Document.PlaceSelection`, one "Auto drop" undo step; the Z rule applies, so a moved model loses its supports); imports already landed per the mode |
+
+## STATE 2026-09-09 end of day (superseded by the section above)
+
+**Single-session work (Claude implementing directly, user screen-testing live).** main is
+`654e1f7` (bracing merged, layer clip from the plate). NOTHING built today is merged: the user
+asked for one branch per feature and merges are their call. Twelve feature branches exist, and
+the throwaway branch **`integration-2026-09-09`** (`ac242fa`) holds all of them merged; it is the
+build the user has been testing. 926 tests green on it. The app runs from
+`src\Danslicer.App\bin\Debug\net10.0\Danslicer.App.exe` after `dotnet build -c Debug`. Memory
+files (`~/.claude/projects/F--Git-Repos-Danslicer/memory/`) carry the roadmap and the standing
+rules; read `MEMORY.md`.
+
+**Branches, in merge order** (2→3→4 and 5→12 are stacked; `plate-shadows` stands alone):
+
+| # | branch | head | what | user verdict |
+|---|---|---|---|---|
+| 1 | `plate-shadows` | bc6eb18 | object shadows on the plate, View › Plate Shadows + gear-pop-out checkbox, config `PlateShadowsEnabled` | passed |
+| 2 | `support-editing` | 67b4c8f | Space edit mode on the selected support, handles, per-drag undo; Edit Support button + Object menu | passed |
+| 3 | `placement-mode` | c99f302 | T toggles a placement mode, cyan ghost of the routed support follows the cursor, click places; Place (T) in the Guided pop-out | passed |
+| 4 | `supports-toolbar` | 015e77d | Supports pop-out = settings only; Generate button; Structure pop-out (Parent, Brace, Unbrace, Select braces, Edit); Region pop-out | passed |
+| 5 | `edit-gizmos` | e1becd3 | a transform gizmo per handle: X/Y on base and trunk mid, XYZ on junctions and tips; arrow = axis, square = plane; grid snap on dragged axes, Shift frees | passed |
+| 6 | `placement-red-ghost` | 72fa103 | red translucent tip where nothing can be placed (off model, off target, routing refused) | passed |
+| 7 | `island-definition` | 14bdd44 | Detect Islands + print check use the STRICT definition (a layer region overlapping nothing below); sub-minimum starts do not carry the next layer | passed ("working well") |
+| 8 | `slicer-chain-recovery` | 12111c2 | MeshSlicer.ChainSegments recovers a dead-ended chain within 0.1 mm — the gripper had EMPTY printed layers (115, 123, 1379) before this | not yet checked in a slice |
+| 9 | `gizmo-size` | ed0ffb3 | edit gizmos 144 px / 3 px strokes, Preferences › Viewport "Support gizmo size" / "line width"; OverlayLine.Width, wide lines as screen-space quads (new wide-line shader) | passed |
+| 10 | `island-generation` | 3cdcd24 | TipPlacer's Island strategy uses the strict finder, so Generate island supports matches Detect Islands; table tops / cantilevers are overhangs now | passed |
+| 11 | `z-move-clears-supports` | 9b81291 | a requested Z move discards the object's supports (same undo step) even when auto-drop re-seats it; X/Y moves carry them | first cut failed on screen (auto-drop hid the move); FIXED 9b81291, rebuilt, NOT re-checked |
+| 12 | `settings-to-selection` | b7cd39d | every settings save re-parameterises the selected elements (tip diameter/cone/ball/embedding, base shape/sizes, trunk/branch/brace diameter); one undo step | passed |
+
+**Proposed next step:** the user re-checks #11 (Layout, auto-drop on, lift the gripper: supports
+vanish, one undo brings them back) and slices the gripper once for #8 (no missing layers near
+5.8 mm and 69 mm in the saved project pose). Then propose the merge — simplest is to merge
+`integration-2026-09-09` into main as one (it is exactly the twelve branches), or the twelve
+in the order above. After that, delete the branches. Then **rafts**: spec section first, get it
+approved, then code. Then braces to branches.
+
+**Decisions taken today that are now behaviour (do not undo):**
+- Island = where printing starts off-plate, strictly; both detection and generation (user).
+  A start under the minimum island area is not support for the layer above.
+- A Z move deletes supports; X/Y carries them. Judged on the REQUESTED transform.
+- Edit mode: base/trunk X/Y only (they stay on the plate and vertical), junctions/tips XYZ.
+  The tip goes where it is put; it no longer re-lands on the surface.
+- Placement mode replaces one-shot T. A red tip means "nothing fits here".
+- Settings edits land on the selection immediately; nothing is re-routed by that.
+
+**Where round-two/three things live:** `SupportEditing.HandlesOf/AffectedByHandle/Translate`
++ `SupportHandle` (Core); `ViewportControl` sections "Support edit mode", "Manual placement
+mode" (search `_editSupport`, `_placementMode`); `Gizmo.PixelSize/ShowZ/LineWidth`;
+`LineBatch.DrawWide` + `Shaders.WideLineVertex`; `IslandFinder.FindStarts` (+ `Regions` via
+PolyTree64); `MeshSlicer.ChainSegments` (`RecoveryTolerance`, `TryTakeNearest`);
+`SupportTransformRule.SameHeight`; `Document.ApplySupportSettingsToSelection` +
+`SetSupportParametersCommand`; `Document.PreviewManualSupport`; `ViewportToolbarPolicy`
+(Generate/Structure/Region tools). Tests: `SupportEditHandleTests`, `ManualPlacementPreviewTests`,
+`IslandDefinitionTests`, `ChainRecoveryTests`, `ZMoveClearsSupportsTests`,
+`ApplySettingsToSelectionTests`, `LayerRangeClipViewModelTests` (plate bottom).
+
+**Working rules that bit us today (add to the standing list):**
+- The user runs the app while you work: `taskkill //IM Danslicer.App.exe //F` before EVERY
+  build; a `dotnet test --no-build` after a failed build reports STALE GREEN — read the build
+  result first, every time (it happened again today).
+- Screen driving: `shot.ps1` / `drive.ps1` in the session scratchpad (Alt-trick foreground,
+  click the viewport before keys, `key:` args are trimmed so send `{SPACE}`-style keys via a
+  step that keeps the space, `mdrag:`/`drag:` for orbits and handle drags). Only when the user
+  says the screen is free.
+- A throwaway probe test (`tests\Danslicer.Tests\Zz*Probe.cs`) with `ITestOutputHelper` was the
+  fastest way to see what a detector does on the real project; delete it before committing.
+- `Meshes` test helpers live at the bottom of `TipPlacementTests.cs` (Box, FloatingBox, Merge,
+  Table, Cantilever, DownwardSpike, UvSphere, Heightfield); `Mesh(positions, indices)`.
+- The one-branch-per-feature rule plus stacking: branch N+1 off branch N when it references
+  N's code, say so in the report, and give the merge order.
+
+**Notes for later (user):** braces to branches (once the above is sorted), manual bracing,
+braces following edited trunks (edit mode moves brace ends with a trunk, nothing re-validates
+the angle), cross-object bracing; support recipes; island tweaks and base-grid details
+(user-pending decisions listed further down); the physical test print (mirror-X).
+
+## STATE 2026-09-09 night (superseded by the section above)
+
+**Single-session work (Claude implementing directly, user screen-testing live).** main is
+`654e1f7` (bracing merged, layer clip from the plate). Four feature branches are built,
+Claude-screen-verified with the roof gripper, 912 tests green, NOT merged — the user asked for
+one branch per feature and merges are their call:
+
+| order | branch | on top of | what |
+|---|---|---|---|
+| 1 | `plate-shadows` | main | each object throws a shadow on the plate; View › Plate Shadows and a view-settings checkbox (config `PlateShadowsEnabled`, default on) |
+| 2 | `support-editing` | main | Space edit mode: handles on the selected support, drag base / junction / trunk in XY (base grid snaps, Shift frees), tip across the surface; Edit Support button + Object menu |
+| 3 | `placement-mode` | `support-editing` | T toggles a placement mode with a ghosted routed support under the cursor; click places; Place (T) button in the Guided pop-out + Object menu |
+| 4 | `supports-toolbar` | `placement-mode` | Supports pop-out = settings only; Generate button; Structure pop-out (Parent, Brace, Unbrace, Select braces, Edit); Region pop-out |
+
+Branches 2→3→4 are stacked (3 and 4 reference edit mode), so merge them in that order;
+`plate-shadows` is independent. The throwaway `integration-2026-09-09` holds all of them
+merged (the build the user tested).
+
+**Second round (user feedback 2026-09-09 evening), stacked on the integration branch, in order:**
+
+| order | branch | what |
+|---|---|---|
+| 5 | `edit-gizmos` | edit mode draws a small transform gizmo per handle: X/Y (arrows + square) on base and trunk mid, XYZ on junctions and tips; arrow = axis drag, square = plane drag; base/trunk snap to the base grid on the dragged axes, Shift frees; the tip no longer re-lands on the surface |
+| 6 | `placement-red-ghost` | T mode: off the model / off the target / routing refused → a red translucent tip cone at the cursor (on the contact, or where the view ray meets the plate), status names why |
+| 7 | `island-definition` | Detect Islands and the print check use the STRICT definition: a connected region of a layer overlapping nothing below (after the overhang inflation) = where printing starts off-plate; a start under the minimum area does not carry the next layer, so the region is reported once it reaches the minimum. Tip placement keeps the old newborn-area seeds (changing that is the user's call) |
+| 8 | `slicer-chain-recovery` | MeshSlicer.ChainSegments: a dead-ended chain takes the nearest unused start within 0.1 mm and closes on its own start within that reach. Found because the gripper's layer 1379 (187 mm²) sliced EMPTY — a printed-layer bug, not just a detection one. Three unit tests |
+
+**Third round (user feedback 2026-09-09 afternoon), stacked on round two, in order:**
+
+| order | branch | what |
+|---|---|---|
+| 9 | `gizmo-size` | edit gizmos 144 px (3×) with 3 px strokes; Preferences › Viewport "Support gizmo size" / "Support gizmo line width"; OverlayLine has a Width, wide lines are screen-space quads via a new wide-line shader (LineBatch.DrawWide) |
+| 10 | `island-generation` | TipPlacer's Island strategy uses the strict IslandFinder.FindStarts too, so Generate island supports matches Detect Islands; table tops / cantilevers are overhangs (tests updated) |
+| 11 | `z-move-clears-supports` | SupportTransformRule: a Z translation no longer maps contacts exactly → CommitTransforms discards the object's supports (same undo step); X/Y moves still carry them |
+| 12 | `settings-to-selection` | Document.ApplySupportSettingsToSelection on every settings save: selected tips take tip diameter / cone / ball / embedding, bases their shape and sizes, trunk / branch / brace segments their diameters; one undo step, nothing re-routed |
+
+Integration branch rebuilt with all twelve; 925 tests. Round three headless-tested only; the
+app was launched once to confirm the wide-line shader compiles.
+
+Screen checks for round two: gizmo arrows and squares drag as expected in each direction;
+red tip appears off the model and on a refused spot; Detect Islands on the gripper in the
+user's pose reports two islands (the saved project pose reports one — its far end is not the
+lowest point there — plus the raised cube's corner); Slice the gripper and look for missing
+layers around 69 mm (there should be none now).
+
+Probe numbers on `test files\roof gripper T2 single and tilted cube.danslicer`: before the
+chain fix, layers 115, 123 and 1379 sliced empty and the strict detector reported four
+gripper islands; after it, one (layer 101, z 5.075) plus the cube's (layer 104).
+
+**User screen checklist per branch:**
+1. Shadows: a soft-edged dark footprint offset slightly to -X/-Y under every model, on both
+   render paths; ghosted/hidden objects throw none; none when the plate fades from below;
+   View › Plate Shadows (and the gear pop-out) switches it off and the choice persists.
+2. Edit mode: select a support, Space → coloured handles (blue base, yellow junctions, green
+   tips, purple trunk diamonds) drawn through everything; drag each; every drag is one undo
+   step named "Move base/junction/trunk/tip"; trunk drag carries brace ends; Esc/Space leaves;
+   clicking another support retargets; leaving Support mode leaves. Not screen-tested by
+   Claude: junction drag, Shift free-drag, Edit button, edit mode on a braced forest.
+3. Placement: T → status "Place supports: …", cyan ghost follows the cursor over the target,
+   click places (auto-parenting applies as before), nothing shows off the target or where
+   routing refuses (status names why); RMB/T/Esc leave. Not screen-tested: the Place button,
+   the refusal status text on screen.
+4. Toolbar: Support mode column is Objects, Support settings, Generate, Guided, Structure,
+   Region, I+, I?, eye, rafts. Generate needs the target picked in Objects. Not screen-tested:
+   the Region pop-out's operations (same bindings as before, only moved).
+
+**Then**: rafts (spec section first), braces to branches, the rest of the notes list below.
+
+## STATE 2026-09-09 late (superseded by the section above)
 
 **Single-session work (Claude implementing directly, user screen-testing live).** main is
 `9250fac` (auto-parenting, screen-passed by the user on 2026-09-09). Branch `bracing` was
@@ -94,12 +252,11 @@ supports, 134 braces, none untied.
   actively at a sensible stopping point. Every key-bound function needs a toolbar button
   (L/P/E/R/C/J/K have them via pop-outs).
 
-**Notes for later (user, 2026-09-08/09, not ordered):** object shadows on the build plate,
-with a switch on/off (user, 2026-09-09); manual support editing (click a
-support, Space enters an edit mode; move base XY, trunk XY, tip across the surface); a
-manual placement MODE instead of T with a ghosted support following the cursor; split the
-overloaded Supports pop-out into toolbar functions. Bracing "Later": braces to branches,
-manual bracing (click two supports), braces following edited trunks, cross-object bracing.
+**Notes for later (user, 2026-09-08/09):** all four (plate shadows, manual support editing,
+placement mode, Supports pop-out split) are BUILT on the branches listed at the top, awaiting
+the user's merge. Bracing "Later": braces to branches, manual bracing (click two supports),
+braces following edited trunks (edit mode now moves brace ends with a trunk, nothing
+re-validates the brace angle), cross-object bracing.
 
 ## STATE 2026-09-08 evening — READ FIRST (supersedes everything below)
 

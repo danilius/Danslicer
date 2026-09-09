@@ -1,4 +1,4 @@
-using Danslicer.Core.Supports;
+﻿using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Core.Commands;
@@ -172,5 +172,39 @@ public sealed class RemoveSupportElementsCommand : IDocumentCommand
     {
         foreach (var node in _nodes) _graph.AddNode(node);
         foreach (var segment in _segments) _graph.AddSegment(segment);
+    }
+}
+
+/// <summary>
+/// Re-parameterises existing elements (diameters, cone, ball, base shape…) as one undo step.
+/// Each entry is a pair of closures because the fields live on mutable nodes and segments of
+/// several types; the graph is notified after every apply so the meshes and slices rebuild.
+/// </summary>
+public sealed class SetSupportParametersCommand : IDocumentCommand
+{
+    public readonly record struct Entry(Action Apply, Action Revert);
+
+    private readonly SupportGraph _graph;
+    private readonly IReadOnlyList<Entry> _entries;
+
+    public SetSupportParametersCommand(SupportGraph graph, IReadOnlyList<Entry> entries, string name = "Apply support settings")
+    {
+        _graph = graph;
+        _entries = entries;
+        Name = name;
+    }
+
+    public string Name { get; }
+
+    public void Execute()
+    {
+        foreach (var e in _entries) e.Apply();
+        _graph.NotifyChanged();
+    }
+
+    public void Undo()
+    {
+        for (var i = _entries.Count - 1; i >= 0; i--) _entries[i].Revert();
+        _graph.NotifyChanged();
     }
 }

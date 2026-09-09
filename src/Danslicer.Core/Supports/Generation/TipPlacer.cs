@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports.Routing;
 
@@ -80,7 +80,10 @@ public static class TipPlacer
         }
 
         var layers = LayerStack.Slice(mesh, parameters.LayerHeightMm);
-        var islands = IslandFinder.Find(
+        // The strict definition, the same one Detect Islands reports (user, 2026-09-09): a
+        // place where printing starts off the plate. Overhangs growing out of carried material
+        // are the overhang strategies' business, not an island's.
+        var islands = IslandFinder.FindStarts(
                      layers, mesh.Bounds.Min.Z, parameters.LayerHeightMm, parameters.MinIslandAreaMm2,
                      parameters.PlateZ, parameters.OverhangAngleDegrees)
                      .OrderByDescending(i => i.AreaMm2)

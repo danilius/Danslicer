@@ -13,7 +13,8 @@ public sealed class ViewportToolbarTests
     public void LayoutModeShowsObjectsAndTransform()
     {
         // Transform replaced the right-hand panel in Layout (user decision 2026-09-08).
-        Assert.Equal([ViewportTool.Objects, ViewportTool.Transform],
+        // Add object joined it as a toolbar button (user, 2026-09-09).
+        Assert.Equal([ViewportTool.Objects, ViewportTool.AddObject, ViewportTool.Transform],
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Layout));
     }
 
@@ -28,7 +29,8 @@ public sealed class ViewportToolbarTests
     public void SupportModeShowsTheCompleteContextualToolSet()
     {
         Assert.Equal(
-            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.Guided, ViewportTool.IslandSupport,
+            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.Generate, ViewportTool.Guided,
+             ViewportTool.Structure, ViewportTool.Region, ViewportTool.IslandSupport,
                 ViewportTool.IslandDetection, ViewportTool.Visibility, ViewportTool.Rafts],
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Support));
     }

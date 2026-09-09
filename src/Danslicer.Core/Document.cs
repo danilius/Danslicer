@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core.Commands;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -652,6 +652,25 @@ public sealed class Document
         if (transforms.Count > 0) CommitTransforms(transforms, "Drop to plate", applyPlacement: false);
     }
 
+    /// <summary>
+    /// Re-seats each selected object per the placement mode, as switching Auto Drop on should
+    /// (user, 2026-09-09). The seat is committed as the REQUESTED move, so the Z rule applies:
+    /// a model that actually moves loses its supports; one already seated is left alone.
+    /// </summary>
+    public void PlaceSelection()
+    {
+        if (PlacementMode == PlacementMode.Off) return;
+        var transforms = new List<(SceneObject Object, Transform Before, Transform Requested)>();
+        foreach (var o in _selection)
+        {
+            var before = o.Transform;
+            var placed = ApplyPlacement(o, before);
+            if (MathF.Abs(placed.Translation.Z - before.Translation.Z) < 1e-6f) continue;
+            transforms.Add((o, before, placed));
+        }
+        if (transforms.Count > 0) CommitTransforms(transforms, "Auto drop", applyPlacement: false);
+    }
+
     /// <summary>Re-seats an input transform according to the configured placement mode.</summary>
     public Transform ApplyPlacement(SceneObject obj, Transform requested) =>
         ApplyPlacement(obj.Mesh, requested);
@@ -692,12 +711,19 @@ public sealed class Document
         {
             var after = applyPlacement ? ApplyPlacement(obj, requested) : requested;
             obj.Transform = after;
-            if (after == before) continue;
-            commands.Add(new SetTransformCommand(obj, before, after, name));
             // See SupportTransformRule: a transform keeps this object's supports only if it maps
-            // every contact exactly. Only objects that actually moved are considered, so a
-            // multi-object selection never discards supports on an object that stayed put.
-            if (SupportTransformRule.MapsContactsExactly(before, after))
+            // every contact exactly. The rule is asked about the move the user REQUESTED, not
+            // the re-seated result: auto-drop puts a lifted model straight back on the plate,
+            // and the user still moved it in Z (user, 2026-09-09), so its supports go even
+            // though the transform ends where it started.
+            var mapsExactly = SupportTransformRule.MapsContactsExactly(before, requested);
+            if (after == before)
+            {
+                if (!mapsExactly) discardedSupportNodes.UnionWith(AssociatedSupportNodeIds(obj));
+                continue;
+            }
+            commands.Add(new SetTransformCommand(obj, before, after, name));
+            if (mapsExactly)
                 AppendAssociatedSupportTransform(obj, before, after, supportBefore, supportEntries);
             else
                 discardedSupportNodes.UnionWith(AssociatedSupportNodeIds(obj));
@@ -833,10 +859,86 @@ public sealed class Document
     {
         failureReason = null;
         parenting = null;
+        if (PreviewManualSupport(obj, contact, surfaceNormal, out failureReason) is not { } edit) return false;
+        var command = new ApplySupportGraphEditCommand(Supports, edit);
+        Execute(command);
+        parenting = AutoParentAfterPlacement(obj, edit, command.Name);
+        return true;
+    }
+
+    /// <summary>
+    /// Applies the current support settings to the selected elements (user, 2026-09-09: editing
+    /// a setting with supports selected changes those supports at once). Only what an element
+    /// carries as its own parameter changes: a tip's diameter, cone, ball and embedding; a
+    /// base's shape and sizes; a trunk's, branch's or brace's diameter. Nothing is re-routed.
+    /// Returns the number of elements changed; one undo step, none when nothing differs.
+    /// </summary>
+    public int ApplySupportSettingsToSelection()
+    {
+        if (_supportSelection.Count == 0) return 0;
+        var settings = SupportSettings;
+        var entries = new List<SetSupportParametersCommand.Entry>();
+        var changed = 0;
+
+        void Field<T>(T current, T target, Action<T> set) where T : IEquatable<T>
+        {
+            if (current.Equals(target)) return;
+            entries.Add(new SetSupportParametersCommand.Entry(() => set(target), () => set(current)));
+        }
+
+        foreach (var id in _supportSelection)
+        {
+            var before = entries.Count;
+            if (Supports.TryGetNode(id, out var node))
+            {
+                if (node.Type == SupportNodeType.Tip)
+                {
+                    Field(node.TipDiameter, settings.TipDiameter, v => node.TipDiameter = v);
+                    Field(node.ConeLength, settings.ConeLength, v => node.ConeLength = v);
+                    Field(node.BallDiameter, settings.BallDiameter, v => node.BallDiameter = v);
+                    Field(node.PenetrationDepth, settings.PenetrationDepth, v => node.PenetrationDepth = v);
+                }
+                else if (node.Type == SupportNodeType.Base)
+                {
+                    Field((int)node.BaseShape, (int)settings.BaseShape, v => node.BaseShape = (SupportBaseShape)v);
+                    Field(node.BaseDiameter, settings.BaseDiameter, v => node.BaseDiameter = v);
+                    Field(node.BaseHeight, settings.BaseHeight, v => node.BaseHeight = v);
+                    Field(node.BaseConeHeight, settings.BaseConeHeight, v => node.BaseConeHeight = v);
+                }
+            }
+            else if (Supports.TryGetSegment(id, out var segment))
+            {
+                var diameter = segment.Type switch
+                {
+                    SupportSegmentType.Trunk => settings.TrunkDiameter,
+                    SupportSegmentType.Branch => settings.BranchDiameter,
+                    SupportSegmentType.Bracing => settings.BracingDiameter > 0 ? settings.BracingDiameter : settings.BranchDiameter,
+                    _ => (float?)null, // a tip segment takes its section from the cone, not its own diameter
+                };
+                if (diameter is { } d) Field(segment.Diameter, d, v => segment.Diameter = v);
+            }
+            if (entries.Count > before) changed++;
+        }
+
+        if (entries.Count == 0) return 0;
+        Execute(new SetSupportParametersCommand(Supports, entries));
+        return changed;
+    }
+
+    /// <summary>
+    /// Routes the support a T placement at this contact would add, without adding it: the ghost
+    /// the placement mode shows under the cursor (user note 2026-09-08). Null when the model is
+    /// not the support target or no route exists; the same call, applied, is exactly what
+    /// <see cref="AddManualSupport(SceneObject, Vector3, Vector3)"/> places.
+    /// </summary>
+    public SupportGraphEdit? PreviewManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason)
+    {
+        failureReason = null;
         // A click on a model that is not the support target is refused before any routing work:
         // this is not a routing failure, so it carries no routing reason. The caller turns it
         // into the status line from SupportTargetPolicy.
-        if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return false;
+        if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return null;
         var settings = SupportSettings with { };
         var (router, options) = ManualRouting(obj, settings,
             HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount));
@@ -849,14 +951,9 @@ public sealed class Document
         if (result.UnroutedTips.Count > 0)
         {
             failureReason = result.Failures.Single().Reason;
-            return false;
+            return null;
         }
-
-        failureReason = null;
-        var command = new ApplySupportGraphEditCommand(Supports, result.Edit);
-        Execute(command);
-        parenting = AutoParentAfterPlacement(obj, result.Edit, command.Name);
-        return true;
+        return result.Edit;
     }
 
     /// <summary>

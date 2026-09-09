@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
@@ -104,6 +104,15 @@ public sealed class ViewportConfig
     /// <summary>The corner view cube (design 6.2).</summary>
     public bool ViewCubeEnabled { get; set; } = true;
 
+    /// <summary>Each object's shadow on the build plate (user, 2026-09-09); both render paths.</summary>
+    public bool PlateShadowsEnabled { get; set; } = true;
+
+    /// <summary>Arrow length of the support edit-mode gizmos, pixels (user, 2026-09-09: three times the first cut).</summary>
+    public int SupportGizmoSizePixels { get; set; } = 144;
+
+    /// <summary>Stroke width of the support edit-mode gizmos, pixels.</summary>
+    public float SupportGizmoLineWidth { get; set; } = 3f;
+
     /// <summary>
     /// On-screen size of the view cube, in DIP pixels before DPI scaling. Bounds mirror
     /// <c>ViewCube.MinSizePixels</c>/<c>MaxSizePixels</c> in Danslicer.Render, and this default
@@ -143,6 +152,8 @@ public sealed class ViewportConfig
         CavityRadiusPixels = Clamp(CavityRadiusPixels, 0.5f, 8f, 1.5f);
         OutlineStrength = Clamp(OutlineStrength, 0f, 1f, 0.75f);
         ViewCubeSizePixels = Math.Clamp(ViewCubeSizePixels, 48, 192);
+        SupportGizmoSizePixels = Math.Clamp(SupportGizmoSizePixels, 24, 400);
+        SupportGizmoLineWidth = Clamp(SupportGizmoLineWidth, 1f, 12f, 3f);
     }
 
     private static float Clamp(float value, float min, float max, float fallback) =>

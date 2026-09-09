@@ -40,7 +40,8 @@ public partial class MainWindow : Window
             WorkspaceMode.Slicing);
         _viewportPopups = new ViewportPopupGroup(
             _objectsPopupState, _supportsPopupState, _islandDetectionPopupState,
-            _visibilityPopupState, _raftsPopupState, _transformPopupState, _guidedPopupState);
+            _visibilityPopupState, _raftsPopupState, _transformPopupState, _guidedPopupState,
+            _structurePopupState, _regionPopupState);
         InitializeComponent();
         Configuration.WindowStatePersistence.Track(this, "main",
             rightPanel: WorkspaceGrid.ColumnDefinitions[2],
@@ -96,6 +97,8 @@ public partial class MainWindow : Window
     private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
     private readonly ViewportPopupState _transformPopupState = new(ViewportTool.Transform);
     private readonly ViewportPopupState _guidedPopupState = new(ViewportTool.Guided);
+    private readonly ViewportPopupState _structurePopupState = new(ViewportTool.Structure);
+    private readonly ViewportPopupState _regionPopupState = new(ViewportTool.Region);
     // Declared after the states it groups: field initializers run in declaration order.
     private readonly ViewportPopupGroup _viewportPopups;
     private readonly DispatcherTimer _uvtoolsAvailabilityTimer = new()
@@ -182,12 +185,27 @@ public partial class MainWindow : Window
     private void OnBraceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.BraceSupports();
     private void OnUnbraceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.UnbraceSupports();
     private void OnSelectBracesClick(object? sender, RoutedEventArgs e) => Viewport.SelectBraces();
+    private void OnEditSupportClick(object? sender, RoutedEventArgs e) => Viewport.ToggleSupportEdit();
+    private void OnPlaceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.StartGuidedTool(ViewportControl.GuidedTool.Place);
 
     private void OnTransformToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_transformPopupState);
 
     private void OnGuidedToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_guidedPopupState);
+
+    private void OnStructureToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(_structurePopupState);
+
+    private void OnRegionToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(_regionPopupState);
+
+    /// <summary>Generate Supports straight from the toolbar; no pop-out, the settings have their own.</summary>
+    private void OnGenerateToolClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.GenerateSupportsScopedCommand.CanExecute(null) == true)
+            ViewModel.GenerateSupportsScopedCommand.Execute(null);
+    }
 
     /// <summary>
     /// A guided-tool button (user rule 2026-09-08: every key has a button). The button's Tag
@@ -240,6 +258,8 @@ public partial class MainWindow : Window
         ApplyViewportPopupState(_raftsPopupState, RaftsToolPopup);
         ApplyViewportPopupState(_transformPopupState, TransformToolPopup);
         ApplyViewportPopupState(_guidedPopupState, GuidedToolPopup);
+        ApplyViewportPopupState(_structurePopupState, StructureToolPopup);
+        ApplyViewportPopupState(_regionPopupState, RegionToolPopup);
     }
 
     private void ApplyViewportPopupState(ViewportPopupState state, Popup popup) =>
@@ -311,6 +331,12 @@ public partial class MainWindow : Window
 
     private void OnGuidedPopupCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(_guidedPopupState, GuidedToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnStructurePopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_structurePopupState, StructureToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnRegionPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_regionPopupState, RegionToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
     private void CloseViewportPopup(
         ViewportPopupState state, Popup popup, ViewportPopupCloseTrigger trigger)
@@ -629,6 +655,7 @@ public partial class MainWindow : Window
         CavityMenuItem.IsChecked = viewport.CavityEnabled;
         OutlinesMenuItem.IsChecked = viewport.OutlinesEnabled;
         FxaaMenuItem.IsChecked = viewport.FxaaEnabled;
+        PlateShadowsMenuItem.IsChecked = viewport.PlateShadowsEnabled;
         SyncViewSettingsPopup();
     }
 
@@ -661,6 +688,7 @@ public partial class MainWindow : Window
             PopFxaa.IsEnabled = deferred;
             PopWireframe.IsChecked = viewport.WireframeEnabled;
             PopViewCube.IsChecked = viewport.ViewCubeEnabled;
+            PopPlateShadows.IsChecked = viewport.PlateShadowsEnabled;
         }
         finally
         {
@@ -679,6 +707,13 @@ public partial class MainWindow : Window
     {
         var viewport = AppConfig.Current.Viewport;
         viewport.WireframeEnabled = !viewport.WireframeEnabled;
+        ApplyRenderPathChange();
+    }
+
+    private void OnTogglePlateShadowsClick(object? sender, RoutedEventArgs e)
+    {
+        var viewport = AppConfig.Current.Viewport;
+        viewport.PlateShadowsEnabled = !viewport.PlateShadowsEnabled;
         ApplyRenderPathChange();
     }
 

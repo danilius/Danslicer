@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -52,12 +52,13 @@ public sealed class SupportLifecycleTests
     // ----- The rule itself -----
 
     [Fact]
-    public void PureTranslationMapsContactsExactly()
+    public void TranslationAcrossThePlateMapsContactsExactlyButALiftDoesNot()
     {
+        // User decision 2026-09-09: a move in Z discards the supports; the tree stands on the
+        // plate and its trunks are the height they are.
         var before = Transform.Identity;
-        var after = before with { Translation = new Vector3(12f, -3f, 4f) };
-
-        Assert.True(SupportTransformRule.MapsContactsExactly(before, after));
+        Assert.True(SupportTransformRule.MapsContactsExactly(before, before with { Translation = new Vector3(12f, -3f, 0f) }));
+        Assert.False(SupportTransformRule.MapsContactsExactly(before, before with { Translation = new Vector3(12f, -3f, 4f) }));
     }
 
     [Fact]

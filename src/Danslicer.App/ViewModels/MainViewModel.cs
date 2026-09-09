@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -152,7 +152,8 @@ public partial class MainViewModel : ViewModelBase
         nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
         nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible),
         nameof(IsUvtoolsCheckToolVisible), nameof(IsTransformToolVisible), nameof(IsGuidedToolVisible),
-        nameof(EffectiveSupportDisplay))]
+        nameof(IsGenerateToolVisible), nameof(IsStructureToolVisible), nameof(IsRegionToolVisible),
+        nameof(IsAddObjectToolVisible), nameof(EffectiveSupportDisplay))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
@@ -167,6 +168,10 @@ public partial class MainViewModel : ViewModelBase
         ViewportToolbarPolicy.IsAvailable(ViewportTool.UvtoolsCheck, ViewMode);
     public bool IsTransformToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Transform, ViewMode);
     public bool IsGuidedToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Guided, ViewMode);
+    public bool IsGenerateToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Generate, ViewMode);
+    public bool IsStructureToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Structure, ViewMode);
+    public bool IsRegionToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Region, ViewMode);
+    public bool IsAddObjectToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.AddObject, ViewMode);
 
     /// <summary>
     /// Object rows are live wherever an object selection means something: Layout arranges the
@@ -599,6 +604,9 @@ public partial class MainViewModel : ViewModelBase
             Document.SupportSettings = AppConfig.Current.Supports;
             RefreshPrinterOptions();
             SupportSettings.Resins.Refresh();
+            // With supports selected, the edit lands on them at once (user, 2026-09-09).
+            var applied = Document.ApplySupportSettingsToSelection();
+            if (applied > 0) ViewportStatus = applied == 1 ? "Settings applied to 1 selected element" : $"Settings applied to {applied} selected elements";
             // The viewport draws from these settings too (base lattice markers): repaint now.
             Document.NotifySettingsChanged();
         };
@@ -778,7 +786,11 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnAutoDropEnabledChanged(bool value)
     {
-        if (!_loadingPlacement) ApplyAutoPlacementMode(save: true);
+        if (_loadingPlacement) return;
+        ApplyAutoPlacementMode(save: true);
+        // Switching it on seats the selection at once (user, 2026-09-09); imports already land
+        // where the mode says (ImportMesh).
+        if (value) Document.PlaceSelection();
     }
 
     private void ApplyAutoPlacementMode(bool save)

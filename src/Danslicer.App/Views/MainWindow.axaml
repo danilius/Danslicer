@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
@@ -133,6 +133,9 @@
                 <MenuItem x:Name="PreferencesMenuItem" Header="_Preferences..." Click="OnPreferencesClick" />
             </MenuItem>
             <MenuItem Header="_Object" IsVisible="{Binding IsModelView}">
+                <MenuItem x:Name="InsertObjectMenuItem" Header="_Insert Object..." Click="OnImportClick"
+                          IsVisible="{Binding IsLayoutView}" />
+                <Separator IsVisible="{Binding IsLayoutView}" />
                 <MenuItem x:Name="DuplicateObjectsMenuItem" Header="_Duplicate" Command="{Binding DuplicateScopedCommand}"
                           IsVisible="{Binding DuplicateScopedCommand.IsAvailable}" />
                 <MenuItem Header="_Mirror" IsVisible="{Binding MirrorXScopedCommand.IsAvailable}">
@@ -162,6 +165,10 @@
                 <MenuItem Header="Un_brace Supports" Click="OnUnbraceSupportsClick" InputGesture="Shift+K"
                           IsVisible="{Binding IsSupportView}" />
                 <MenuItem Header="Select B_races" Click="OnSelectBracesClick"
+                          IsVisible="{Binding IsSupportView}" />
+                <MenuItem Header="_Edit Support" Click="OnEditSupportClick" InputGesture="Space"
+                          IsVisible="{Binding IsSupportView}" />
+                <MenuItem Header="Place Suppor_ts" Click="OnPlaceSupportsClick" InputGesture="T"
                           IsVisible="{Binding IsSupportView}" />
                 <Separator IsVisible="{Binding IsModelView}" />
                 <!-- MenuItem.IsChecked binds one-way by default, unlike ToggleButton: Mode=TwoWay is required. -->
@@ -193,6 +200,8 @@
                 <Separator />
                 <MenuItem Header="Toggle _Perspective/Orthographic" Click="OnToggleProjectionClick" InputGesture="D5" />
                 <Separator />
+                <MenuItem x:Name="PlateShadowsMenuItem" Header="Plate Shado_ws" ToggleType="CheckBox"
+                          Click="OnTogglePlateShadowsClick" />
                 <!-- Check states mirror the persisted viewport config; see SyncRenderPathMenu.
                      Deferred is the renderer, not a choice: it left preview on 2026-09-06 and
                      the config value survives only as the automatic fallback for a GL failure. -->
@@ -316,8 +325,9 @@
                                                 ToolTip.Tip="Lowest-point offset above the plate (0 = on plate)" />
                         <TextBlock Text="mm" Classes="label" Margin="4,0,4,0" />
                     </StackPanel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <TextBlock Text="Workspace" Classes="label" Margin="0,0,8,0" />
+                    <!-- The workspace toggles sit at the centre of the whole strip, not of the
+                         spare column, so they stay put whichever mode's controls fill the left. -->
+                    <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center">
                         <ToggleButton Classes="tool" Content="Layout" IsChecked="{Binding IsLayoutView}" />
                         <ToggleButton Classes="tool" Content="Support" IsChecked="{Binding IsSupportView}" />
                         <ToggleButton Classes="tool" Content="Slicing" IsChecked="{Binding IsLayersView}" />
@@ -468,7 +478,7 @@
                         </Border>
                     </Popup>
 
-                    <Button x:Name="SupportsToolButton" Classes="viewportTool" ToolTip.Tip="Supports"
+                    <Button x:Name="SupportsToolButton" Classes="viewportTool" ToolTip.Tip="Support settings"
                             IsVisible="{Binding IsSupportsToolVisible}" Click="OnSupportsToolClick">
                         <PathIcon Data="{DynamicResource IconSupports}" />
                     </Button>
@@ -480,79 +490,79 @@
                                 Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
                             <DockPanel>
                                 <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                                    <TextBlock Text="Supports" Classes="section" Margin="0" />
+                                    <TextBlock Text="Support settings" Classes="section" Margin="0" />
                                     <Button Grid.Column="1" Classes="popupClose"
-                                            ToolTip.Tip="Close Supports" Click="OnSupportsPopupCloseClick">
+                                            ToolTip.Tip="Close Support settings" Click="OnSupportsPopupCloseClick">
                                         <PathIcon Data="{DynamicResource IconClose}" />
                                     </Button>
                                 </Grid>
-                                <Button DockPanel.Dock="Top" Content="Generate Supports"
-                                        Command="{Binding GenerateSupportsScopedCommand}"
-                                        HorizontalAlignment="Stretch" Margin="0,0,0,4" />
-                                <!-- Parenting (J): SUPPORT-GEOMETRY-SPEC "Parenting". -->
-                                <Button DockPanel.Dock="Top" Content="Parent Supports  (J)"
-                                        Click="OnParentSupportsClick"
-                                        HorizontalAlignment="Stretch" Margin="0,0,0,4"
-                                        ToolTip.Tip="Re-route the selected supports (all of the model's when nothing is selected) together so branches share trunks. Settings under Parenting." />
-                                <!-- Bracing (K / Shift+K): SUPPORT-GEOMETRY-SPEC "Bracing". -->
-                                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,4,*,4,*" Margin="0,0,0,8">
-                                    <Button Content="Brace  (K)" Click="OnBraceSupportsClick" HorizontalAlignment="Stretch"
-                                            ToolTip.Tip="Tie the selected supports (all of the model's when nothing is selected) to their neighbours with braces. Settings under Bracing." />
-                                    <Button Grid.Column="2" Content="Unbrace  (Shift+K)" Click="OnUnbraceSupportsClick" HorizontalAlignment="Stretch"
-                                            ToolTip.Tip="Remove every brace touching the selected supports (all of the model's when nothing is selected)." />
-                                    <Button Grid.Column="4" Content="Select braces" Click="OnSelectBracesClick" HorizontalAlignment="Stretch"
-                                            ToolTip.Tip="Add every brace of the model to the selection, keeping whatever is selected, so Delete, H and Shift+H can act on braces." />
-                                </Grid>
-                                <!-- Support regions (DESIGN 8.3). Painting decides WHERE generation
-                                     may place contacts; the operations themselves live in
-                                     SupportRegionSelection and are pure set maths. -->
-                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                    <TextBlock Text="Region" Classes="section" Margin="0,0,0,4" />
-                                    <ToggleButton x:Name="RegionPaintToggle" Content="Paint faces (click)"
-                                                  IsChecked="{Binding RegionPickMode, Mode=TwoWay}"
-                                                  HorizontalAlignment="Stretch"
-                                                  ToolTip.Tip="Click a face to add its patch to the region; Shift-click erases it" />
-                                    <CheckBox Content="Brush (drag to paint)"
-                                              IsChecked="{Binding RegionBrushMode, Mode=TwoWay}"
-                                              ToolTip.Tip="With painting armed, drag to paint a stroke; Shift-drag erases. One undo per stroke." />
-                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
-                                        <TextBlock Text="Brush radius (px)" Classes="label" VerticalAlignment="Center" />
-                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionBrushRadiusField.Text, Mode=TwoWay}"
-                                            ToolTip.Tip="Screen pixels: the ring keeps its size as you zoom" />
-                                    </Grid>
-                                    <CheckBox Content="Edit keep-clean region"
-                                              IsChecked="{Binding EditingKeepCleanRegion, Mode=TwoWay}"
-                                              ToolTip.Tip="Operations edit the keep-clean faces instead of the supported faces" />
-                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
-                                        <TextBlock Text="Patch angle" Classes="label" VerticalAlignment="Center" />
-                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionDihedralField.Text, Mode=TwoWay}"
-                                            ToolTip.Tip="Click-to-grow crosses an edge while the faces turn by no more than this" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,4">
-                                        <TextBlock Text="Down angle" Classes="label" VerticalAlignment="Center" />
-                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionOverhangField.Text, Mode=TwoWay}"
-                                            ToolTip.Tip="Measured from vertical, as generation measures it: 0 is a wall, 90 a flat underside" />
-                                    </Grid>
-                                    <Button Content="Select faces pointing down"
-                                            Command="{Binding SelectFacingDownRegionCommand}"
-                                            HorizontalAlignment="Stretch" />
-                                    <WrapPanel Margin="0,4,0,0">
-                                        <Button Content="Invert" Command="{Binding InvertRegionCommand}" Margin="0,0,4,4" />
-                                        <Button Content="Grow" Command="{Binding GrowRegionCommand}" Margin="0,0,4,4" />
-                                        <Button Content="Shrink" Command="{Binding ShrinkRegionCommand}" Margin="0,0,4,4" />
-                                        <Button Content="Connected" Command="{Binding ConnectedRegionCommand}" Margin="0,0,4,4" />
-                                        <Button Content="Clear" Command="{Binding ClearRegionCommand}" Margin="0,0,4,4" />
-                                    </WrapPanel>
-                                </StackPanel>
                                 <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                                     <controls:SupportSettingsView DataContext="{Binding SupportSettings}" />
                                 </ScrollViewer>
                             </DockPanel>
                         </Border>
                     </Popup>
+
+                    <!-- The Supports pop-out was overloaded (user, 2026-09-08): its functions are
+                         toolbar buttons now and it keeps the settings only. -->
+                    <Button x:Name="GenerateToolButton" Classes="viewportTool"
+                            IsVisible="{Binding IsGenerateToolVisible}"
+                            ToolTip.Tip="Generate supports for the support target (settings under Support settings)"
+                            Click="OnGenerateToolClick">
+                        <PathIcon Data="{DynamicResource IconGenerate}" />
+                    </Button>
+
+                    <Button x:Name="StructureToolButton" Classes="viewportTool"
+                            IsVisible="{Binding IsStructureToolVisible}"
+                            ToolTip.Tip="Structure: parent, brace, edit" Click="OnStructureToolClick">
+                        <PathIcon Data="{DynamicResource IconStructure}" />
+                    </Button>
+                    <Popup x:Name="StructureToolPopup" Placement="RightEdgeAlignedTop"
+                           PlacementTarget="{Binding #StructureToolButton}"
+                           IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
+                           Closed="OnViewportPopupClosed">
+                        <Border x:Name="StructurePopupContent" Width="300" Padding="10"
+                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                    <TextBlock Text="Structure" Classes="section" Margin="0" />
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Structure" Click="OnStructurePopupCloseClick">
+                                        <PathIcon Data="{DynamicResource IconClose}" />
+                                    </Button>
+                                </Grid>
+                                <TextBlock Text="Each works on the selected supports, or all of the target's when nothing is selected. Settings are under Support settings › Parenting and Bracing."
+                                           Classes="label" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                <!-- Parenting (J): SUPPORT-GEOMETRY-SPEC "Parenting". -->
+                                <Button Content="Parent Supports  (J)"
+                                        Click="OnParentSupportsClick"
+                                        HorizontalAlignment="Stretch" Margin="0,0,0,4"
+                                        ToolTip.Tip="Re-route the selected supports together so branches share trunks." />
+                                <!-- Bracing (K / Shift+K): SUPPORT-GEOMETRY-SPEC "Bracing". -->
+                                <Grid ColumnDefinitions="*,4,*" Margin="0,0,0,4">
+                                    <Button Content="Brace  (K)" Click="OnBraceSupportsClick" HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="Tie the selected supports to their neighbours with braces." />
+                                    <Button Grid.Column="2" Content="Unbrace  (Shift+K)" Click="OnUnbraceSupportsClick" HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="Remove every brace touching the selected supports." />
+                                </Grid>
+                                <Button Content="Select braces" Click="OnSelectBracesClick" HorizontalAlignment="Stretch" Margin="0,0,0,8"
+                                        ToolTip.Tip="Add every brace of the model to the selection, keeping whatever is selected, so Delete, H and Shift+H can act on braces." />
+                                <!-- Edit mode (Space): handles on the selected support; base / trunk / junction drag in XY, tip across the surface. -->
+                                <Button Content="Edit Support  (Space)"
+                                        Click="OnEditSupportClick"
+                                        HorizontalAlignment="Stretch"
+                                        ToolTip.Tip="Show handles on the selected support: drag the base, a junction or the trunk in XY (the base grid snaps, Shift frees), or the tip across the surface. Space or Esc leaves." />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <!-- Add object (Layout): the same mesh import as File > Import (user, 2026-09-09). -->
+                    <Button x:Name="AddObjectToolButton" Classes="viewportTool"
+                            IsVisible="{Binding IsAddObjectToolVisible}"
+                            ToolTip.Tip="Add object: import an STL or OBJ mesh into the layout"
+                            Click="OnImportClick">
+                        <PathIcon Data="{DynamicResource IconAddObject}" />
+                    </Button>
 
                     <!-- Transform (Layout): the object's name, size and transform fields, formerly the
                          right-hand panel (user decision 2026-09-08). -->
@@ -621,6 +631,9 @@
                                 </Grid>
                                 <TextBlock Text="Each tool works on the support target. Settings are under Supports › Guided."
                                            Classes="label" TextWrapping="Wrap" Margin="0,4,0,6" />
+                                <Button Tag="Place" Content="Place  (T)" Click="OnGuidedToolButtonClick" Margin="0,2,0,8"
+                                        HorizontalAlignment="Stretch"
+                                        ToolTip.Tip="Placement mode: a ghost of the routed support follows the cursor, a click places it; nothing shows where none fits. T, Esc or right-click leaves." />
                                 <Button Tag="Line" Content="Line  (L)" Click="OnGuidedToolButtonClick" Margin="0,2"
                                         HorizontalAlignment="Stretch"
                                         ToolTip.Tip="Click points along the surface; double-click or Enter places tips at pitch along the route" />
@@ -642,6 +655,72 @@
                                 <Button Tag="Thin" Content="Thin  (Shift+D)" Click="OnGuidedToolButtonClick" Margin="0,2"
                                         HorizontalAlignment="Stretch"
                                         ToolTip.Tip="Keep one tip in N along each run of selected tips and remove the rest" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <Button x:Name="RegionToolButton" Classes="viewportTool"
+                            IsVisible="{Binding IsRegionToolVisible}"
+                            ToolTip.Tip="Region: paint where generation may place supports" Click="OnRegionToolClick">
+                        <PathIcon Data="{DynamicResource IconRegion}" />
+                    </Button>
+                    <Popup x:Name="RegionToolPopup" Placement="RightEdgeAlignedTop"
+                           PlacementTarget="{Binding #RegionToolButton}"
+                           IsLightDismissEnabled="False" Opened="OnViewportPopupOpened"
+                           Closed="OnViewportPopupClosed">
+                        <Border x:Name="RegionPopupContent" Width="300" Padding="10"
+                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                    <TextBlock Text="Region" Classes="section" Margin="0" />
+                                    <Button Grid.Column="1" Classes="popupClose"
+                                            ToolTip.Tip="Close Region" Click="OnRegionPopupCloseClick">
+                                        <PathIcon Data="{DynamicResource IconClose}" />
+                                    </Button>
+                                </Grid>
+                                <!-- Support regions (DESIGN 8.3). Painting decides WHERE generation
+                                     may place contacts; the operations themselves live in
+                                     SupportRegionSelection and are pure set maths. -->
+                                <StackPanel>
+                                    <ToggleButton x:Name="RegionPaintToggle" Content="Paint faces (click)"
+                                                  IsChecked="{Binding RegionPickMode, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch"
+                                                  ToolTip.Tip="Click a face to add its patch to the region; Shift-click erases it" />
+                                    <CheckBox Content="Brush (drag to paint)"
+                                              IsChecked="{Binding RegionBrushMode, Mode=TwoWay}"
+                                              ToolTip.Tip="With painting armed, drag to paint a stroke; Shift-drag erases. One undo per stroke." />
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                        <TextBlock Text="Brush radius (px)" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionBrushRadiusField.Text, Mode=TwoWay}"
+                                            ToolTip.Tip="Screen pixels: the ring keeps its size as you zoom" />
+                                    </Grid>
+                                    <CheckBox Content="Edit keep-clean region"
+                                              IsChecked="{Binding EditingKeepCleanRegion, Mode=TwoWay}"
+                                              ToolTip.Tip="Operations edit the keep-clean faces instead of the supported faces" />
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                        <TextBlock Text="Patch angle" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionDihedralField.Text, Mode=TwoWay}"
+                                            ToolTip.Tip="Click-to-grow crosses an edge while the faces turn by no more than this" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,4">
+                                        <TextBlock Text="Down angle" Classes="label" VerticalAlignment="Center" />
+                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
+                                            Text="{Binding RegionOverhangField.Text, Mode=TwoWay}"
+                                            ToolTip.Tip="Measured from vertical, as generation measures it: 0 is a wall, 90 a flat underside" />
+                                    </Grid>
+                                    <Button Content="Select faces pointing down"
+                                            Command="{Binding SelectFacingDownRegionCommand}"
+                                            HorizontalAlignment="Stretch" />
+                                    <WrapPanel Margin="0,4,0,0">
+                                        <Button Content="Invert" Command="{Binding InvertRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Grow" Command="{Binding GrowRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Shrink" Command="{Binding ShrinkRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Connected" Command="{Binding ConnectedRegionCommand}" Margin="0,0,4,4" />
+                                        <Button Content="Clear" Command="{Binding ClearRegionCommand}" Margin="0,0,4,4" />
+                                    </WrapPanel>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </Popup>
@@ -817,6 +896,8 @@
                                           Click="OnToggleWireframeClick" />
                                 <CheckBox x:Name="PopViewCube" Content="View cube"
                                           Click="OnToggleViewCubeClick" />
+                                <CheckBox x:Name="PopPlateShadows" Content="Plate shadows"
+                                          Click="OnTogglePlateShadowsClick" />
                                 <CheckBox Content="Overhang tint"
                                           IsChecked="{Binding ShowOverhangs, Mode=TwoWay}" />
                                 <CheckBox Content="Hover waterline"

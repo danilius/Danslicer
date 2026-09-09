@@ -15,6 +15,14 @@ public enum ViewportTool
     Transform,
     /// <summary>Support: a button for every guided-placement key (user rule 2026-09-08).</summary>
     Guided,
+    /// <summary>Support: Generate Supports as a one-click toolbar button (split out 2026-09-09).</summary>
+    Generate,
+    /// <summary>Support: parenting, bracing and edit mode — what shapes supports already placed.</summary>
+    Structure,
+    /// <summary>Support: region painting, which decides where generation may place contacts.</summary>
+    Region,
+    /// <summary>Layout: import a mesh as a new object (user, 2026-09-09).</summary>
+    AddObject,
 }
 
 public enum ViewportPopupCloseTrigger
@@ -30,13 +38,18 @@ public enum ViewportPopupCloseTrigger
 public static class ViewportToolbarPolicy
 {
     private static readonly IReadOnlyList<ViewportTool> ObjectTools =
-        [ViewportTool.Objects, ViewportTool.Transform];
+        [ViewportTool.Objects, ViewportTool.AddObject, ViewportTool.Transform];
 
+    // The Supports pop-out was overloaded (user, 2026-09-08): it now holds the settings only,
+    // and its functions are toolbar buttons of their own, in working order top to bottom.
     private static readonly IReadOnlyList<ViewportTool> SupportTools =
     [
         ViewportTool.Objects,
         ViewportTool.Supports,
+        ViewportTool.Generate,
         ViewportTool.Guided,
+        ViewportTool.Structure,
+        ViewportTool.Region,
         ViewportTool.IslandSupport,
         ViewportTool.IslandDetection,
         ViewportTool.Visibility,

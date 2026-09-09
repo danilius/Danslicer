@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.Input;
 using Danslicer.App.Configuration;
 using Danslicer.Core;
@@ -348,6 +348,18 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Viewport.ViewCubeSizePixels;
         set => Update(() => Viewport.ViewCubeSizePixels = Math.Clamp(value, 48, 192));
+    }
+
+    public int SupportGizmoSizePixels
+    {
+        get => Viewport.SupportGizmoSizePixels;
+        set => Update(() => Viewport.SupportGizmoSizePixels = Math.Clamp(value, 24, 400));
+    }
+
+    public float SupportGizmoLineWidth
+    {
+        get => Viewport.SupportGizmoLineWidth;
+        set => Update(() => Viewport.SupportGizmoLineWidth = Math.Clamp(value, 1f, 12f));
     }
 
     public Avalonia.Media.Color OverhangColorA

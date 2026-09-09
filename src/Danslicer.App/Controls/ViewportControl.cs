@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -290,6 +290,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 _subscribed.SelectionChanged -= MarkClipCapsDirty;
                 _subscribed.SupportSelectionChanged -= Redraw;
                 _subscribed.SupportSelectionChanged -= MarkSelectionMeshDirty;
+                _subscribed.SupportSelectionChanged -= FollowSelectionInSupportEdit;
                 _subscribed.Supports.Changed -= MarkSupportMeshesDirty;
                 _subscribed.Changed -= MarkSupportMeshesDirty;
                 _subscribed.Changed -= MarkRegionOverlayDirty;
@@ -307,6 +308,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 // graph mesh rebuilds only when the graph itself changes (a full rebuild froze
                 // the app for seconds after a marquee selection on a generated forest).
                 _subscribed.SupportSelectionChanged += MarkSelectionMeshDirty;
+                _subscribed.SupportSelectionChanged += FollowSelectionInSupportEdit;
                 _subscribed.Supports.Changed += MarkSupportMeshesDirty;
                 // Hiding a model hides its supports, and that is an object change, not a graph
                 // change — without this the supports stayed on screen until something else
@@ -348,6 +350,8 @@ public sealed class ViewportControl : OpenGlControlBase
                 waterline.SupportModeActive = SupportSelectionMode;
             // A guided gesture is Support-mode only; leaving the mode abandons it.
             if (!SupportSelectionMode && _lineGesture is not null) CancelLineGesture();
+            if (!SupportSelectionMode && _editSupport is not null) EndSupportEdit();
+            if (!SupportSelectionMode && _placementMode) EndPlacementMode();
             _supportMeshesDirty = true;
             // The region overlay is Support-mode only, so a mode change rebuilds it too.
             MarkRegionOverlayDirty();
@@ -586,6 +590,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 Vector3.DistanceSquared(Camera.Eye, batch.SortOrigin))
             : _supportMeshes;
         foreach (var batch in supportBatches) _combinedAuxMeshes.Add(batch.Draw);
+        _combinedAuxMeshes.AddRange(_placementGhost);
         _combinedAuxMeshes.AddRange(_regionOverlays);
         _combinedAuxMeshes.AddRange(_clipCaps);
         if (_islandMarkerMesh is { } markers)
@@ -598,6 +603,7 @@ public sealed class ViewportControl : OpenGlControlBase
         AppendBrushCursor(_overlay);
         AppendBaseGridMarkers(_depthOverlay);
         AppendLineGesture(_depthOverlay, _overlay);
+        AppendSupportEditHandles(_overlay);
         if (_modal is { IsActive: true }) _overlay.AddRange(_modal.OverlayLines);
         if (!SupportSelectionMode) UpdateGizmo();
         // Hide the gizmo during keyboard-driven modals; keep it while dragging a handle.
@@ -619,6 +625,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ShowOverhangs = ShowOverhangs,
             OverhangAngleDegrees = Configuration.AppConfig.Current.Viewport.OverhangAngleDegrees,
             PlateOpacityFromBelow = Configuration.AppConfig.Current.Viewport.PlateOpacityFromBelow,
+            ShowPlateShadows = Configuration.AppConfig.Current.Viewport.PlateShadowsEnabled,
             OverhangColorA = Configuration.AppConfig.ParseColor(
                 Configuration.AppConfig.Current.Viewport.OverhangColorA, new Vector3(0.98f, 0.80f, 0.15f)),
             OverhangColorB = Configuration.AppConfig.ParseColor(
@@ -772,6 +779,39 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (props.IsLeftButtonPressed) CommitTipDrag();
             else if (props.IsRightButtonPressed) CancelTipDrag();
+            e.Handled = true;
+            return;
+        }
+
+        if (_placementMode)
+        {
+            if (props.IsLeftButtonPressed)
+            {
+                var placed = TryAddSupport(MouseVector(e));
+                // The graph changed under the ghost: drop it until the cursor moves again.
+                ClearPlacementGhost();
+                UpdateStatus();
+                if (placed is not null) StatusText = placed;
+                Redraw();
+            }
+            else if (props.IsRightButtonPressed) EndPlacementMode();
+            e.Handled = true;
+            return;
+        }
+
+        if (_editDrag is not null)
+        {
+            // The left button is already down; any other press cancels the drag.
+            CancelSupportEditDrag();
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+        if (_editSupport is not null && props.IsLeftButtonPressed &&
+            HitSupportEditHandle(MouseVector(e)) is { } editHit)
+        {
+            BeginSupportEditDrag(editHit.Handle, editHit.Axis, MouseVector(e));
+            e.Pointer.Capture(this);
             e.Handled = true;
             return;
         }
@@ -995,6 +1035,21 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             UpdateTipDrag(MouseVector(e));
         }
+        else if (_editDrag is not null)
+        {
+            UpdateSupportEditDrag(MouseVector(e), e.KeyModifiers);
+        }
+        else if (_placementMode)
+        {
+            UpdatePlacementGhost(MouseVector(e));
+        }
+        else if (_editSupport is not null && HitSupportEditHandle(MouseVector(e)) is var hover &&
+                 (hover?.Handle != _editHover || (hover?.Axis ?? GizmoHandle.None) != _editHoverAxis))
+        {
+            _editHover = hover?.Handle;
+            _editHoverAxis = hover?.Axis ?? GizmoHandle.None;
+            Redraw();
+        }
         else if (_modal is { IsActive: true })
         {
             ApplySnap(e.KeyModifiers);
@@ -1035,6 +1090,13 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_editDrag is not null)
+        {
+            CommitSupportEditDrag();
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
         if (_brushing)
         {
             _brushing = false;
@@ -1265,7 +1327,7 @@ public sealed class ViewportControl : OpenGlControlBase
     /// message when the gesture cannot start.
     /// </summary>
     /// <summary>Which guided placement tool a toolbar button starts (user rule 2026-09-08: every key has a button).</summary>
-    public enum GuidedTool { Line, Polygon, Edge, Ring, Contour, Densify, Thin }
+    public enum GuidedTool { Place, Line, Polygon, Edge, Ring, Contour, Densify, Thin }
 
     /// <summary>
     /// Starts a guided tool from the toolbar, exactly as its key would from the cursor's last
@@ -1278,6 +1340,7 @@ public sealed class ViewportControl : OpenGlControlBase
         var mouse = new Vector2((float)_lastPointer.X, (float)_lastPointer.Y);
         string? status = tool switch
         {
+            GuidedTool.Place => PlacementToggleStatus(),
             GuidedTool.Line => BeginLineGesture(mouse),
             GuidedTool.Polygon => BeginLineGesture(mouse, GuidedKind.Polygon),
             GuidedTool.Edge => BeginLineGesture(mouse, GuidedKind.Edge),
@@ -1566,6 +1629,428 @@ public sealed class ViewportControl : OpenGlControlBase
             depthLines.Add(new OverlayLine(point + right - up, point + right + up, LineRouteColor));
             depthLines.Add(new OverlayLine(point + right + up, point - right + up, LineRouteColor));
             depthLines.Add(new OverlayLine(point - right + up, point - right - up, LineRouteColor));
+        }
+    }
+
+    // ----- Manual placement mode (T in Support mode) -----
+    // User note 2026-09-08: a mode instead of a one-shot key, with a ghosted support following
+    // the cursor; where no support can be placed, nothing is shown.
+
+    private static readonly Vector3 PlacementGhostColor = new(0.55f, 0.95f, 1f);
+    /// <summary>A red tip alone says "nothing can go here" without leaving the mode silent (user, 2026-09-09).</summary>
+    private static readonly Vector3 PlacementRefusedColor = new(1f, 0.25f, 0.2f);
+    private const float PlacementGhostOpacity = 0.45f;
+    /// <summary>Cursor travel on the surface below which the ghost is not re-routed.</summary>
+    private const float PlacementGhostStepMm = 0.15f;
+
+    private bool _placementMode;
+    private readonly List<AuxMeshDraw> _placementGhost = new();
+    private Vector3? _placementGhostPoint;
+    private string? _placementRefusal;
+
+    public bool IsPlacingSupports => _placementMode;
+
+    private void TogglePlacementMode()
+    {
+        if (_placementMode) EndPlacementMode();
+        else BeginPlacementMode();
+    }
+
+    private string? PlacementToggleStatus()
+    {
+        TogglePlacementMode();
+        return null;
+    }
+
+    private void BeginPlacementMode()
+    {
+        if (Document is null || !SupportSelectionMode) return;
+        if (_editSupport is not null) EndSupportEdit();
+        if (_lineGesture is not null) CancelLineGesture();
+        _placementMode = true;
+        _placementRefusal = null;
+        UpdatePlacementGhost(new Vector2((float)_lastPointer.X, (float)_lastPointer.Y));
+        UpdateStatus();
+        Redraw();
+    }
+
+    private void EndPlacementMode()
+    {
+        _placementMode = false;
+        ClearPlacementGhost();
+        UpdateStatus();
+        Redraw();
+    }
+
+    private void ClearPlacementGhost()
+    {
+        _placementGhost.Clear();
+        _placementGhostPoint = null;
+        _placementRefusal = null;
+    }
+
+    /// <summary>
+    /// Routes the support a click here would place and shows it translucent, exactly as it
+    /// would be built. Off the model, on a model that is not the target, or where routing
+    /// refuses, the ghost is cleared and the refusal named in the status line.
+    /// </summary>
+    private void UpdatePlacementGhost(Vector2 mouse)
+    {
+        if (Document is null) return;
+        var hit = PickSurface(mouse, out _, out var point, out var normal);
+        if (hit is null)
+        {
+            // Off the model the mode still shows: a red tip hangs where the cursor meets the
+            // plate, or a little way down the view ray when it misses the plate too.
+            var ray = Camera.ScreenToRay(mouse.X, mouse.Y, (float)Bounds.Width, (float)Bounds.Height);
+            var t = MathF.Abs(ray.Direction.Z) > 1e-5f ? -ray.Origin.Z / ray.Direction.Z : -1f;
+            point = t > 0f ? ray.At(t) : ray.At(Camera.Distance);
+            normal = -Vector3.UnitZ;
+            if (_placementGhostPoint is { } lastOff && Vector3.Distance(lastOff, point) < PlacementGhostStepMm) return;
+            _placementGhostPoint = point;
+            _placementRefusal = "no model under the cursor";
+            ShowRefusedTip(point, normal);
+            UpdateStatus();
+            Redraw();
+            return;
+        }
+        if (_placementGhostPoint is { } last && Vector3.Distance(last, point) < PlacementGhostStepMm) return;
+        _placementGhostPoint = point;
+
+        _placementGhost.Clear();
+        _placementRefusal = SupportTargetPolicy.RefusalMessage(Document.SupportTarget, hit);
+        if (_placementRefusal is null)
+        {
+            var edit = Document.PreviewManualSupport(hit, point, normal, out var reason);
+            if (edit is null)
+            {
+                _placementRefusal = reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
+                    ? "contact is too tight to the surface"
+                    : "no clear path to the plate from here";
+            }
+            else
+            {
+                var ghost = new SupportGraph();
+                foreach (var node in edit.AddedNodes) ghost.AddNode(node);
+                foreach (var segment in edit.AddedSegments) ghost.AddSegment(segment);
+                foreach (var part in SupportRenderMesh.Build(ghost))
+                    _placementGhost.Add(new AuxMeshDraw(part.Mesh, PlacementGhostColor, PlacementGhostOpacity));
+            }
+        }
+        if (_placementRefusal is not null) ShowRefusedTip(point, normal);
+        UpdateStatus();
+        Redraw();
+    }
+
+    /// <summary>
+    /// The ghost when nothing can be placed: just the tip cone, red, at the cursor's contact
+    /// (or the free point below the cursor), built at the current tip settings so it reads as
+    /// the same tip the cyan ghost would have carried.
+    /// </summary>
+    private void ShowRefusedTip(Vector3 point, Vector3 outwardNormal)
+    {
+        if (Document is null) return;
+        _placementGhost.Clear();
+        var settings = Document.SupportSettings;
+        var ghost = new SupportGraph();
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip,
+            Position = point,
+            SurfaceNormal = outwardNormal,
+            TipShape = SupportTipShape.Cone,
+            ConeLength = settings.ConeLength,
+            TipDiameter = settings.TipDiameter,
+            BallDiameter = settings.BallDiameter,
+        };
+        // The cone runs along the outward normal, as a placed cone would before any clamp.
+        var junction = new SupportNode
+        {
+            Type = SupportNodeType.Junction,
+            Position = point + Vector3.Normalize(outwardNormal) * settings.ConeLength,
+        };
+        ghost.AddNode(tip);
+        ghost.AddNode(junction);
+        ghost.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Tip, NodeA = tip.Id, NodeB = junction.Id, Diameter = settings.TipDiameter,
+        });
+        foreach (var part in SupportRenderMesh.Build(ghost))
+            _placementGhost.Add(new AuxMeshDraw(part.Mesh, PlacementRefusedColor, PlacementGhostOpacity + 0.2f));
+    }
+
+    // ----- Support edit mode (Space with a support selected) -----
+
+    private static readonly Vector4 EditBaseColor = new(0.35f, 0.6f, 1f, 1f);
+    private static readonly Vector4 EditJunctionColor = new(1f, 0.85f, 0.2f, 1f);
+    private static readonly Vector4 EditTipColor = new(0.3f, 1f, 0.4f, 1f);
+    private static readonly Vector4 EditTrunkColor = new(0.85f, 0.55f, 1f, 1f);
+    private static readonly Vector4 EditActiveColor = new(1f, 1f, 1f, 1f);
+    private const float EditHandlePickRadiusPixels = 10f;
+
+    /// <summary>The seed element of the support being edited, or null outside edit mode.</summary>
+    private Guid? _editSupport;
+    private SupportHandle? _editHover;
+    private GizmoHandle _editHoverAxis;
+    private SupportHandle? _editDrag;
+    private GizmoHandle _editDragAxis;
+    private List<(SupportNode Node, Vector3 Position, Vector3 Normal)>? _editDragBefore;
+    /// <summary>The world point the drag started from on its constraint (axis line or plane).</summary>
+    private Vector3 _editDragAnchor;
+    /// <summary>One gizmo per handle, rebuilt each frame (user, 2026-09-09: X/Y on base and trunk, XYZ on junctions and tips).</summary>
+    private readonly List<(SupportHandle Handle, Gizmo Gizmo)> _editGizmos = new();
+    private static float EditGizmoPixels => Configuration.AppConfig.Current.Viewport.SupportGizmoSizePixels;
+    private static float EditGizmoLineWidth => Configuration.AppConfig.Current.Viewport.SupportGizmoLineWidth;
+    private bool _editFollowingSelection;
+
+    public bool IsEditingSupport => _editSupport is not null;
+
+    /// <summary>
+    /// Space, or the Edit button: enters edit mode on the selected support (the whole support
+    /// containing the first selected element) and shows its handles; in edit mode, leaves it.
+    /// </summary>
+    public void ToggleSupportEdit()
+    {
+        if (Document is null) return;
+        if (_editSupport is not null)
+        {
+            EndSupportEdit();
+            return;
+        }
+        if (!SupportSelectionMode || Document.SupportSelection.Count == 0)
+        {
+            StatusText = "Edit support: select a support first";
+            return;
+        }
+        BeginSupportEdit(Document.SupportSelection.First());
+    }
+
+    private void BeginSupportEdit(Guid element)
+    {
+        if (_placementMode) EndPlacementMode();
+        _editSupport = element;
+        _editHover = null;
+        _editHoverAxis = GizmoHandle.None;
+        _editFollowingSelection = true;
+        try { SelectDisplayedSupportComponent(element, additive: false); }
+        finally { _editFollowingSelection = false; }
+        UpdateStatus();
+        Redraw();
+    }
+
+    private void EndSupportEdit()
+    {
+        if (_editDrag is not null) CancelSupportEditDrag();
+        _editSupport = null;
+        _editHover = null;
+        UpdateStatus();
+        Redraw();
+    }
+
+    /// <summary>
+    /// Edit mode follows the selection: clicking another support edits that one, an empty click
+    /// leaves. A drag in progress is not disturbed.
+    /// </summary>
+    private void FollowSelectionInSupportEdit()
+    {
+        if (_editFollowingSelection || _editDrag is not null || Document is null ||
+            _editSupport is not { } element) return;
+        if (Document.IsSupportSelected(element)) return;
+        if (Document.SupportSelection.Count == 0)
+        {
+            EndSupportEdit();
+            return;
+        }
+        BeginSupportEdit(Document.SupportSelection.First());
+    }
+
+    /// <summary>The displayed handles of the edited support; empty once it is gone.</summary>
+    private List<SupportHandle> SupportEditHandles()
+    {
+        if (Document is null || _editSupport is not { } element) return [];
+        var handles = SupportEditing.HandlesOf(Document.Supports, element);
+        handles.RemoveAll(h => !SupportDisplayPolicy.IsElementDisplayed(
+            Document.Supports, h.ElementId, SupportDisplay, ClipRange));
+        return handles;
+    }
+
+    /// <summary>
+    /// The gizmos of the edited support, one per handle, sized and placed for this frame. Base
+    /// and trunk handles get an X/Y gizmo (they stay on the plate and vertical); junctions and
+    /// tips get XYZ (user, 2026-09-09).
+    /// </summary>
+    private void RefreshSupportEditGizmos()
+    {
+        var handles = SupportEditHandles();
+        var height = (float)Bounds.Height;
+        while (_editGizmos.Count > handles.Count) _editGizmos.RemoveAt(_editGizmos.Count - 1);
+        for (var i = 0; i < handles.Count; i++)
+        {
+            var gizmo = i < _editGizmos.Count ? _editGizmos[i].Gizmo : new Gizmo();
+            gizmo.PixelSize = EditGizmoPixels;
+            gizmo.LineWidth = EditGizmoLineWidth;
+            gizmo.ShowZ = handles[i].Kind is SupportHandleKind.Junction or SupportHandleKind.Tip;
+            gizmo.Update(Camera, new Aabb(handles[i].Position, handles[i].Position), height);
+            var active = _editDrag == handles[i] ? _editDragAxis
+                : _editDrag is null && _editHover == handles[i] ? _editHoverAxis : GizmoHandle.None;
+            gizmo.Hovered = active;
+            gizmo.Active = _editDrag == handles[i] ? _editDragAxis : GizmoHandle.None;
+            if (i < _editGizmos.Count) _editGizmos[i] = (handles[i], gizmo);
+            else _editGizmos.Add((handles[i], gizmo));
+        }
+    }
+
+    /// <summary>The handle and gizmo arrow or square under the mouse, nearest first.</summary>
+    private (SupportHandle Handle, GizmoHandle Axis)? HitSupportEditHandle(Vector2 mouse)
+    {
+        RefreshSupportEditGizmos();
+        var w = (float)Bounds.Width;
+        var h = (float)Bounds.Height;
+        foreach (var (handle, gizmo) in _editGizmos)
+        {
+            var axis = gizmo.HitTest(Camera, mouse, w, h);
+            if (axis != GizmoHandle.None) return (handle, axis);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Where the mouse lands on the drag's constraint: the plane through <paramref name="origin"/>
+    /// for a square, the closest point on the axis line for an arrow. Null when the ray runs
+    /// parallel to the constraint or behind the eye.
+    /// </summary>
+    private Vector3? DragConstraintPoint(Vector2 mouse, Vector3 origin, GizmoHandle axis)
+    {
+        var ray = Camera.ScreenToRay(mouse.X, mouse.Y, (float)Bounds.Width, (float)Bounds.Height);
+        var (_, constraint, plane) = Gizmo.ToTransform(axis);
+        var dir = ModalTransform.AxisVector(constraint);
+        if (plane)
+        {
+            var denom = Vector3.Dot(ray.Direction, dir);
+            if (MathF.Abs(denom) < 1e-5f) return null;
+            var t = Vector3.Dot(origin - ray.Origin, dir) / denom;
+            return t < 0f ? null : ray.At(t);
+        }
+        // Closest point on the axis line to the mouse ray.
+        var w0 = origin - ray.Origin;
+        var b = Vector3.Dot(dir, ray.Direction);
+        var d = Vector3.Dot(dir, w0);
+        var e = Vector3.Dot(ray.Direction, w0);
+        var det = 1f - b * b;
+        if (det < 1e-6f) return null;
+        var s = (b * e - d) / det;
+        return origin + dir * s;
+    }
+
+    private void BeginSupportEditDrag(SupportHandle handle, GizmoHandle axis, Vector2 mouse)
+    {
+        if (Document is null) return;
+        _editDragBefore = SupportEditing.AffectedByHandle(Document.Supports, handle)
+            .Select(n => (n, n.Position, n.SurfaceNormal)).ToList();
+        _editDragAnchor = DragConstraintPoint(mouse, handle.Position, axis) ?? handle.Position;
+        _editDrag = handle;
+        _editDragAxis = axis;
+        UpdateStatus();
+    }
+
+    private void UpdateSupportEditDrag(Vector2 mouse, KeyModifiers modifiers)
+    {
+        if (Document is null || _editDrag is not { } handle || _editDragBefore is null) return;
+        if (DragConstraintPoint(mouse, _editDragAnchor, _editDragAxis) is not { } point) return;
+        var delta = point - _editDragAnchor;
+        var (_, constraint, plane) = Gizmo.ToTransform(_editDragAxis);
+        var movesX = plane ? constraint != AxisConstraint.X : constraint == AxisConstraint.X;
+        var movesY = plane ? constraint != AxisConstraint.Y : constraint == AxisConstraint.Y;
+        var snaps = handle.Kind is SupportHandleKind.Base or SupportHandleKind.Trunk &&
+            Document.SupportSettings.UseBaseGrid && !modifiers.HasFlag(KeyModifiers.Shift);
+        if (snaps)
+        {
+            // The base lands on the grid (SUPPORT-GEOMETRY-SPEC "Bases sit on an imaginary grid")
+            // along the axes being dragged, and the rest of the column keeps its offset.
+            var anchor = _editDragBefore.FirstOrDefault(b => b.Node.Type == SupportNodeType.Base);
+            if (anchor.Node is null) anchor = _editDragBefore[0];
+            var origin = new Vector2(anchor.Position.X, anchor.Position.Y);
+            var snapped = SupportEditing.SnapToBaseGrid(origin + new Vector2(delta.X, delta.Y),
+                Document.SupportSettings.BaseGridPitch) - origin;
+            if (movesX) delta.X = snapped.X;
+            if (movesY) delta.Y = snapped.Y;
+        }
+        SupportEditing.Translate(Document.Supports,
+            _editDragBefore.Select(b => (b.Node, b.Position)).ToList(), delta);
+    }
+
+    private void CommitSupportEditDrag()
+    {
+        if (Document is not null && _editDrag is { } handle && _editDragBefore is not null)
+        {
+            var entries = _editDragBefore
+                .Select(b => new SetSupportPositionsCommand.Entry(b.Node, b.Position, b.Normal, b.Node.Position, b.Node.SurfaceNormal))
+                .Where(e => e.BeforePosition != e.AfterPosition || e.BeforeNormal != e.AfterNormal)
+                .ToList();
+            if (entries.Count > 0)
+            {
+                var name = handle.Kind switch
+                {
+                    SupportHandleKind.Base => "Move base",
+                    SupportHandleKind.Trunk => "Move trunk",
+                    SupportHandleKind.Tip => "Move tip",
+                    _ => "Move junction",
+                };
+                Document.Execute(new SetSupportPositionsCommand(Document.Supports, entries, name));
+            }
+        }
+        _editDrag = null;
+        _editDragAxis = GizmoHandle.None;
+        _editDragBefore = null;
+        UpdateStatus();
+    }
+
+    private void CancelSupportEditDrag()
+    {
+        if (Document is not null && _editDragBefore is not null)
+        {
+            foreach (var (node, position, normal) in _editDragBefore)
+            {
+                node.Position = position;
+                node.SurfaceNormal = normal;
+            }
+            Document.Supports.NotifyChanged();
+        }
+        _editDrag = null;
+        _editDragAxis = GizmoHandle.None;
+        _editDragBefore = null;
+        UpdateStatus();
+    }
+
+    /// <summary>
+    /// A gizmo on every handle, drawn through everything so a base under the model or a
+    /// junction inside a forest can still be grabbed; a small marker at each pivot names the
+    /// handle kind by colour.
+    /// </summary>
+    private void AppendSupportEditHandles(List<OverlayLine> lines)
+    {
+        if (_editSupport is null || Document is null) return;
+        RefreshSupportEditGizmos();
+        if (_editGizmos.Count == 0)
+        {
+            // The support was deleted or undone away under us.
+            EndSupportEdit();
+            return;
+        }
+        foreach (var (handle, gizmo) in _editGizmos)
+        {
+            var colour = handle.Kind switch
+            {
+                SupportHandleKind.Base => EditBaseColor,
+                SupportHandleKind.Junction => EditJunctionColor,
+                SupportHandleKind.Tip => EditTipColor,
+                _ => EditTrunkColor,
+            };
+            var p = handle.Position;
+            var size = ContactMarkerHalfSize(p) * 1.5f;
+            lines.Add(new OverlayLine(p - Camera.Right * size, p + Camera.Right * size, colour, EditGizmoLineWidth));
+            lines.Add(new OverlayLine(p - Camera.Up * size, p + Camera.Up * size, colour, EditGizmoLineWidth));
+            gizmo.AppendLines(Camera, lines);
         }
     }
 
@@ -2170,6 +2655,11 @@ public sealed class ViewportControl : OpenGlControlBase
             {
                 case Key.Enter when _tipDrag is not null: CommitTipDrag(); break;
                 case Key.Escape when _tipDrag is not null: CancelTipDrag(); break;
+                // Support edit mode (user, 2026-09-08): Space enters and leaves, handles drag.
+                case Key.Escape when _editDrag is not null: CancelSupportEditDrag(); break;
+                case Key.Escape when _placementMode: EndPlacementMode(); break;
+                case Key.Space when !ctrl && SupportSelectionMode: ToggleSupportEdit(); break;
+                case Key.Escape when _editSupport is not null: EndSupportEdit(); break;
                 // G with one tip selected moves the tip along the surface; otherwise the object modal.
                 case Key.G when !ctrl && SupportSelectionMode && SelectedTip() is { } tipId: BeginTipDrag(tipId); break;
                 case Key.G when !ctrl && !SupportSelectionMode: ApplySnap(e.KeyModifiers); _modal.Begin(TransformMode.Move, mouse, w, h); break;
@@ -2194,9 +2684,10 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.H when shift && !ctrl && SupportSelectionMode: Document.HideUnselectedSupportElements(); break;
                 case Key.H when !ctrl && SupportSelectionMode: Document.HideSelectedSupportElements(); break;
                 case Key.H when !ctrl: Document.HideSelection(); break;
-                // Manual support under the cursor (Support mode only), routed around the model.
-                // (Shift+T's blind straight drop was removed 2026-09-03 at the user's request.)
-                case Key.T when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = TryAddSupport(mouse); break;
+                // Manual placement mode (user note 2026-09-08): T toggles it, a ghost of the routed
+                // support follows the cursor, a click places it. (Shift+T's blind straight drop
+                // was removed 2026-09-03 at the user's request.)
+                case Key.T when !ctrl && !shift && SupportSelectionMode: TogglePlacementMode(); break;
                 // Guided line of supports (SUPPORT-GEOMETRY-SPEC "Guided tip placement").
                 case Key.L when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse); break;
                 case Key.P when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Polygon); break;
@@ -2271,6 +2762,28 @@ public sealed class ViewportControl : OpenGlControlBase
             StatusText = $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  {lineGesture.Hint} · wheel/digits pitch · RMB/Esc cancel";
             return;
         }
+        if (_placementMode)
+        {
+            var refused = _placementRefusal is { } reason ? $"{reason} · " : "";
+            StatusText = $"Place supports: {refused}click to place the ghosted support · a red tip means nothing fits here · RMB/T/Esc leave";
+            return;
+        }
+        if (_editDrag is { } editDrag)
+        {
+            StatusText = editDrag.Kind switch
+            {
+                SupportHandleKind.Tip => "Move tip: drag the arrow or square · release confirm · RMB/Esc cancel",
+                SupportHandleKind.Base => "Move base: drag the arrow or square (base grid snaps · Shift free) · release confirm · RMB/Esc cancel",
+                SupportHandleKind.Trunk => "Move trunk: drag the column by the arrow or square (base grid snaps · Shift free) · release confirm · RMB/Esc cancel",
+                _ => "Move junction: drag the arrow or square · release confirm · RMB/Esc cancel",
+            };
+            return;
+        }
+        if (_editSupport is not null)
+        {
+            StatusText = "Edit support: drag a gizmo · base and trunk in X/Y, junctions and tip in XYZ · click another support to edit it · Space/Esc leave";
+            return;
+        }
         if (_tipDrag is not null)
         {
             StatusText = "Move tip: drag over the surface · LMB/Enter confirm · RMB/Esc cancel";
@@ -2292,7 +2805,7 @@ public sealed class ViewportControl : OpenGlControlBase
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
-            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · G move tip · T add support · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · J parent · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
+            ? $"{projection}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select support · Space edit support · G move tip · T place supports · L support line · P support polygon · E support edge · R support ring · C support contour · D densify · Shift+D thin · J parent · B border select · H hide · Tab workspace · Home frame all · 1/3/7 views · 5 projection"
             : $"{projection} · {snap}{spaceMouse}  ·  MMB orbit · Shift+MMB pan · wheel zoom · LMB select or drag gizmo · G/R/S transform · F lay flat · Shift+Tab snap · Tab workspace · Home frame all · 1/3/7 views · 5 projection";
     }
 

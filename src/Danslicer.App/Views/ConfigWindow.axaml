@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
@@ -138,6 +138,20 @@
                                 Value="{Binding ViewCubeSizePixels, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="48" Maximum="192" Increment="8" FormatString="0"
                                        Value="{Binding ViewCubeSizePixels, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport support edit gizmo handle size pixels" ColumnDefinitions="190,*,110" Margin="0,2">
+                        <TextBlock Text="Support gizmo size" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="24" Maximum="400" TickFrequency="8" IsSnapToTickEnabled="True"
+                                Value="{Binding SupportGizmoSizePixels, Mode=TwoWay}" />
+                        <NumericUpDown Grid.Column="2" Minimum="24" Maximum="400" Increment="8" FormatString="0"
+                                       Value="{Binding SupportGizmoSizePixels, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport support edit gizmo line width thickness pixels" ColumnDefinitions="190,*,110" Margin="0,2">
+                        <TextBlock Text="Support gizmo line width" Classes="label" />
+                        <Slider Grid.Column="1" Minimum="1" Maximum="12" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                                Value="{Binding SupportGizmoLineWidth, Mode=TwoWay}" />
+                        <NumericUpDown Grid.Column="2" Minimum="1" Maximum="12" Increment="0.5" FormatString="0.0"
+                                       Value="{Binding SupportGizmoLineWidth, Mode=TwoWay}" />
                     </Grid>
                 </StackPanel>
 

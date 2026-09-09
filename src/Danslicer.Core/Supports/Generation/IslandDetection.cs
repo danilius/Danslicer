@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Clipper2Lib;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Slicing;
@@ -29,7 +29,9 @@ public static class IslandDetection
     {
         ArgumentNullException.ThrowIfNull(worldMesh);
         var layers = LayerStack.Slice(worldMesh, layerHeightMm);
-        var islands = IslandFinder.Find(layers, worldMesh.Bounds.Min.Z, layerHeightMm,
+        // The strict definition: places where printing starts off the plate, nothing else
+        // (user, 2026-09-09). Tip placement keeps the newborn-area seeds; this is the check.
+        var islands = IslandFinder.FindStarts(layers, worldMesh.Bounds.Min.Z, layerHeightMm,
             minIslandAreaMm2, plateZ, overhangAngleDegrees);
         var supportLayers = supports is null ? null : islands
             .Select(island => island.LayerIndex)
