@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Danslicer.App.ViewModels"
              x:Class="Danslicer.App.Controls.RaftSettingsView"
@@ -34,10 +34,10 @@
                            ToolTip.Tip="Height of the raft on the plate, mm. Every trunk runs through it to the plate." />
         </Grid>
         <Grid Tag="raft edge angle bevel slope scraper degrees" ColumnDefinitions="150,*" Margin="0,2">
-            <TextBlock Text="Edge angle °" Classes="label" ToolTip.Tip="Slope of the raft's edge, wider at the plate than at the top: a lip for the scraper. 90 = vertical." />
+            <TextBlock Text="Edge angle °" Classes="label" ToolTip.Tip="The scraper lip on the raft's outside: the top overhangs the plate footprint at this angle from vertical, so a scraper slides under it. 90 = no lip." />
             <NumericUpDown Grid.Column="1" Minimum="5" Maximum="90" Increment="5" FormatString="0"
                            Value="{Binding SupportRaftEdgeAngleDegrees, Mode=TwoWay}"
-                           ToolTip.Tip="Slope of the raft's edge, wider at the plate than at the top: a lip for the scraper. 90 = vertical." />
+                           ToolTip.Tip="The scraper lip on the raft's outside: the top overhangs the plate footprint at this angle from vertical, so a scraper slides under it. 90 = no lip." />
         </Grid>
         <Grid Tag="raft disc diameter foot mm" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Disc diameter" Classes="label" ToolTip.Tip="The disc under each foot (Web), and each foot's footprint in the Plate silhouette, mm." />
@@ -63,20 +63,7 @@
             <TextBlock Text="Bar width" Classes="label" ToolTip.Tip="Width of the flat bars between neighbouring feet, mm." />
             <NumericUpDown Grid.Column="1" Minimum="0.1" Maximum="100" Increment="0.5" FormatString="0.##"
                            Value="{Binding SupportRaftBarWidth, Mode=TwoWay}"
-                           ToolTip.Tip="Width of the flat bars between neighbouring feet, mm." />
-        </Grid>
-        <Grid Tag="raft neighbours rays delaunay web" ColumnDefinitions="150,*" Margin="0,2">
-            <TextBlock Text="Neighbours" Classes="label"
-                       ToolTip.Tip="Rays: rays are cast from each foot and the first disc each one hits is a neighbour, so a foot behind another is not. Delaunay: every edge of the feet's triangulation." />
-            <ComboBox Grid.Column="1" ItemsSource="{Binding RaftNeighbourRules}"
-                      SelectedItem="{Binding SupportRaftNeighbours, Mode=TwoWay}"
-                      ToolTip.Tip="Rays: rays are cast from each foot and the first disc each one hits is a neighbour, so a foot behind another is not. Delaunay: every edge of the feet's triangulation." />
-        </Grid>
-        <Grid Tag="raft ray step degrees web" ColumnDefinitions="150,*" Margin="0,2">
-            <TextBlock Text="Ray step °" Classes="label" ToolTip.Tip="Angular step between the rays (Rays rule). Smaller finds thinner gaps between feet." />
-            <NumericUpDown Grid.Column="1" Minimum="0.5" Maximum="90" Increment="1" FormatString="0.#"
-                           Value="{Binding SupportRaftRayStepDegrees, Mode=TwoWay}"
-                           ToolTip.Tip="Angular step between the rays (Rays rule). Smaller finds thinner gaps between feet." />
+                           ToolTip.Tip="Width of the flat bars between neighbouring feet, mm. Bars join each foot to its Delaunay neighbours." />
         </Grid>
         <Grid Tag="raft max bar length web mm" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Max bar length" Classes="label" ToolTip.Tip="Bars longer than this are not laid, mm. 0 = no limit." />

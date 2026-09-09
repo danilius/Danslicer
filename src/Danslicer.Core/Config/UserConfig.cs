@@ -360,9 +360,6 @@ public sealed record SupportConfig
     public float RaftEdgeAngleDegrees { get; set; } = 45f;
     public float RaftDiscDiameter { get; set; } = 5f;
     public float RaftBarWidth { get; set; } = 4f;
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public RaftNeighbourRule RaftNeighbours { get; set; } = RaftNeighbourRule.Rays;
-    public float RaftRayStepDegrees { get; set; } = 5f;
     public float RaftMaxBarLength { get; set; } = 15f;
     public float RaftMargin { get; set; } = 2f;
     public float RaftBridgingDistance { get; set; } = 8f;
@@ -375,8 +372,6 @@ public sealed record SupportConfig
         EdgeAngleDegrees = RaftEdgeAngleDegrees,
         DiscDiameter = RaftDiscDiameter,
         BarWidth = RaftBarWidth,
-        Neighbours = RaftNeighbours,
-        RayStepDegrees = RaftRayStepDegrees,
         MaxBarLength = RaftMaxBarLength,
         Margin = RaftMargin,
         BridgingDistance = RaftBridgingDistance,
