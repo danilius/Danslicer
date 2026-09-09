@@ -1,6 +1,35 @@
 ﻿# Danslicer handover
 
-## STATE 2026-09-09 night — RAFTS BUILT, NOT SCREEN-TESTED (supersedes everything below)
+## STATE 2026-09-09 late night — rafts seen on screen, three more branches (supersedes everything below)
+
+main is `38ab725`. Branches, unmerged, in merge order: `rafts-spec` → `rafts` (raft feature +
+the user's first screen feedback: smooth sloped edge, raft settings in the Rafts pop-out),
+then `object-position-bbox` and `tooltips` (independent, both off main). The throwaway
+**`integration-2026-09-09b`** holds all four merged (one conflict resolved in the visibility
+checkboxes), 960 tests green, and is the build on disk.
+
+**User screen feedback on rafts (2026-09-09):** the Web/Delaunay raft drew and sliced; the
+stepped edge was wrong (now one smooth wall, mitred push-out of the top outline) and the
+scrape edge must slant outward, wider at the plate (it is: check on screen). Raft settings
+now live in the Rafts pop-out under Add raft / Remove raft (`RaftSettingsView`), not in
+Support settings.
+
+**`object-position-bbox`:** the Transform pop-out's Position is the object's anchor, the
+bounding box's centre-bottom (`MainViewModel.Anchor`), recomputed after rotation and scale;
+editing it moves that point. Import seats the mesh and lands on the plate even with Auto
+Drop off (the ObjectReloadTests expectation changed accordingly).
+
+**`tooltips`:** every support setting, every pop-out control, every toolbar button (with its
+keys; keymap-bound ones read the user's keys in `MainWindow.ApplyKeymapTooltips`), header
+strip toggles, and hint lines under the Preferences settings (`TextBlock.hint`).
+
+**Screen checklist:** raft edge is a smooth outward slope; Rafts pop-out shows the settings and
+Add raft re-takes them; rotate a model 90° in Layout and the Position fields show the box's
+centre-bottom, typing Z 0 seats it; import with Auto Drop off lands on the plate; hover the
+toolbar buttons for keys (Ctrl+I on Add object, Ctrl+G on Generate); Preferences shows the
+hint lines.
+
+## STATE 2026-09-09 night — RAFTS BUILT, NOT SCREEN-TESTED (superseded by the section above)
 
 main is `38ab725` (everything through the auto-drop toggle merged and pushed). Two branches:
 `rafts-spec` (the approved spec section in SUPPORT-GEOMETRY-SPEC.md, user-directed: rafts
