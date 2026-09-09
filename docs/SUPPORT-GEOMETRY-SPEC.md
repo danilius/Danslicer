@@ -596,136 +596,139 @@ generation and parenting. The slenderness rule goes.
 - Bracing across **objects**: two models' forests braced to each other (the collision
   scene already holds every object, so it is a policy question only).
 
-## Rafts (spec for approval, 2026-09-09)
+## Rafts (user-directed spec, 2026-09-09; for approval)
 
 A print peels off the film every layer, and the first layers take the whole pull. A base
-disc is a small patch of adhesion of its own; a forest of them can let go one at a time,
-and the model's own foot gets an elephant foot where the bottom exposure spreads it. A
-**raft** is one slab on the plate that everything stands on: it takes the adhesion, the
-elephant foot and the scraper, and the model and its supports come off it clean. The
+disc is a small patch of adhesion of its own, and a forest of them can let go one at a
+time. A **raft replaces the bases** (user, 2026-09-09): one flat structure of its own
+thickness on the plate, which every trunk of the object runs into. The model does not move
+when a raft is added or removed; the raft lives in the space the bases occupied. The
 anatomy dictation of 2026-09-03 already says "no base at all when a raft is being used".
-This section says what a raft is, what stands on it, and how the user drives it.
 
 ### What a raft is
 
-- A raft is a **flat slab of Thickness** (default 1.5 mm) lying on the plate, one per
-  object. It belongs to the object like its supports do: it moves with an X/Y move, is
-  copied by Duplicate and Mirror, is hidden with the object, and is deleted with it.
-  Two objects' rafts that overlap simply fuse in the slice (the layer is a union).
-- The raft is **derived geometry, not graph members**: its shape is a function of the
-  object's plate footprint, its supports' feet and the raft settings, recomputed whenever
-  any of those change. Nothing about it is stored except the object's raft flag; there is
-  no raft node, nothing to select or drag, and no undo step other than the flag's own.
-- **The raft's top is the object's floor.** A rafted object and its supports stand at
-  z = Thickness instead of z = 0: auto-drop seats the model's lowest point on the raft
-  (plus the placement height when one is set), routing lands feet on the raft, and the
-  print-check "below the plate" rule reads the raft top as the floor for that object.
-- **No bases on a raft.** A support foot on a raft is the trunk's end node with base shape
-  None; the capsule's end ball is centred on the raft top, so half of it lies inside the
-  slab and the trunk is fused to it. A foot that lands on the model instead (opt-in,
-  routing policy of 2026-09-03) keeps whatever that path gives it.
-- A model whose own bottom is flat stands directly on the raft with no supports at all;
-  the raft's footprint covers it (below), so it fuses too.
+- A raft is flat geometry of **Thickness** (default 1 mm) lying on the plate under the
+  **selected object's** supports. It belongs to the object like its supports do: it moves
+  with an X/Y move, is copied by Duplicate and Mirror, is hidden with the object, and is
+  deleted with it. Two objects' rafts that overlap simply fuse in the slice.
+- **The model stays where it is.** Adding a raft strips the bases of the object's supports
+  (base shape None) and puts the raft under them; removing it takes the raft away and gives
+  each foot the base the settings say. Nothing moves in Z either way. A trunk's foot node
+  already sits on the plate (its disc rises from it), so every trunk passes through the
+  raft from its top to the plate and is fused to it whatever the thickness; no member is
+  lengthened or shortened by a raft.
+- **The raft's shape is computed from the feet**: the object's support foot positions plus
+  the raft parameters the object holds. It is recomputed whenever the feet change
+  (generation, placement, parenting, deletion, editing a base handle), so the raft always
+  covers exactly the supports that stand. There is no raft node, nothing to select or
+  drag; the raft is drawn and sliced, not edited.
+- A model that stands flat on the plate usually needs no raft (user), so the raft is built
+  from the supports only; a raft that happens to overlap the model's first layers fuses
+  with them.
 
-### Footprint
+### Raft types
 
-The **top outline** is built in XY from the feet and the model:
+**Plate**: one filled shape following the silhouette of the feet. The foot discs (Disc
+diameter, below) are unioned, offset outward by **Margin** (default 2 mm) with round joins,
+and closed by **Bridging distance** (default 8 mm): a gap between feet up to that wide is
+filled in, a wider one stays a notch, so the outline hugs the concave sides of the forest
+instead of spanning them as a hull would. The interior is solid.
 
-1. One disc of **Foot diameter** (default the trunk diameter, i.e. the configured value
-   when 0) at every support foot of the object, and the model's **first-layer section**
-   (its slice at the floor plus half a layer height) for the part of the model that
-   touches the floor.
-2. The union of those, then offset outward by **Margin** (default 3 mm) with round joins,
-   then closed (offset in and back out by the margin) so gaps narrower than twice the
-   margin between neighbouring feet fill in and the raft is one piece rather than a
-   string of beads. Islands further apart than that stay separate pieces of the same
-   raft, which is fine: each piece still carries its own feet.
-3. **Footprint** mode chooses the shape: **Outline** (the default; the closed union above,
-   following the model), **Hull** (the convex hull of the union: one solid plate for a
-   forest of small islands, easiest to scrape off), or **Plate** (the whole build plate
-   inset by the margin; for a full bed).
+**Web**: a **disc** of Thickness and **Disc diameter** (default 5 mm) under every foot, and
+a **flat bar** of Thickness and **Bar width** (default 4 mm) from each foot to each of its
+immediate neighbours. Two ways of finding the neighbours, both to be tested on screen
+(user, 2026-09-09):
 
-The **edge slopes**: the outline at the plate is the top outline offset by **Edge bevel**
-(default 1 mm), and the cross-section between them is linear, so the raft has a 1 mm lip
-at 90° − atan(bevel / thickness) for a scraper to get under, and no overhang anywhere.
-Round-join offsets give rounded corners for free; nothing sharp to snag.
+- **Rays** (default): from the foot centre, rays are cast in the plate plane every **Ray
+  step** degrees (default 5°); the first foot disc each ray hits is a neighbour, so a foot
+  hidden behind a nearer one is not. Pairs are symmetric: a bar is laid once per pair.
+- **Delaunay**: the feet are triangulated and every edge of the triangulation is a bar.
+
+Both drop bars longer than **Max bar length** (default 15 mm; 0 = no limit).
+
+For both types the **edge slopes** at **Edge angle** (default 45°, 90° = vertical): the
+outline at the plate is the top outline offset outward by Thickness / tan(angle), and the
+cross-section between them is linear, so nothing overhangs and a scraper has a lip to get
+under. Offsets with round joins give rounded corners for free.
 
 ### Slicing and drawing
 
 - `SupportSliceGeometry` gains a **raft section** at z: the top outline offset by
-  bevel × (1 − z / thickness) for 0 ≤ z < thickness, unioned into the layer with the
-  model and support sections as they already are. Layers below the object's floor are
-  raft only. The raft counts toward the build-volume check like any content.
-- The viewport draws the raft as a mesh extruded from the outline with the bevel, in a
-  raft colour of its own, under a new **Show rafts** toggle alongside Show bases in the
-  support display settings; hidden and ghosted objects draw no raft and cast no shadow
-  from it. Raft geometry is an obstacle for nothing: it is below everything.
+  (Thickness − z) / tan(Edge angle) for 0 ≤ z < Thickness, unioned into the layer with
+  the model and support sections as they already are. The raft counts toward the
+  build-volume check like any content.
+- The viewport draws the raft as a mesh extruded from the outline with the slope, in the
+  base colour, under a new **Show rafts** toggle alongside Show bases in the support
+  display settings; hidden and ghosted objects draw no raft. The raft is an obstacle for
+  nothing: it is below everything.
 
 ### Operations
 
-- **Add raft / Remove raft** on the selected object(s) in Support mode: one undo step named
-  "Add raft" / "Remove raft". Adding a raft translates the object **and its supports**
-  rigidly up by Thickness (the contacts map exactly, so the Z rule does not fire: this is
-  not a user Z move) and strips the bases (base shape None). Removing it translates them
-  back down and gives each foot the base the settings say. A Thickness change on a rafted
-  object does the same rigid shift by the difference, so the model never sinks into the
-  raft or floats above it.
-- A user Z move of a rafted object works as before: the supports go, the raft stays under
-  the object (its footprint is then the model's first-layer section only, until supports
-  are generated again on the raft).
-- Generation, guided placement, parenting and bracing on a rafted object route to the
-  raft top with no bases; nothing else in them changes. Settings edits to base shape and
-  sizes do not touch a rafted object's feet.
+- **Add raft** on the selected object(s) in Support mode: the object takes the current
+  raft settings (type, sizes, neighbour rule) and its feet lose their bases; one undo step
+  named "Add raft". On an object that already has a raft, Add raft re-takes the current
+  settings ("we test them both": switch the type in the expander, press Add raft again).
+- **Remove raft**: the raft goes and each foot gets the base the current settings say; one
+  undo step named "Remove raft".
+- **Settings edits land on the selection** (rule of 2026-09-09): saving the raft settings
+  re-parameterises the rafts of the selected rafted objects, one undo step, exactly as tip
+  and base settings do for selected elements.
+- Generation, guided placement, parenting and bracing on a rafted object make feet with no
+  base, and the raft grows to cover them; nothing else in them changes. Base shape and size
+  edits do not touch a rafted object's feet. A user Z move of a rafted object discards its
+  supports as before, and with them the raft has nothing to cover until supports return.
 
 ### Configuration ("Rafts" expander of the Supports pop-out)
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Thickness | 1.5 mm | Height of the slab; the object's floor. |
-| Margin | 3 mm | How far the raft extends beyond every foot and the model's footprint; gaps under 2× this fill. |
-| Edge bevel | 1 mm | How much wider the raft is at the plate than at the top; the scraper lip. 0 = vertical edge. |
-| Foot diameter | 0 (= trunk diameter) | Disc counted around each support foot before the margin. |
-| Footprint | Outline | Outline, Hull or Plate. |
+| Type | Plate | Plate or Web. |
+| Thickness | 1 mm | Height of the raft on the plate. |
+| Edge angle ° | 45 | Slope of the raft's edge; 90 = vertical. |
+| Disc diameter | 5 mm | Disc under each foot (Web), and each foot's footprint for the Plate silhouette. |
+| Bar width | 4 mm | Width of the flat bars between neighbouring feet (Web). |
+| Neighbours | Rays | Rays or Delaunay (Web). |
+| Ray step ° | 5 | Angular step of the rays (Web, Rays). |
+| Max bar length | 15 mm | Bars longer than this are not laid; 0 = no limit (Web). |
+| Margin | 2 mm | How far the plate extends beyond the outermost feet (Plate). |
+| Bridging distance | 8 mm | The widest gap between feet that the plate fills in (Plate). |
 
-Zero means "use the Members value" where one exists, as in Parenting and Bracing. The
-raft settings are global like the rest of the support settings; the on/off flag is per
-object. Defaults are a first guess to be tuned on screen.
+Defaults are a first guess to be tuned on screen.
 
 ### UI
 
 - The **Rafts pop-out** (its button and placeholder exist) gets **Add raft** and **Remove
   raft** buttons, enabled by the selection, and a line naming how many selected objects
   are rafted. No key is proposed, so no key needs a button.
-- **Object › Raft** as a checkbox in Support mode, the same command.
+- **Object › Add Raft / Remove Raft** in Support mode, the same commands.
 - The Objects list marks a rafted object (a small raft glyph next to the name).
 
 ### What changes in the code
 
-`SceneObject.HasRaft` (project file minor version 1.1; older files read as no raft), a
-Core `RaftBuilder` (footprint from feet + first-layer section, the three modes, the closed
-offset, the sliced section at z, the render mesh) with a per-object cache invalidated by
-the document's change notification, `SupportConfig` fields with the `Raft` prefix, the
-floor Z threaded through `TreeSupportRouter` / guided placement / parenting / bracing /
-`ApplyPlacement` / the print-check parameters as "floor of this object" instead of the
-constant plate Z, `Document.AddRaft` / `RemoveRaft` with the rigid shift and the base
-strip / restore as one undo step, the slicer union, the display toggle, the expander, the
-pop-out and the menu item.
+`SceneObject.Raft` (null, or the raft parameters the object took; project file minor
+version 1.1, older files read as no raft), a Core `RaftBuilder` (Plate outline with the
+closing offset; Web discs, the two neighbour rules and the bars; the sloped section at z;
+the render mesh) with a per-object cache invalidated by the document's change notification,
+`SupportConfig` fields with the `Raft` prefix, `Document.AddRaft` / `RemoveRaft` /
+`ApplyRaftSettingsToSelection` with the base strip / restore as one undo step, the "no
+base" stamp for new feet of rafted objects in routing and guided placement, the slicer
+union, the display toggle, the expander, the pop-out and the menu items.
 
 ### Build order
 
-1. Core `RaftBuilder` and its slice section, with tests on synthetic feet (one foot, a row
-   that fills, a row that does not, the Hull and Plate modes, the bevel at three heights).
-2. The per-object floor: placement, routing, checks; `AddRaft` / `RemoveRaft` with undo.
+1. Core `RaftBuilder` and its slice section, with tests on synthetic feet (one foot; a row
+   that bridges and one that does not; the Rays rule hiding a foot behind another; the
+   Delaunay rule; the max bar length; the slope at three heights).
+2. `AddRaft` / `RemoveRaft` / settings-to-selection with undo; new feet born baseless.
 3. Slicer union and the render mesh with its display toggle.
-4. Pop-out buttons, expander, Object menu item, Objects-list glyph.
+4. Pop-out buttons, expander, Object menu items, Objects-list glyph.
 
 ### Later, not in the first cut
 
 - A **lift tab**: a tongue on one side of the raft to pry with.
-- **Drain holes** / a **hollow grid** raft to save resin and let suction go.
+- **Drain holes** / a **hollow grid** plate to save resin and let suction go.
 - A **plate-wide raft** shared by every object, generated once for the bed.
-- A raft under **only the supports**, leaving a flat-bottomed model on the plate itself.
-- Per-object raft settings (a raft recipe), once support recipes exist.
+- Rafts under a model that stands flat on the plate, if one ever needs it.
 
 ## Still open
 
