@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 
@@ -348,6 +349,36 @@ public sealed record SupportConfig
     public float BaseDiameter { get; set; } = 4f;
     public float BaseHeight { get; set; } = 0.8f;
     public float BaseConeHeight { get; set; } = 2f;
+
+    // Rafts (SUPPORT-GEOMETRY-SPEC "Rafts", user 2026-09-09): the settings an object takes when
+    // Add raft runs on it. Prefixed so the expander and the presets carry them like the rest.
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RaftType RaftType { get; set; } = RaftType.Plate;
+    public float RaftThickness { get; set; } = 1f;
+    public float RaftEdgeAngleDegrees { get; set; } = 45f;
+    public float RaftDiscDiameter { get; set; } = 5f;
+    public float RaftBarWidth { get; set; } = 4f;
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RaftNeighbourRule RaftNeighbours { get; set; } = RaftNeighbourRule.Rays;
+    public float RaftRayStepDegrees { get; set; } = 5f;
+    public float RaftMaxBarLength { get; set; } = 15f;
+    public float RaftMargin { get; set; } = 2f;
+    public float RaftBridgingDistance { get; set; } = 8f;
+
+    /// <summary>The raft snapshot an object takes from these settings.</summary>
+    public RaftParameters ToRaftParameters() => new RaftParameters
+    {
+        Type = RaftType,
+        Thickness = RaftThickness,
+        EdgeAngleDegrees = RaftEdgeAngleDegrees,
+        DiscDiameter = RaftDiscDiameter,
+        BarWidth = RaftBarWidth,
+        Neighbours = RaftNeighbours,
+        RayStepDegrees = RaftRayStepDegrees,
+        MaxBarLength = RaftMaxBarLength,
+        Margin = RaftMargin,
+        BridgingDistance = RaftBridgingDistance,
+    }.Normalize();
 
     public float Spacing { get; set; } = 2.5f;
     public float IslandSpacingMm { get; set; } = 0.5f;

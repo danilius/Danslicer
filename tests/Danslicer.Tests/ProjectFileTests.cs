@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -141,8 +141,8 @@ public sealed class ProjectFileTests
 
         var error = Assert.Throws<InvalidDataException>(() => ProjectFile.Load(file.Path));
 
-        Assert.Contains("99.0", error.Message);
-        Assert.Contains("newer than supported version 1.0", error.Message);
+        Assert.Contains($"99.{ProjectFile.CurrentMinorVersion}", error.Message);
+        Assert.Contains($"newer than supported version {ProjectFile.CurrentMajorVersion}.{ProjectFile.CurrentMinorVersion}", error.Message);
     }
 
     [Fact]
