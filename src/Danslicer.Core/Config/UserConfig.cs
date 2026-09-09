@@ -184,6 +184,8 @@ public sealed record SupportDisplayConfig
     public bool ShowTrunks { get; init; } = true;
     public bool ShowBases { get; init; } = true;
     public bool ShowBracing { get; init; } = true;
+    /// <summary>Rafts under rafted objects (spec "Rafts"); a raft replaces the bases, so it sits beside Show bases.</summary>
+    public bool ShowRafts { get; init; } = true;
 
     /// <summary>
     /// Draw elements the user hid individually (Support mode's H) as if they were visible. Not a

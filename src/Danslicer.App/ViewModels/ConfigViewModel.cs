@@ -492,6 +492,12 @@ public sealed class ConfigViewModel : ViewModelBase
         set => UpdateSupportDisplay(display => display with { ShowBracing = value });
     }
 
+    public bool ShowSupportRafts
+    {
+        get => SupportDisplay.ShowRafts;
+        set => UpdateSupportDisplay(display => display with { ShowRafts = value });
+    }
+
     // Supports
 
     public float SupportTipDiameter

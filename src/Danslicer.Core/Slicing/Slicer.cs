@@ -3,6 +3,7 @@ using System.Numerics;
 using Danslicer.Core.IO;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Printers;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Scene;
 
 namespace Danslicer.Core.Slicing;
@@ -102,9 +103,12 @@ public static class Slicer
             previewObjects.Add(new PreviewRenderer.RenderObject(obj.Mesh, matrix));
         }
         if (prepared.Count == 0) throw new InvalidOperationException("Nothing to slice.");
+        // A visible rafted object prints its raft under its feet (spec "Rafts"); a hidden one
+        // takes it away with its supports.
+        var rafts = RaftGeometry.Printable(objects, supports);
 
         var minZ = prepared.Min(m => m.MinZ);
-        var maxZ = prepared.Max(m => m.MaxZ);
+        var maxZ = Math.Max(prepared.Max(m => m.MaxZ), RaftGeometry.MaxTop(rafts));
 
         // Supports extend the print height up to their cap tops; sections below the plate are
         // simply never sliced (layers start at zero), matching how bases rest on the plate.
@@ -122,11 +126,23 @@ public static class Slicer
         }
         var halfX = printer.BuildVolume.X / 2.0;
         var halfY = printer.BuildVolume.Y / 2.0;
-        var overX = Math.Max(prepared.Max(m => m.MaxX) - halfX, -halfX - prepared.Min(m => m.MinX));
-        var overY = Math.Max(prepared.Max(m => m.MaxY) - halfY, -halfY - prepared.Min(m => m.MinY));
+        var sceneMinX = prepared.Min(m => m.MinX);
+        var sceneMinY = prepared.Min(m => m.MinY);
+        var sceneMaxX = prepared.Max(m => m.MaxX);
+        var sceneMaxY = prepared.Max(m => m.MaxY);
+        if (RaftGeometry.PlateBounds(rafts) is { } raftBounds)
+        {
+            // The raft is content like any other: it is widest at the plate, and it must fit.
+            sceneMinX = Math.Min(sceneMinX, raftBounds.MinX);
+            sceneMinY = Math.Min(sceneMinY, raftBounds.MinY);
+            sceneMaxX = Math.Max(sceneMaxX, raftBounds.MaxX);
+            sceneMaxY = Math.Max(sceneMaxY, raftBounds.MaxY);
+        }
+        var overX = Math.Max(sceneMaxX - halfX, -halfX - sceneMinX);
+        var overY = Math.Max(sceneMaxY - halfY, -halfY - sceneMinY);
         var sceneBounds = new Aabb(
-            new Vector3((float)prepared.Min(m => m.MinX), (float)prepared.Min(m => m.MinY), (float)minZ),
-            new Vector3((float)prepared.Max(m => m.MaxX), (float)prepared.Max(m => m.MaxY), (float)maxZ));
+            new Vector3((float)sceneMinX, (float)sceneMinY, (float)minZ),
+            new Vector3((float)sceneMaxX, (float)sceneMaxY, (float)maxZ));
         var croppedAxes = BuildVolumeBounds.Check(sceneBounds, printer.BuildVolume);
         if (!allowOutOfBounds && croppedAxes != BuildVolumeViolationAxes.None)
         {
@@ -178,6 +194,7 @@ public static class Slicer
                             supports, segment.Id, hiddenObjectIds),
                         includeNode: node => !Supports.SupportOwnerVisibility.IsOwnedByHidden(
                             node, hiddenObjectIds)));
+                RaftGeometry.AppendSections(rafts, z, loops);
                 var polygons = MeshSlicer.Finish(loops, settings.XyCompensation);
                 var lit = worker.Rasterizer.Rasterize(polygons, worker.Pixels);
 

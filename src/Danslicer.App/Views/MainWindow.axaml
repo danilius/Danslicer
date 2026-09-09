@@ -828,7 +828,8 @@
                                     <CheckBox Content="Branches" IsChecked="{Binding SupportSettings.ShowSupportBranches}" Margin="0,0,8,0" />
                                     <CheckBox Content="Trunks" IsChecked="{Binding SupportSettings.ShowSupportTrunks}" Margin="0,0,8,0" />
                                     <CheckBox Content="Bases" IsChecked="{Binding SupportSettings.ShowSupportBases}" Margin="0,0,8,0" />
-                                    <CheckBox Content="Bracing" IsChecked="{Binding SupportSettings.ShowSupportBracing}" />
+                                    <CheckBox Content="Bracing" IsChecked="{Binding SupportSettings.ShowSupportBracing}" Margin="0,0,8,0" />
+                                    <CheckBox Content="Rafts" IsChecked="{Binding SupportSettings.ShowSupportRafts}" />
                                 </WrapPanel>
                                 <CheckBox Content="Contact points over transparent supports"
                                           IsChecked="{Binding SupportSettings.ShowContactPointsInTransparent}"

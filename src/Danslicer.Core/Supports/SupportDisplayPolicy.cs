@@ -1,4 +1,4 @@
-using Danslicer.Core.Config;
+﻿using Danslicer.Core.Config;
 
 namespace Danslicer.Core.Supports;
 
@@ -33,6 +33,7 @@ public static class SupportDisplayPolicy
                 ShowTrunks = true,
                 ShowBases = true,
                 ShowBracing = true,
+                ShowRafts = true,
             };
 
     /// <summary>
@@ -41,6 +42,10 @@ public static class SupportDisplayPolicy
     /// </summary>
     public static bool IsHiddenBy(bool hidden, SupportDisplayConfig display) =>
         hidden && !display.ShowHiddenElements;
+
+    /// <summary>Rafts draw with the meshes of the Full and Transparent modes, under their own switch.</summary>
+    public static bool ShowsRafts(SupportDisplayConfig display) =>
+        display.ShowRafts && display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent;
 
     public static bool ShowsMeshes(SupportDisplayConfig display) =>
         display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Tips or
