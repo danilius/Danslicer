@@ -227,7 +227,7 @@ public partial class MainWindow
     {
         RememberProject();
         var menu = new ContextMenu();
-        var open = new MenuItem { Header = "Open another projectâ€¦", Command = OpenProjectCommand };
+        var open = new MenuItem { Header = "Open another project…", Command = OpenProjectCommand };
         menu.Items.Add(open);
         menu.Items.Add(new Separator());
         if (_recentProjects.Count == 0) menu.Items.Add(new MenuItem { Header = "No recent projects", IsEnabled = false });

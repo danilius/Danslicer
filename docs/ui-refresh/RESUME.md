@@ -1,3 +1,17 @@
+# Current checkpoint — Task 05 iteration 4
+
+Worktree C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt, codex/ui-refresh-05. Last-good core b34807aac8864843823d5f3b9e6f729479d2074e. Native full workflow and all existing UI contracts now pass in task-05-ui-final; final solution build and 1011 tests pass. Printer writeback and menu fixes ready for UI commit. Actual GL/gallery and final acceptance documentation pending. No merge/push; 06/07 queued. See task-05.md.
+
+---
+Historical checkpoints:
+
+# Current checkpoint — Task 05 iteration 3
+
+Current worktree ed62 at C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt; codex/ui-refresh-05. Last-good core commit b34807a. Project raft/source copy fixed. Native follow-up exposed transient printer ComboBox writeback; guard added, 36 targeted tests pass. Full native workflow running; GL/gallery/final broad suite pending. See task-05.md. Tasks 06/07 queued, no merge/push.
+
+---
+Historical checkpoints:
+
 # Current checkpoint — Task 05 iteration 1
 
 Worktree C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt; codex/ui-refresh-05; last-good committed plan 05a8004. Build and 1010 full tests passed. Confirmed live Document.ReplaceWith drops loaded raft and source path; fixed copy and 26 targeted regressions pass. Native full workflow recheck pending. Raft harness now awaits bounded dispatcher result; production 100ms unchanged. Project menu punctuation fixed. See task-05.md. Main remains ancestral 7d95ceb, no merge. Next: finish workflow diagnostics, actual GL and acceptance review. Tasks 06/07 queued.

@@ -37,6 +37,7 @@ public partial class MainViewModel : ViewModelBase
     private IReadOnlyList<PrinterDefinition> _printerOptions = [];
     private IReadOnlyList<string> _printerDisplayNames = [];
     private int _selectedPrinterIndex = -1;
+    private bool _refreshingPrinters;
 
     public IReadOnlyList<string> PrinterDisplayNames => _printerDisplayNames;
 
@@ -45,7 +46,7 @@ public partial class MainViewModel : ViewModelBase
         get => _selectedPrinterIndex;
         set
         {
-            if (value == _selectedPrinterIndex || value < 0 || value >= _printerOptions.Count) return;
+            if (_refreshingPrinters || value == _selectedPrinterIndex || value < 0 || value >= _printerOptions.Count) return;
             _selectedPrinterIndex = value;
             Document.Printer = _printerOptions[value];
             OnPropertyChanged();
@@ -1017,9 +1018,16 @@ public partial class MainViewModel : ViewModelBase
         _printerDisplayNames = options.Select(printer =>
             printer.Name + (AppConfig.Current.FindPrinter(printer.Id) is null ? " (project)" : "")).ToArray();
         _selectedPrinterIndex = index;
-        OnPropertyChanged(nameof(PrinterDisplayNames));
-        OnPropertyChanged(nameof(SelectedPrinterIndex));
-        OnPropertyChanged(nameof(SelectedPrinterName));
+        // Replacing ComboBox items can synchronously write its transient selection back.
+        // Keep the project's selected machine while the list and selection synchronize.
+        _refreshingPrinters = true;
+        try
+        {
+            OnPropertyChanged(nameof(PrinterDisplayNames));
+            OnPropertyChanged(nameof(SelectedPrinterIndex));
+            OnPropertyChanged(nameof(SelectedPrinterName));
+        }
+        finally { _refreshingPrinters = false; }
         if (notifyDocument && Document.Printer != current) Document.NotifyTransientChange();
     }
 

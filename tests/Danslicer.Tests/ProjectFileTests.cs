@@ -232,6 +232,24 @@ public sealed class ProjectFileTests
     }
 
     [Fact]
+    public void RefreshingPrinterItemsIgnoresTransientSelectionWriteback()
+    {
+        var vm = new Danslicer.App.ViewModels.MainViewModel();
+        var embedded = PrinterDefinition.PhotonMonoX.CreateUserCopy("Embedded fixture") with { ResolutionX = 480 };
+        vm.Document.Printer = embedded;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.PrinterDisplayNames)) vm.SelectedPrinterIndex = 0;
+        };
+        vm.RefreshPrinterOptions();
+        Assert.Equal(embedded, vm.Document.Printer);
+        Assert.Equal(vm.PrinterDisplayNames.Count - 1, vm.SelectedPrinterIndex);
+        // A subsequent deliberate user selection still works.
+        vm.SelectedPrinterIndex = 0;
+        Assert.NotEqual(embedded.Id, vm.Document.Printer.Id);
+    }
+
+    [Fact]
     public void GeneratedSupportsSliceToIdenticalRleAfterSaveLoad()
     {
         using var file = new TemporaryProject();

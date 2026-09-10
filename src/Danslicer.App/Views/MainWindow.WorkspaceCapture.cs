@@ -224,9 +224,14 @@ public partial class MainWindow
         vm.SaveProject(path, CaptureProjectViewState()); RememberProject();
         Require(_recentProjects.Contains(path), "Saved project missing from recents");
         OpenRecentProject(path); Require(vm.ProjectPath == path, "Recent project open failed");
+        Click(ProjectDropdown);
+        Require(ProjectDropdown.ContextMenu!.Items.OfType<MenuItem>().First().Header?.ToString() == "Open another project…",
+            "Project menu text is malformed");
+        ProjectDropdown.ContextMenu.Close();
         OpenRecentProject(path + ".missing"); Require(vm.ViewportStatus.StartsWith("Open failed:"), "Missing recent project must report failure");
         await CheckSettingsIntegration(directory);
         await CheckLiveNumericPreviews(directory);
+        await CheckPrintWorkflow(directory);
         File.Delete(path);
         File.Delete(meshPath);
     }

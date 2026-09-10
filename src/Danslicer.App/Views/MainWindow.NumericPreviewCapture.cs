@@ -109,8 +109,11 @@ public partial class MainWindow
         var history = 0; void History() => history++;
         vm.Document.History.Changed += History;
         var raftDrag = Start(raft, this);
-        await Task.Delay(220);
-        Require(obj.Raft != oldRaft && AppConfig.SaveCount == raftSaves && history == 0, "Raft must preview geometry before release without saves/undo");
+        // Background dispatcher work can run later than wall-clock delays under native GL load.
+        // Keep the production 100ms coalescing interval; await its observable result, bounded.
+        for (var attempt = 0; attempt < 40 && obj.Raft == oldRaft; attempt++) await Task.Delay(50);
+        Require(obj.Raft != oldRaft && AppConfig.SaveCount == raftSaves && history == 0,
+            $"Raft must preview geometry before release without saves/undo: original={oldRaft}; current={obj.Raft}; field={raft.Value}; saves={AppConfig.SaveCount - raftSaves}; history={history}; capture={pointer.Captured}");
         var finalRaft = obj.Raft;
         Release(raftDrag, this);
         Require(obj.Raft == finalRaft && AppConfig.SaveCount == raftSaves + 1 && history == 1, "Raft release must commit once from original");
@@ -119,7 +122,8 @@ public partial class MainWindow
         var committedRaft = obj.Raft;
         Start(raft, this, 0.25); Key(raft, Avalonia.Input.Key.Escape); await Task.Delay(220);
         Require(obj.Raft == committedRaft, "Cancelled queued raft preview ran later");
-        raftDrag = Start(raft, this, 0.25); await Task.Delay(220);
+        raftDrag = Start(raft, this, 0.25);
+        for (var attempt = 0; attempt < 40 && obj.Raft == committedRaft; attempt++) await Task.Delay(50);
         Require(obj.Raft != committedRaft, "Raft capture-loss fixture did not preview");
         pointer.Capture(null); await Task.Delay(150);
         Require(obj.Raft == committedRaft, "Raft capture loss did not restore geometry");
