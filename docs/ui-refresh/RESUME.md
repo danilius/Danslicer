@@ -27,3 +27,8 @@ Limits: render-density captures (100/150/200) are not physical monitor DPI check
 ## Next action / task 03 handoff
 User reviews task 02 directly. Do not create the next task or start later work here. After approval, task 03 should start from the exact final committed HEAD in a separate worktree. Read START, SPEC, TASKS, task-01 and task-02.
 Task 03 owns durable toolbar mode, popout width/section order/expansion and recent-project persistence, plus the approved filled numeric slider/scrub controls wired to real parameter metadata and exactly one existing undo path. Current session state is preserved across popout toggles, but intentionally not across restarts. Existing ExpressionBox/NumericUpDown production editors remain until task 03. Review narrow content, focus and DPI during that integration. Existing layer navigation sliders are unchanged; they are not replacement numeric setting controls. Task 04 alone owns renderer/plate/AO/cavity work.
+
+## Latest user refinement — in progress
+Authorized Support-only persistent right isolation rail, no toolbar button; handle-following editable layer/mm hover card; two-state Cap interior checkbox, default on. Supersedes earlier isolation-popout text above. Worktree/branch unchanged; last good commit 1fb53e442bbcc888a73c14ffb3beec42a38d2365. See task-02.md. Next: implement and validate.
+
+Isolation iteration: implementation and first native check pass; 87 focused tests pass. Last good committed ref remains 1fb53e4 until refinement commit. Final drag-release/checkbox polish and verification underway; see task-02.md.

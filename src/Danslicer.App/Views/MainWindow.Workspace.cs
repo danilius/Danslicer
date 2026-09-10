@@ -21,8 +21,7 @@ public partial class MainWindow
     private readonly FloatingToolbar _workspaceToolbar = new() { ShowLabels = false, Margin = new Thickness(12) };
     private readonly List<WorkspacePopout> _workspacePopouts = [];
     private readonly List<string> _recentProjects = [];
-    private WorkspacePopout _inspectionPopout = null!;
-    private Button _printTool = null!, _layoutTool = null!, _inspectionTool = null!;
+    private Button _printTool = null!, _layoutTool = null!;
 
     private void InitializeWorkspace()
     {
@@ -47,12 +46,7 @@ public partial class MainWindow
         }
         _layoutTool = AddWorkspaceTool("Layout options", "move", LayoutPopout);
         _printTool = AddWorkspaceTool("Print settings", "print", PrintPopout);
-        ViewportSurface.Children.Remove(InspectionContent);
-        InspectionContent.ClearValue(IsVisibleProperty);
-        InspectionContent.MinHeight = 300;
-        _inspectionPopout = new WorkspacePopout { Title = "Layer isolation", Content = InspectionContent };
-        ViewportSurface.Children.Add(_inspectionPopout);
-        _inspectionTool = AddWorkspaceTool("Layer isolation", "layers", _inspectionPopout);
+        InitializeIsolationEditor();
         var labels = new Button();
         _workspaceToolbar.AddExistingTool(labels, "Toolbar labels", "labels");
         labels.Click += (_, _) => { _workspaceToolbar.ShowLabels = !_workspaceToolbar.ShowLabels; PositionWorkspacePopouts(); };
@@ -125,15 +119,14 @@ public partial class MainWindow
         if (_printTool is null) return;
         _printTool.IsVisible = ViewModel?.IsLayersView == true;
         _layoutTool.IsVisible = ViewModel?.IsLayoutView == true;
-        _inspectionTool.IsVisible = ViewModel?.IsSupportView == true;
         ViewSettingsButton.IsVisible = ViewModel?.IsModelView == true;
         CloseExtraPopouts();
         if (ViewModel?.IsModelView != true) ViewSettingsPopup.IsOpen = false;
+        PositionWorkspacePopouts();
     }
     private void CloseExtraPopouts()
     {
         PrintPopout.IsOpen = false; LayoutPopout.IsOpen = false;
-        if (_inspectionPopout is not null) _inspectionPopout.IsOpen = false;
     }
     private void CloseWorkspacePopout(WorkspacePopout popup)
     {
@@ -157,7 +150,8 @@ public partial class MainWindow
         foreach (var popup in _workspacePopouts)
         {
             var x = _workspaceToolbar.Bounds.Right + 8;
-            var available = Math.Max(120, bounds.Width - x - 12);
+            var reservedRight = ViewModel?.IsSupportView == true ? InspectionContent.Width + 24 : 12;
+            var available = Math.Max(120, bounds.Width - x - reservedRight);
             popup.Shell.MinWidth = Math.Min(240, available);
             popup.Shell.MaxWidth = available;
             var point = popup.PlacementTarget?.TranslatePoint(default, ViewportSurface);

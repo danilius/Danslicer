@@ -31,14 +31,14 @@ public partial class MainWindow
                 await Task.Delay(600);
                 await CheckWorkspace(directory);
                 File.WriteAllText(System.IO.Path.Combine(directory, "workspace-ok.txt"),
-                    "Real MainWindow/VM: STL import, selected object transform expression/undo, duplicate/undo, toolbar labels, mode scoping, all 13 popouts, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, session project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
+                    "Real MainWindow/VM: STL import, selected object transform expression/undo, duplicate/undo, toolbar labels, mode scoping, all 12 popouts and persistent Support isolation rail, handle-hover layer/mm editing, pointer drag commit/cancel and delayed dismissal, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, session project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
             }
             catch (Exception ex)
             {
                 Environment.ExitCode = 1;
                 File.WriteAllText(System.IO.Path.Combine(directory, "workspace-error.txt"), ex.ToString());
             }
-            finally { Close(); }
+            finally { if (Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime lifetime) lifetime.Shutdown(Environment.ExitCode); else Close(); }
         };
     }
     private async Task CheckWorkspace(string directory)
@@ -78,7 +78,7 @@ public partial class MainWindow
         vm.ViewMode = WorkspaceMode.Layout;
         await Layout();
         Require(WorkspaceGrid.ColumnDefinitions.Count <= 1, "Permanent settings columns remain");
-        Require(_workspacePopouts.Count == 13, "Settings host missing");
+        Require(_workspacePopouts.Count == 12, "Settings host missing");
         Click(ObjectsToolButton); await Layout();
         Require(ObjectsToolPopup.IsOpen, "Objects tool failed");
         Require(ReferenceEquals(ObjectsPopupContent.DataContext, vm), "Rehost lost VM binding");
@@ -110,8 +110,9 @@ public partial class MainWindow
         Require(!LayoutPopout.IsOpen, "Escape from viewport must dismiss popout");
         vm.Document.Select(vm.Objects[0]);
         vm.ViewMode = WorkspaceMode.Support; await Layout();
+        await CheckIsolationEditor(directory);
         Require(!TransformToolButton.IsVisible && SupportsToolButton.IsVisible && !_printTool.IsVisible, "Support tool scoping failed");
-        foreach (var popup in new[] { ObjectsToolPopup, SupportsToolPopup, StructureToolPopup, GuidedToolPopup, RegionToolPopup, VisibilityToolPopup, RaftsToolPopup, ViewSettingsPopup, _inspectionPopout })
+        foreach (var popup in new[] { ObjectsToolPopup, SupportsToolPopup, StructureToolPopup, GuidedToolPopup, RegionToolPopup, VisibilityToolPopup, RaftsToolPopup, ViewSettingsPopup })
         {
             Click((Button)popup.PlacementTarget!); await Layout();
             Require(popup.IsOpen && popup.Shell.Bounds.Height > 28, $"Cannot open {popup.Title}");

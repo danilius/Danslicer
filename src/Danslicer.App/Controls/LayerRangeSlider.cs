@@ -31,6 +31,32 @@ public sealed class LayerRangeSlider : Control
     private static readonly Pen ThumbPen = new(new SolidColorBrush(Color.Parse("#25282C")), 1);
     private const double ThumbRadius = 7;
     private LayerRangeSliderThumb _dragging;
+    private double _originalLower, _originalUpper;
+    private IPointer? _pointer;
+    internal LayerRangeSliderThumb ActiveThumb { get; private set; } = LayerRangeSliderThumb.Upper;
+    internal event Action<LayerRangeSliderThumb>? ThumbActivity;
+    internal event Action? EditRequested;
+    public static readonly StyledProperty<double> StepProperty =
+        AvaloniaProperty.Register<LayerRangeSlider, double>(nameof(Step), 0.05);
+    public double Step { get => GetValue(StepProperty); set => SetValue(StepProperty, value); }
+
+    internal Point ThumbCenter(LayerRangeSliderThumb thumb)
+    {
+        var vertical = Orientation == Orientation.Vertical;
+        var length = vertical ? Bounds.Height : Bounds.Width;
+        var value = thumb == LayerRangeSliderThumb.Lower ? LowerValue : UpperValue;
+        var axis = LayerRangeSliderGeometry.ValueToAxis(value, Minimum, Maximum,
+            ThumbRadius, Math.Max(ThumbRadius, length - ThumbRadius), vertical);
+        return vertical ? new Point(Bounds.Width / 2, axis) : new Point(axis, Bounds.Height / 2);
+    }
+
+    private static double Distance(Point a, Point b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+
+    private void Activate(LayerRangeSliderThumb thumb)
+    {
+        if (thumb != LayerRangeSliderThumb.None) ActiveThumb = thumb;
+        ThumbActivity?.Invoke(thumb);
+    }
 
     static LayerRangeSlider() => AffectsRender<LayerRangeSlider>(
         MinimumProperty, MaximumProperty, LowerValueProperty, UpperValueProperty,
@@ -41,6 +67,7 @@ public sealed class LayerRangeSlider : Control
         MinHeight = 24;
         MinWidth = 24;
         Focusable = true;
+        LostFocus += (_, _) => { if (!IsDragging) Activate(LayerRangeSliderThumb.None); };
     }
 
     public double Minimum { get => GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
@@ -99,6 +126,9 @@ public sealed class LayerRangeSlider : Control
             UpperValue, Minimum, Maximum, start, end, descending: vertical);
         _dragging = Math.Abs(axisPosition - lowerPosition) <= Math.Abs(axisPosition - upperPosition)
             ? LayerRangeSliderThumb.Lower : LayerRangeSliderThumb.Upper;
+        _originalLower = LowerValue; _originalUpper = UpperValue;
+        _pointer = e.Pointer;
+        Activate(_dragging);
         SetCurrentValue(IsDraggingProperty, true);
         SetFromPoint(point);
         e.Pointer.Capture(this);
@@ -108,8 +138,13 @@ public sealed class LayerRangeSlider : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_dragging == LayerRangeSliderThumb.None) return;
+        if (_dragging == LayerRangeSliderThumb.None)
+        {
+            UpdateHover(e.GetPosition(this));
+            return;
+        }
         SetFromPoint(e.GetPosition(this));
+        Activate(_dragging);
         e.Handled = true;
     }
 
@@ -117,9 +152,71 @@ public sealed class LayerRangeSlider : Control
     {
         base.OnPointerReleased(e);
         if (_dragging == LayerRangeSliderThumb.None) return;
+        EndDrag();
+        UpdateHover(e.GetPosition(this));
+        e.Handled = true;
+    }
+
+    private void UpdateHover(Point point)
+    {
+        var lower = Distance(point, ThumbCenter(LayerRangeSliderThumb.Lower));
+        var upper = Distance(point, ThumbCenter(LayerRangeSliderThumb.Upper));
+        var thumb = Math.Min(lower, upper) > 13 ? LayerRangeSliderThumb.None
+            : Math.Abs(lower - upper) < 0.1 ? ActiveThumb
+            : lower < upper ? LayerRangeSliderThumb.Lower : LayerRangeSliderThumb.Upper;
+        Activate(thumb);
+    }
+
+    private void EndDrag()
+    {
         _dragging = LayerRangeSliderThumb.None;
         SetCurrentValue(IsDraggingProperty, false);
-        e.Pointer.Capture(null);
+        var pointer = _pointer; _pointer = null; pointer?.Capture(null);
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        EndDrag(); Activate(LayerRangeSliderThumb.None);
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        if (!IsDragging) Activate(LayerRangeSliderThumb.None);
+    }
+
+    protected override void OnGotFocus(FocusChangedEventArgs e)
+    {
+        base.OnGotFocus(e);
+        Activate(ActiveThumb);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key == Key.Escape && IsDragging)
+        {
+            // Restore upper first when needed so the two-way model's range clamp cannot
+            // discard the original lower endpoint.
+            SetCurrentValue(UpperValueProperty, Math.Max(_originalUpper, LowerValue));
+            SetCurrentValue(LowerValueProperty, _originalLower);
+            SetCurrentValue(UpperValueProperty, _originalUpper);
+            EndDrag(); e.Handled = true; return;
+        }
+        if (e.Key is Key.Left or Key.Right)
+            Activate(e.Key == Key.Left ? LayerRangeSliderThumb.Lower : LayerRangeSliderThumb.Upper);
+        else if (e.Key is Key.Up or Key.Down)
+        {
+            var step = double.IsFinite(Step) && Step > 0 ? Step : 0.05;
+            var delta = (e.Key == Key.Up ? step : -step) * (e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? 0.1 : 1);
+            if (ActiveThumb == LayerRangeSliderThumb.Lower)
+                SetCurrentValue(LowerValueProperty, Math.Clamp(LowerValue + delta, Minimum, UpperValue));
+            else SetCurrentValue(UpperValueProperty, Math.Clamp(UpperValue + delta, LowerValue, Maximum));
+            Activate(ActiveThumb);
+        }
+        else if (e.Key == Key.Enter) { Activate(ActiveThumb); EditRequested?.Invoke(); }
+        else return;
         e.Handled = true;
     }
 

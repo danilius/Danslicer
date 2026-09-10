@@ -324,19 +324,13 @@
 
                 <!-- Support inspection lives on the viewport edge so Support mode can use the
                      full workspace width. Higher Z is at the top, matching the model axis. -->
-                <Border x:Name="InspectionContent" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="116"
-                        Margin="0,164,12,12" Padding="7,8" Background="#D923262A"
+                <Border x:Name="InspectionContent" ZIndex="25" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="116"
+                        Margin="0,116,12,12" Padding="7,8" Background="#D923262A"
                         BorderBrush="#7A858F" BorderThickness="1" CornerRadius="3"
                         IsVisible="{Binding IsSupportView}"
                         ToolTip.Tip="Viewport layer isolation only — slicing and support generation are unaffected">
-                    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto">
-                        <StackPanel>
-                            <TextBlock Text="Top layer" Classes="label" HorizontalAlignment="Center" />
-                            <controls:ExpressionBox Width="60"
-                                Text="{Binding SupportClip.UpperField.Text, Mode=TwoWay}"
-                                ToolTip.Tip="Highest visible layer number (expressions accepted)" />
-                        </StackPanel>
-                        <controls:LayerRangeSlider Grid.Row="1" Orientation="Vertical"
+                    <Grid RowDefinitions="*,Auto,Auto">
+                        <controls:LayerRangeSlider x:Name="IsolationSlider" Orientation="Vertical"
                                                    HorizontalAlignment="Stretch"
                                                    Margin="0,6"
                                                    Minimum="{Binding SupportClip.MinimumZ}"
@@ -344,17 +338,12 @@
                                                    LowerValue="{Binding SupportClip.LowerZ, Mode=TwoWay}"
                                                    UpperValue="{Binding SupportClip.UpperZ, Mode=TwoWay}"
                                                    IsDragging="{Binding SupportClip.IsDragging, Mode=TwoWay}"
-                                                   ToolTip.Tip="Drag either end to clip the Support viewport from below or above" />
-                        <StackPanel Grid.Row="2">
-                            <TextBlock Text="Bottom layer" Classes="label" HorizontalAlignment="Center" />
-                            <controls:ExpressionBox Width="60"
-                                Text="{Binding SupportClip.LowerField.Text, Mode=TwoWay}"
-                                ToolTip.Tip="Lowest visible layer number (expressions accepted); layer 1 is the first layer above the plate" />
-                        </StackPanel>
-                        <Button Grid.Row="3" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
+                                                   Step="{Binding SupportClip.LayerHeightMm}"
+                                                   ToolTip.Tip="Hover a handle to edit layer or mm height. Left/Right selects lower/upper; Up/Down adjusts; Enter edits." />
+                        <Button Grid.Row="1" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
                                 Margin="0,7,0,0" Padding="6,2"
                                 ToolTip.Tip="Show the full model height" />
-                        <CheckBox Grid.Row="4" Content="Cap interior" IsChecked="{Binding CapInterior}"
+                        <CheckBox x:Name="IsolationCapCheckBox" Grid.Row="2" Content="Cap interior" IsThreeState="False" FontSize="12" MinHeight="24" IsChecked="{Binding CapInterior, Mode=TwoWay}"
                                   Margin="0,7,0,0"
                                   ToolTip.Tip="Close clipped model and support interiors with viewport-only faces" />
                     </Grid>
@@ -947,6 +936,7 @@
                     </StackPanel>
 
                 </refresh:WorkspacePopout>
+                <Canvas x:Name="IsolationEditorLayer" IsVisible="{Binding IsSupportView}" ZIndex="30" />
             </Grid>
         </DockPanel>
         </Grid>

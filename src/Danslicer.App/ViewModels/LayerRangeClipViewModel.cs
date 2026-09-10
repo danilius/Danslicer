@@ -1,4 +1,4 @@
-﻿using System.Windows.Input;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Danslicer.Core;
@@ -27,6 +27,8 @@ public sealed class LayerRangeClipViewModel : ObservableObject
             value => LowerZ = ZOfLayer(value, _layerHeightMm), suffix: "");
         UpperField = new NumericField("Upper", UnitKind.Scalar, "0",
             value => UpperZ = ZOfLayer(value, _layerHeightMm), suffix: "");
+        LowerMmField = new NumericField("Height", UnitKind.Length, "0.###", value => LowerZ = value, suffix: "mm");
+        UpperMmField = new NumericField("Height", UnitKind.Length, "0.###", value => UpperZ = value, suffix: "mm");
         ResetCommand = new RelayCommand(Reset);
         RefreshFields();
     }
@@ -43,6 +45,7 @@ public sealed class LayerRangeClipViewModel : ObservableObject
             if (!double.IsFinite(value) || value <= 0 ||
                 Math.Abs(_layerHeightMm - value) <= Epsilon) return;
             _layerHeightMm = value;
+            OnPropertyChanged(); // Keeps the slider keyboard step aligned with print layer thickness.
             RefreshFields();
             OnPropertyChanged(nameof(LowerLayer));
             OnPropertyChanged(nameof(UpperLayer));
@@ -105,6 +108,8 @@ public sealed class LayerRangeClipViewModel : ObservableObject
 
     public NumericField LowerField { get; }
     public NumericField UpperField { get; }
+    public NumericField LowerMmField { get; }
+    public NumericField UpperMmField { get; }
     public ICommand ResetCommand { get; }
 
     public ViewportClipRange Range => new((float)_minimumZ, (float)_maximumZ,
@@ -184,6 +189,8 @@ public sealed class LayerRangeClipViewModel : ObservableObject
 
     private void RefreshFields()
     {
+        LowerMmField.SetValue(_lowerZ);
+        UpperMmField.SetValue(_upperZ);
         LowerField.SetValue(LayerAt(_lowerZ, _layerHeightMm));
         UpperField.SetValue(LayerAt(_upperZ, _layerHeightMm));
     }
