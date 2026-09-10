@@ -52,6 +52,7 @@ public partial class MainWindow : Window
         AttachPanelLayoutViewModel();
         RefreshWindowKeymap();
         SyncRenderPathMenu();
+        InitializeNumericPreviews();
         Viewport.PropertyChanged += (_, e) =>
         {
             if (e.Property == ViewportControl.StatusTextProperty && DataContext is MainViewModel vm)
@@ -120,6 +121,11 @@ public partial class MainWindow : Window
 
     private void OnPanelLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(MainViewModel.ViewMode) or nameof(MainViewModel.SelectedObject))
+        {
+            ScrubField.CancelActive();
+            IsolationSlider.CancelDrag();
+        }
         if (e.PropertyName == nameof(MainViewModel.Title))
         {
             RememberProject();
@@ -623,7 +629,8 @@ public partial class MainWindow : Window
         _configWindow = new ConfigWindow(config);
         config.Saved += OnPreferencesSaved;
         config.ViewportSaved += OnPreferencesSaved;
-        _configWindow.Closed += (_, _) => { config.Saved -= OnPreferencesSaved; config.ViewportSaved -= OnPreferencesSaved; };
+        config.ViewportPreviewed += OnPreferencesSaved;
+        _configWindow.Closed += (_, _) => { config.Saved -= OnPreferencesSaved; config.ViewportSaved -= OnPreferencesSaved; config.ViewportPreviewed -= OnPreferencesSaved; };
         _configWindow.Closed += (_, _) => _configWindow = null;
         _configWindow.Show(this);
     }
@@ -719,6 +726,7 @@ public partial class MainWindow : Window
 
     private void OnShadowStrengthCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
     {
+        if (sender is ScrubField { CommittedPreview: true }) return;
         if (_syncingViewSettings) return;
         var viewport = AppConfig.Current.Viewport;
         if (viewport.ModelShadows == ModelShadowMode.Presentation) viewport.PresentationShadowStrength = (float)e.NewValue;
@@ -728,6 +736,7 @@ public partial class MainWindow : Window
 
     private void OnShadowSoftnessCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
     {
+        if (sender is ScrubField { CommittedPreview: true }) return;
         if (_syncingViewSettings) return;
         var viewport = AppConfig.Current.Viewport;
         if (viewport.ModelShadows == ModelShadowMode.Presentation) viewport.PresentationShadowSoftnessMm = (float)e.NewValue;
@@ -780,12 +789,14 @@ public partial class MainWindow : Window
 
     private void OnAoStrengthCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
     {
+        if (sender is ScrubField { CommittedPreview: true }) return;
         AppConfig.Current.Viewport.AmbientOcclusionStrength = (float)e.NewValue;
         ApplyRenderPathChange();
     }
 
     private void OnAoRadiusCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
     {
+        if (sender is ScrubField { CommittedPreview: true }) return;
         AppConfig.Current.Viewport.AmbientOcclusionRadiusMm = (float)e.NewValue;
         ApplyRenderPathChange();
     }

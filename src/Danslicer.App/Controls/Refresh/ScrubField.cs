@@ -8,11 +8,12 @@ using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Danslicer.Core.Utilities;
 using System.Globalization;
+using Danslicer.App.ViewModels;
 
 namespace Danslicer.App.Controls.Refresh;
 
 /// <summary>Rectangular numeric field. Click/Enter types expressions, drag scrubs, Shift is fine,
-/// Escape cancels. Value changes only at commit; EditCommitted is one undo boundary.</summary>
+/// Escape cancels. Explicit host transactions preview the scene without saving or undo.</summary>
 public class ScrubField : UserControl
 {
     public static readonly StyledProperty<double> ValueProperty = AvaloniaProperty.Register<ScrubField, double>(nameof(Value), defaultBindingMode: BindingMode.TwoWay);
@@ -32,6 +33,14 @@ public class ScrubField : UserControl
     public UnitKind UnitKind { get; set; } = UnitKind.Length;
     public string Format { get; set; } = "0.00";
     public bool IsInteger { get; set; }
+    public string? PreviewProperty { get; set; }
+    public Func<NumericPreview?>? BeginPreview { get; set; }
+    protected bool UpdatingPreview { get; private set; }
+    public bool CommittedPreview { get; private set; }
+    private NumericPreview? _preview;
+    private double _original;
+    private static ScrubField? _active;
+    public static void CancelActive() => _active?.Cancel();
     public event EventHandler<NumericCommittedEventArgs>? EditCommitted;
     private readonly Border _surface;
     private readonly Border _fill;
@@ -85,11 +94,18 @@ public class ScrubField : UserControl
             AutomationProperties.SetName(this, label);
     }
 
+    protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e)
+    {
+        Cancel();
+        base.OnDetachedFromLogicalTree(e);
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
         if (_surface is null) return;
-        if (change.Property == ValueProperty || change.Property == IsLockedProperty || change.Property == IsEnabledProperty) Cancel();
+        if (!UpdatingPreview && (change.Property == ValueProperty || change.Property == IsLockedProperty || change.Property == IsEnabledProperty
+            || change.Property == DataContextProperty || change.Property == IsVisibleProperty)) Cancel();
         Refresh();
     }
 
@@ -108,6 +124,10 @@ public class ScrubField : UserControl
     {
         if (_editing || IsLocked || !e.GetCurrentPoint(_surface).Properties.IsLeftButtonPressed) return;
         Focus();
+        CancelActive();
+        Cancel();
+        _active = this;
+        _original = Value;
         _session = new NumericEditSession(Value, e.GetPosition(_surface).X - 1);
         _capturedPointer = e.Pointer;
         e.Pointer.Capture(_surface); e.Handled = true;
@@ -120,15 +140,28 @@ public class ScrubField : UserControl
             _session.MoveSlider(x, Math.Max(1, _surface.Bounds.Width - 2), e.KeyModifiers.HasFlag(KeyModifiers.Shift), Minimum, Maximum);
         else
             _session.Move(x, Step, e.KeyModifiers.HasFlag(KeyModifiers.Shift), Minimum, Maximum);
+        if (_session.IsDragging)
+        {
+            UpdatingPreview = true;
+            try
+            {
+                var config = DataContext as ConfigViewModel ?? (DataContext as MainViewModel)?.SupportSettings;
+                _preview ??= BeginPreview?.Invoke() ?? (PreviewProperty is { } property && config is not null
+                    ? config.BeginNumericPreview(property) : null);
+                _preview?.Update(Math.Clamp(NumericEditSession.RoundValue(_session.Preview, IsInteger), Minimum, Maximum));
+            }
+            finally { UpdatingPreview = false; }
+        }
         Refresh();
     }
     private void Released(object? sender, PointerReleasedEventArgs e)
     {
         if (_session is null) return;
         var session = _session; _session = null;
+        if (_active == this) _active = null;
         _capturedPointer = null;
         e.Pointer.Capture(null);
-        if (session.IsDragging) Commit(session.Preview); else BeginText();
+        if (session.IsDragging) Commit(session.Preview, _original); else BeginText();
         e.Handled = true;
     }
     private void BeginText()
@@ -148,19 +181,32 @@ public class ScrubField : UserControl
         _editing = false; _editor.IsVisible = false; _editor.ClearValue(TextBox.BorderBrushProperty);
         Commit(value); return true;
     }
-    private void Commit(double value)
+    private void Commit(double value, double? original = null)
     {
         value = Math.Clamp(NumericEditSession.RoundValue(value, IsInteger), Minimum, Maximum);
-        var old = Value;
+        var old = original ?? Value;
         // Float-backed settings may echo e.g. 0.600000024; an unchanged visible value
         // must not generate another save/undo entry just because of representation noise.
-        if (NumericEditSession.RoundValue(old, IsInteger) == value) { Refresh(); return; }
-        SetCurrentValue(ValueProperty, value); Refresh();
-        if (old != value) EditCommitted?.Invoke(this, new NumericCommittedEventArgs(old, value));
+        if (NumericEditSession.RoundValue(old, IsInteger) == value) { Cancel(); return; }
+        var preview = _preview; _preview = null;
+        UpdatingPreview = true;
+        CommittedPreview = preview is not null;
+        try
+        {
+            preview?.Commit(value);
+            if (NumericEditSession.RoundValue(Value, IsInteger) != value) SetCurrentValue(ValueProperty, value);
+            if (old != value) EditCommitted?.Invoke(this, new NumericCommittedEventArgs(old, value));
+        }
+        finally { UpdatingPreview = false; CommittedPreview = false; Refresh(); }
     }
     protected void Cancel()
     {
+        if (_active == this) _active = null;
         _session = null; _editing = false; _editor.IsVisible = false;
+        var preview = _preview; _preview = null;
+        UpdatingPreview = true;
+        try { preview?.Cancel(); }
+        finally { UpdatingPreview = false; }
         var pointer = _capturedPointer; _capturedPointer = null;
         pointer?.Capture(null);
         _editor.ClearValue(TextBox.BorderBrushProperty);

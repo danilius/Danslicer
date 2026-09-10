@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.Input;
 using Danslicer.App.Configuration;
 using Danslicer.Core;
@@ -21,6 +21,8 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private readonly UserConfig _config;
     private readonly Action _saveConfig;
+    private bool _previewing;
+    private bool _serializingPreview;
     private readonly SupportConfig? _supportOverride;
     private readonly bool _persistChanges;
     private readonly Action? _supportChanged;
@@ -64,7 +66,7 @@ public sealed class ConfigViewModel : ViewModelBase
         Action? supportChanged, Document? document)
     {
         _config = config;
-        _saveConfig = saveConfig;
+        _saveConfig = () => PreviewPersistence.Save(saveConfig);
         _supportOverride = supportOverride;
         _persistChanges = persistChanges;
         _supportChanged = supportChanged;
@@ -189,6 +191,11 @@ public sealed class ConfigViewModel : ViewModelBase
         [CallerMemberName] string? property = null)
     {
         apply();
+        if (_previewing)
+        {
+            if (!_serializingPreview) OnPropertyChanged(property);
+            return; // Future-operation settings: never mutate generated supports during a drag.
+        }
         if (_persistChanges)
         {
             if (saveGridToPreset) _config.SaveActiveSupportPresetGrid();
@@ -338,9 +345,45 @@ public sealed class ConfigViewModel : ViewModelBase
     private void UpdateViewport(Action apply, [CallerMemberName] string? property = null)
     {
         apply();
+        if (_serializingPreview) return;
+        if (_previewing)
+        {
+            OnPropertyChanged(property);
+            ViewportPreviewed?.Invoke();
+            return;
+        }
         if (_persistChanges) _saveConfig();
         OnPropertyChanged(property);
         ViewportSaved?.Invoke();
+    }
+
+    public event Action? ViewportPreviewed;
+
+    /// <summary>Explicit numeric property selected by the host; existing setter validation is
+    /// retained, but preview bypasses persistence and support-application events.</summary>
+    public NumericPreview BeginNumericPreview(string property)
+    {
+        var member = GetType().GetProperty(property) ?? throw new ArgumentException(property);
+        if (member.PropertyType != typeof(float) && member.PropertyType != typeof(double) && member.PropertyType != typeof(int))
+            throw new ArgumentException("Preview requires a numeric property", nameof(property));
+        var original = member.GetValue(this)!;
+        var latest = original;
+        void Set(object value, bool silent = false)
+        {
+            _previewing = true; _serializingPreview = silent;
+            try { member.SetValue(this, value); }
+            finally { _previewing = false; _serializingPreview = false; }
+        }
+        var unregister = PreviewPersistence.Register(() => Set(original, true), () => Set(latest, true));
+        return new NumericPreview(value =>
+        {
+            latest = Convert.ChangeType(value, member.PropertyType);
+            Set(latest);
+        }, () => { unregister(); Set(original); }, value =>
+        {
+            var final = Convert.ChangeType(value, member.PropertyType);
+            if (!final.Equals(original)) member.SetValue(this, final);
+        });
     }
 
     public IReadOnlyList<string> ModelShadowModes { get; } = new[] { "Off", "Working", "Presentation" };
@@ -366,7 +409,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public float OverhangAngleDegrees
     {
         get => Viewport.OverhangAngleDegrees;
-        set => Update(() => Viewport.OverhangAngleDegrees = Math.Clamp(value, 10f, 89f));
+        set => UpdateViewport(() => Viewport.OverhangAngleDegrees = Math.Clamp(value, 10f, 89f));
     }
 
     public float AmbientOcclusionStrength
@@ -402,25 +445,25 @@ public sealed class ConfigViewModel : ViewModelBase
     public int SupportGizmoSizePixels
     {
         get => Viewport.SupportGizmoSizePixels;
-        set => Update(() => Viewport.SupportGizmoSizePixels = Math.Clamp(value, 24, 400));
+        set => UpdateViewport(() => Viewport.SupportGizmoSizePixels = Math.Clamp(value, 24, 400));
     }
 
     public float SupportGizmoLineWidth
     {
         get => Viewport.SupportGizmoLineWidth;
-        set => Update(() => Viewport.SupportGizmoLineWidth = Math.Clamp(value, 1f, 12f));
+        set => UpdateViewport(() => Viewport.SupportGizmoLineWidth = Math.Clamp(value, 1f, 12f));
     }
 
     public Avalonia.Media.Color OverhangColorA
     {
         get => ToColor(Viewport.OverhangColorA, Avalonia.Media.Color.FromRgb(0xFA, 0xCC, 0x26));
-        set => Update(() => Viewport.OverhangColorA = ToHex(value));
+        set => UpdateViewport(() => Viewport.OverhangColorA = ToHex(value));
     }
 
     public Avalonia.Media.Color OverhangColorB
     {
         get => ToColor(Viewport.OverhangColorB, Avalonia.Media.Color.FromRgb(0xE6, 0x1F, 0x1A));
-        set => Update(() => Viewport.OverhangColorB = ToHex(value));
+        set => UpdateViewport(() => Viewport.OverhangColorB = ToHex(value));
     }
 
     private static Avalonia.Media.Color ToColor(string? hex, Avalonia.Media.Color fallback)
@@ -434,7 +477,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public float OverhangCheckerSizeMm
     {
         get => Viewport.OverhangCheckerSizeMm;
-        set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
+        set => UpdateViewport(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
     }
 
     // External tools

@@ -186,6 +186,7 @@ internal sealed class RendererCaptureWindow : Window
                         if (capped[row * width * 4 + x] != uncapped[row * width * 4 + x])
                             throw new InvalidOperationException("Painted upper cap leaked into the lower half of the contact fixture.");
                 report.Add($"Cap isolation leak regression passed. Real fixture: 15 supports; dense fixture: 600 supports / {denseSupports.Sum(d => d.Mesh.TriangleCount)} aux triangles.");
+                VerifyNumericPreviews(gl, fb, width, height, doc, realSupports, report);
                 File.WriteAllLines(Path.Combine(directory, "result.txt"), report);
                 void Compare(string path, string first, string second, bool same)
                 {
@@ -202,6 +203,70 @@ internal sealed class RendererCaptureWindow : Window
                 Finish(0);
             }
             catch (Exception ex) { File.WriteAllText(Path.Combine(directory, "error.txt"), ex.ToString()); Finish(1); }
+        }
+
+        private unsafe void VerifyNumericPreviews(GL gl, int fb, int width, int height,
+            Document doc, List<AuxMeshDraw> aux, List<string> report)
+        {
+            foreach (var count in new[] { 15, 600 })
+            {
+                var feet = Enumerable.Range(0, count).Select(i => new Vector2(i % 30 * 6, i / 30 * 6)).ToArray();
+                foreach (var type in new[] { Danslicer.Core.Supports.Rafts.RaftType.Plate, Danslicer.Core.Supports.Rafts.RaftType.Web })
+                {
+                    var times = new List<double>();
+                    for (var i = 0; i < 8; i++)
+                    {
+                        var parameters = new Danslicer.Core.Supports.Rafts.RaftParameters { Type = type, Thickness = 1 + i * 0.01f };
+                        var timer = Stopwatch.StartNew();
+                        var outline = Danslicer.Core.Supports.Rafts.RaftBuilder.TopOutline(feet, parameters);
+                        _ = Danslicer.Core.Supports.Rafts.RaftGeometry.BuildMesh(new(parameters, outline));
+                        timer.Stop(); if (i > 0) times.Add(timer.Elapsed.TotalMilliseconds);
+                    }
+                    times.Sort();
+                    report.Add($"Raft rebuild profile {type}, {count} feet: median {times[3]:F2} ms, max {times[^1]:F2} ms (outline + mesh, 7 warm samples).");
+                }
+            }
+            var camera = new Camera { Target = new(0, 0, 12), Distance = 85 };
+            camera.SetView(-65, 28);
+            var cases = new (string Property, double Value)[] {
+                ("AmbientOcclusionStrength", 0.6), ("AmbientOcclusionRadiusMm", 8),
+                ("WorkingShadowStrength", 0.65), ("WorkingShadowSoftnessMm", 3),
+                ("PlateReflectionStrength", 0.3), ("CavityRidgeStrength", 3), ("CavityRadiusPixels", 6)
+            };
+            foreach (var (property, value) in cases)
+            {
+                var config = new UserConfig(); var saves = 0;
+                var vm = new Danslicer.App.ViewModels.ConfigViewModel(config, () => saves++);
+                byte[] Draw(string stage)
+                {
+                    _renderer!.Render(new RenderFrame {
+                        Framebuffer = fb, Width = width, Height = height, Camera = camera, Scene = doc.Scene,
+                        Printer = doc.Printer, IsSelected = _ => false, RenderPath = RenderPathMode.Deferred, AuxMeshes = aux,
+                        Deferred = DeferredEffects.FromConfig(config.Viewport), Shadows = ShadowEffects.FromConfig(config.Viewport),
+                        PlateReflectionsEnabled = true, PlateReflectionStrength = config.Viewport.PlateReflectionStrength,
+                        ShowViewCube = false
+                    });
+                    gl.Finish(); gl.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)fb);
+                    var pixels = new byte[width * height * 4];
+                    fixed (byte* pointer = pixels) gl.ReadPixels(0, 0, (uint)width, (uint)height, Silk.NET.OpenGL.PixelFormat.Rgba, PixelType.UnsignedByte, pointer);
+                    if (!_renderer.CanPickDeferred || gl.GetError() != GLEnum.NoError) throw new InvalidOperationException("Live preview GL failure");
+                    using var bitmap = new WriteableBitmap(new(width, height), new(96, 96), Avalonia.Platform.PixelFormat.Rgba8888, AlphaFormat.Opaque);
+                    using (var buffer = bitmap.Lock())
+                        for (var row = 0; row < height; row++) Marshal.Copy(pixels, (height - 1 - row) * width * 4, buffer.Address + row * buffer.RowBytes, width * 4);
+                    bitmap.Save(Path.Combine(directory, $"live-{property}-{stage}.png"), PngBitmapEncoderOptions.Default);
+                    return pixels;
+                }
+                var before = Draw("before");
+                var preview = vm.BeginNumericPreview(property); preview.Update(value);
+                var during = Draw("during");
+                var changed = before.Zip(during).Count(pair => pair.First != pair.Second);
+                if (changed == 0 || saves != 0) throw new InvalidOperationException($"No live unsaved framebuffer change for {property}");
+                preview.Cancel();
+                if (!before.SequenceEqual(Draw("cancelled")) || saves != 0) throw new InvalidOperationException($"Framebuffer cancellation failed for {property}");
+                preview = vm.BeginNumericPreview(property); preview.Update(value); preview.Commit(value);
+                if (!during.SequenceEqual(Draw("committed")) || saves != 1) throw new InvalidOperationException($"Framebuffer commit failed for {property}");
+                report.Add($"Live {property}: {changed} framebuffer channels changed before commit with zero saves; cancellation byte-identical to original; commit byte-identical to preview with one save.");
+            }
         }
 
         private static List<AuxMeshDraw> SupportFixture(int columns, int rows)
@@ -228,3 +293,4 @@ internal sealed class RendererCaptureWindow : Window
             [0,2,1, 0,3,2, 4,5,6, 4,6,7, 0,1,5, 0,5,4, 1,2,6, 1,6,5, 2,3,7, 2,7,6, 3,0,4, 3,4,7]);
     }
 }
+

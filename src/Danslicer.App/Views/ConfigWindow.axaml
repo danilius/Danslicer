@@ -1,4 +1,4 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
@@ -111,7 +111,7 @@
                     <TextBlock Text="Viewport" Classes="section" />
                     <Grid Tag="viewport overhang tint angle threshold degrees" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Overhang tint angle" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="10" Maximum="89" TickFrequency="1" IsSnapToTickEnabled="True"
+                        <refresh:FilledNumericSlider PreviewProperty="OverhangAngleDegrees" Unit="°" UnitKind="Scalar" Step="1" Grid.Column="1" Minimum="10" Maximum="89"
                                 Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="10" Maximum="89" Increment="1" FormatString="0"
                                        Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
@@ -123,53 +123,53 @@
                     </Grid>
                     <Grid Tag="viewport shadows working strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Working strength" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.7" Step="0.05" Format="0.00" Value="{Binding WorkingShadowStrength, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="WorkingShadowStrength" Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.7" Step="0.05" Format="0.00" Value="{Binding WorkingShadowStrength, Mode=TwoWay}" />
                     </Grid>
                     <Grid Tag="viewport shadows working softness" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Working softness" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0" Maximum="4" Step="0.1" Format="0.00" Value="{Binding WorkingShadowSoftnessMm, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="WorkingShadowSoftnessMm" Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0" Maximum="4" Step="0.1" Format="0.00" Value="{Binding WorkingShadowSoftnessMm, Mode=TwoWay}" />
                     </Grid>
                     <Grid Tag="viewport shadows presentation strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Presentation strength" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.7" Step="0.05" Format="0.00" Value="{Binding PresentationShadowStrength, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="PresentationShadowStrength" Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.7" Step="0.05" Format="0.00" Value="{Binding PresentationShadowStrength, Mode=TwoWay}" />
                     </Grid>
                     <Grid Tag="viewport shadows presentation softness" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Presentation softness" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0" Maximum="4" Step="0.1" Format="0.00" Value="{Binding PresentationShadowSoftnessMm, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="PresentationShadowSoftnessMm" Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0" Maximum="4" Step="0.1" Format="0.00" Value="{Binding PresentationShadowSoftnessMm, Mode=TwoWay}" />
                     </Grid>
                     <TextBlock Classes="hint" Text="Working is subtle; Presentation is stronger. Each remembers its strength and softness. Choose Off to disable model shadows. Settings apply immediately and are shared with View settings." />
                     <CheckBox Tag="viewport ambient occlusion AO contact depth enabled off" Content="Contact depth (AO)" IsChecked="{Binding AmbientOcclusionEnabled, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="viewport ambient occlusion AO contact strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Contact depth strength" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.6" Step="0.05" Format="0.00" Value="{Binding AmbientOcclusionStrength, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="AmbientOcclusionStrength" Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.6" Step="0.05" Format="0.00" Value="{Binding AmbientOcclusionStrength, Mode=TwoWay}" />
                     </Grid>
                     <Grid Tag="viewport ambient occlusion AO contact radius" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Contact radius (mm)" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0.1" Maximum="10" Step="0.1" Format="0.0" Value="{Binding AmbientOcclusionRadiusMm, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="AmbientOcclusionRadiusMm" Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0.1" Maximum="10" Step="0.1" Format="0.0" Value="{Binding AmbientOcclusionRadiusMm, Mode=TwoWay}" />
                     </Grid>
                     <CheckBox Tag="viewport plate reflections enabled off" Content="Plate reflections" IsChecked="{Binding PlateReflectionsEnabled, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="viewport plate reflections strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Plate reflection strength" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.3" Step="0.01" Format="0.00" Value="{Binding PlateReflectionStrength, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="PlateReflectionStrength" Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.3" Step="0.01" Format="0.00" Value="{Binding PlateReflectionStrength, Mode=TwoWay}" />
                     </Grid>
                     <CheckBox Tag="viewport plate shadows enabled off" Content="Plate shadows" IsChecked="{Binding PlateShadowsEnabled, Mode=TwoWay}" Margin="0,4" />
                     <CheckBox Tag="viewport cavity shading enabled off" Content="Cavity shading" IsChecked="{Binding CavityEnabled, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="viewport cavity cavity ridge strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Cavity ridge strength" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="4" Step="0.05" Format="0.00" Value="{Binding CavityRidgeStrength, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="CavityRidgeStrength" Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="4" Step="0.05" Format="0.00" Value="{Binding CavityRidgeStrength, Mode=TwoWay}" />
                     </Grid>
                     <Grid Tag="viewport cavity cavity valley strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Cavity valley strength" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="4" Step="0.05" Format="0.00" Value="{Binding CavityValleyStrength, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="CavityValleyStrength" Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="4" Step="0.05" Format="0.00" Value="{Binding CavityValleyStrength, Mode=TwoWay}" />
                     </Grid>
                     <Grid Tag="viewport cavity cavity radius (px)" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Cavity radius (px)" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0.5" Maximum="8" Step="0.5" Format="0.00" Value="{Binding CavityRadiusPixels, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="CavityRadiusPixels" Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0.5" Maximum="8" Step="0.5" Format="0.00" Value="{Binding CavityRadiusPixels, Mode=TwoWay}" />
                     </Grid>
                     <TextBlock Classes="hint" Text="Contact depth works on opaque models and supports in deferred shading. AO and cavity can be switched off independently. Reflections work on both render paths; the plate surface always disappears below." />
                     <Grid Tag="viewport plate bed transparency opacity below underneath" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Plate perimeter below" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="0" Maximum="1"
+                        <refresh:FilledNumericSlider PreviewProperty="PlateOpacityFromBelow" Unit="" UnitKind="Scalar" Step="0.01" Grid.Column="1" Minimum="0" Maximum="1"
                                 Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00"
                                        Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
@@ -190,7 +190,7 @@
                     </Grid>
                     <Grid Tag="viewport overhang checker chequer square cell size mm" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Overhang checker size" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="0.5" Maximum="20" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                        <refresh:FilledNumericSlider PreviewProperty="OverhangCheckerSizeMm" Unit="mm" UnitKind="Scalar" Step="0.5" Grid.Column="1" Minimum="0.5" Maximum="20"
                                 Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0.5" Maximum="20" Increment="0.5" FormatString="0.0"
                                        Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
@@ -199,7 +199,7 @@
                     <CheckBox Tag="viewport view cube orientation navigation enabled off" Content="Show orientation cube" IsChecked="{Binding ViewCubeEnabled, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="viewport view cube corner navigation size pixels" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="View cube size" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="48" Maximum="192" TickFrequency="8" IsSnapToTickEnabled="True"
+                        <refresh:FilledNumericSlider PreviewProperty="ViewCubeSizePixels" Unit="px" UnitKind="Scalar" Step="8" IsInteger="True" Grid.Column="1" Minimum="48" Maximum="192"
                                 Value="{Binding ViewCubeSizePixels, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="48" Maximum="192" Increment="8" FormatString="0"
                                        Value="{Binding ViewCubeSizePixels, Mode=TwoWay}" />
@@ -207,7 +207,7 @@
                     <TextBlock Classes="hint" Text="Size of the orientation cube in the viewport's top-right corner, pixels. Click a face for that view, drag it to orbit." />
                     <Grid Tag="viewport support edit gizmo handle size pixels" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Support gizmo size" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="24" Maximum="400" TickFrequency="8" IsSnapToTickEnabled="True"
+                        <refresh:FilledNumericSlider PreviewProperty="SupportGizmoSizePixels" Unit="px" UnitKind="Scalar" Step="8" IsInteger="True" Grid.Column="1" Minimum="24" Maximum="400"
                                 Value="{Binding SupportGizmoSizePixels, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="24" Maximum="400" Increment="8" FormatString="0"
                                        Value="{Binding SupportGizmoSizePixels, Mode=TwoWay}" />
@@ -215,7 +215,7 @@
                     <TextBlock Classes="hint" Text="Size of the transform gizmos drawn on a support's handles in edit mode (Space in Support mode), pixels on screen." />
                     <Grid Tag="viewport support edit gizmo line width thickness pixels" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Support gizmo line width" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="1" Maximum="12" TickFrequency="0.5" IsSnapToTickEnabled="True"
+                        <refresh:FilledNumericSlider PreviewProperty="SupportGizmoLineWidth" Unit="px" UnitKind="Scalar" Step="0.5" Grid.Column="1" Minimum="1" Maximum="12"
                                 Value="{Binding SupportGizmoLineWidth, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="1" Maximum="12" Increment="0.5" FormatString="0.0"
                                        Value="{Binding SupportGizmoLineWidth, Mode=TwoWay}" />
@@ -379,28 +379,28 @@
                                Text="Changes apply immediately — tune while moving the cap. Sensitivity 1.00 is the untuned default." />
                     <Grid Tag="spacemouse orbit rotate sensitivity speed" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Orbit sensitivity" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseOrbitSensitivity, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="SpaceMouseOrbitSensitivity" Unit="" UnitKind="Scalar" Step="0.01" Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseOrbitSensitivity, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
                                        Value="{Binding SpaceMouseOrbitSensitivity, Mode=TwoWay}" />
                     </Grid>
                     <TextBlock Classes="hint" Text="Multiplier on how fast a tilt or twist of the cap orbits the view." />
                     <Grid Tag="spacemouse pan slide sensitivity speed" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Pan sensitivity" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMousePanSensitivity, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="SpaceMousePanSensitivity" Unit="" UnitKind="Scalar" Step="0.01" Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMousePanSensitivity, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
                                        Value="{Binding SpaceMousePanSensitivity, Mode=TwoWay}" />
                     </Grid>
                     <TextBlock Classes="hint" Text="Multiplier on how fast sliding the cap pans the view." />
                     <Grid Tag="spacemouse zoom push sensitivity speed" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Zoom sensitivity" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseZoomSensitivity, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="SpaceMouseZoomSensitivity" Unit="" UnitKind="Scalar" Step="0.01" Grid.Column="1" Minimum="0.02" Maximum="4" Value="{Binding SpaceMouseZoomSensitivity, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0.02" Maximum="4" Increment="0.05" FormatString="0.00"
                                        Value="{Binding SpaceMouseZoomSensitivity, Mode=TwoWay}" />
                     </Grid>
                     <TextBlock Classes="hint" Text="Multiplier on how fast pushing or pulling the cap zooms." />
                     <Grid Tag="spacemouse deadzone drift threshold" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Deadzone" Classes="label" />
-                        <Slider Grid.Column="1" Minimum="0" Maximum="0.2" Value="{Binding SpaceMouseDeadzone, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider PreviewProperty="SpaceMouseDeadzone" Unit="" UnitKind="Scalar" Step="0.01" Grid.Column="1" Minimum="0" Maximum="0.2" Value="{Binding SpaceMouseDeadzone, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0" Maximum="0.2" Increment="0.005" FormatString="0.000"
                                        Value="{Binding SpaceMouseDeadzone, Mode=TwoWay}" />
                     </Grid>

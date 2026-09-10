@@ -1,3 +1,6 @@
+# Task 04b iteration 1
+Same da71 worktree / codex/ui-refresh-04b. Prior checkpoint 5300cb7. Transaction implementation builds; 51 focused tests and updated native MainWindow checks pass. Read task-04b.md for changed files/evidence. Next: real GL preview evidence and raft profile, native shading/lifecycle coverage, complete audit/regression. Task 05 remains queued.
+
 # Task 04b active — latest checkpoint
 Worktree: C:/Users/plane/.codex/worktrees/da71/Danslicer-chatgpt; branch codex/ui-refresh-04b.
 Exact clean base / last-good: 0df54ff6014dce8f143def47c3fe4831101cd450. Read task-04b.md and latest SPEC contract before continuing. Plan recorded; no implementation/tests yet. Next: explicit preview transactions and host audit. Task 05 remains queued; no main merge.
@@ -69,4 +72,5 @@ No physical mouse/orbit, monitor/DPI transitions, screen readers, alternate GPU/
 
 ## Next action / task 05 review instructions
 User reviews this MAIN build. Do not create/implement task 05 here. After acceptance, task 05 starts in a separate worktree from this exact final HEAD. Read START/SPEC/TASKS/task-01..04 and this RESUME; verify base/status and audit committed Claude overlap before any reconciliation. Preserve task-03 numeric/expression/units/undo, filled sliders, status/keymaps/modes, gripper-centred swaps with 250ms displaced ease and OrderCommitted-only saving, and the Support-only borderless right rail with cube Rect +12 DIP, centered Reset/Cap, saved off choice and 300ms hover grace. Review normal models/dense supports at real desktop scale, both projections, isolation/caps/selection, effects toggles, alternate GPU and physical DPI; run integration regressions. Keep rendering and any future confirmed geometry changes separate. No main merge without user instruction.
+
 

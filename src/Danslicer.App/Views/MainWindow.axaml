@@ -705,17 +705,17 @@
                                     <TextBlock Text="Island tool tuning" Classes="label" FontWeight="SemiBold" />
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Min island area mm²" Classes="label" ToolTip.Tip="An island smaller than this is not reported, mm²." />
-                                        <refresh:FilledNumericSlider UnitKind="Scalar" Unit="mm²" Grid.Column="1" Minimum="0" Maximum="1000000" Step="0.1"
+                                        <refresh:FilledNumericSlider PreviewProperty="SupportMinIslandAreaMm2" UnitKind="Scalar" Unit="mm²" Grid.Column="1" Minimum="0" Maximum="1000000" Step="0.1"
                                                        Format="0.##" Value="{Binding SupportSettings.SupportMinIslandAreaMm2, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Overhang angle °" Classes="label" ToolTip.Tip="The overhang angle the detector uses when it inflates each layer to see what carries the next, degrees." />
-                                        <refresh:FilledNumericSlider UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="0" Maximum="90" Step="1"
+                                        <refresh:FilledNumericSlider PreviewProperty="SupportOverhangAngleDegrees" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="0" Maximum="90" Step="1"
                                                        Format="0" Value="{Binding SupportSettings.SupportOverhangAngleDegrees, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Island spacing mm" Classes="label" ToolTip.Tip="Tip spacing the island generator uses inside an island, mm." />
-                                        <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1"
+                                        <refresh:FilledNumericSlider PreviewProperty="SupportIslandSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1"
                                                        Format="0.##" Value="{Binding SupportSettings.SupportIslandSpacingMm, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2,0,6">

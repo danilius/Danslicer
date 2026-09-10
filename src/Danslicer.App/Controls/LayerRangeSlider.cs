@@ -177,7 +177,22 @@ public sealed class LayerRangeSlider : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
-        EndDrag(); Activate(LayerRangeSliderThumb.None);
+        CancelDrag(); Activate(LayerRangeSliderThumb.None);
+    }
+
+    public void CancelDrag()
+    {
+        if (!IsDragging) return;
+        SetCurrentValue(UpperValueProperty, Math.Max(_originalUpper, LowerValue));
+        SetCurrentValue(LowerValueProperty, _originalLower);
+        SetCurrentValue(UpperValueProperty, _originalUpper);
+        EndDrag();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        CancelDrag();
+        base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
@@ -199,10 +214,7 @@ public sealed class LayerRangeSlider : Control
         {
             // Restore upper first when needed so the two-way model's range clamp cannot
             // discard the original lower endpoint.
-            SetCurrentValue(UpperValueProperty, Math.Max(_originalUpper, LowerValue));
-            SetCurrentValue(LowerValueProperty, _originalLower);
-            SetCurrentValue(UpperValueProperty, _originalUpper);
-            EndDrag(); e.Handled = true; return;
+            CancelDrag(); e.Handled = true; return;
         }
         if (e.Key is Key.Left or Key.Right)
             Activate(e.Key == Key.Left ? LayerRangeSliderThumb.Lower : LayerRangeSliderThumb.Upper);

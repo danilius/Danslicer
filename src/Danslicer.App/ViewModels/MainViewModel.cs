@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -692,6 +692,9 @@ public partial class MainViewModel : ViewModelBase
             value => RegionOverhangDegrees = Math.Clamp(value, 0, 90));
         RegionBrushRadiusField = new NumericField("Brush radius", UnitKind.Scalar, "0",
             value => RegionBrushRadiusPixels = Math.Clamp(value, 2, 400), suffix: "px");
+        RegionDihedralField.EnableSessionPreview();
+        RegionOverhangField.EnableSessionPreview();
+        RegionBrushRadiusField.EnableSessionPreview();
         RegionDihedralField.SetValue(RegionDihedralDegrees);
         RegionOverhangField.SetValue(RegionOverhangDegrees);
         RegionBrushRadiusField.SetValue(RegionBrushRadiusPixels);
@@ -737,6 +740,28 @@ public partial class MainViewModel : ViewModelBase
                 if (requested == before) return;
                 Document.CommitTransform(obj, before, requested, "Edit transform");
             });
+            fields[axis].BeginPreview = () =>
+            {
+                var obj = SelectedObject;
+                if (obj is null) return null;
+                var before = obj.Transform;
+                var supportBefore = Document.CaptureAssociatedSupportPositions([obj]);
+                var requested = before;
+                return new NumericPreview(value =>
+                {
+                    // Position uses the original anchor, rotation/scale the original transform.
+                    obj.Transform = before;
+                    requested = edit(obj, before, a, value);
+                    obj.Transform = Document.ApplyPlacement(obj, requested);
+                    Document.ApplyAssociatedSupportTransformsTransient([(obj, before)], supportBefore);
+                    Document.NotifyTransientChange();
+                }, () =>
+                {
+                    obj.Transform = before;
+                    Document.RestoreSupportPositions(supportBefore);
+                    Document.NotifyTransientChange();
+                }, _ => Document.CommitTransforms([(obj, before, requested)], "Edit transform", supportBefore));
+            };
         }
         return fields;
     }

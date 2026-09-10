@@ -15,9 +15,10 @@ public sealed class ModelScrubField : ScrubField
     public ModelScrubField()
     {
         Minimum = -double.MaxValue; Maximum = double.MaxValue;
+        BeginPreview = () => Field?.BeginPreview?.Invoke();
         EditCommitted += (_, e) =>
         {
-            Field?.CommitValue(e.NewValue);
+            if (!CommittedPreview) Field?.CommitValue(e.NewValue);
             Sync(); // Reflect model validation/clamping even when no model change occurred.
         };
     }

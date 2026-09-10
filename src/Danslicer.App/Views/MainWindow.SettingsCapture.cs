@@ -38,18 +38,40 @@ public partial class MainWindow
         var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
         var point = surface.TranslatePoint(new Point(20, 12), this)!.Value;
         var pressed = new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed);
+        var configPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(AppConfig.WorkspacePath)!, "config.json");
+        var persistedBefore = File.ReadAllBytes(configPath);
+        var undoChanges = 0;
+        void UndoChanged() => undoChanges++;
+        vm.Document.History.Changed += UndoChanged;
         var commits = 0; position.EditCommitted += (_, _) => commits++;
         surface.RaiseEvent(new PointerPressedEventArgs(surface, pointer, this, point, 0, pressed, KeyModifiers.None, 1));
         for (var i = 1; i <= 5; i++) surface.RaiseEvent(new PointerEventArgs(PointerMovedEvent, surface, pointer, this, point + new Vector(i * 10, 0), (ulong)i, pressed, KeyModifiers.None));
-        Require(vm.Position[0].Value == original && commits == 0, "Drag previews must not apply to production model");
+        Require(vm.Position[0].Value != original && commits == 0 && undoChanges == 0, "Transform must change BEFORE release with no undo entry");
+        Require(File.ReadAllBytes(configPath).SequenceEqual(persistedBefore), "Transform drag wrote config");
+        var liveFinal = vm.Position[0].Value;
         surface.RaiseEvent(new PointerReleasedEventArgs(surface, pointer, this, point + new Vector(50, 0), 6, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
-        Require(commits == 1 && vm.Position[0].Value != original, "One transform commit per pointer gesture");
+        Require(commits == 1 && vm.Position[0].Value == liveFinal && undoChanges == 1, "One transform commit per pointer gesture");
         vm.UndoCommand.Execute(null);
         Require(vm.Position[0].Value == original && position.Value == original, "Single undo must restore entire transform gesture");
+        vm.RedoCommand.Execute(null);
+        Require(vm.Position[0].Value == liveFinal, "Redo must restore final preview");
+        vm.UndoCommand.Execute(null);
         surface.RaiseEvent(new PointerPressedEventArgs(surface, pointer, this, point, 7, pressed, KeyModifiers.None, 1));
         surface.RaiseEvent(new PointerEventArgs(PointerMovedEvent, surface, pointer, this, point + new Vector(50, 0), 8, pressed, KeyModifiers.Shift));
         Key(position, Avalonia.Input.Key.Escape);
         Require(position.Value == original && commits == 1 && pointer.Captured is null && TransformToolPopup.IsOpen, "Production drag Escape cancels before popout dismissal");
+        var undoAfterCancel = undoChanges;
+        surface.RaiseEvent(new PointerPressedEventArgs(surface, pointer, this, point, 9, pressed, KeyModifiers.None, 1));
+        surface.RaiseEvent(new PointerEventArgs(PointerMovedEvent, surface, pointer, this, point + new Vector(30, 0), 10, pressed, KeyModifiers.None));
+        Require(vm.Position[0].Value != original, "Capture-loss fixture did not preview");
+        pointer.Capture(null);
+        Require(vm.Position[0].Value == original && undoChanges == undoAfterCancel, "Capture loss did not restore transform without undo");
+        surface.RaiseEvent(new PointerPressedEventArgs(surface, pointer, this, point, 11, pressed, KeyModifiers.None, 1));
+        surface.RaiseEvent(new PointerEventArgs(PointerMovedEvent, surface, pointer, this, point + new Vector(30, 0), 12, pressed, KeyModifiers.None));
+        surface.RaiseEvent(new PointerEventArgs(PointerMovedEvent, surface, pointer, this, point, 13, pressed, KeyModifiers.None));
+        surface.RaiseEvent(new PointerReleasedEventArgs(surface, pointer, this, point, 14, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
+        Require(vm.Position[0].Value == original && undoChanges == undoAfterCancel && commits == 1, "No-op gesture created undo/commit");
+        vm.Document.History.Changed -= UndoChanged;
         var box = Edit(position, "1cm + 2mm"); Key(box, Avalonia.Input.Key.Enter);
         Require(position.Value == 12, "Production unit expression failed"); vm.UndoCommand.Execute(null);
         box = Edit(position, "bad expression"); Key(box, Avalonia.Input.Key.Enter);
@@ -72,9 +94,11 @@ public partial class MainWindow
         var trackWidth = tipSurface.Bounds.Width - 2;
         var start = tipSurface.TranslatePoint(new Point(1 + trackWidth * 0.25, 12), this)!.Value;
         var end = tipSurface.TranslatePoint(new Point(1 + trackWidth * 0.5, 12), this)!.Value;
+        persistedBefore = File.ReadAllBytes(configPath);
         tipSurface.RaiseEvent(new PointerPressedEventArgs(tipSurface, pointer, this, start, 10, pressed, KeyModifiers.None, 1));
         tipSurface.RaiseEvent(new PointerEventArgs(PointerMovedEvent, tipSurface, pointer, this, end, 11, pressed, KeyModifiers.None));
-        Require(saves == 1 && tip.Value == same, "Slider preview applied before release");
+        Require(saves == 1 && tip.Value != same && Math.Abs(vm.SupportSettings.SupportTipDiameter - tip.Value) < 0.00001, "Support setting must preview without Saved event");
+        Require(File.ReadAllBytes(configPath).SequenceEqual(persistedBefore), "Support drag wrote config");
         tipSurface.RaiseEvent(new PointerReleasedEventArgs(tipSurface, pointer, this, end, 12, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
         var midpoint = NumericEditSession.RoundValue(tip.Minimum + (tip.Maximum - tip.Minimum) * 0.5);
         Require(Math.Abs(tip.Value - midpoint) < 0.00001 && saves == 2, "Slider midpoint must match pointer and commit once");
@@ -145,7 +169,7 @@ public partial class MainWindow
         Capture("settings-raft.png");
         var cap = AppConfig.Current.Viewport.CapInterior;
         vm.CapInterior = false;
-        var configPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(AppConfig.WorkspacePath)!, "config.json");
+
         var config = UserConfig.Load(configPath);
         Require(!config.Viewport.CapInterior && Math.Abs(config.Supports.TipDiameter - 0.6) < 0.00001 && config.Supports.RaftThickness == 2, "Settings/save cap-off compatibility round trip failed");
         vm.CapInterior = cap;
@@ -193,3 +217,4 @@ public partial class MainWindow
         }
     }
 }
+

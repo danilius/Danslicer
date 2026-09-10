@@ -29,6 +29,10 @@ public sealed class LayerRangeClipViewModel : ObservableObject
             value => UpperZ = ZOfLayer(value, _layerHeightMm), suffix: "");
         LowerMmField = new NumericField("Height", UnitKind.Length, "0.###", value => LowerZ = value, suffix: "mm");
         UpperMmField = new NumericField("Height", UnitKind.Length, "0.###", value => UpperZ = value, suffix: "mm");
+        LowerField.EnableSessionPreview();
+        UpperField.EnableSessionPreview();
+        LowerMmField.EnableSessionPreview();
+        UpperMmField.EnableSessionPreview();
         ResetCommand = new RelayCommand(Reset);
         RefreshFields();
     }

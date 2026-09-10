@@ -23,6 +23,8 @@ public partial class ConfigWindow : Window
     {
         InitializeComponent();
         DataContext = config;
+        Closing += (_, _) => Controls.Refresh.ScrubField.CancelActive();
+        Deactivated += (_, _) => Controls.Refresh.ScrubField.CancelActive();
         Configuration.WindowStatePersistence.Track(this, "preferences");
     }
 
