@@ -46,14 +46,15 @@ public class ScrubField : UserControl
     {
         Focusable = true;
         MinWidth = 110;
-        Height = 32;
+        Height = 24;
+        FontSize = 12;
         _fill = new Border { Background = RefreshPalette.Fill, HorizontalAlignment = HorizontalAlignment.Left, IsHitTestVisible = false };
         _label = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = RefreshPalette.Text, IsHitTestVisible = false };
-        _editor = new TextBox { IsVisible = false, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(4, 0), MinHeight = 28 };
+        _editor = new TextBox { IsVisible = false, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(4, 0), MinHeight = 22 };
         var layers = new Grid();
         layers.Children.Add(_fill); layers.Children.Add(_label); layers.Children.Add(_editor);
         _surface = new Border { Background = RefreshPalette.Field, BorderBrush = RefreshPalette.Edge, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3), ClipToBounds = true, Child = layers };
-        _lock = new Button { Width = 32, Padding = new Thickness(5), IsVisible = false };
+        _lock = new Button { Width = 26, Height = 24, MinHeight = 0, Padding = new Thickness(4), IsVisible = false };
         ToolTip.SetTip(_lock, "Lock this value against editing");
         _lock.Click += (_, _) => { Cancel(); SetCurrentValue(IsLockedProperty, !IsLocked); };
         var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };

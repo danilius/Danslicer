@@ -43,13 +43,26 @@ public static class RefreshIcons
         ["visibility"] = "M2,12 Q12,-1 22,12 Q12,25 2,12 Z M8,12 A4,4 0 1 0 16,12 A4,4 0 1 0 8,12",
         ["rafts"] = "M2,8 L12,3 L22,8 L12,13 Z M2,12 L12,17 L22,12 M2,16 L12,21 L22,16",
         ["close"] = "M5,5 L19,19 M19,5 L5,19",
-        ["grip"] = "M8,5 L8,7 M16,5 L16,7 M8,11 L8,13 M16,11 L16,13 M8,17 L8,19 M16,17 L16,19",
         ["lock"] = "M7,10 L7,6 A5,5 0 0 1 17,6 L17,10 M5,10 L19,10 L19,21 L5,21 Z M12,14 L12,17",
         ["unlock"] = "M7,10 L7,6 A5,5 0 0 1 17,6 M5,10 L19,10 L19,21 L5,21 Z M12,14 L12,17"
     };
-    public static Control Create(string name) => new Avalonia.Controls.Shapes.Path
+    public static Control Create(string name)
     {
-        Data = Geometry.Parse(Paths[name]), Stroke = RefreshPalette.Text, StrokeThickness = 1.5,
-        Width = 20, Height = 20, Stretch = Stretch.Uniform, IsHitTestVisible = false
-    };
+        if (name == "grip")
+        {
+            var dots = new Canvas { Width = 8, Height = 12, IsHitTestVisible = false };
+            for (var y = 0; y < 3; y++)
+                for (var x = 0; x < 2; x++)
+                {
+                    var dot = new Ellipse { Width = 2, Height = 2, Fill = RefreshPalette.Muted };
+                    Canvas.SetLeft(dot, x * 4); Canvas.SetTop(dot, y * 4); dots.Children.Add(dot);
+                }
+            return dots;
+        }
+        return new Avalonia.Controls.Shapes.Path
+        {
+            Data = Geometry.Parse(Paths[name]), Stroke = RefreshPalette.Text, StrokeThickness = 1.5,
+            Width = 20, Height = 20, Stretch = Stretch.Uniform, IsHitTestVisible = false
+        };
+    }
 }

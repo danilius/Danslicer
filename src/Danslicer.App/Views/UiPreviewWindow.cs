@@ -24,7 +24,7 @@ public sealed class UiPreviewWindow : Window
     public UiPreviewWindow(string? captureDirectory = null)
     {
         Title = "Danslicer · UI controls preview"; Width = 1040; Height = 760; MinWidth = 480; MinHeight = 400;
-        Background = RefreshPalette.Canvas; Foreground = RefreshPalette.Text;
+        Background = RefreshPalette.Canvas; Foreground = RefreshPalette.Text; FontSize = 12;
         Resources = RefreshPalette.CreateResources();
         var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto"), Background = RefreshPalette.Canvas };
         var top = new WrapPanel { Margin = new Thickness(16), Orientation = Orientation.Horizontal };
@@ -47,9 +47,16 @@ public sealed class UiPreviewWindow : Window
             Margin = new Thickness(24), Foreground = RefreshPalette.Muted, TextWrapping = TextWrapping.Wrap, MaxWidth = 270,
             IsHitTestVisible = false
         });
-        var overlay = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), HorizontalAlignment = HorizontalAlignment.Left, MaxWidth = 560 };
+        var overlay = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), HorizontalAlignment = HorizontalAlignment.Stretch };
         overlay.Children.Add(_toolbar); Grid.SetColumn(_popout, 1); overlay.Children.Add(_popout); viewport.Children.Add(overlay);
-        viewport.SizeChanged += (_, _) => { overlay.MaxWidth = viewport.Bounds.Width; _toolbar.MaxHeight = Math.Max(0, viewport.Bounds.Height - 32); _popout.MaxHeight = Math.Max(0, viewport.Bounds.Height - 32); };
+        void ConstrainPopout()
+        {
+            var available = Math.Max(0, viewport.Bounds.Width - _toolbar.Bounds.Width - 48);
+            _popout.MinWidth = Math.Min(240, available); _popout.MaxWidth = available;
+            _toolbar.MaxHeight = Math.Max(0, viewport.Bounds.Height - 32); _popout.MaxHeight = Math.Max(0, viewport.Bounds.Height - 32);
+        }
+        viewport.SizeChanged += (_, _) => ConstrainPopout();
+        _toolbar.SizeChanged += (_, _) => ConstrainPopout();
         foreach (var (id, label, icon) in new[] { ("select", "Select", "select"), ("move", "Move", "move"), ("rotate", "Rotate", "rotate"), ("scale", "Scale", "scale"), ("objects", "Objects", "objects"), ("supports", "Supports", "supports"), ("visibility", "Visibility", "visibility"), ("rafts", "Rafts", "rafts") })
         {
             _toolbar.AddTool(new RefreshTool(id, label, icon, () =>
@@ -77,7 +84,7 @@ public sealed class UiPreviewWindow : Window
         locks.Children.Add(Row("Disabled", disabled));
         locks.Children.Add(Row("Long descriptive parameter label", Field(12, -100, 100)));
         var help = Section("help", "Interaction guide");
-        help.Children.Add(new TextBlock { Text = "Drag 4 px to scrub. Shift adjusts at one tenth speed. Click or Enter to type (for example 1cm + 2mm). Enter commits; Escape cancels. Invalid/out-of-range input stays in the editor until corrected or cancelled. Arrow keys step. Each committed gesture adds one undo entry.\n\nDrag a section's right grip up/down to move one position. Focus the grip and use Alt+Up/Down with the keyboard.", TextWrapping = TextWrapping.Wrap, Foreground = RefreshPalette.Muted });
+        help.Children.Add(new TextBlock { Text = "Drag 4 px to scrub. Shift adjusts at one tenth speed. Click or Enter to type (for example 1cm + 2mm). Enter commits; Escape cancels. Invalid/out-of-range input stays in the editor until corrected or cancelled. Arrow keys step. Each committed gesture adds one undo entry.\n\nDrag the round grip to move the entire section; release over its new position. Escape cancels. Alt+Up/Down reorders with the keyboard. Drag the popout's right edge to resize it.", TextWrapping = TextWrapping.Wrap, Foreground = RefreshPalette.Muted });
         _popout.Body = body;
         var footer = new Border { Background = RefreshPalette.Header, Padding = new Thickness(16, 10), Child = _status };
         Grid.SetRow(footer, 2); root.Children.Add(footer); Content = root;
@@ -91,7 +98,8 @@ public sealed class UiPreviewWindow : Window
                     Directory.CreateDirectory(captureDirectory);
                     File.Delete(System.IO.Path.Combine(captureDirectory, "capture-ok.txt"));
                     File.Delete(System.IO.Path.Combine(captureDirectory, "capture-error.txt"));
-                    RunInteractionChecks(angle, locked);
+                    await RunInteractionChecks(angle, locked, captureDirectory);
+                    await Task.Delay(200);
                     foreach (var scale in new[] { 1.0, 1.5, 2.0 })
                     {
                         using var bitmap = new RenderTargetBitmap(new PixelSize((int)(root.Bounds.Width * scale), (int)(root.Bounds.Height * scale)), new Vector(96 * scale, 96 * scale));
@@ -101,13 +109,13 @@ public sealed class UiPreviewWindow : Window
                     await Task.Delay(250);
                     using var narrow = new RenderTargetBitmap(new PixelSize((int)root.Bounds.Width, (int)root.Bounds.Height));
                     narrow.Render(root); narrow.Save(System.IO.Path.Combine(captureDirectory, "preview-narrow.png"), PngBitmapEncoderOptions.Default);
-                    File.WriteAllText(System.IO.Path.Combine(captureDirectory, "capture-ok.txt"), "Native window opened. Routed pointer and keyboard checks passed: drag commits once, drag cancellation releases capture, single commit/undo, lock, expression commit, Escape cancellation, expansion, reordering and popout dismissal. Rendered at 100/150/200% pixel density, plus narrow icon toolbar. This is not a monitor DPI or physical pointer test.");
+                    File.WriteAllText(System.IO.Path.Combine(captureDirectory, "capture-ok.txt"), "Native window opened. Routed pointer and keyboard checks passed: numeric commit/cancel/lock/expression/undo, whole-section drag/reorder/cancel/settle, popout width resize/clamp/cancel, expansion and dismissal. Rendered at 100/150/200% pixel density, plus narrow icon toolbar, mid-drag and wide popout. This is not a monitor DPI or physical pointer test.");
                 }
                 catch (Exception ex) { Environment.ExitCode = 1; File.WriteAllText(System.IO.Path.Combine(captureDirectory, "capture-error.txt"), ex.ToString()); }
                 finally { Close(); }
             };
     }
-    private void RunInteractionChecks(ScrubField angle, ScrubField locked)
+    private async Task RunInteractionChecks(ScrubField angle, ScrubField locked, string captureDirectory)
     {
         static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
         static void Key(Control control, Avalonia.Input.Key key, KeyModifiers modifiers = KeyModifiers.None)
@@ -152,10 +160,49 @@ public sealed class UiPreviewWindow : Window
         Key(grip, Avalonia.Input.Key.Down, KeyModifiers.Alt);
         Require(_sections.Children[1] == section, "Keyboard reorder failed");
         Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt);
+        _sections.UpdateLayout();
+        position = grip.TranslatePoint(new Point(12, 12), this)!.Value;
+        var dragDistance = _sections.Children[1].Bounds.Center.Y - section.Bounds.Center.Y + 10;
+        grip.RaiseEvent(new PointerPressedEventArgs(grip, pointer, this, position, 5, pressed, KeyModifiers.None, 1));
+        grip.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, grip, pointer, this, position + new Vector(0, dragDistance), 6, pressed, KeyModifiers.None));
+        Require(((TranslateTransform)section.RenderTransform!).Y == dragDistance && section.IsExpanded, "Expanded section must follow pointer with its content");
+        Capture("preview-drag.png");
+        grip.RaiseEvent(new PointerReleasedEventArgs(grip, pointer, this, position + new Vector(0, dragDistance), 7, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
+        Require(_sections.Children[1] == section && pointer.Captured is null, "Pointer reorder must insert at drop position");
+        Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt); _sections.UpdateLayout();
+        grip.RaiseEvent(new PointerPressedEventArgs(grip, pointer, this, position, 8, pressed, KeyModifiers.None, 1));
+        grip.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, grip, pointer, this, position + new Vector(0, 30), 9, pressed, KeyModifiers.None));
+        Key(grip, Avalonia.Input.Key.Escape);
+        Require(_sections.Children[0] == section && pointer.Captured is null && _popout.IsVisible, "Escape must cancel reorder without closing popout");
+        await Task.Delay(200);
+        Require(((TranslateTransform)section.RenderTransform!).Y == 0, "Section must settle back into layout");
+        var resize = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(_popout).OfType<Border>()
+            .Single(b => AutomationProperties.GetName(b) == "Resize popout width");
+        var originalWidth = _popout.Width;
+        Key(resize, Avalonia.Input.Key.Right); Require(_popout.Width == originalWidth + 10, "Keyboard resize failed");
+        _popout.Width = originalWidth; _popout.UpdateLayout();
+        position = resize.TranslatePoint(new Point(3, 15), this)!.Value;
+        resize.RaiseEvent(new PointerPressedEventArgs(resize, pointer, this, position, 10, pressed, KeyModifiers.None, 1));
+        resize.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, resize, pointer, this, position + new Vector(100, 0), 11, pressed, KeyModifiers.None));
+        resize.RaiseEvent(new PointerReleasedEventArgs(resize, pointer, this, position + new Vector(100, 0), 12, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
+        Require(_popout.Width == originalWidth + 100 && pointer.Captured is null, "Pointer resize failed");
+        _popout.UpdateLayout(); Capture("preview-wide.png");
+        resize.RaiseEvent(new PointerPressedEventArgs(resize, pointer, this, position, 13, pressed, KeyModifiers.None, 1));
+        resize.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, resize, pointer, this, position + new Vector(10000, 0), 14, pressed, KeyModifiers.None));
+        Require(_popout.Width == _popout.MaxWidth, "Resize must respect available viewport width");
+        Key(resize, Avalonia.Input.Key.Escape);
+        Require(_popout.Width == originalWidth + 100 && pointer.Captured is null, "Resize cancellation failed");
+        _popout.Width = originalWidth;
         Key(_popout, Avalonia.Input.Key.Escape); Require(!_popout.IsVisible, "Popout Escape failed");
         _popout.IsVisible = true; _selected = "supports"; _toolbar.Select(_selected);
         angle.EditCommitted -= Count; _undo.Clear();
         _status.Text = "Ready · drag fields · Shift for fine adjustment · click or Enter for expressions";
+        void Capture(string name)
+        {
+            var content = (Control)Content!;
+            using var bitmap = new RenderTargetBitmap(new PixelSize((int)content.Bounds.Width, (int)content.Bounds.Height));
+            bitmap.Render(content); bitmap.Save(System.IO.Path.Combine(captureDirectory, name), PngBitmapEncoderOptions.Default);
+        }
     }
     private StackPanel Section(string id, string title)
     {

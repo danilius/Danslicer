@@ -33,3 +33,16 @@ Task 02 only, in a separate coordinator-created chat/worktree from this task's f
 
 ## Final checkpoint
 Implementation committed as fef5d7dfdf70698cd7ee785470e374a2456b66c0. Staged whitespace review then detected three extra EOF blank lines; removed in the final handoff commit. RESUME now records completed work, exact launch commands and task 02 boundaries. The final documentation/whitespace descendant is the coordinator's starting ref. No semantic source changes after verification.
+
+## User refinement — compact controls, resizing and live reorder
+User requested smaller fonts/headers/text boxes, adjustable popout width, whole-expander movement during drag, and tighter round gripper dots. Implemented 12-DIP type, 26-DIP section headers, 28-DIP popout header and 24-DIP numeric fields. Grip is six 2-DIP circles on a 4-DIP grid, inside a 26-DIP hit target.
+
+Popout right edge supports pointer resize and focused Left/Right keys; Escape cancels an active resize. Preview supplies viewport-derived MaxWidth/MinWidth and retains the chosen width while toggling. Reordering translates the complete section including expanded content as the pointer moves, keeps its original layout slot until release, then inserts at the crossed section center and settles over 150 ms. Escape/capture loss cancel. MoveRequested now sends a signed positional offset (possibly multiple positions), which hosts should add to the current index. Alt+Up/Down remains one position. Neighboring sections move on drop; no live neighbor-gap animation or edge autoscroll is claimed.
+
+Validation: Release app build and 77 focused tests passed; native routed pointer/keyboard checks additionally verify live section translation, insertion, cancellation and completed settling, plus pointer/keyboard width resize, viewport clamp and cancellation. Refreshed 100/150/200-density/narrow captures and added preview-drag.png and preview-wide.png; reviewed compact, narrow, mid-drag and wide images. Physical mouse and monitor DPI checks remain manual. Debug build was blocked by the user's open preview locking its DLLs; left that process running and verified Release instead. Fixed a missing Documents namespace on the first compile attempt.
+
+Updated runnable preview (absolute path avoids launching another checkout):
+```powershell
+& "C:\Users\plane\.codex\worktrees\f60d\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --ui-preview
+```
+Build/test commands use `-c Release`; capture command is `dotnet run -c Release --no-build --project src/Danslicer.App -- --ui-preview --capture-directory docs/ui-refresh/evidence`.

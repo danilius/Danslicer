@@ -1,3 +1,13 @@
+# Latest refinement checkpoint — task 01
+User refinements completed: compact typography/headers/numeric fields, resizable popout right edge, live whole-section dragging with animated settling, compact round grip dots. Release build, 77 focused tests, expanded native pointer/keyboard smoke checks pass. Latest images in evidence include mid-drag and wide popout. See task-01.md refinement note for contracts and verification limits.
+Worktree/branch unchanged: C:/Users/plane/.codex/worktrees/f60d/Danslicer-chatgpt on codex/ui-refresh. Latest handoff ref is branch HEAD after the refinement commit; prior implementation hashes below are historical. No later-task integration or main merge. Next coordinator task should start from the latest HEAD.
+The user's old Debug preview was left running; launch the updated Release executable:
+```powershell
+& "C:\Users\plane\.codex\worktrees\f60d\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --ui-preview
+```
+Working tree clean after refinement commit. Rebuild with `dotnet build src/Danslicer.App -c Release -p:UsedAvaloniaProducts=`.
+
+---
 # Latest checkpoint — task 01 complete
 Date: 2026-09-10
 Current task: 01. Setup chat ID: client-new-thread:26b9541c-1fd9-4fdf-abfa-b53d59cf5ccc; finalized ID not exposed to this task.

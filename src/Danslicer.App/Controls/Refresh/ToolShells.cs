@@ -4,6 +4,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Animation;
+using Avalonia.Controls.Documents;
 
 namespace Danslicer.App.Controls.Refresh;
 
@@ -30,7 +33,7 @@ public sealed class FloatingToolbar : Border
         row.Children.Add(RefreshIcons.Create(tool.Icon));
         var label = new TextBlock { Text = tool.Label, IsVisible = ShowLabels, VerticalAlignment = VerticalAlignment.Center };
         _labels.Add(label); row.Children.Add(label);
-        var button = new ToggleButton { Content = row, MinHeight = 36, HorizontalAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(8), Foreground = RefreshPalette.Text };
+        var button = new ToggleButton { Content = row, FontSize = 12, MinHeight = 30, HorizontalAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(6), Foreground = RefreshPalette.Text };
         AutomationProperties.SetName(button, tool.Label); ToolTip.SetTip(button, tool.Label);
         button.Click += (_, _) => tool.Execute();
         _buttons.Add(tool.Id, button); _items.Children.Add(button);
@@ -63,17 +66,44 @@ public sealed class ToolPopout : Border
     public ToolPopout()
     {
         Background = RefreshPalette.Panel; BorderBrush = RefreshPalette.Edge; BorderThickness = new Thickness(1);
-        CornerRadius = new CornerRadius(6); MaxWidth = 360; Margin = new Thickness(0, 16, 16, 16);
-        HorizontalAlignment = HorizontalAlignment.Stretch; VerticalAlignment = VerticalAlignment.Top;
+        CornerRadius = new CornerRadius(6); Width = 360; MinWidth = 240; Margin = new Thickness(0, 16, 16, 16);
+        TextElement.SetFontSize(this, 12);
+        HorizontalAlignment = HorizontalAlignment.Left; VerticalAlignment = VerticalAlignment.Top;
         var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Background = RefreshPalette.Header };
-        _title = new TextBlock { Margin = new Thickness(12, 8), VerticalAlignment = VerticalAlignment.Center, Foreground = RefreshPalette.Text };
-        var close = new Button { Content = RefreshIcons.Create("close"), Width = 36, Height = 36, Padding = new Thickness(7) };
+        _title = new TextBlock { Margin = new Thickness(10, 4), VerticalAlignment = VerticalAlignment.Center, Foreground = RefreshPalette.Text };
+        var close = new Button { Content = RefreshIcons.Create("close"), Width = 28, Height = 28, MinHeight = 0, Padding = new Thickness(6) };
         AutomationProperties.SetName(close, "Close tool settings"); ToolTip.SetTip(close, "Close (Escape)");
         close.Click += (_, _) => RequestClose();
         header.Children.Add(_title); Grid.SetColumn(close, 1); header.Children.Add(close);
         _scroll = new ScrollViewer { Margin = new Thickness(8), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        root.Children.Add(header); Grid.SetRow(_scroll, 1); root.Children.Add(_scroll); Child = root;
+        root.Children.Add(header); Grid.SetRow(_scroll, 1); root.Children.Add(_scroll);
+        var resize = new Border { Width = 6, Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Right, Cursor = new Cursor(StandardCursorType.SizeWestEast), Focusable = true };
+        AutomationProperties.SetName(resize, "Resize popout width"); ToolTip.SetTip(resize, "Drag to resize; Left/Right to adjust width");
+        Grid.SetRowSpan(resize, 2); root.Children.Add(resize); Child = root;
+        Point? resizeOrigin = null;
+        double originalWidth = 0;
+        IPointer? resizePointer = null;
+        void EndResize() { resizeOrigin = null; var pointer = resizePointer; resizePointer = null; pointer?.Capture(null); }
+        resize.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(resize).Properties.IsLeftButtonPressed) return;
+            resize.Focus(); resizeOrigin = e.GetPosition(TopLevel.GetTopLevel(this)); originalWidth = Bounds.Width;
+            resizePointer = e.Pointer; e.Pointer.Capture(resize); e.Handled = true;
+        };
+        resize.PointerMoved += (_, e) =>
+        {
+            if (resizeOrigin is not { } start) return;
+            Width = Math.Clamp(originalWidth + e.GetPosition(TopLevel.GetTopLevel(this)).X - start.X, MinWidth, MaxWidth);
+            e.Handled = true;
+        };
+        resize.PointerReleased += (_, e) => { if (resizeOrigin is null) return; EndResize(); e.Handled = true; };
+        resize.PointerCaptureLost += (_, _) => EndResize();
+        resize.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape && resizeOrigin is not null) { Width = originalWidth; EndResize(); e.Handled = true; }
+            else if (e.Key is Key.Left or Key.Right) { Width = Math.Clamp(Bounds.Width + (e.Key == Key.Left ? -10 : 10), MinWidth, MaxWidth); e.Handled = true; }
+        };
         KeyDown += (_, e) => { if (e.Key == Key.Escape && !e.Handled) { RequestClose(); e.Handled = true; } };
     }
     public void RequestClose() { IsVisible = false; CloseRequested?.Invoke(this, EventArgs.Empty); }
@@ -100,30 +130,65 @@ public sealed class ReorderableExpander : Border
     public ReorderableExpander(string id, string title)
     {
         SectionId = id; _title = title;
-        Background = RefreshPalette.Panel;
+        Background = RefreshPalette.Panel; TextElement.SetFontSize(this, 12);
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Background = RefreshPalette.Header };
-        _disclosure = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, MinHeight = 34, Padding = new Thickness(8, 4), Background = RefreshPalette.Header, Foreground = RefreshPalette.Text };
+        _disclosure = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Height = 26, MinHeight = 0, Padding = new Thickness(8, 2), Background = RefreshPalette.Header, Foreground = RefreshPalette.Text };
         _disclosure.Click += (_, _) => IsExpanded = !IsExpanded;
-        var grip = new Button { Content = RefreshIcons.Create("grip"), Width = 34, Height = 34, Padding = new Thickness(6), Background = RefreshPalette.Header };
+        var grip = new Button { Content = RefreshIcons.Create("grip"), Width = 26, Height = 26, MinHeight = 0, Padding = new Thickness(4), Background = RefreshPalette.Header, Cursor = new Cursor(StandardCursorType.SizeAll) };
         AutomationProperties.SetName(grip, $"Reorder {title}"); ToolTip.SetTip(grip, "Drag to reorder; Alt+Up/Down");
         double? origin = null;
+        var translation = new TranslateTransform(); RenderTransform = translation;
+        IPointer? dragPointer = null;
+        bool dragging = false;
+        void Settle()
+        {
+            translation.Transitions = new Transitions { new DoubleTransition { Property = TranslateTransform.YProperty, Duration = TimeSpan.FromMilliseconds(150) } };
+            translation.Y = 0; ZIndex = 0;
+        }
+        void CancelDrag()
+        {
+            origin = null; dragging = false;
+            var pointer = dragPointer; dragPointer = null; pointer?.Capture(null); Settle();
+        }
         grip.AddHandler(PointerPressedEvent, (_, e) =>
         {
             if (!e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed) return;
-            origin = e.GetPosition(this).Y; e.Pointer.Capture(grip); e.Handled = true;
+            grip.Focus(); translation.Transitions = null; translation.Y = 0;
+            origin = e.GetPosition(TopLevel.GetTopLevel(this)).Y; dragPointer = e.Pointer;
+            e.Pointer.Capture(grip); e.Handled = true;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        grip.PointerMoved += (_, e) =>
+        {
+            if (origin is not { } start) return;
+            var delta = e.GetPosition(TopLevel.GetTopLevel(this)).Y - start;
+            if (!dragging && Math.Abs(delta) < 6) return;
+            dragging = true; ZIndex = 10; translation.Y = delta; e.Handled = true;
+        };
         grip.AddHandler(PointerReleasedEvent, (_, e) =>
         {
             if (origin is not { } start) return;
-            var delta = e.GetPosition(this).Y - start;
-            origin = null; e.Pointer.Capture(null);
-            if (Math.Abs(delta) >= 6) MoveRequested?.Invoke(this, delta > 0 ? 1 : -1);
+            var delta = e.GetPosition(TopLevel.GetTopLevel(this)).Y - start;
+            origin = null; dragPointer = null; e.Pointer.Capture(null);
+            if (dragging && Parent is Panel panel)
+            {
+                var index = panel.Children.IndexOf(this);
+                var center = Bounds.Center.Y + delta;
+                var destination = index;
+                for (var i = 0; i < panel.Children.Count; i++)
+                    if (i != index && (delta > 0 ? i > index && center > panel.Children[i].Bounds.Center.Y : i < index && center < panel.Children[i].Bounds.Center.Y))
+                        destination = delta > 0 ? Math.Max(destination, i) : Math.Min(destination, i);
+                var visualY = Bounds.Y + translation.Y;
+                if (destination != index) MoveRequested?.Invoke(this, destination - index);
+                panel.UpdateLayout(); translation.Y = visualY - Bounds.Y;
+            }
+            dragging = false; Settle();
             e.Handled = true;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        grip.PointerCaptureLost += (_, _) => origin = null;
+        grip.PointerCaptureLost += (_, _) => { if (origin is not null) CancelDrag(); };
         grip.KeyDown += (_, e) =>
         {
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.Key is Key.Up or Key.Down)
+            if (e.Key == Key.Escape && origin is not null) { CancelDrag(); e.Handled = true; }
+            else if (e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.Key is Key.Up or Key.Down)
             { MoveRequested?.Invoke(this, e.Key == Key.Up ? -1 : 1); e.Handled = true; }
         };
         header.Children.Add(_disclosure); Grid.SetColumn(grip, 1); header.Children.Add(grip);
