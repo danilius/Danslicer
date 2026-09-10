@@ -1,3 +1,6 @@
+# Final requested change: slider tracking and decimal precision
+Filled sliders now follow pointer position across their actual range/width. Step no longer controls mouse sensitivity. Numeric field displays and commits use at most two decimals; integer fields stay integers. Existing preview/commit/undo/cancel contracts retained. See task-04.md and evidence/task-04-slider-final for final validation. Same branch/worktree; no merge. User indicated this completes the task.
+
 # Latest follow-up: Preferences visual controls
 Preferences > Viewport now includes all shadow presets/tuning and independent AO, cavity, plate shadow, reflection and cube switches. Display-only settings save separately from support geometry settings and synchronize View controls. Shadow renderer unchanged from 2f4404980b204aee541b58837c64064d297e799c. See task-04.md for follow-up validation. Same worktree/branch, no merge.
 

@@ -95,8 +95,8 @@ public class ScrubField : UserControl
 
     private void Refresh()
     {
-        _displayValue = _session?.Preview ?? Value;
-        _label.Text = $"{_displayValue.ToString(Format, CultureInfo.InvariantCulture)}{(Unit.Length > 0 ? " " + Unit : "")}";
+        _displayValue = NumericEditSession.RoundValue(_session?.Preview ?? Value, IsInteger);
+        _label.Text = $"{_displayValue.ToString(IsInteger ? "0" : "0.##", CultureInfo.InvariantCulture)}{(Unit.Length > 0 ? " " + Unit : "")}";
         _fill.Width = ShowFill && Maximum > Minimum ? Math.Max(0, _surface.Bounds.Width - 2) * Math.Clamp((_displayValue - Minimum) / (Maximum - Minimum), 0, 1) : 0;
         _lock.IsVisible = CanLock;
         _lock.Content = RefreshIcons.Create(IsLocked ? "lock" : "unlock");
@@ -108,14 +108,18 @@ public class ScrubField : UserControl
     {
         if (_editing || IsLocked || !e.GetCurrentPoint(_surface).Properties.IsLeftButtonPressed) return;
         Focus();
-        _session = new NumericEditSession(Value, e.GetPosition(this).X);
+        _session = new NumericEditSession(Value, e.GetPosition(_surface).X - 1);
         _capturedPointer = e.Pointer;
         e.Pointer.Capture(_surface); e.Handled = true;
     }
     private void Moved(object? sender, PointerEventArgs e)
     {
         if (_session is null || Maximum < Minimum) return;
-        _session.Move(e.GetPosition(this).X, Step, e.KeyModifiers.HasFlag(KeyModifiers.Shift), Minimum, Maximum);
+        var x = e.GetPosition(_surface).X - 1;
+        if (ShowFill)
+            _session.MoveSlider(x, Math.Max(1, _surface.Bounds.Width - 2), e.KeyModifiers.HasFlag(KeyModifiers.Shift), Minimum, Maximum);
+        else
+            _session.Move(x, Step, e.KeyModifiers.HasFlag(KeyModifiers.Shift), Minimum, Maximum);
         Refresh();
     }
     private void Released(object? sender, PointerReleasedEventArgs e)
@@ -130,7 +134,7 @@ public class ScrubField : UserControl
     private void BeginText()
     {
         if (IsLocked) return;
-        _editing = true; _editor.Text = Value.ToString("G", CultureInfo.InvariantCulture);
+        _editing = true; _editor.Text = NumericEditSession.RoundValue(Value, IsInteger).ToString(IsInteger ? "0" : "0.##", CultureInfo.InvariantCulture);
         _editor.IsVisible = true; _editor.Focus(); _editor.SelectAll();
     }
     private bool CommitText()
@@ -146,8 +150,11 @@ public class ScrubField : UserControl
     }
     private void Commit(double value)
     {
-        if (IsInteger) value = Math.Clamp(Math.Round(value), Minimum, Maximum);
+        value = Math.Clamp(NumericEditSession.RoundValue(value, IsInteger), Minimum, Maximum);
         var old = Value;
+        // Float-backed settings may echo e.g. 0.600000024; an unchanged visible value
+        // must not generate another save/undo entry just because of representation noise.
+        if (NumericEditSession.RoundValue(old, IsInteger) == value) { Refresh(); return; }
         SetCurrentValue(ValueProperty, value); Refresh();
         if (old != value) EditCommitted?.Invoke(this, new NumericCommittedEventArgs(old, value));
     }

@@ -25,6 +25,25 @@ public sealed class NumericEditSession
         return Preview;
     }
 
+    /// <summary>Filled sliders map the pointer to the track, independent of keyboard Step.</summary>
+    public double MoveSlider(double x, double width, bool fine, double minimum, double maximum)
+    {
+        if (width <= 0 || maximum <= minimum) return Preview;
+        if (!IsDragging)
+        {
+            if (Math.Abs(x - _originX) < DragThreshold) return Preview;
+            IsDragging = true;
+        }
+        Preview = Math.Clamp(fine
+            ? Preview + (x - _lastX) / width * (maximum - minimum) * 0.1
+            : minimum + Math.Clamp(x / width, 0, 1) * (maximum - minimum), minimum, maximum);
+        _lastX = x;
+        return Preview;
+    }
+
+    public static double RoundValue(double value, bool integer = false) =>
+        Math.Round(value, integer ? 0 : 2, MidpointRounding.AwayFromZero);
+
     public static bool TryExpression(string text, UnitKind kind, double minimum, double maximum, out double value)
     {
         return ExpressionParser.TryEvaluate(text, kind, out value) && double.IsFinite(value)

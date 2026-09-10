@@ -6,6 +6,34 @@ namespace Danslicer.Tests;
 public sealed class UiRefreshNumericTests
 {
     [Fact]
+    public void SliderTracksPointerAcrossRangeRegardlessOfKeyboardStep()
+    {
+        var edit = new NumericEditSession(0.35, 100);
+        Assert.Equal(0.35, edit.MoveSlider(102, 200, false, 0, 0.7));
+        Assert.Equal(0.42, edit.MoveSlider(120, 200, false, 0, 0.7), 10);
+        Assert.Equal(0.427, edit.MoveSlider(122, 200, false, 0, 0.7), 10);
+        Assert.Equal(0.7, edit.MoveSlider(250, 200, false, 0, 0.7));
+        Assert.Equal(0, edit.MoveSlider(-10, 200, false, 0, 0.7));
+        Assert.Equal(0.35, edit.Original);
+    }
+
+    [Fact]
+    public void SliderFineAdjustmentAndResizedTracksUseTheirActualWidth()
+    {
+        var edit = new NumericEditSession(50, 100);
+        Assert.Equal(51, edit.MoveSlider(120, 200, true, 0, 100), 10);
+        Assert.Equal(52, edit.MoveSlider(140, 200, true, 0, 100), 10);
+        Assert.Equal(35, edit.MoveSlider(140, 400, false, 0, 100), 10);
+    }
+
+    [Theory]
+    [InlineData(1.234567, 1.23)]
+    [InlineData(0.555, 0.56)]
+    [InlineData(-1.235, -1.24)]
+    public void NumericEditsHaveAtMostTwoDecimalPlaces(double input, double expected) =>
+        Assert.Equal(expected, NumericEditSession.RoundValue(input));
+
+    [Fact]
     public void ClickJitterDoesNotStartScrubbing()
     {
         var edit = new NumericEditSession(12, 100);
