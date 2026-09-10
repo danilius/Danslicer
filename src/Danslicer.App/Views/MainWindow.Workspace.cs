@@ -259,4 +259,3 @@ public partial class MainWindow
         catch (Exception ex) { vm.ViewportStatus = $"Open failed: {ex.Message}"; }
     }
 }
-

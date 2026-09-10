@@ -105,13 +105,13 @@ public sealed class ToolPopout : Border
         AutomationProperties.SetName(resize, "Resize popout width"); ToolTip.SetTip(resize, "Drag to resize; Left/Right to adjust width");
         Grid.SetRowSpan(resize, 2); root.Children.Add(resize); Child = root;
         Point? resizeOrigin = null;
-        double originalWidth = 0;
+        double originalWidth = 0, originalRequestedWidth = 0;
         IPointer? resizePointer = null;
         void EndResize() { resizeOrigin = null; var pointer = resizePointer; resizePointer = null; pointer?.Capture(null); }
         resize.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(resize).Properties.IsLeftButtonPressed) return;
-            resize.Focus(); resizeOrigin = e.GetPosition(TopLevel.GetTopLevel(this)); originalWidth = Bounds.Width;
+            resize.Focus(); resizeOrigin = e.GetPosition(TopLevel.GetTopLevel(this)); originalWidth = Bounds.Width; originalRequestedWidth = Width;
             resizePointer = e.Pointer; e.Pointer.Capture(resize); e.Handled = true;
         };
         resize.PointerMoved += (_, e) =>
@@ -121,10 +121,10 @@ public sealed class ToolPopout : Border
             e.Handled = true;
         };
         resize.PointerReleased += (_, e) => { if (resizeOrigin is null) return; EndResize(); WidthCommitted?.Invoke(this, EventArgs.Empty); e.Handled = true; };
-        resize.PointerCaptureLost += (_, _) => { if (resizeOrigin is not null) Width = originalWidth; EndResize(); };
+        resize.PointerCaptureLost += (_, _) => { if (resizeOrigin is not null) Width = originalRequestedWidth; EndResize(); };
         resize.KeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape && resizeOrigin is not null) { Width = originalWidth; EndResize(); e.Handled = true; }
+            if (e.Key == Key.Escape && resizeOrigin is not null) { Width = originalRequestedWidth; EndResize(); e.Handled = true; }
             else if (e.Key is Key.Left or Key.Right) { Width = Math.Clamp(Bounds.Width + (e.Key == Key.Left ? -10 : 10), MinWidth, MaxWidth); WidthCommitted?.Invoke(this, EventArgs.Empty); e.Handled = true; }
         };
         KeyDown += (_, e) => { if (e.Key == Key.Escape && !e.Handled) { RequestClose(); e.Handled = true; } };
@@ -225,4 +225,3 @@ public sealed class ReorderableExpander : Border
         _body.IsVisible = IsExpanded;
     }
 }
-

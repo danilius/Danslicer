@@ -73,4 +73,3 @@ public sealed partial class NumericField : ObservableObject
         OnPropertyChanged(nameof(Text));
     }
 }
-

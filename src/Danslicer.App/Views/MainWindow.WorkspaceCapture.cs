@@ -31,7 +31,7 @@ public partial class MainWindow
                 await Task.Delay(600);
                 await CheckWorkspace(directory);
                 File.WriteAllText(System.IO.Path.Combine(directory, "workspace-ok.txt"),
-                    "Real MainWindow/VM: STL import, selected object transform expression/undo, duplicate/undo, toolbar labels, mode scoping, all 12 popouts and persistent panel-free Support isolation rail with cube clearance/centered Reset/Cap label, handle-hover layer/mm editing, pointer drag commit/cancel and delayed dismissal, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, session project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
+                    "Real MainWindow/VM: STL import, selected object transform expression/undo, duplicate/undo, toolbar labels, mode scoping, all 12 popouts and persistent panel-free Support isolation rail with cube clearance/centered Reset/Cap label, handle-hover layer/mm editing, pointer drag commit/cancel and delayed dismissal, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, durable project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
             }
             catch (Exception ex)
             {
@@ -104,7 +104,9 @@ public partial class MainWindow
         Key(TransformToolPopup.Shell, Avalonia.Input.Key.Escape);
         Require(!TransformToolPopup.IsOpen && TransformToolButton.IsFocused, "Dismiss must return invoking tool focus");
         Click(_layoutTool); await Layout();
-        var editor = LayoutOptions.GetVisualDescendants().OfType<ExpressionBox>().Single();
+        var placement = LayoutOptions.GetVisualDescendants().OfType<ModelScrubField>().Single();
+        placement.Focus(); Key(placement, Avalonia.Input.Key.Enter);
+        var editor = placement.GetVisualDescendants().OfType<TextBox>().Single();
         editor.Focus(); var before = vm.PlacementHeight.Text;
         editor.Text = "12345"; Key(editor, Avalonia.Input.Key.Escape);
         Require(LayoutPopout.IsOpen && vm.PlacementHeight.Text == before, "Editor Escape must precede dismissal");
@@ -158,4 +160,3 @@ public partial class MainWindow
         File.Delete(meshPath);
     }
 }
-

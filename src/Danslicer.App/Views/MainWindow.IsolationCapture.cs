@@ -65,7 +65,11 @@ public partial class MainWindow
         Require(_isolationEditor.IsVisible && _isolationMmInput.Text == clip.LowerMmField.Text, "Escape must revert editor before dismissing it");
         _isolationLayerInput.Focus(); _isolationLayerInput.Text = "60"; Key(_isolationLayerInput, Avalonia.Input.Key.Enter);
         Require(Math.Abs(clip.LowerZ - 60 * clip.LayerHeightMm) < 1e-6, "Layer editor conversion failed");
-        Viewport.Focus(); await Task.Delay(650);
+        Viewport.Focus();
+        // DispatcherTimer uses background priority: rendering a cold native window can delay it.
+        // Keep the production 300ms grace and the earlier 100ms gap assertion; allow bounded dispatch latency.
+        var dismissDeadline = DateTime.UtcNow.AddSeconds(2);
+        while (_isolationEditor.IsVisible && DateTime.UtcNow < dismissDeadline) await Task.Delay(50);
         Require(!_isolationEditor.IsVisible && InspectionContent.IsVisible, $"Only hover card should dismiss on exit: hovered={_isolationHandleHovered}, dragging={IsolationSlider.IsDragging}, pointer={_isolationEditor.IsPointerOver}, focused={_isolationEditor.IsKeyboardFocusWithin}, rail={InspectionContent.IsVisible}");
         IsolationSlider.Focus(); Key(IsolationSlider, Avalonia.Input.Key.Right); Key(IsolationSlider, Avalonia.Input.Key.Enter);
         Require(_isolationLayerInput.IsFocused && ReferenceEquals(_isolationLayerInput.DataContext, clip.UpperField), "Keyboard must reach upper editor");

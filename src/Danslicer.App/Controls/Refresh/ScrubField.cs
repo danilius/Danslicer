@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Danslicer.Core.Utilities;
 using System.Globalization;
@@ -76,6 +77,14 @@ public class ScrubField : UserControl
         Refresh();
     }
 
+    protected override void OnAttachedToLogicalTree(LogicalTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToLogicalTree(e);
+        if (Parent is Grid row && row.Children.OfType<TextBlock>().FirstOrDefault() is { Text: { } label }
+            && string.IsNullOrEmpty(AutomationProperties.GetName(this)))
+            AutomationProperties.SetName(this, label);
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -142,7 +151,7 @@ public class ScrubField : UserControl
         SetCurrentValue(ValueProperty, value); Refresh();
         if (old != value) EditCommitted?.Invoke(this, new NumericCommittedEventArgs(old, value));
     }
-    private void Cancel()
+    protected void Cancel()
     {
         _session = null; _editing = false; _editor.IsVisible = false;
         var pointer = _capturedPointer; _capturedPointer = null;
@@ -160,7 +169,7 @@ public class ScrubField : UserControl
         else if (!IsLocked && e.Key is Key.Left or Key.Right or Key.Up or Key.Down && Maximum >= Minimum)
         {
             var direction = e.Key is Key.Left or Key.Down ? -1 : 1;
-            Commit(Math.Clamp(Value + direction * Step * (e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? 0.1 : 1), Minimum, Maximum));
+            Commit(Math.Clamp(Value + direction * Step * (!IsInteger && e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? 0.1 : 1), Minimum, Maximum));
             e.Handled = true;
         }
     }
@@ -171,4 +180,3 @@ public sealed class FilledNumericSlider : ScrubField
 {
     protected override bool ShowFill => true;
 }
-

@@ -66,13 +66,28 @@ public partial class MainWindow
         Require(Math.Abs(vm.SupportSettings.SupportTipDiameter - 0.6) < 0.00001 && saves == 1, "Support expression must call existing saving setter exactly once");
         box = Edit(tip, "1001"); Key(box, Avalonia.Input.Key.Enter);
         Require(saves == 1 && box.IsVisible, "Out-of-range support setting applied"); Key(box, Avalonia.Input.Key.Escape);
+        var same = tip.Value; box = Edit(tip, same.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+        Key(box, Avalonia.Input.Key.Enter); Require(saves == 1, "Unchanged edit must not save twice");
         vm.SupportSettings.Saved -= Saved;
+        var count = SupportsToolPopup.GetVisualDescendants().OfType<FilledNumericSlider>().First(f => f.IsInteger);
+        count.BringIntoView(); await Layout();
+        box = Edit(count, "3.6"); Key(box, Avalonia.Input.Key.Enter);
+        Require(count.Value == 4, "Integer field must normalize at commit");
+        Key(count, Avalonia.Input.Key.Right, KeyModifiers.Shift);
+        Require(count.Value == 5, "Integer keyboard fine modifier must still make a whole step");
+        tip.BringIntoView(); await Layout();
         var supportSection = SupportsToolPopup.GetLogicalDescendants().OfType<ReorderableExpander>().First();
         var grip = supportSection.GetVisualDescendants().OfType<Button>().Single(b => (AutomationProperties.GetName(b) ?? "").StartsWith("Reorder "));
         Key(grip, Avalonia.Input.Key.Down, KeyModifiers.Alt); supportSection.IsExpanded = false;
         var resize = SupportsToolPopup.GetVisualDescendants().OfType<Border>().Single(b => AutomationProperties.GetName(b) == "Resize popout width");
         Key(resize, Avalonia.Input.Key.Right);
         var savedWidth = SupportsToolPopup.Shell.Width;
+        point = resize.TranslatePoint(new Point(3, 15), this)!.Value;
+        resize.RaiseEvent(new PointerPressedEventArgs(resize, pointer, this, point, 10, pressed, KeyModifiers.None, 1));
+        resize.RaiseEvent(new PointerEventArgs(PointerMovedEvent, resize, pointer, this, point + new Vector(80, 0), 11, pressed, KeyModifiers.None));
+        Key(resize, Avalonia.Input.Key.Escape);
+        Require(SupportsToolPopup.Shell.Width == savedWidth && WorkspacePreferences.Load(AppConfig.WorkspacePath).Width(SupportsToolPopup.Name!, 0) == savedWidth,
+            "Cancelled resize must not persist transient width");
         _workspaceToolbar.ShowLabels = true;
         var loaded = WorkspacePreferences.Load(AppConfig.WorkspacePath);
         Require(loaded.ShowToolbarLabels && loaded.Width(SupportsToolPopup.Name!, 0) == savedWidth && loaded.RecentProjects.Count > 0, "Workspace preferences did not round trip");
@@ -105,4 +120,3 @@ public partial class MainWindow
         }
     }
 }
-

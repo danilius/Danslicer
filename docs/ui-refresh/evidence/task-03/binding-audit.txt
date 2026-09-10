@@ -1,0 +1,1 @@
+Status bar byte-identical after newline normalization; no renderer/core/ViewportControl changes.

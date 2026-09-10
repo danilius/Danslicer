@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.LogicalTree;
 using Danslicer.App.ViewModels;
 
 namespace Danslicer.App.Controls.Refresh;
@@ -8,6 +9,7 @@ namespace Danslicer.App.Controls.Refresh;
 /// <summary>One commit callback into the existing NumericField/model/undo path; no Value binding.</summary>
 public sealed class ModelScrubField : ScrubField
 {
+    private bool _attached;
     public static readonly StyledProperty<NumericField?> FieldProperty = AvaloniaProperty.Register<ModelScrubField, NumericField?>(nameof(Field));
     public NumericField? Field { get => GetValue(FieldProperty); set => SetValue(FieldProperty, value); }
     public ModelScrubField()
@@ -23,9 +25,23 @@ public sealed class ModelScrubField : ScrubField
     {
         base.OnPropertyChanged(change);
         if (change.Property != FieldProperty) return;
+        Cancel();
         if (change.OldValue is NumericField old) old.PropertyChanged -= Changed;
-        if (Field is { } field) field.PropertyChanged += Changed;
+        if (_attached && Field is { } field) field.PropertyChanged += Changed;
         Sync();
+    }
+    protected override void OnAttachedToLogicalTree(LogicalTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToLogicalTree(e);
+        _attached = true;
+        if (Field is { } field) { field.PropertyChanged -= Changed; field.PropertyChanged += Changed; }
+        Sync();
+    }
+    protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e)
+    {
+        if (Field is { } field) field.PropertyChanged -= Changed;
+        _attached = false;
+        base.OnDetachedFromLogicalTree(e);
     }
     private void Changed(object? sender, PropertyChangedEventArgs e) => Sync();
     private void Sync()

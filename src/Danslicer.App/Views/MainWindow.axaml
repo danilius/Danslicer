@@ -21,14 +21,12 @@
             <Grid ColumnDefinitions="18,*" Margin="0,2">
                 <TextBlock Text="{Binding Label}" Classes="label" />
                 <refresh:ModelScrubField Grid.Column="1" Field="{Binding}" />
-
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="WideFieldTemplate" x:DataType="vm:NumericField">
             <Grid ColumnDefinitions="120,*" Margin="0,2">
                 <TextBlock Text="{Binding Label}" Classes="label" />
                 <refresh:ModelScrubField Grid.Column="1" Field="{Binding}" />
-
             </Grid>
         </DataTemplate>
     </Window.Resources>
@@ -641,8 +639,7 @@
                                               ToolTip.Tip="With painting armed, drag to paint a stroke; Shift-drag erases. One undo per stroke." />
                                     <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
                                         <TextBlock Text="Brush radius (px)" Classes="label" VerticalAlignment="Center" />
-                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionBrushRadiusField.Text, Mode=TwoWay}"
+                                        <refresh:ModelScrubField Grid.Column="1" Width="110" HorizontalAlignment="Right" Field="{Binding RegionBrushRadiusField}"
                                             ToolTip.Tip="Screen pixels: the ring keeps its size as you zoom" />
                                     </Grid>
                                     <CheckBox Content="Edit keep-clean region"
@@ -650,14 +647,12 @@
                                               ToolTip.Tip="Operations edit the keep-clean faces instead of the supported faces" />
                                     <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
                                         <TextBlock Text="Patch angle" Classes="label" VerticalAlignment="Center" />
-                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionDihedralField.Text, Mode=TwoWay}"
+                                        <refresh:ModelScrubField Grid.Column="1" Width="110" HorizontalAlignment="Right" Field="{Binding RegionDihedralField}"
                                             ToolTip.Tip="Click-to-grow crosses an edge while the faces turn by no more than this" />
                                     </Grid>
                                     <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,4">
                                         <TextBlock Text="Down angle" Classes="label" VerticalAlignment="Center" />
-                                        <controls:ExpressionBox Grid.Column="1" Width="64" HorizontalAlignment="Right"
-                                            Text="{Binding RegionOverhangField.Text, Mode=TwoWay}"
+                                        <refresh:ModelScrubField Grid.Column="1" Width="110" HorizontalAlignment="Right" Field="{Binding RegionOverhangField}"
                                             ToolTip.Tip="Measured from vertical, as generation measures it: 0 is a wall, 90 a flat underside" />
                                     </Grid>
                                     <Button x:Name="RegionFacingDownButton" Content="Select faces pointing down"
@@ -928,9 +923,9 @@
                         <ToggleButton Classes="tool" Content="Snap" IsChecked="{Binding SnapEnabled}" ToolTip.Tip="Snapping (Shift+Tab). Ctrl inverts while dragging. 1 mm, 5°, 0.1×" />
                         <TextBlock Classes="headerSep" />
                         <ToggleButton Classes="tool" Content="Auto Drop" IsChecked="{Binding AutoDropEnabled}" ToolTip.Tip="Re-seat the lowest mesh point at the entered offset after every transform" />
-                        <controls:ExpressionBox Width="58" Text="{Binding PlacementHeight.Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                        <refresh:ModelScrubField Width="110" Field="{Binding PlacementHeight}"
                                                 ToolTip.Tip="Lowest-point offset above the plate (0 = on plate)" />
-                        <TextBlock Text="mm" Classes="label" Margin="4,0,4,0" />
+
                     </StackPanel>
 
                 </refresh:WorkspacePopout>
@@ -940,5 +935,3 @@
         </Grid>
     </DockPanel>
 </Window>
-
-
