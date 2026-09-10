@@ -12,12 +12,12 @@ namespace Danslicer.App.Configuration;
 public static class AppConfig
 {
     private static string _path = UserConfig.DefaultPath;
-    private static UserConfig? _current;
-    public static UserConfig Current => _current ??= UserConfig.Load(_path);
+    private static readonly Lazy<UserConfig> _current = new(() => UserConfig.Load(_path));
+    public static UserConfig Current => _current.Value;
     public static string WorkspacePath => Path.Combine(Path.GetDirectoryName(_path)!, "workspace-ui.json");
     public static void UseIsolatedDirectory(string directory)
     {
-        if (_current is not null) throw new InvalidOperationException("Configuration already loaded");
+        if (_current.IsValueCreated) throw new InvalidOperationException("Configuration already loaded");
         _path = Path.Combine(directory, "config.json");
     }
 

@@ -1,17 +1,31 @@
-# Task 03 — settings integration and persistence
+# Task 03 completed — recovery and handoff
 
-## Start — 2026-09-10
+Date: 2026-09-10
 Worktree: C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt
 Branch: codex/ui-refresh-03
-Last good commit/base: a0fed8b933f3358e875e4650bbe8915d5a57c574 (clean exact task-02 handoff).
-User confirmed task 02 is done; this supersedes its historical pending-review language.
-Plan: separate compatible workspace preferences file; isolated capture configuration; production rectangular numeric controls through existing model setters; preserve undo, units, commands and the approved Support isolation exception. Validate corrupt/stale preference recovery, numeric transactions, native main workflows and screenshots. No renderer/core geometry edits, other checkout changes, main merge or later task implementation.
-Initial checks: exact HEAD and clean status verified, dedicated branch created (Git metadata requires escalation because shared .git lives outside this worktree). No implementation checks yet.
-Next: implement persistence and numeric integration, build and test.
+Exact accepted task-02 base: a0fed8b933f3358e875e4650bbe8915d5a57c574. User said task 02 is done; all earlier pending-review wording is historical.
+Last good implementation/evidence commit: dfc760f (full hash available through git rev-parse dfc760f).
+Final handoff is the following committed descendant, which also preserves thread-safe lazy AppConfig initialization; exact hash in the final response. Verify HEAD and clean status before continuing.
 
-## Iteration 1 — production binding and durable workspace state
-Worktree: C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt; branch codex/ui-refresh-03.
-Last good committed checkpoint: e18b37a (plan).
-Changed: AppConfig/App startup isolate native capture config; WorkspacePreferences sidecar and MainWindow.Preferences restore/persist toolbar, widths, recent projects, section order/expansion; ToolShells reports completed resize and cancels capture loss; ModelScrubField/NumericField retain one existing model callback; MainWindow templates and support/raft bounded numeric controls use centered in-field units; new persistence tests/native settings checks.
-Checks: initial Release solution build passed (existing warnings); latest build plus 171 focused tests passed, 0 failed/skipped. Restricted restore required approved NuGet access. First updated native main capture failed in the unchanged task-02 isolation delayed-dismiss assertion before reaching new settings checks; investigate deterministic dispatcher timing. No visual pass claimed yet. Support config setters retain existing immediate-save semantics and no document undo; transform edits use existing document undo. Visibility has no numeric parameter, so existing modes/switches remain.
-Next: resolve native capture timing, exercise settings/persistence interactions, inspect screenshots and commit verified refinement. No renderer/core geometry edits.
+## Shipped
+Durable workspace-ui.json sidecar beside existing user config: toolbar label mode, completed preferred popout widths, expander order/expansion and ten recent project paths. Atomic replacement, corrupt/missing fallback, stale/duplicate identifiers filtered, new sections appended, unknown properties preserved, newer schema read-only. Unrelated existing user config is not rewritten by workspace preference saves. Missing/offline recent paths remain in history and fail through existing status handling when opened.
+Production support/available raft bounded controls retain limits, increments, validation and existing saving bindings; centered numeric value and unit inside rectangular fill. Transform, print, region and placement use ModelScrubField through the existing NumericField/model callback once per commit, with no Value binding double-apply. Transform drag has one document undo; support configuration retains its pre-existing immediate-save behavior without document undo. Visibility retains real switches/modes; no numeric opacity or raft parameters invented; no field locks without semantics.
+Compact typography, whole-expander drag/settling, round grippers, constrained resizable popouts and Support-only right isolation rail preserved. Resize cancellation restores preferred width even before pending layout completes and does not persist a transient width. Isolation keeps shared ViewCube.Rect plus 12 DIP, no enclosing panel, centered Reset, saved two-state Cap and the 300ms handle/card grace.
+
+## Verification
+Release solution/app builds passed; 181 focused tests passed, 0 failures/skips. Existing SurfaceContour CA2014, ViewportControl CS8602 and raft-test xUnit2031 warnings only. Native main capture and reusable control preview each exited 0. Final main capture re-run after thread-safe lazy configuration change also passed.
+Native checks cover import, transform pointer previews/single commit/undo/cancel, expressions/units, invalid and range rejection, blur/no-op/integer/keyboard semantics, support setter called once, raft config and saved cap-off round trips, actual new-window preference restoration, recent projects, resize cancellation, twelve popouts, isolation interaction and narrow layout. Unit tests and main capture now use fresh temporary config; previews branch before config loading.
+Reviewed transform/support/raft/print/narrow/isolation images in evidence/task-03. Control smoke evidence is in evidence/task-03-controls. Status-bar subtree unchanged after newline normalization; no Core/Render/ViewportControl diff. Whitespace check passed.
+Limits: screenshots are offscreen native-window renders and omit GL composition (black viewport). 100/150/200 render densities are not physical monitor DPI or monitor-transition checks. Physical mouse/hit-testing, screen readers and light theme not verified (app has dark themes). Full geometry suite, native picker/export dialogs, UVtools execution and full support-generation/slicing job not run. Early isolation timing failure was resolved by a bounded dispatcher wait in the test only; production 300ms timing unchanged.
+
+## Launch MAIN application
+```powershell
+& "C:\Users\plane\.codex\worktrees\3321\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
+```
+Build from this worktree: `dotnet build Danslicer.slnx -c Release --no-restore -p:UsedAvaloniaProducts= --nologo`.
+Main native check: same absolute executable with `--workspace-capture docs/ui-refresh/evidence/task-03`; wait for process exit and inspect workspace-ok.txt/settings-ok.txt (failure writes workspace-error.txt and exits nonzero).
+Control check: same executable with `--ui-preview --capture-directory docs/ui-refresh/evidence/task-03-controls`.
+Focused test filter and iteration history are in task-03.md.
+
+## Exact next action / task 04
+User follows up here. No further task was created and no main merge performed. For task 04, start a separate isolated worktree from this exact final handoff HEAD, read START/SPEC/TASKS/RESUME and task-01/02/03. Audit committed renderer overlap before editing; do not touch F:/Git Repos/Danslicer, prior worktrees or routing prototype, or absorb uncommitted changes. Task 04 owns modelled plate, subtle reflections, transparency and selection through from below, AO/cavity audit, and only a confirmed outward bevel correction. Preserve task-03 numeric/persistence contracts, the Support rail, all status content, modes and keymaps. Obtain actual above/below GL evidence; these offscreen captures cannot verify renderer work.
