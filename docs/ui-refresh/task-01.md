@@ -46,3 +46,6 @@ Updated runnable preview (absolute path avoids launching another checkout):
 & "C:\Users\plane\.codex\worktrees\f60d\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --ui-preview
 ```
 Build/test commands use `-c Release`; capture command is `dotnet run -c Release --no-build --project src/Danslicer.App -- --ui-preview --capture-directory docs/ui-refresh/evidence`.
+
+## User approval
+The user approved the refined preview at ee5e5cf: 'This is now approved.' Task 01 is accepted. Carry this approved design into task 02 in a separate chat; existing merge and scope boundaries remain unchanged.

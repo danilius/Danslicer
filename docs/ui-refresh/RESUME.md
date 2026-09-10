@@ -1,3 +1,11 @@
+# User approval — task 01
+
+The user approved the refined native preview: 'This is now approved.' Approved implementation: ee5e5cf on codex/ui-refresh. Preserve the compact controls, resizable popout, live whole-expander dragging with animated settling, round compact gripper dots, and filled rectangular slider with centered value/unit as the baseline for task 02.
+
+Task 02 remains a separate coordinator-created chat/worktree from the latest committed branch HEAD. This approval does not change the existing no-main-merge or sequential-task boundaries.
+
+---
+
 # Latest refinement checkpoint — task 01
 User refinements completed: compact typography/headers/numeric fields, resizable popout right edge, live whole-section dragging with animated settling, compact round grip dots. Release build, 77 focused tests, expanded native pointer/keyboard smoke checks pass. Latest images in evidence include mid-drag and wide popout. See task-01.md refinement note for contracts and verification limits.
 Worktree/branch unchanged: C:/Users/plane/.codex/worktrees/f60d/Danslicer-chatgpt on codex/ui-refresh. Latest handoff ref is branch HEAD after the refinement commit; prior implementation hashes below are historical. No later-task integration or main merge. Next coordinator task should start from the latest HEAD.
