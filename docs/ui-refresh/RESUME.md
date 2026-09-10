@@ -1,3 +1,7 @@
+# Task 04 active — recovery and handoff
+
+Current worktree: C:/Users/plane/.codex/worktrees/e262/Danslicer-chatgpt. Branch: codex/ui-refresh-04. Clean exact accepted task-03 base and last good commit: 8a0fac4f52515f18f1560a54b938dbb2b8f17a60. Task 03 is user-confirmed complete. Task 04 plan/audit is in task-04.md; next action is baseline native GL framebuffer evidence and renderer implementation. No renderer verification yet. Historical task-03 handoff follows.
+
 # Task 03 completed — recovery and handoff
 
 Date: 2026-09-10
