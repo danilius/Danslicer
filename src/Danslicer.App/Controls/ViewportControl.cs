@@ -2925,6 +2925,7 @@ public sealed class ViewportControl : OpenGlControlBase
         _gizmo.ShowMove = ShowMoveGizmo;
         _gizmo.ShowRotate = ShowRotateGizmo;
         _gizmo.ShowScale = ShowScaleGizmo;
+        _spaceMouseSession.Attach(this);
         _spaceMouseWindow = TopLevel.GetTopLevel(this) as Window;
         if (_spaceMouseWindow is not null)
         {
@@ -2943,11 +2944,15 @@ public sealed class ViewportControl : OpenGlControlBase
             _spaceMouseWindow = null;
         }
         ReleaseSpaceMouse();
+        _spaceMouseSession.Detach(this);
     }
 
     private static ViewportControl? _spaceMouseOwner;
+    private static readonly SixAxisSession _spaceMouseSession = new(() => OperatingSystem.IsWindows()
+        ? new TdxSpaceMouse() : throw new PlatformNotSupportedException());
     internal static ViewportControl? SpaceMouseOwner => _spaceMouseOwner;
     internal bool SpaceMouseConnected => _sixAxis?.IsConnected == true;
+    internal ISixAxisInput? SpaceMouseDevice => _sixAxis;
     private Window? _spaceMouseWindow;
     private void OnSpaceMouseWindowActivated(object? sender, EventArgs e) => AcquireSpaceMouse();
 
@@ -2965,7 +2970,7 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         _sixAxisTimer?.Stop();
         _sixAxisTimer = null;
-        _sixAxis?.Dispose();
+        _spaceMouseSession.Release(this);
         _sixAxis = null;
         if (_spaceMouseOwner == this) _spaceMouseOwner = null;
     }
@@ -2985,17 +2990,17 @@ public sealed class ViewportControl : OpenGlControlBase
     private void ConnectSpaceMouse()
     {
         if (!OperatingSystem.IsWindows() || _sixAxis is not null) return;
-        var device = new TdxSpaceMouse();
-        if (!device.TryConnect())
+        var device = _spaceMouseSession.Acquire(this);
+        if (device is null)
         {
             Log("SpaceMouse: 3DxWare COM not available");
-            device.Dispose();
             return;
         }
-        Log((device.ButtonsConnected
+        var tdx = (TdxSpaceMouse)device;
+        Log((tdx.ButtonsConnected
             ? "SpaceMouse connected via 3DxWare COM, buttons hooked"
             : "SpaceMouse connected via 3DxWare COM, button events unavailable")
-            + $"; driver period {(device.DriverPeriodMs is { } p ? $"{p:F2} ms" : "unknown")}");
+            + $"; driver period {(tdx.DriverPeriodMs is { } p ? $"{p:F2} ms" : "unknown")}");
         _sixAxis = device;
         _sixAxisTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(15) };
         _sixAxisTimer.Tick += (_, _) => PollSpaceMouse();
@@ -3007,7 +3012,8 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_sixAxis is null) return;
         foreach (var press in _sixAxis.DrainButtonPresses()) HandleSpaceMouseButton(press);
         var pollStart = Trace ? Stopwatch.GetTimestamp() : 0;
-        var m = _sixAxis.Poll();
+        var config = Configuration.AppConfig.Current.SpaceMouse;
+        var m = _spaceMouseSession.Poll(this, config.Deadzone);
         if (Trace)
         {
             _tracePollMaxMs = Math.Max(_tracePollMaxMs, Stopwatch.GetElapsedTime(pollStart).TotalMilliseconds);
@@ -3015,7 +3021,6 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         if (m.IsZero) return;
 
-        var config = Configuration.AppConfig.Current.SpaceMouse;
         var deadzone = config.Deadzone;
         var orbit = SpaceMouseOrbitPixels * config.OrbitSensitivity;
         var pan = SpaceMousePanPixels * config.PanSensitivity;

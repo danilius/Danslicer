@@ -17,6 +17,7 @@ public partial class MainWindow
     private async Task CheckSupportEditorRefinements(string directory)
     {
         static void Require(bool ok, string message) { if (!ok) throw new InvalidOperationException(message); }
+        var originalDevice = Viewport.SpaceMouseDevice;
         var vm = new SupportPresetEditorViewModel(AppConfig.Current.ActiveSupportPresetName, () => null);
         var editor = new SupportPresetEditorWindow(vm);
         editor.Show(this); editor.Activate();
@@ -25,6 +26,7 @@ public partial class MainWindow
         Require(ViewportControl.SpaceMouseOwner == preview, "Editor did not acquire exclusive SpaceMouse ownership");
         Require(!Viewport.SpaceMouseConnected, "Main retained competing SpaceMouse connection");
         var hardware = preview.SpaceMouseConnected;
+        Require(originalDevice is null || ReferenceEquals(originalDevice, preview.SpaceMouseDevice), "Editor recreated the driver connection");
         var sections = editor.GetVisualDescendants().OfType<ReorderableExpander>().ToArray();
         Require(sections.Length >= 6 && !editor.GetVisualDescendants().OfType<Expander>().Any(), "Legacy editor headers remain");
         var first = sections[0]; var panel = (Panel)first.Parent!;
@@ -61,6 +63,7 @@ public partial class MainWindow
         await Task.Delay(250);
         Require(ViewportControl.SpaceMouseOwner == Viewport && !preview.SpaceMouseConnected, "Main SpaceMouse ownership not restored after editor close");
         Require(!hardware || Viewport.SpaceMouseConnected, "Main failed to reconnect the available SpaceMouse driver");
+        Require(originalDevice is null || ReferenceEquals(originalDevice, Viewport.SpaceMouseDevice), "Return to main recreated the driver connection");
         File.WriteAllText(System.IO.Path.Combine(directory, "editor-refinements-ok.txt"),
             $"Preset editor uses refresh headers; keyboard and pointer gripper reorder pass, no mid-drag writes, release persists and main save preserves editor order; base slider max 25mm. Exclusive SpaceMouse ownership transfers to editor and returns to main on close. Driver connected in editor: {hardware}; main after close: {Viewport.SpaceMouseConnected}. Physical device movement not simulated. Offscreen image omits GL. Border-width native live/persist/cancel checks run in live-numeric-ok.txt.\n");
     }
