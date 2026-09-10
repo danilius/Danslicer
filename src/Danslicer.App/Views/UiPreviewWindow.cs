@@ -133,9 +133,10 @@ public sealed class UiPreviewWindow : Window
         var pressed = new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed);
         surface.RaiseEvent(new PointerPressedEventArgs(surface, pointer, this, position, 0, pressed, KeyModifiers.None, 1));
         surface.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, surface, pointer, this, position + new Vector(10, 0), 1, pressed, KeyModifiers.None));
-        Require(angle.Value == initial, "Drag preview must not commit to model");
+        Require(angle.Value == initial, "Gallery with no scene-preview host keeps Value until commit");
         surface.RaiseEvent(new PointerReleasedEventArgs(surface, pointer, this, position + new Vector(10, 0), 2, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
-        Require(angle.Value == initial + 10 * angle.Step && commits == 2 && _undo.Count == 1, "Drag must commit once");
+        var expectedTrackValue = NumericEditSession.RoundValue(angle.Minimum + 29 / (surface.Bounds.Width - 2) * (angle.Maximum - angle.Minimum));
+        Require(angle.Value == expectedTrackValue && commits == 2 && _undo.Count == 1, "Filled slider must commit actual track-mapped value once");
         angle.Value = initial; _undo.Clear(); commits = 1;
         surface.RaiseEvent(new PointerPressedEventArgs(surface, pointer, this, position, 3, pressed, KeyModifiers.None, 1));
         surface.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, surface, pointer, this, position + new Vector(20, 0), 4, pressed, KeyModifiers.None));

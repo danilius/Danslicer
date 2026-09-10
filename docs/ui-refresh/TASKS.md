@@ -10,7 +10,7 @@ Integrate floating toolbar and anchored popouts with real existing commands; rem
 Apply controls to support, visibility, transform and available raft settings. Preserve numeric expressions, unit conversion, undo; add locks only with explicit semantics. Persist toolbar mode, expander order/state compatibly; handle scroll/focus/Escape. No invented raft functionality. Validate settings round trips, keyboard and DPI; deliver task-03.md.
 ## 04 — Plate rendering [complete; handoff 0df54ff]
 Audit renderer overlap with Claude before edits. Implement shallow plate, restrained reflections, correct transparency below and selection-through behavior in separate commits. AO is explicitly in scope: provide independently configurable proximity/contact shading alongside audited cavity effects. Verify clipping/depth/outline interactions and performance with actual GL framebuffer evidence; preserve print geometry. Correct only an actual inward bevel bug if confirmed against geometry spec, separately document algorithm changes. Deliver above/below evidence and task-04.md.
-## 04b — Live numeric scene updates [active; base 0df54ff]
+## 04b — Live numeric scene updates [implemented; ready for user review; see task-04b.md]
 Implement the approved live preview/commit/cancel contract in SPEC.md. Audit every numeric host; validate native interaction, no drag writes/undo, and real GL feedback. Deliver task-04b.md in the isolated da71 worktree; no task 05 or main merge.
 ## 05 — Regression and integration candidate [queued; depends 04b]
 Review approved specification against real app, run appropriate suite and manual checks, fix remaining UX defects, reconcile committed Claude work in isolated UI branch after confirming stable base. Resolve conflicts in UI checkout only. Produce reviewable final commits, known limitations, test/build/run instructions and task-05.md. Do not merge into main without user instruction.
@@ -19,4 +19,3 @@ Use the prior task's exact completed commit as starting ref for a separate proje
 
 ## Accepted baseline and current review
 Task 01 was approved by the user; accepted handoff: 0fadc0e2412498513e34db6337aa3bba1ed9dc8c. Task 02 started 2026-09-10 in C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt on codex/ui-refresh-02. Tested implementation including authorized Support isolation refinement: ba25565f7adaf7e11664af38c328fe462c7200d9; final documentation descendant at branch HEAD is the review handoff. User confirmed task 02 is done at a0fed8b933f3358e875e4650bbe8915d5a57c574. Task 03 is implemented and verified in C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt on codex/ui-refresh-03.
-
