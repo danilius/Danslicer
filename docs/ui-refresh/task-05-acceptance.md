@@ -1,3 +1,12 @@
+# Latest correction — continuous SpaceMouse rotation on editor close
+
+Tested source 7d88af03b3e69d35f4873ea6799ca8cb28512d3f. One driver connection now survives the editor/main handoff, instead of disconnecting/recreating it. Motion is suppressed until a neutral reading in the configured deadzone; held movement then works normally. This prevents stale or held editor rotation being applied to the main camera. The final viewport detach disposes the connection.
+
+Release solution build and 1013 full tests passed. Two new deterministic tests cover 1000 stale/held rotation readings after close, neutral recovery, sustained legitimate input, repeated activation and late old-owner detach. Native full workspace harness passed with the installed COM driver and verifies identical driver object across both handoffs. Evidence: evidence/task-05-spacemouse-neutral. Physical cap motion still requires user verification. Rendering unchanged; no redundant GL run. No merge/push/06/07.
+
+The earlier reconnection description below is superseded by this persistent-session policy.
+
+---
 # Latest task-05 user-review refinements — complete
 
 Tested source: e27b0fcfdc3828469999ebe786b99e3f48120a13, followed by final evidence/docs commit. These additions supersede the earlier report's statements that task05 made no rendering/input changes.

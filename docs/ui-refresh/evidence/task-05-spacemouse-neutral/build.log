@@ -1,0 +1,11 @@
+  Danslicer.Core -> C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.Core\bin\Release\net10.0\Danslicer.Core.dll
+  Danslicer.Render -> C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.Render\bin\Release\net10.0\Danslicer.Render.dll
+  Danslicer.Cli -> C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.Cli\bin\Release\net10.0\Danslicer.Cli.dll
+  Danslicer.App -> C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.dll
+  Danslicer.Tests -> C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\tests\Danslicer.Tests\bin\Release\net10.0\Danslicer.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.07
