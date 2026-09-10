@@ -2957,6 +2957,7 @@ public sealed class ViewportControl : OpenGlControlBase
         if (_sixAxis is null) return;
         foreach (var press in _sixAxis.DrainButtonPresses()) HandleSpaceMouseButton(press);
         var m = _sixAxis.Poll();
+        if (Trace) TraceSpaceMouseStaleness(m);
         if (m.IsZero) return;
 
         var config = Configuration.AppConfig.Current.SpaceMouse;
@@ -2992,6 +2993,28 @@ public sealed class ViewportControl : OpenGlControlBase
 
     // Locks the device's rotation axes only (3Dconnexion convention); MMB orbit stays available.
     private bool _spaceMouseRotationLock;
+
+    // DANSLICER_TRACE=1 diagnostic for choppy motion: a deflected cap that returns the exact same
+    // reading on consecutive polls means the driver is not refreshing the sensor between our
+    // ticks. Streaks of a handful are normal jitter; streaks near 30 (half a second at 15 ms) are
+    // the fault. Logged once per streak so the log stays readable.
+    private SixAxisMotion _lastTracedMotion;
+    private int _staleStreak;
+
+    private void TraceSpaceMouseStaleness(SixAxisMotion m)
+    {
+        if (!m.IsZero && m == _lastTracedMotion)
+        {
+            _staleStreak++;
+        }
+        else
+        {
+            if (_staleStreak >= 3)
+                Log($"SpaceMouse stale reading repeated {_staleStreak + 1} polls (~{(_staleStreak + 1) * 15} ms)");
+            _staleStreak = 0;
+        }
+        _lastTracedMotion = m;
+    }
 
     private void HandleSpaceMouseButton(SixAxisButtonPress press)
     {
