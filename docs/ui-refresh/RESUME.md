@@ -1,55 +1,29 @@
-# User approval — task 01
+# Current checkpoint — task 02 implemented, awaiting user review
 
-The user approved the refined native preview: 'This is now approved.' Approved implementation: ee5e5cf on codex/ui-refresh. Preserve the compact controls, resizable popout, live whole-expander dragging with animated settling, round compact gripper dots, and filled rectangular slider with centered value/unit as the baseline for task 02.
-
-Task 02 remains a separate coordinator-created chat/worktree from the latest committed branch HEAD. This approval does not change the existing no-main-merge or sequential-task boundaries.
-
----
-
-# Latest refinement checkpoint — task 01
-User refinements completed: compact typography/headers/numeric fields, resizable popout right edge, live whole-section dragging with animated settling, compact round grip dots. Release build, 77 focused tests, expanded native pointer/keyboard smoke checks pass. Latest images in evidence include mid-drag and wide popout. See task-01.md refinement note for contracts and verification limits.
-Worktree/branch unchanged: C:/Users/plane/.codex/worktrees/f60d/Danslicer-chatgpt on codex/ui-refresh. Latest handoff ref is branch HEAD after the refinement commit; prior implementation hashes below are historical. No later-task integration or main merge. Next coordinator task should start from the latest HEAD.
-The user's old Debug preview was left running; launch the updated Release executable:
-```powershell
-& "C:\Users\plane\.codex\worktrees\f60d\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --ui-preview
-```
-Working tree clean after refinement commit. Rebuild with `dotnet build src/Danslicer.App -c Release -p:UsedAvaloniaProducts=`.
-
----
-# Latest checkpoint — task 01 complete
 Date: 2026-09-10
-Current task: 01. Setup chat ID: client-new-thread:26b9541c-1fd9-4fdf-abfa-b53d59cf5ccc; finalized ID not exposed to this task.
-Worktree: C:/Users/plane/.codex/worktrees/f60d/Danslicer-chatgpt
-Branch: codex/ui-refresh
-Base: 7d95cebfe7f289d1e3230fb789a4526d1f3b518d (committed main)
-Verified implementation commit: fef5d7dfdf70698cd7ee785470e374a2456b66c0
-Final handoff ref: HEAD of codex/ui-refresh (documentation/whitespace checkpoint immediately after implementation).
-
-Completed: imported/committed approved spec and all six reference images; reusable native charcoal controls/vector icons; toolbar modes; explicit-close scrolling popout; grip-reordered expanders; rectangular filled slider; expression/scrub fields with optional locks and one-commit undo boundaries; isolated native preview and capture smoke checks. No later-task work, no main merge.
-Changed files: src/Danslicer.App/Controls/Refresh/*, Views/UiPreviewWindow.cs, App.axaml.cs preview gate, tests/Danslicer.Tests/UiRefreshNumericTests.cs, docs/ui-refresh/*.
-Tests: solution build passed with -p:UsedAvaloniaProducts= (sandbox telemetry workaround); 77 focused tests passed; native routed pointer/keyboard checks passed; four captures generated and inspected. See task-01.md for exact commands, existing warnings and verification limits. Full suite and physical monitor DPI/pointer/screen-reader checks not run. Dark-only appearance matches existing app support.
-
-## Run preview from this worktree
-```powershell
-dotnet run --project src/Danslicer.App -p:UsedAvaloniaProducts= -- --ui-preview
-```
-To regenerate native smoke checks and images after building:
-```powershell
-dotnet run --no-build --project src/Danslicer.App -- --ui-preview --capture-directory docs/ui-refresh/evidence
-```
-
-## Exact next action
-Coordinator should resolve `git rev-parse codex/ui-refresh` and create a separate task 02 chat/worktree from that final committed ref. Read START, SPEC, TASKS and task-01. Implement ONLY workspace layout/navigation with real commands and preserve the status bar/keymaps/settings. Task 03 owns production persistence and numeric model/undo integration. Task 04 owns rendering. This task must not create later chats or merge main.
-Working tree at handoff: intended clean after this documentation checkpoint; verify `git status --short` before resuming. No uncommitted source must be copied between tasks.
-
-# Task 02 start — current checkpoint
+Task: 02 — workspace layout and navigation.
 Worktree: C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt
 Branch: codex/ui-refresh-02
-Accepted predecessor / last good commit: 0fadc0e2412498513e34db6337aa3bba1ed9dc8c.
-Task 01 approved; task 02 underway. Read task-02.md for current plan. No later tasks or merge. Tests so far: clean worktree/exact base verified. Next: integrate main workspace controls and navigation.
+Task-01 accepted starting commit: 0fadc0e2412498513e34db6337aa3bba1ed9dc8c.
+Last good tested implementation/evidence commit: 173977652b2e5b94c7303194b4c9ea3e0b262337.
+Final handoff ref: HEAD of codex/ui-refresh-02, the documentation-only descendant of that implementation. Resolve with `git rev-parse HEAD`; the task's final response gives the exact handoff hash. Expected clean status after the final documentation commit.
 
-## Task 02 iteration 1
-Current worktree/branch: C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt, codex/ui-refresh-02. Last good committed plan: 5d1d143; integration commit follows this checkpoint. Main workspace native smoke passed, Release build passed; visual fixes remain (tab template, extra-tool titles, section presentation). See task-02.md. No task 03 numeric/persistence work or renderer edits.
+## Completed
+Floating inset toolbar adopts original production buttons, preserving command bindings, enablement and mode rules. Icon-only/tooltips and icons-plus-text modes; selected popout tool highlighted. All 13 settings popouts are inline, resizable, tool-anchored and viewport-constrained. Print settings and layer isolation are tools; no permanent right settings panel. Slim underline workspace tabs, responsive machine/resin strip, project dropdown with real session recent-project open and Open another project. Compact draggable section shells in Transform, Support and Print. Existing numeric binding/undo implementation, keymaps and status bar remain intact. No renderer/core changes, other checkout edits or main merge.
 
-## Task 02 iteration 2
-Same worktree/branch; last good integration commit 7193d22. Visual corrections complete; native model workflows and all popout checks pass, 121 focused tests pass, Release solution build passes, prior-control native pointer suite passes. Evidence under evidence/task-02 and task-02-controls. Exact commands and remaining limits are in task-02.md. Next: final committed review handoff.
+Changed source: Controls/Refresh/{ToolShells,RefreshPalette,WorkspacePopout}.cs and Views/MainWindow.axaml, MainWindow.axaml.cs, MainWindow.Workspace.cs, MainWindow.WorkspaceCapture.cs. Documentation/evidence under docs/ui-refresh.
+
+## Main application launch
+```powershell
+& "C:\Users\plane\.codex\worktrees\3713\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
+```
+No preview flag. Build from this worktree with `dotnet build Danslicer.slnx -c Release -p:UsedAvaloniaProducts=`.
+
+## Actual verification
+Release app and solution builds passed. 121 focused existing tests passed, 0 failed/skipped. Native main-window checks passed: STL import, selected transform expression/undo, duplicate/undo, all popouts/modes, focus/Escape, section reorder, resizing/narrow bounds, project save/open and missing-file status. Prior task-01 native pointer/keyboard controls suite re-run successfully. Status-bar XAML byte-identical and original setting/command bindings retained. `git diff --check` passed. See task-02.md for exact commands and evidence paths.
+
+Limits: render-density captures (100/150/200) are not physical monitor DPI checks. Offscreen captures omit the OpenGL composition surface, so viewport backgrounds appear black. No physical mouse, screen-reader, monitor transition or light-theme verification. Full geometry suite, native export/file dialogs, actual UVtools launch and full support-generation/slicing jobs not run; relevant existing command tests passed. Existing SurfaceContour/ViewportControl/RaftBuilderTests warnings remain.
+
+## Next action / task 03 handoff
+User reviews task 02 directly. Do not create the next task or start later work here. After approval, task 03 should start from the exact final committed HEAD in a separate worktree. Read START, SPEC, TASKS, task-01 and task-02.
+Task 03 owns durable toolbar mode, popout width/section order/expansion and recent-project persistence, plus the approved filled numeric slider/scrub controls wired to real parameter metadata and exactly one existing undo path. Current session state is preserved across popout toggles, but intentionally not across restarts. Existing ExpressionBox/NumericUpDown production editors remain until task 03. Review narrow content, focus and DPI during that integration. Existing layer navigation sliders are unchanged; they are not replacement numeric setting controls. Task 04 alone owns renderer/plate/AO/cavity work.

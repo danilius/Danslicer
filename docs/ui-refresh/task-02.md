@@ -21,3 +21,32 @@ Last good integration commit: 7193d22.
 Changed: RefreshPalette vector outlines, FloatingToolbar adoption, WorkspacePopout focus host, MainWindow workspace/capture partials and XAML. Slim tabs now use their own underline template; all toolbar icons use outline geometry. Named extra-tool titles fixed. Support popout uses 26-DIP draggable sections in a separate group so preset controls stay fixed. Transform and Print use the same section shells. Numeric editors/model/undo implementation unchanged. Unit suffix column widened to fit mm/min. Capture waits for layout after undo/reordering to avoid transient blank frames.
 Actual checks: 121 focused tests passed (0 failed/skipped); solution Release build passed; main native checks passed including STL import, selected transform expression/undo, duplicate/undo, all 13 popouts, focus/Escape, narrow bounds, session project open/save and missing-file status. Task-01 native preview pointer/keyboard suite re-run successfully (including whole-section drag/settle and resizing), result in evidence/task-02-controls/capture-ok.txt. Status-bar XAML byte-identical; original setting/command bindings retained, only the obsolete Slicing host visibility binding removed. Reviewed final Layout, Support, Print and narrow captures; 100/150/200 render-density evidence generated. GL composition is not captured by RenderTargetBitmap; black viewport in evidence is that capture limitation.
 Next: final test/checkpoint, committed clean handoff for user review. Task 03 remains queued.
+
+## Final verification and handoff
+Last good tested implementation/evidence: 173977652b2e5b94c7303194b4c9ea3e0b262337. Final handoff is the documentation-only descendant at HEAD of codex/ui-refresh-02; exact hash is in the final task response. Worktree remains C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt. Source/evidence committed; final documentation commit should leave clean status. User review pending; no approval of task 02 inferred.
+
+### Reproduce
+From this exact worktree:
+```powershell
+dotnet build Danslicer.slnx -c Release --no-restore -p:UsedAvaloniaProducts= --nologo
+dotnet test tests/Danslicer.Tests -c Release --no-restore -p:UsedAvaloniaProducts= --filter 'FullyQualifiedName~UiRefreshNumeric|FullyQualifiedName~Expression|FullyQualifiedName~Theme|FullyQualifiedName~ViewportToolbar|FullyQualifiedName~WindowKeymap|FullyQualifiedName~Workspace|FullyQualifiedName~ModeScoped|FullyQualifiedName~ObjectCommandScope|FullyQualifiedName~ProjectFile|FullyQualifiedName~NewProject|FullyQualifiedName~SliceCommand' --nologo
+& "C:\Users\plane\.codex\worktrees\3713\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --workspace-capture "C:\Users\plane\.codex\worktrees\3713\Danslicer-chatgpt\docs\ui-refresh\evidence\task-02"
+```
+The capture option opens the actual main application and exits after native smoke checks. It skips main-window geometry persistence; test models/projects are created only under the chosen capture directory and removed after success. Failure produces workspace-error.txt and a nonzero process exit. Wait for the process to exit before checking evidence; Windows GUI invocation may return to the shell early.
+Task-01 checks: same executable with `--ui-preview --capture-directory docs/ui-refresh/evidence/task-02-controls`; successful native pointer/keyboard result retained in capture-ok.txt. Redundant preview PNGs were not added again.
+
+Main application for user review (normal startup):
+```powershell
+& "C:\Users\plane\.codex\worktrees\3713\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
+```
+
+Results: final focused test run 121 passed, 0 failed/skipped. Release app/solution builds passed; no new warnings. Existing SurfaceContour CA2014, ViewportControl CS8602 and RaftBuilderTests xUnit2031 warnings observed during builds. Native main workflow checks and prior-control native interaction checks passed. Whitespace diff check passed. Binding audit confirms status-bar XAML identical to accepted baseline and all setting/command bindings retained. Only obsolete IsLayersView host visibility binding removed.
+
+Evidence: evidence/task-02/workspace-{layout,labels,support,narrow}.png, workspace-slicing-{100,150,200}.png, workspace-ok.txt and binding-audit.txt. Final Layout and Print images were recaptured after layout settled; reviewed Layout, Support, Print and narrow layouts. Images use offscreen rendering of the real native window; native OpenGL composition is omitted (black viewport), so these do not demonstrate plate/model rendering. Render-density images do not verify physical DPI transitions. Physical mouse/hit testing, screen readers and monitor changes remain manual. Existing app supports dark themes; no light mode claim. No native export/file-picker interaction, UVtools process or full support-generation/slicing job run; related existing command tests passed. Full geometry suite not run.
+
+### Task 03 integration contract
+- Preserve existing mode policies and original production button instances. WorkspacePopout is an in-window host, so orbit/outside clicks do not light-dismiss it. Escape handles editor cancellation before popout close; viewport/layer Escape retains the original handler and then closes the popout. Close returns focus to the invoking tool.
+- Current toolbar labels, widths and section order/expansion survive toggles in the session; recents track the last 10 successful project paths in the session and use the existing project load/view-state path with busy/error behavior. Task 03 must add compatible durable persistence for these states; no mock recent entries or new config schema shipped here.
+- Apply approved filled numeric slider/scrub controls to production settings in task 03. This task deliberately retained existing ExpressionBox and NumericUpDown bindings/undo. The original layer-navigation sliders are unchanged, not newly introduced round-thumb numeric fields. No locks introduced without semantics.
+- Support section adaptation is opt-in in this main workspace; the shared settings view in Preferences/preset editor stays unchanged. Preset controls remain above the draggable section group. No new numeric algorithms, renderer, plate, AO/cavity or raft geometry work.
+- After user approval, coordinator may create task 03 from this exact final commit in a separate worktree. This task does not create subsequent tasks or merge main.
