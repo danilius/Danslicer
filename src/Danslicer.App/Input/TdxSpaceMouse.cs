@@ -33,11 +33,11 @@ public sealed class TdxSpaceMouse : ISixAxisInput
     public bool ButtonsConnected { get; private set; }
 
     /// <summary>
-    /// The driver's own sensor refresh interval in seconds (<c>ISensor.Period</c>), read once at
+    /// The driver's own sensor refresh interval in milliseconds (<c>ISensor.Period</c>), read once at
     /// connect for diagnostics; <c>null</c> when the driver would not report it. A healthy device
     /// reports a few milliseconds; a large value means the driver itself is throttling us.
     /// </summary>
-    public double? DriverPeriodSeconds { get; private set; }
+    public double? DriverPeriodMs { get; private set; }
 
     public bool TryConnect()
     {
@@ -51,7 +51,7 @@ public sealed class TdxSpaceMouse : ISixAxisInput
             _device.Connect();
             _sensor = _device.Sensor;
             IsConnected = true;
-            try { DriverPeriodSeconds = (double)_sensor!.Period; } catch { DriverPeriodSeconds = null; }
+            try { DriverPeriodMs = (double)_sensor!.Period; } catch { DriverPeriodMs = null; }
             ConnectKeyboard();
             return true;
         }
