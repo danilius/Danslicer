@@ -83,6 +83,7 @@ public sealed class ToolPopout : Border
     private readonly TextBlock _title;
     private readonly ScrollViewer _scroll;
     public event EventHandler? CloseRequested;
+    public event EventHandler? WidthCommitted;
     public string Title { get => _title.Text ?? ""; set => _title.Text = value; }
     public Control? Body { get => _scroll.Content as Control; set => _scroll.Content = value; }
     public ToolPopout()
@@ -119,12 +120,12 @@ public sealed class ToolPopout : Border
             Width = Math.Clamp(originalWidth + e.GetPosition(TopLevel.GetTopLevel(this)).X - start.X, MinWidth, MaxWidth);
             e.Handled = true;
         };
-        resize.PointerReleased += (_, e) => { if (resizeOrigin is null) return; EndResize(); e.Handled = true; };
-        resize.PointerCaptureLost += (_, _) => EndResize();
+        resize.PointerReleased += (_, e) => { if (resizeOrigin is null) return; EndResize(); WidthCommitted?.Invoke(this, EventArgs.Empty); e.Handled = true; };
+        resize.PointerCaptureLost += (_, _) => { if (resizeOrigin is not null) Width = originalWidth; EndResize(); };
         resize.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape && resizeOrigin is not null) { Width = originalWidth; EndResize(); e.Handled = true; }
-            else if (e.Key is Key.Left or Key.Right) { Width = Math.Clamp(Bounds.Width + (e.Key == Key.Left ? -10 : 10), MinWidth, MaxWidth); e.Handled = true; }
+            else if (e.Key is Key.Left or Key.Right) { Width = Math.Clamp(Bounds.Width + (e.Key == Key.Left ? -10 : 10), MinWidth, MaxWidth); WidthCommitted?.Invoke(this, EventArgs.Empty); e.Handled = true; }
         };
         KeyDown += (_, e) => { if (e.Key == Key.Escape && !e.Handled) { RequestClose(); e.Handled = true; } };
     }
@@ -224,3 +225,4 @@ public sealed class ReorderableExpander : Border
         _body.IsVisible = IsExpanded;
     }
 }
+

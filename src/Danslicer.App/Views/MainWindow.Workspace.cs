@@ -66,6 +66,7 @@ public partial class MainWindow
         if (PrintPopout.Shell.Body is StackPanel print) GroupSections(print);
         if (TransformPopupContent.Child is ScrollViewer { Content: StackPanel transform })
             foreach (var section in transform.Children.OfType<StackPanel>().ToArray()) GroupSections(section);
+        InitializeWorkspacePreferences();
         ViewportSurface.SizeChanged += (_, _) => PositionWorkspacePopouts();
         _workspaceToolbar.SizeChanged += (_, _) => PositionWorkspacePopouts();
         AddHandler(KeyDownEvent, (_, e) =>
@@ -228,7 +229,7 @@ public partial class MainWindow
         var open = new MenuItem { Header = "Open another projectâ€¦", Command = OpenProjectCommand };
         menu.Items.Add(open);
         menu.Items.Add(new Separator());
-        if (_recentProjects.Count == 0) menu.Items.Add(new MenuItem { Header = "No recent projects this session", IsEnabled = false });
+        if (_recentProjects.Count == 0) menu.Items.Add(new MenuItem { Header = "No recent projects", IsEnabled = false });
         foreach (var path in _recentProjects.ToArray())
         {
             var item = new MenuItem { Header = System.IO.Path.GetFileNameWithoutExtension(path) };
@@ -245,6 +246,7 @@ public partial class MainWindow
         _recentProjects.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
         _recentProjects.Insert(0, path);
         if (_recentProjects.Count > 10) _recentProjects.RemoveAt(10);
+        SaveWorkspacePreferences();
     }
     private void OpenRecentProject(string path)
     {
@@ -257,3 +259,4 @@ public partial class MainWindow
         catch (Exception ex) { vm.ViewportStatus = $"Open failed: {ex.Message}"; }
     }
 }
+

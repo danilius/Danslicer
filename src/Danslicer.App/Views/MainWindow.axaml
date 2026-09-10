@@ -18,17 +18,17 @@
 
     <Window.Resources>
         <DataTemplate x:Key="FieldTemplate" x:DataType="vm:NumericField">
-            <Grid ColumnDefinitions="18,*,28" Margin="0,2">
+            <Grid ColumnDefinitions="18,*" Margin="0,2">
                 <TextBlock Text="{Binding Label}" Classes="label" />
-                <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                <TextBlock Grid.Column="2" Text="{Binding Suffix}" Classes="label" Margin="6,0,0,0" />
+                <refresh:ModelScrubField Grid.Column="1" Field="{Binding}" />
+
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="WideFieldTemplate" x:DataType="vm:NumericField">
-            <Grid ColumnDefinitions="120,*,56" Margin="0,2">
+            <Grid ColumnDefinitions="120,*" Margin="0,2">
                 <TextBlock Text="{Binding Label}" Classes="label" />
-                <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                <TextBlock Grid.Column="2" Text="{Binding Suffix}" Classes="label" Margin="6,0,0,0" />
+                <refresh:ModelScrubField Grid.Column="1" Field="{Binding}" />
+
             </Grid>
         </DataTemplate>
     </Window.Resources>
@@ -707,18 +707,18 @@
                                     <TextBlock Text="Island tool tuning" Classes="label" FontWeight="SemiBold" />
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Min island area mm²" Classes="label" ToolTip.Tip="An island smaller than this is not reported, mm²." />
-                                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="1000000" Increment="0.1"
-                                                       FormatString="0.##" Value="{Binding SupportSettings.SupportMinIslandAreaMm2, Mode=TwoWay}" />
+                                        <refresh:FilledNumericSlider UnitKind="Scalar" Unit="mm²" Grid.Column="1" Minimum="0" Maximum="1000000" Step="0.1"
+                                                       Format="0.##" Value="{Binding SupportSettings.SupportMinIslandAreaMm2, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Overhang angle °" Classes="label" ToolTip.Tip="The overhang angle the detector uses when it inflates each layer to see what carries the next, degrees." />
-                                        <NumericUpDown Grid.Column="1" Minimum="0" Maximum="90" Increment="1"
-                                                       FormatString="0" Value="{Binding SupportSettings.SupportOverhangAngleDegrees, Mode=TwoWay}" />
+                                        <refresh:FilledNumericSlider UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="0" Maximum="90" Step="1"
+                                                       Format="0" Value="{Binding SupportSettings.SupportOverhangAngleDegrees, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Island spacing mm" Classes="label" ToolTip.Tip="Tip spacing the island generator uses inside an island, mm." />
-                                        <NumericUpDown Grid.Column="1" Minimum="0.01" Maximum="1000" Increment="0.1"
-                                                       FormatString="0.##" Value="{Binding SupportSettings.SupportIslandSpacingMm, Mode=TwoWay}" />
+                                        <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1"
+                                                       Format="0.##" Value="{Binding SupportSettings.SupportIslandSpacingMm, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2,0,6">
                                         <TextBlock Text="Analysis layer height" Classes="label" ToolTip.Tip="Layer height the detector slices at, mm. Finer finds smaller starts and takes longer." />
@@ -940,3 +940,5 @@
         </Grid>
     </DockPanel>
 </Window>
+
+

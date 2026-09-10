@@ -30,6 +30,16 @@ public sealed partial class NumericField : ObservableObject
         };
     }
 
+    public double Value => _value;
+    public UnitKind Kind => _kind;
+    public string Format => _format;
+    public void CommitValue(double value)
+    {
+        if (!double.IsFinite(value) || value == _value) return;
+        _apply(value);
+        SetValue(_value);
+    }
+
     public string Label { get; }
     public string Suffix { get; }
 
@@ -63,3 +73,4 @@ public sealed partial class NumericField : ObservableObject
         OnPropertyChanged(nameof(Text));
     }
 }
+

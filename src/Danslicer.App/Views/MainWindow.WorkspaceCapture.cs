@@ -84,10 +84,12 @@ public partial class MainWindow
         Require(ReferenceEquals(ObjectsPopupContent.DataContext, vm), "Rehost lost VM binding");
         Click(TransformToolButton); await Layout();
         Require(!ObjectsToolPopup.IsOpen && TransformToolPopup.IsOpen, "Tools must be exclusive");
-        var position = TransformPopupContent.GetVisualDescendants().OfType<ExpressionBox>()
-            .Single(e => ReferenceEquals(e.DataContext, vm.Position[0]));
+        var position = TransformPopupContent.GetVisualDescendants().OfType<ModelScrubField>()
+            .Single(e => ReferenceEquals(e.Field, vm.Position[0]));
         var previous = vm.Position[0].Text;
-        position.Focus(); position.Text = "10 + 2"; Key(position, Avalonia.Input.Key.Enter);
+        position.Focus(); Key(position, Avalonia.Input.Key.Enter);
+        var positionEditor = position.GetVisualDescendants().OfType<TextBox>().Single();
+        positionEditor.Text = "10 + 2"; Key(positionEditor, Avalonia.Input.Key.Enter);
         Require(vm.Position[0].Text == "12", "Production transform expression failed");
         vm.UndoCommand.Execute(null);
         Require(vm.Position[0].Text == previous, "Production transform undo failed");
@@ -151,7 +153,9 @@ public partial class MainWindow
         Require(_recentProjects.Contains(path), "Saved project missing from recents");
         OpenRecentProject(path); Require(vm.ProjectPath == path, "Recent project open failed");
         OpenRecentProject(path + ".missing"); Require(vm.ViewportStatus.StartsWith("Open failed:"), "Missing recent project must report failure");
+        await CheckSettingsIntegration(directory);
         File.Delete(path);
         File.Delete(meshPath);
     }
 }
+

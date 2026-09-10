@@ -29,6 +29,15 @@ public partial class App : Application
             return;
         }
 
+        // Main-window smoke tests must never load or save the user's real preferences.
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime captureDesktop
+            && (captureDesktop.Args ?? []).Contains("--workspace-capture"))
+        {
+            var isolated = Path.Combine(Path.GetTempPath(), "Danslicer-workspace-" + Guid.NewGuid().ToString("N"));
+            AppConfig.UseIsolatedDirectory(isolated);
+            captureDesktop.Exit += (_, _) => { if (Directory.Exists(isolated)) Directory.Delete(isolated, true); };
+        }
+
         // Applied before any window is constructed so the very first frame is already themed.
         ThemeCatalog.Apply(AppConfig.Current.Theme);
 
@@ -48,3 +57,4 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 }
+

@@ -1,5 +1,6 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:refresh="using:Danslicer.App.Controls.Refresh"
              xmlns:vm="using:Danslicer.App.ViewModels"
              x:Class="Danslicer.App.Controls.RaftSettingsView"
              x:DataType="vm:ConfigViewModel">
@@ -29,47 +30,48 @@
         </Grid>
         <Grid Tag="raft thickness height mm" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Thickness" Classes="label" ToolTip.Tip="Height of the raft on the plate, mm. Every trunk runs through it to the plate." />
-            <NumericUpDown Grid.Column="1" Minimum="0.05" Maximum="20" Increment="0.1" FormatString="0.##"
+            <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.05" Maximum="20" Step="0.1" Format="0.##"
                            Value="{Binding SupportRaftThickness, Mode=TwoWay}"
                            ToolTip.Tip="Height of the raft on the plate, mm. Every trunk runs through it to the plate." />
         </Grid>
         <Grid Tag="raft edge angle bevel slope scraper degrees" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Edge angle °" Classes="label" ToolTip.Tip="The scraper lip on the raft's outside: the top overhangs the plate footprint at this angle from vertical, so a scraper slides under it. 90 = no lip." />
-            <NumericUpDown Grid.Column="1" Minimum="5" Maximum="90" Increment="5" FormatString="0"
+            <refresh:FilledNumericSlider UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="5" Maximum="90" Step="5" Format="0"
                            Value="{Binding SupportRaftEdgeAngleDegrees, Mode=TwoWay}"
                            ToolTip.Tip="The scraper lip on the raft's outside: the top overhangs the plate footprint at this angle from vertical, so a scraper slides under it. 90 = no lip." />
         </Grid>
         <Grid Tag="raft disc diameter foot mm" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Disc diameter" Classes="label" ToolTip.Tip="The disc under each foot (Web), and each foot's footprint in the Plate silhouette, mm." />
-            <NumericUpDown Grid.Column="1" Minimum="0.1" Maximum="100" Increment="0.5" FormatString="0.##"
+            <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.1" Maximum="100" Step="0.5" Format="0.##"
                            Value="{Binding SupportRaftDiscDiameter, Mode=TwoWay}"
                            ToolTip.Tip="The disc under each foot (Web), and each foot's footprint in the Plate silhouette, mm." />
         </Grid>
         <TextBlock Text="Plate" Classes="label" Margin="0,8,0,2" FontWeight="SemiBold" />
         <Grid Tag="raft margin plate mm" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Margin" Classes="label" ToolTip.Tip="How far the plate extends beyond the outermost feet, mm." />
-            <NumericUpDown Grid.Column="1" Minimum="0" Maximum="100" Increment="0.5" FormatString="0.##"
+            <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="0.5" Format="0.##"
                            Value="{Binding SupportRaftMargin, Mode=TwoWay}"
                            ToolTip.Tip="How far the plate extends beyond the outermost feet, mm." />
         </Grid>
         <Grid Tag="raft bridging distance gap plate mm" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Bridging distance" Classes="label" ToolTip.Tip="The widest gap between feet that the plate fills in, mm; a wider gap stays a notch in the outline." />
-            <NumericUpDown Grid.Column="1" Minimum="0" Maximum="500" Increment="1" FormatString="0.##"
+            <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="500" Step="1" Format="0.##"
                            Value="{Binding SupportRaftBridgingDistance, Mode=TwoWay}"
                            ToolTip.Tip="The widest gap between feet that the plate fills in, mm; a wider gap stays a notch in the outline." />
         </Grid>
         <TextBlock Text="Web" Classes="label" Margin="0,8,0,2" FontWeight="SemiBold" />
         <Grid Tag="raft bar width web mm" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Bar width" Classes="label" ToolTip.Tip="Width of the flat bars between neighbouring feet, mm." />
-            <NumericUpDown Grid.Column="1" Minimum="0.1" Maximum="100" Increment="0.5" FormatString="0.##"
+            <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.1" Maximum="100" Step="0.5" Format="0.##"
                            Value="{Binding SupportRaftBarWidth, Mode=TwoWay}"
                            ToolTip.Tip="Width of the flat bars between neighbouring feet, mm. Bars join each foot to its Delaunay neighbours." />
         </Grid>
         <Grid Tag="raft max bar length web mm" ColumnDefinitions="150,*" Margin="0,2">
             <TextBlock Text="Max bar length" Classes="label" ToolTip.Tip="Bars longer than this are not laid, mm. 0 = no limit." />
-            <NumericUpDown Grid.Column="1" Minimum="0" Maximum="500" Increment="1" FormatString="0.##"
+            <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="500" Step="1" Format="0.##"
                            Value="{Binding SupportRaftMaxBarLength, Mode=TwoWay}"
                            ToolTip.Tip="Bars longer than this are not laid, mm. 0 = no limit." />
         </Grid>
     </StackPanel>
 </UserControl>
+

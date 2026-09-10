@@ -30,6 +30,7 @@ public class ScrubField : UserControl
     public bool CanLock { get => GetValue(CanLockProperty); set => SetValue(CanLockProperty, value); }
     public UnitKind UnitKind { get; set; } = UnitKind.Length;
     public string Format { get; set; } = "0.00";
+    public bool IsInteger { get; set; }
     public event EventHandler<NumericCommittedEventArgs>? EditCommitted;
     private readonly Border _surface;
     private readonly Border _fill;
@@ -136,6 +137,7 @@ public class ScrubField : UserControl
     }
     private void Commit(double value)
     {
+        if (IsInteger) value = Math.Clamp(Math.Round(value), Minimum, Maximum);
         var old = Value;
         SetCurrentValue(ValueProperty, value); Refresh();
         if (old != value) EditCommitted?.Invoke(this, new NumericCommittedEventArgs(old, value));
@@ -169,3 +171,4 @@ public sealed class FilledNumericSlider : ScrubField
 {
     protected override bool ShowFill => true;
 }
+
