@@ -117,19 +117,56 @@
                                        Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
                     </Grid>
                     <TextBlock Classes="hint" Text="Faces that lean down more than this from vertical are tinted as overhangs in the viewport. It is a reading aid only: generation uses the overhang angle in the support settings." />
+                    <Grid Tag="viewport model support shadows off working presentation" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Model shadows" Classes="label" />
+                        <ComboBox x:Name="SettingsShadowMode" Grid.Column="1" HorizontalAlignment="Left" ItemsSource="{Binding ModelShadowModes}" SelectedIndex="{Binding ModelShadowModeIndex, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport shadows working strength" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Working strength" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.7" Step="0.05" Format="0.00" Value="{Binding WorkingShadowStrength, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport shadows working softness" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Working softness" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0" Maximum="4" Step="0.1" Format="0.00" Value="{Binding WorkingShadowSoftnessMm, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport shadows presentation strength" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Presentation strength" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.7" Step="0.05" Format="0.00" Value="{Binding PresentationShadowStrength, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport shadows presentation softness" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Presentation softness" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0" Maximum="4" Step="0.1" Format="0.00" Value="{Binding PresentationShadowSoftnessMm, Mode=TwoWay}" />
+                    </Grid>
+                    <TextBlock Classes="hint" Text="Working is subtle; Presentation is stronger. Each remembers its strength and softness. Choose Off to disable model shadows. Settings apply immediately and are shared with View settings." />
+                    <CheckBox Tag="viewport ambient occlusion AO contact depth enabled off" Content="Contact depth (AO)" IsChecked="{Binding AmbientOcclusionEnabled, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="viewport ambient occlusion AO contact strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Contact depth strength" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Minimum="0" Maximum="0.6" Step="0.05" Format="0.00" Value="{Binding AmbientOcclusionStrength, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.6" Step="0.05" Format="0.00" Value="{Binding AmbientOcclusionStrength, Mode=TwoWay}" />
                     </Grid>
                     <Grid Tag="viewport ambient occlusion AO contact radius" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Contact radius (mm)" Classes="label" />
                         <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0.1" Maximum="10" Step="0.1" Format="0.0" Value="{Binding AmbientOcclusionRadiusMm, Mode=TwoWay}" />
                     </Grid>
+                    <CheckBox Tag="viewport plate reflections enabled off" Content="Plate reflections" IsChecked="{Binding PlateReflectionsEnabled, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="viewport plate reflections strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Plate reflection strength" Classes="label" />
-                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Minimum="0" Maximum="0.3" Step="0.01" Format="0.00" Value="{Binding PlateReflectionStrength, Mode=TwoWay}" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.3" Step="0.01" Format="0.00" Value="{Binding PlateReflectionStrength, Mode=TwoWay}" />
                     </Grid>
-                    <TextBlock Classes="hint" Text="Contact depth works on opaque models and supports in deferred shading. View settings toggle it independently of cavity. Reflections work on both render paths; the plate surface always disappears below." />
+                    <CheckBox Tag="viewport plate shadows enabled off" Content="Plate shadows" IsChecked="{Binding PlateShadowsEnabled, Mode=TwoWay}" Margin="0,4" />
+                    <CheckBox Tag="viewport cavity shading enabled off" Content="Cavity shading" IsChecked="{Binding CavityEnabled, Mode=TwoWay}" Margin="0,4" />
+                    <Grid Tag="viewport cavity cavity ridge strength" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Cavity ridge strength" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="4" Step="0.05" Format="0.00" Value="{Binding CavityRidgeStrength, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport cavity cavity valley strength" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Cavity valley strength" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="4" Step="0.05" Format="0.00" Value="{Binding CavityValleyStrength, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport cavity cavity radius (px)" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Cavity radius (px)" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0.5" Maximum="8" Step="0.5" Format="0.00" Value="{Binding CavityRadiusPixels, Mode=TwoWay}" />
+                    </Grid>
+                    <TextBlock Classes="hint" Text="Contact depth works on opaque models and supports in deferred shading. AO and cavity can be switched off independently. Reflections work on both render paths; the plate surface always disappears below." />
                     <Grid Tag="viewport plate bed transparency opacity below underneath" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="Plate perimeter below" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0" Maximum="1"
@@ -137,7 +174,7 @@
                         <NumericUpDown Grid.Column="2" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00"
                                        Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
                     </Grid>
-                    <TextBlock Classes="hint" Text="How solid the build plate is drawn when the camera looks along it or up from underneath, so a model's underside stays readable through it. 1 = always opaque." />
+                    <TextBlock Classes="hint" Text="Opacity of the perimeter below the plate. Set to 0 to hide it. The plate surface, grid and reflections disappear below." />
                     <Grid Tag="viewport overhang checker colour color picker first" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Overhang colour A" Classes="label" />
                         <ColorPicker Grid.Column="1" HorizontalAlignment="Left" MinWidth="110"
@@ -159,6 +196,7 @@
                                        Value="{Binding OverhangCheckerSizeMm, Mode=TwoWay}" />
                     </Grid>
                     <TextBlock Classes="hint" Text="Size of each square of that checker, mm on the model." />
+                    <CheckBox Tag="viewport view cube orientation navigation enabled off" Content="Show orientation cube" IsChecked="{Binding ViewCubeEnabled, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="viewport view cube corner navigation size pixels" ColumnDefinitions="190,*,110" Margin="0,2">
                         <TextBlock Text="View cube size" Classes="label" />
                         <Slider Grid.Column="1" Minimum="48" Maximum="192" TickFrequency="8" IsSnapToTickEnabled="True"

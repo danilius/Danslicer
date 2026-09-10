@@ -135,6 +135,41 @@ public partial class MainWindow
         var config = UserConfig.Load(configPath);
         Require(!config.Viewport.CapInterior && Math.Abs(config.Supports.TipDiameter - 0.6) < 0.00001 && config.Supports.RaftThickness == 2, "Settings/save cap-off compatibility round trip failed");
         vm.CapInterior = cap;
+        OnPreferencesClick(this, new RoutedEventArgs());
+        await Layout();
+        var preferences = _configWindow!;
+        preferences.FindControl<ListBox>("SectionList")!.SelectedIndex = 1;
+        await Layout();
+        var shadowMode = preferences.FindControl<ComboBox>("SettingsShadowMode")!;
+        var oldMode = shadowMode.SelectedIndex;
+        shadowMode.SelectedIndex = 0;
+        Require(AppConfig.Current.Viewport.ModelShadows == ModelShadowMode.Off && PopShadowMode.SelectedIndex == 0, "Preferences shadow Off did not synchronize");
+        foreach (var label in new[] { "Contact depth (AO)", "Plate reflections", "Plate shadows", "Cavity shading", "Show orientation cube" })
+        {
+            var toggle = preferences.GetVisualDescendants().OfType<CheckBox>().Single(c => c.Content as string == label);
+            var originalToggle = toggle.IsChecked;
+            toggle.IsChecked = false;
+            var disabled = UserConfig.Load(configPath).Viewport;
+            Require(label switch {
+                "Contact depth (AO)" => !disabled.AmbientOcclusionEnabled,
+                "Plate reflections" => !disabled.PlateReflectionsEnabled,
+                "Plate shadows" => !disabled.PlateShadowsEnabled,
+                "Cavity shading" => !disabled.CavityEnabled,
+                _ => !disabled.ViewCubeEnabled
+            }, "Preferences Off did not persist: " + label);
+            toggle.IsChecked = originalToggle;
+        }
+        shadowMode.SelectedIndex = oldMode;
+        preferences.FindControl<ScrollViewer>("Scroll")!.Offset = new Vector(0, preferences.FindControl<StackPanel>("ViewportSection")!.Bounds.Y);
+        await Layout();
+        var preferencesContent = (Control)preferences.Content!;
+        using (var bitmap = new RenderTargetBitmap(new PixelSize((int)preferencesContent.Bounds.Width, (int)preferencesContent.Bounds.Height)))
+        {
+            bitmap.Render(preferencesContent);
+            bitmap.Save(System.IO.Path.Combine(directory, "settings-viewport.png"), PngBitmapEncoderOptions.Default);
+        }
+        preferences.Close();
+        File.WriteAllText(System.IO.Path.Combine(directory, "viewport-preferences-ok.txt"), "Actual Preferences bindings: shadow Off synchronizes to View popout; AO, reflections, plate shadows, cavity and cube off persist independently. Original values restored.");
         File.WriteAllText(System.IO.Path.Combine(directory, "settings-ok.txt"), "Production transform pointer previews/single commit/undo/cancel, unit expressions, invalid and out-of-range rejection, focus-loss commit, support setter called once, raft thickness, durable workspace restoration and config/cap-off round trips passed using isolated temporary configuration. Visibility uses its existing display modes and switches; no numeric opacity parameter is invented. Support config settings retain existing immediate-save semantics (no document undo was present).\n");
         void Capture(string name)
         {

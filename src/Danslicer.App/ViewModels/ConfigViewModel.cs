@@ -333,6 +333,36 @@ public sealed class ConfigViewModel : ViewModelBase
 
     // Viewport
 
+    // Display-only saves must not invoke Saved: that event also applies support geometry.
+    public event Action? ViewportSaved;
+    private void UpdateViewport(Action apply, [CallerMemberName] string? property = null)
+    {
+        apply();
+        if (_persistChanges) _saveConfig();
+        OnPropertyChanged(property);
+        ViewportSaved?.Invoke();
+    }
+
+    public IReadOnlyList<string> ModelShadowModes { get; } = new[] { "Off", "Working", "Presentation" };
+    public int ModelShadowModeIndex
+    {
+        get => (int)Viewport.ModelShadows;
+        set { if (value is >= 0 and <= 2) UpdateViewport(() => Viewport.ModelShadows = (ModelShadowMode)value); }
+    }
+    public bool AmbientOcclusionEnabled { get => Viewport.AmbientOcclusionEnabled; set => UpdateViewport(() => Viewport.AmbientOcclusionEnabled = value); }
+    public bool PlateReflectionsEnabled { get => Viewport.PlateReflectionsEnabled; set => UpdateViewport(() => Viewport.PlateReflectionsEnabled = value); }
+    public bool PlateShadowsEnabled { get => Viewport.PlateShadowsEnabled; set => UpdateViewport(() => Viewport.PlateShadowsEnabled = value); }
+    public bool CavityEnabled { get => Viewport.CavityEnabled; set => UpdateViewport(() => Viewport.CavityEnabled = value); }
+    public bool ViewCubeEnabled { get => Viewport.ViewCubeEnabled; set => UpdateViewport(() => Viewport.ViewCubeEnabled = value); }
+    public float WorkingShadowStrength { get => Viewport.WorkingShadowStrength; set => UpdateViewport(() => Viewport.WorkingShadowStrength = Math.Clamp(value, 0f, 0.7f)); }
+    public float PresentationShadowStrength { get => Viewport.PresentationShadowStrength; set => UpdateViewport(() => Viewport.PresentationShadowStrength = Math.Clamp(value, 0f, 0.7f)); }
+    public float WorkingShadowSoftnessMm { get => Viewport.WorkingShadowSoftnessMm; set => UpdateViewport(() => Viewport.WorkingShadowSoftnessMm = Math.Clamp(value, 0f, 4f)); }
+    public float PresentationShadowSoftnessMm { get => Viewport.PresentationShadowSoftnessMm; set => UpdateViewport(() => Viewport.PresentationShadowSoftnessMm = Math.Clamp(value, 0f, 4f)); }
+    public float CavityRidgeStrength { get => Viewport.CavityRidgeStrength; set => UpdateViewport(() => Viewport.CavityRidgeStrength = Math.Clamp(value, 0f, 4f)); }
+    public float CavityValleyStrength { get => Viewport.CavityValleyStrength; set => UpdateViewport(() => Viewport.CavityValleyStrength = Math.Clamp(value, 0f, 4f)); }
+    public float CavityRadiusPixels { get => Viewport.CavityRadiusPixels; set => UpdateViewport(() => Viewport.CavityRadiusPixels = Math.Clamp(value, 0.5f, 8f)); }
+
+
     public float OverhangAngleDegrees
     {
         get => Viewport.OverhangAngleDegrees;
@@ -342,23 +372,23 @@ public sealed class ConfigViewModel : ViewModelBase
     public float AmbientOcclusionStrength
     {
         get => Viewport.AmbientOcclusionStrength;
-        set => Update(() => Viewport.AmbientOcclusionStrength = Math.Clamp(value, 0, 0.6f));
+        set => UpdateViewport(() => Viewport.AmbientOcclusionStrength = Math.Clamp(value, 0, 0.6f));
     }
     public float AmbientOcclusionRadiusMm
     {
         get => Viewport.AmbientOcclusionRadiusMm;
-        set => Update(() => Viewport.AmbientOcclusionRadiusMm = Math.Clamp(value, 0.1f, 10));
+        set => UpdateViewport(() => Viewport.AmbientOcclusionRadiusMm = Math.Clamp(value, 0.1f, 10));
     }
     public float PlateReflectionStrength
     {
         get => Viewport.PlateReflectionStrength;
-        set => Update(() => Viewport.PlateReflectionStrength = Math.Clamp(value, 0, 0.3f));
+        set => UpdateViewport(() => Viewport.PlateReflectionStrength = Math.Clamp(value, 0, 0.3f));
     }
 
     public float PlateOpacityFromBelow
     {
         get => Viewport.PlateOpacityFromBelow;
-        set => Update(() => Viewport.PlateOpacityFromBelow = Math.Clamp(value, 0f, 1f));
+        set => UpdateViewport(() => Viewport.PlateOpacityFromBelow = Math.Clamp(value, 0f, 1f));
     }
 
     /// <summary>On-screen size of the corner view cube, in DIP pixels. Bounds match
@@ -366,7 +396,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public int ViewCubeSizePixels
     {
         get => Viewport.ViewCubeSizePixels;
-        set => Update(() => Viewport.ViewCubeSizePixels = Math.Clamp(value, 48, 192));
+        set => UpdateViewport(() => Viewport.ViewCubeSizePixels = Math.Clamp(value, 48, 192));
     }
 
     public int SupportGizmoSizePixels

@@ -55,7 +55,7 @@ public partial class ConfigWindow : Window
     {
         var index = SectionList.SelectedIndex;
         if (index >= 0 && index < Sections.Children.Count)
-            Sections.Children[index].BringIntoView();
+            Scroll.Offset = new Avalonia.Vector(Scroll.Offset.X, Sections.Children[index].Bounds.Y);
     }
 
     private async void OnBrowseUvtoolsClick(object? sender, RoutedEventArgs e)

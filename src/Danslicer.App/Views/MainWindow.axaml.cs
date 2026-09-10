@@ -622,13 +622,15 @@ public partial class MainWindow : Window
         var config = ViewModel?.SupportSettings ?? new ConfigViewModel();
         _configWindow = new ConfigWindow(config);
         config.Saved += OnPreferencesSaved;
-        _configWindow.Closed += (_, _) => config.Saved -= OnPreferencesSaved;
+        config.ViewportSaved += OnPreferencesSaved;
+        _configWindow.Closed += (_, _) => { config.Saved -= OnPreferencesSaved; config.ViewportSaved -= OnPreferencesSaved; };
         _configWindow.Closed += (_, _) => _configWindow = null;
         _configWindow.Show(this);
     }
 
     private void OnPreferencesSaved()
     {
+        SyncRenderPathMenu();
         UpdateIsolationPlacement();
         Viewport.RequestRedraw();
         RefreshWindowKeymap();

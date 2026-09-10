@@ -1,0 +1,1 @@
+AO/reflection toggles save, menu/popout states agree, saved Cap unchanged, original effect choices restored in isolated configuration.

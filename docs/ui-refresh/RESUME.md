@@ -1,3 +1,6 @@
+# Latest follow-up: Preferences visual controls
+Preferences > Viewport now includes all shadow presets/tuning and independent AO, cavity, plate shadow, reflection and cube switches. Display-only settings save separately from support geometry settings and synchronize View controls. Shadow renderer unchanged from 2f4404980b204aee541b58837c64064d297e799c. See task-04.md for follow-up validation. Same worktree/branch, no merge.
+
 # Optional shadow system — latest authorized work
 Same e262 worktree, branch codex/ui-refresh-04. Prior good code: 2f3e48e1c18298989812bd2f37221b83fc20fc72; implementation plan: aa95a8b. Resolve current committed HEAD for the shadow handoff. User approved implementing subtle default shadows plus stronger optional Presentation.
 
