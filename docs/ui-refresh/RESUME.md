@@ -1,11 +1,10 @@
-# Latest checkpoint
+# Latest checkpoint — task 01 implementation verification
 Date: 2026-09-10
-Phase: coordination complete; task 01 dispatched, awaiting isolated worktree setup and package import.
-Source: F:/Git Repos/Danslicer-chatgpt/artifacts/ui-refresh-handoff
-Baseline: main 7d95ceb; implementation task must record resolved commit, worktree and branch.
-Task 01 chat setup ID: client-new-thread:26b9541c-1fd9-4fdf-abfa-b53d59cf5ccc (not a finalized chat ID).
-Completed: approved design and slider correction captured; sequential tasks specified.
-Next action: import package and references into new worktree docs/ui-refresh, commit docs, inspect project instructions and baseline, implement task 01.
-## Required checkpoint format
-Current task/chat ID; absolute worktree; branch/base/last good commit; changed files; completed iteration; commands run and actual results; remaining issues; exact next action; whether working tree has uncommitted work.
-Keep latest checkpoint at top; append earlier checkpoints to task-NN.md. Update after implementation iterations, test failures, fixes and before final response.
+Current task: 01, isolated native controls and preview. Chat finalized ID not exposed; setup ID client-new-thread:26b9541c-1fd9-4fdf-abfa-b53d59cf5ccc.
+Worktree: C:/Users/plane/.codex/worktrees/f60d/Danslicer-chatgpt
+Branch: codex/ui-refresh
+Base: 7d95cebfe7f289d1e3230fb789a4526d1f3b518d
+Last committed checkpoint: 2e468fb (approved handoff); implementation currently uncommitted.
+Changed: Controls/Refresh, UiPreviewWindow, preview startup gate, numeric tests, evidence and task-01 notes.
+Completed: native controls, build, 77 focused tests, native routed-key smoke and rendered captures. See task-01.md for iterations and commands.
+Next: final verification, inspect density captures, commit implementation, finalize handoff. No main layout/rendering integration.
