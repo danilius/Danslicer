@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Diagnostics;
+using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -590,6 +591,17 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnOpenGlRender(GlInterface gl, int fb)
     {
         if (_renderer is null || Document is null) return;
+        var renderStart = Trace ? Stopwatch.GetTimestamp() : 0;
+        try { RenderFrameCore(gl, fb); }
+        finally
+        {
+            if (Trace)
+                _traceRenderMaxMs = Math.Max(_traceRenderMaxMs, Stopwatch.GetElapsedTime(renderStart).TotalMilliseconds);
+        }
+    }
+
+    private void RenderFrameCore(GlInterface gl, int fb)
+    {
 
         var scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
         var width = Math.Max(1, (int)(Bounds.Width * scaling));
@@ -2943,9 +2955,10 @@ public sealed class ViewportControl : OpenGlControlBase
             device.Dispose();
             return;
         }
-        Log(device.ButtonsConnected
+        Log((device.ButtonsConnected
             ? "SpaceMouse connected via 3DxWare COM, buttons hooked"
-            : "SpaceMouse connected via 3DxWare COM, button events unavailable");
+            : "SpaceMouse connected via 3DxWare COM, button events unavailable")
+            + $"; driver period {(device.DriverPeriodMs is { } p ? $"{p:F2} ms" : "unknown")}");
         _sixAxis = device;
         _sixAxisTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(15) };
         _sixAxisTimer.Tick += (_, _) => PollSpaceMouse();
@@ -2956,7 +2969,13 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         if (_sixAxis is null) return;
         foreach (var press in _sixAxis.DrainButtonPresses()) HandleSpaceMouseButton(press);
+        var pollStart = Trace ? Stopwatch.GetTimestamp() : 0;
         var m = _sixAxis.Poll();
+        if (Trace)
+        {
+            _tracePollMaxMs = Math.Max(_tracePollMaxMs, Stopwatch.GetElapsedTime(pollStart).TotalMilliseconds);
+            TraceSpaceMouseStaleness(m);
+        }
         if (m.IsZero) return;
 
         var config = Configuration.AppConfig.Current.SpaceMouse;
@@ -2992,6 +3011,51 @@ public sealed class ViewportControl : OpenGlControlBase
 
     // Locks the device's rotation axes only (3Dconnexion convention); MMB orbit stays available.
     private bool _spaceMouseRotationLock;
+
+    // DANSLICER_TRACE=1 diagnostic for choppy motion. Once a second, while the cap is being used,
+    // log how many times the timer fired, how many polls saw deflection, how many of those
+    // carried a value different from the previous poll, and the longest gap between two
+    // different readings. Healthy: ~66 polls, near-66 changes, gap under 50 ms. A poll count far
+    // below 66 blames the timer; few changes or a gap near 500 ms blames the driver.
+    // Also reported: the longest single COM poll call, the longest GL render, and how many
+    // gen0/1/2 collections ran in the window, so a stall can be pinned on the driver call, the
+    // frame, or the garbage collector.
+    private SixAxisMotion _lastTracedMotion;
+    private long _traceWindowStart, _traceLastChange;
+    private int _tracePolls, _traceNonZero, _traceChanges;
+    private long _traceMaxGapMs;
+    private double _tracePollMaxMs, _traceRenderMaxMs;
+    private int _traceGc0, _traceGc1, _traceGc2;
+
+    private void TraceSpaceMouseStaleness(SixAxisMotion m)
+    {
+        var now = Environment.TickCount64;
+        if (_traceWindowStart == 0) _traceWindowStart = now;
+        _tracePolls++;
+        if (!m.IsZero)
+        {
+            _traceNonZero++;
+            if (m != _lastTracedMotion)
+            {
+                _traceChanges++;
+                if (_traceLastChange != 0) _traceMaxGapMs = Math.Max(_traceMaxGapMs, now - _traceLastChange);
+                _traceLastChange = now;
+            }
+        }
+        _lastTracedMotion = m;
+        if (now - _traceWindowStart < 1000) return;
+        var gc0 = GC.CollectionCount(0); var gc1 = GC.CollectionCount(1); var gc2 = GC.CollectionCount(2);
+        if (_traceNonZero > 0)
+            Log($"SpaceMouse 1s: polls {_tracePolls}, deflected {_traceNonZero}, changed {_traceChanges}, max gap {_traceMaxGapMs} ms"
+                + $"; max poll call {_tracePollMaxMs:F1} ms, max render {_traceRenderMaxMs:F1} ms"
+                + $", GC {gc0 - _traceGc0}/{gc1 - _traceGc1}/{gc2 - _traceGc2}");
+        _traceWindowStart = now;
+        _tracePolls = _traceNonZero = _traceChanges = 0;
+        _traceMaxGapMs = 0;
+        _tracePollMaxMs = _traceRenderMaxMs = 0;
+        _traceGc0 = gc0; _traceGc1 = gc1; _traceGc2 = gc2;
+        if (m.IsZero) _traceLastChange = 0;
+    }
 
     private void HandleSpaceMouseButton(SixAxisButtonPress press)
     {

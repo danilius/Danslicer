@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
@@ -32,6 +32,13 @@ public sealed class TdxSpaceMouse : ISixAxisInput
     /// <summary>True when the button event hook is live; motion can work without it.</summary>
     public bool ButtonsConnected { get; private set; }
 
+    /// <summary>
+    /// The driver's own sensor refresh interval in milliseconds (<c>ISensor.Period</c>), read once at
+    /// connect for diagnostics; <c>null</c> when the driver would not report it. A healthy device
+    /// reports a few milliseconds; a large value means the driver itself is throttling us.
+    /// </summary>
+    public double? DriverPeriodMs { get; private set; }
+
     public bool TryConnect()
     {
         if (IsConnected) return true;
@@ -44,6 +51,7 @@ public sealed class TdxSpaceMouse : ISixAxisInput
             _device.Connect();
             _sensor = _device.Sensor;
             IsConnected = true;
+            try { DriverPeriodMs = (double)_sensor!.Period; } catch { DriverPeriodMs = null; }
             ConnectKeyboard();
             return true;
         }
@@ -57,21 +65,31 @@ public sealed class TdxSpaceMouse : ISixAxisInput
     public SixAxisMotion Poll()
     {
         if (!IsConnected || _sensor is null) return default;
+        object? t = null;
+        object? r = null;
         try
         {
-            dynamic t = _sensor.Translation;
-            dynamic r = _sensor.Rotation;
+            // Each property read hands back a fresh COM object (Vector3D / AngleAxis). Release
+            // them here rather than leaving them to the finalizer: STA wrappers released from the
+            // finalizer thread must marshal back onto the UI thread, and at ~66 polls a second
+            // that backlog is enough to stall the driver's updates into half-second steps.
+            dynamic td = t = _sensor.Translation;
+            dynamic rd = r = _sensor.Rotation;
             // Rotation is an axis-angle pair; the angle carries the deflection magnitude.
-            var motion = new SixAxisMotion(
-                new Vector3((float)t.X, (float)t.Y, (float)t.Z),
-                new Vector3((float)r.X, (float)r.Y, (float)r.Z) * (float)r.Angle);
-            return motion;
+            return new SixAxisMotion(
+                new Vector3((float)td.X, (float)td.Y, (float)td.Z),
+                new Vector3((float)rd.X, (float)rd.Y, (float)rd.Z) * (float)rd.Angle);
         }
         catch
         {
             // Driver went away mid-session: report idle and stay quiet.
             IsConnected = false;
             return default;
+        }
+        finally
+        {
+            if (t is not null) Marshal.ReleaseComObject(t);
+            if (r is not null) Marshal.ReleaseComObject(r);
         }
     }
 
