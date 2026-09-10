@@ -339,6 +339,22 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Viewport.OverhangAngleDegrees = Math.Clamp(value, 10f, 89f));
     }
 
+    public float AmbientOcclusionStrength
+    {
+        get => Viewport.AmbientOcclusionStrength;
+        set => Update(() => Viewport.AmbientOcclusionStrength = Math.Clamp(value, 0, 0.6f));
+    }
+    public float AmbientOcclusionRadiusMm
+    {
+        get => Viewport.AmbientOcclusionRadiusMm;
+        set => Update(() => Viewport.AmbientOcclusionRadiusMm = Math.Clamp(value, 0.1f, 10));
+    }
+    public float PlateReflectionStrength
+    {
+        get => Viewport.PlateReflectionStrength;
+        set => Update(() => Viewport.PlateReflectionStrength = Math.Clamp(value, 0, 0.3f));
+    }
+
     public float PlateOpacityFromBelow
     {
         get => Viewport.PlateOpacityFromBelow;

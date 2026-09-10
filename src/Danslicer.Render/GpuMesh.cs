@@ -114,16 +114,22 @@ public sealed unsafe class GpuMesh : IDisposable
         _gl.DeleteVertexArray(_vao);
     }
 
-    /// <summary>A flat quad in the XY plane, used for the build plate.</summary>
+    /// <summary>Viewport-only 2 mm slab, chamfered 0.6 mm below its exact printable top footprint.</summary>
     public static Mesh CreatePlate(float width, float depth)
     {
         var hw = width * 0.5f;
         var hd = depth * 0.5f;
-        var positions = new[]
-        {
-            new Vector3(-hw, -hd, 0), new Vector3(hw, -hd, 0),
-            new Vector3(hw, hd, 0), new Vector3(-hw, hd, 0),
-        };
-        return new Mesh(positions, new[] { 0, 1, 2, 0, 2, 3 });
+        var positions = new List<Vector3>();
+        foreach (var (inset, z) in new[] { (0f, 0f), (0f, -1.4f), (0.6f, -2f) })
+            positions.AddRange([new(-hw + inset, -hd + inset, z), new(hw - inset, -hd + inset, z),
+                new(hw - inset, hd - inset, z), new(-hw + inset, hd - inset, z)]);
+        var indices = new List<int> { 0, 1, 2, 0, 2, 3, 8, 10, 9, 8, 11, 10 };
+        for (var ring = 0; ring < 2; ring++)
+            for (var i = 0; i < 4; i++)
+            {
+                int a = ring * 4 + i, b = ring * 4 + (i + 1) % 4;
+                indices.AddRange([a, a + 4, b + 4, a, b + 4, b]);
+            }
+        return new Mesh(positions.ToArray(), indices.ToArray());
     }
 }

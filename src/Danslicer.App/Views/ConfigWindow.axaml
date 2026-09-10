@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Danslicer.App.ViewModels"
         xmlns:controls="using:Danslicer.App.Controls"
+        xmlns:refresh="using:Danslicer.App.Controls.Refresh"
         xmlns:printers="using:Danslicer.Core.Printers"
         x:Class="Danslicer.App.Views.ConfigWindow"
         x:DataType="vm:ConfigViewModel"
@@ -116,8 +117,21 @@
                                        Value="{Binding OverhangAngleDegrees, Mode=TwoWay}" />
                     </Grid>
                     <TextBlock Classes="hint" Text="Faces that lean down more than this from vertical are tinted as overhangs in the viewport. It is a reading aid only: generation uses the overhang angle in the support settings." />
+                    <Grid Tag="viewport ambient occlusion AO contact strength" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Contact depth strength" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Minimum="0" Maximum="0.6" Step="0.05" Format="0.00" Value="{Binding AmbientOcclusionStrength, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport ambient occlusion AO contact radius" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Contact radius (mm)" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Length" Unit="mm" Minimum="0.1" Maximum="10" Step="0.1" Format="0.0" Value="{Binding AmbientOcclusionRadiusMm, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid Tag="viewport plate reflections strength" ColumnDefinitions="190,*" Margin="0,2">
+                        <TextBlock Text="Plate reflection strength" Classes="label" />
+                        <refresh:FilledNumericSlider Grid.Column="1" Height="24" UnitKind="Scalar" Minimum="0" Maximum="0.3" Step="0.01" Format="0.00" Value="{Binding PlateReflectionStrength, Mode=TwoWay}" />
+                    </Grid>
+                    <TextBlock Classes="hint" Text="Contact depth works on opaque models and supports in deferred shading. View settings toggle it independently of cavity. Reflections work on both render paths; the plate surface always disappears below." />
                     <Grid Tag="viewport plate bed transparency opacity below underneath" ColumnDefinitions="190,*,110" Margin="0,2">
-                        <TextBlock Text="Plate opacity, edge-on and below" Classes="label" />
+                        <TextBlock Text="Plate perimeter below" Classes="label" />
                         <Slider Grid.Column="1" Minimum="0" Maximum="1"
                                 Value="{Binding PlateOpacityFromBelow, Mode=TwoWay}" />
                         <NumericUpDown Grid.Column="2" Minimum="0" Maximum="1" Increment="0.05" FormatString="0.00"

@@ -67,17 +67,20 @@ internal sealed class RendererCaptureWindow : Window
                         aux.Add(new AuxMeshDraw(Box(new(x - 0.6f, y - 0.6f, 0), new(x + 0.6f, y + 0.6f, 12)), new(0.47f, 0.54f, 0.57f), 1));
                 var report = new List<string> { $"GL: {_renderer.GlVersion}", $"GPU: {gl.GetStringS(StringName.Renderer)}", $"Framebuffer {width}x{height}; synthetic closed box model and 15 support-like aux pillars; no user config loaded." };
                 foreach (var path in new[] { RenderPathMode.Deferred, RenderPathMode.Classic })
-                foreach (var shot in new[] { "above", "below", "grazing", "contact", "effects-off", "isolation", "transparent" })
+                foreach (var shot in new[] { "above", "below", "grazing", "contact", "effects-off", "ao-off", "cavity-off", "reflections", "reflections-off", "below-reflections-off", "isolation", "transparent", "ortho", "selected", "transition-0", "transition-3", "transition-9", "transition-12" })
                 {
                     var camera = new Camera { Target = new(0, 0, 12), Distance = shot == "above" ? 260 : 85 };
-                    camera.SetView(-65, shot == "below" ? -35 : shot == "grazing" ? 6 : 28);
+                    camera.SetView(-65, shot.StartsWith("below") ? -35 : shot.StartsWith("transition-") ? float.Parse(shot[11..]) : shot == "grazing" ? 6 : 28);
+                    camera.Orthographic = shot == "ortho";
                     var frame = new RenderFrame
                     {
                         Framebuffer = fb, Width = width, Height = height, Camera = camera, Scene = doc.Scene,
-                        IsSelected = _ => false, Printer = doc.Printer, RenderPath = path,
+                        IsSelected = o => shot == "selected" && o == model, Printer = doc.Printer, RenderPath = path,
                         PlateOpacityFromBelow = new ViewportConfig().PlateOpacityFromBelow,
                         AuxMeshes = shot == "transparent" ? aux.Select(a => a with { Opacity = 0.3f }).ToArray() : aux,
-                        Deferred = shot == "effects-off" ? new DeferredEffects { CavityEnabled = false, OutlinesEnabled = false } : DeferredEffects.Default,
+                        Deferred = new DeferredEffects { AmbientOcclusionEnabled = shot is not ("effects-off" or "ao-off"), CavityEnabled = shot is not ("effects-off" or "cavity-off") },
+                        PlateReflectionsEnabled = shot is not ("effects-off" or "reflections-off" or "below-reflections-off"),
+                        ShowPlateShadows = shot is not ("reflections" or "reflections-off"),
                         ClipRange = shot == "isolation" ? new(0, 27, 6, 23, true) : default,
                         CapStyle = ClipCapStyle.Painted, ShowViewCube = false,
                     };

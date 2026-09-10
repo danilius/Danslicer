@@ -648,6 +648,9 @@ public partial class MainWindow : Window
         ShadingClayMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapClay;
         ShadingMetalMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapMetal;
         ShadingPearlMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapPearl;
+        AoMenuItem.IsChecked = viewport.AmbientOcclusionEnabled;
+        AoMenuItem.IsEnabled = deferred;
+        ReflectionsMenuItem.IsChecked = viewport.PlateReflectionsEnabled;
         CavityMenuItem.IsChecked = viewport.CavityEnabled;
         OutlinesMenuItem.IsChecked = viewport.OutlinesEnabled;
         FxaaMenuItem.IsChecked = viewport.FxaaEnabled;
@@ -677,6 +680,9 @@ public partial class MainWindow : Window
             PopShading.ItemsSource ??= new[] { "Studio", "MatCap Clay", "MatCap Metal", "MatCap Pearl" };
             PopShading.SelectedIndex = Array.IndexOf(ShadingOrder, viewport.Shading);
             PopShading.IsEnabled = deferred;
+            PopAo.IsChecked = viewport.AmbientOcclusionEnabled;
+            PopAo.IsEnabled = deferred;
+            PopReflections.IsChecked = viewport.PlateReflectionsEnabled;
             PopCavity.IsChecked = viewport.CavityEnabled;
             PopOutlines.IsChecked = viewport.OutlinesEnabled;
             PopFxaa.IsChecked = viewport.FxaaEnabled;
@@ -733,6 +739,18 @@ public partial class MainWindow : Window
         if (sender is MenuItem { Tag: string tag } &&
             Enum.TryParse<ViewportShadingMode>(tag, out var mode))
             AppConfig.Current.Viewport.Shading = mode;
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleAoClick(object? sender, RoutedEventArgs e)
+    {
+        AppConfig.Current.Viewport.AmbientOcclusionEnabled = !AppConfig.Current.Viewport.AmbientOcclusionEnabled;
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleReflectionsClick(object? sender, RoutedEventArgs e)
+    {
+        AppConfig.Current.Viewport.PlateReflectionsEnabled = !AppConfig.Current.Viewport.PlateReflectionsEnabled;
         ApplyRenderPathChange();
     }
 

@@ -13,6 +13,22 @@ namespace Danslicer.Render;
 /// </summary>
 public static class PlateFade
 {
+    /// <summary>Production surface visibility: smooth in angle and eye height, always zero below.</summary>
+    public static float SurfaceOpacityFor(Camera camera)
+    {
+        ArgumentNullException.ThrowIfNull(camera);
+        var angle = Math.Clamp(-camera.ViewDirection.Z / SolidSine, 0, 1);
+        var height = Math.Clamp(camera.Eye.Z / 2f, 0, 1);
+        return angle * angle * (3 - 2 * angle) * height * height * (3 - 2 * height);
+    }
+
+    /// <summary>Shadows ease out before the surface starts fading, avoiding a 12-degree pop.</summary>
+    public static float ShadowStrengthFor(Camera camera)
+    {
+        var t = Math.Clamp((-camera.ViewDirection.Z - SolidSine) / SolidSine, 0, 1);
+        return t * t * (3 - 2 * t);
+    }
+
     /// <summary>Looking down on the plate by more than this, it is a floor and draws solid.</summary>
     public const float SolidAngleDegrees = 12f;
 

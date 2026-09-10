@@ -93,7 +93,7 @@ public sealed partial class SceneRenderer
         _buildVolume = frame.Printer.BuildVolume;
 
         PruneMeshCache(frame);
-        var plateOpacity = PlateFade.OpacityFor(frame.Camera, frame.PlateOpacityFromBelow);
+        var plateOpacity = PlateFade.SurfaceOpacityFor(frame.Camera);
         var plateFaded = plateOpacity < 1f;
 
         DrawGeometryPass(frame, view, projection, plateFaded);
@@ -133,6 +133,7 @@ public sealed partial class SceneRenderer
             var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
             BindGBufferShader(model, view, projection, PlateColor, backfaceTint: 0f,
                 warnOutsideBuildVolume: false, overhangCos: 2f, plateId, selected: false, clip: default);
+            BindPlateMaterial(_deferred!.GBufferShader, true);
             _plate!.Draw();
             // Shadows carry the plate id: no outline between shadow and plate, and picking one
             // picks the plate, i.e. nothing. See the classic DrawPlateShadows for the rest.
@@ -146,9 +147,10 @@ public sealed partial class SceneRenderer
                         gpu = new GpuMesh(gl, obj.Mesh);
                         _meshes[obj.Mesh] = gpu;
                     }
-                    BindGBufferShader(obj.Transform.ToMatrix(), view, projection, PlateShadowColor,
+                    BindGBufferShader(obj.Transform.ToMatrix(), view, projection, Vector3.Lerp(PlateColor, PlateShadowColor, PlateFade.ShadowStrengthFor(frame.Camera)),
                         backfaceTint: 0f, warnOutsideBuildVolume: false, overhangCos: 2f, plateId,
                         selected: false, clip: default);
+                    BindPlateMaterial(pipeline.GBufferShader, true);
                     BindShadow(pipeline.GBufferShader, true);
                     gpu.Draw();
                 }
@@ -357,6 +359,7 @@ public sealed partial class SceneRenderer
 
         var shader = _deferred!.GBufferShader;
         shader.Use();
+        BindPlateMaterial(shader, false);
         shader.Set("uModel", model);
         shader.Set("uView", view);
         shader.Set("uProjection", projection);
@@ -407,6 +410,8 @@ public sealed partial class SceneRenderer
         shader.Set("uWaterlineZ", frame.WaterlineZ.GetValueOrDefault());
         shader.Set("uTexel", TexelSize(frame));
         shader.Set("uShadingMode", effects.Shading == ViewportShadingMode.Studio ? 0 : 1);
+        shader.Set("uAoStrength", effects.AmbientOcclusionEnabled ? effects.AmbientOcclusionStrength : 0f);
+        shader.Set("uAoRadiusMm", effects.AmbientOcclusionRadiusMm);
         shader.Set("uCavityRidge", effects.CavityEnabled ? effects.CavityRidgeStrength : 0f);
         shader.Set("uCavityValley", effects.CavityEnabled ? effects.CavityValleyStrength : 0f);
         shader.Set("uCavityRadius", effects.CavityRadiusPixels);
@@ -433,9 +438,9 @@ public sealed partial class SceneRenderer
         gl.DepthFunc(DepthFunction.Lequal);
 
         DrawWireframe(frame, view, projection);
-        DrawTransparentAuxMeshes(frame, view, projection);
         if (plateFaded && plateOpacity > 0.001f)
             DrawPlate(frame.Printer, view, projection, plateOpacity);
+        DrawTransparentAuxMeshes(frame, view, projection);
         DrawObjects(frame, view, projection, ghosted: true);
         DrawLines(frame, view * projection);
     }

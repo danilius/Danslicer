@@ -10,6 +10,9 @@ namespace Danslicer.Render;
 public sealed record DeferredEffects
 {
     public ViewportShadingMode Shading { get; init; } = ViewportShadingMode.Studio;
+    public bool AmbientOcclusionEnabled { get; init; } = true;
+    public float AmbientOcclusionStrength { get; init; } = 0.35f;
+    public float AmbientOcclusionRadiusMm { get; init; } = 2f;
     public bool CavityEnabled { get; init; } = true;
     public float CavityRidgeStrength { get; init; } = 0.35f;
     public float CavityValleyStrength { get; init; } = 0.7f;
@@ -24,6 +27,9 @@ public sealed record DeferredEffects
     {
         Shading = Enum.IsDefined(config.Shading) ? config.Shading : ViewportShadingMode.Studio,
         CavityEnabled = config.CavityEnabled,
+        AmbientOcclusionEnabled = config.AmbientOcclusionEnabled,
+        AmbientOcclusionStrength = Clamp(config.AmbientOcclusionStrength, 0f, 0.6f, 0.35f),
+        AmbientOcclusionRadiusMm = Clamp(config.AmbientOcclusionRadiusMm, 0.1f, 10f, 2f),
         CavityRidgeStrength = Clamp(config.CavityRidgeStrength, 0f, 4f, 0.35f),
         CavityValleyStrength = Clamp(config.CavityValleyStrength, 0f, 4f, 0.7f),
         CavityRadiusPixels = Clamp(config.CavityRadiusPixels, 0.5f, 8f, 1.5f),

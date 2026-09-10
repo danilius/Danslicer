@@ -242,6 +242,8 @@
                     <MenuItem x:Name="ShadingPearlMenuItem" Header="MatCap _Pearl" ToggleType="Radio"
                               GroupName="ViewportShading" Click="OnShadingClick" Tag="MatCapPearl" />
                     <Separator />
+                    <MenuItem x:Name="AoMenuItem" Header="Contact depth (AO)" ToggleType="CheckBox" Click="OnToggleAoClick" />
+                    <MenuItem x:Name="ReflectionsMenuItem" Header="Plate reflections" ToggleType="CheckBox" Click="OnToggleReflectionsClick" />
                     <MenuItem x:Name="CavityMenuItem" Header="Ca_vity" ToggleType="CheckBox"
                               Click="OnToggleCavityClick" />
                     <MenuItem x:Name="OutlinesMenuItem" Header="_Outlines" ToggleType="CheckBox"
@@ -847,6 +849,8 @@
                                     <ComboBox x:Name="PopShading" Grid.Column="1"
                                               SelectionChanged="OnPopShadingChanged" />
                                 </Grid>
+                                <CheckBox x:Name="PopAo" Content="Contact depth (AO)" Click="OnToggleAoClick" ToolTip.Tip="Subtle local proximity shading on opaque models and supports. Strength and radius: Preferences, Viewport." />
+                                <CheckBox x:Name="PopReflections" Content="Plate reflections" Click="OnToggleReflectionsClick" ToolTip.Tip="Restrained rough reflections, fading completely below. Strength: Preferences, Viewport." />
                                 <CheckBox x:Name="PopCavity" Content="Cavity" Click="OnToggleCavityClick" ToolTip.Tip="Darken creases and lighten ridges so the model's shape reads at a glance." />
                                 <CheckBox x:Name="PopOutlines" Content="Outlines" Click="OnToggleOutlinesClick" ToolTip.Tip="Draw a thin outline where surfaces meet the background or each other." />
                                 <CheckBox x:Name="PopFxaa" Content="FXAA" Click="OnToggleFxaaClick" ToolTip.Tip="Smooth jagged edges with fast anti-aliasing." />

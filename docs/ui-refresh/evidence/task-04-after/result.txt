@@ -1,0 +1,40 @@
+GL: OpenGL ES 3.0 (ANGLE 2.1.1 git hash: 1c89805903c1)
+GPU: ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.15.9186)
+Framebuffer 1000x760; synthetic closed box model and 15 support-like aux pillars; no user config loaded.
+Deferred-above: 0.47 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Below-plate GPU pick reaches model.
+Deferred-below: 0.20 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-grazing: 0.39 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-contact: 0.32 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-effects-off: 0.20 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-ao-off: 0.30 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-cavity-off: 0.33 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-reflections: 0.31 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-reflections-off: 0.20 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-below-reflections-off: 0.19 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-isolation: 0.81 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-transparent: 0.20 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-ortho: 0.28 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-selected: 0.26 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-transition-0: 0.14 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-transition-3: 0.19 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-transition-9: 0.19 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Deferred-transition-12: 0.21 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-above: 0.14 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-below: 0.09 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-grazing: 0.13 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-contact: 0.15 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-effects-off: 0.10 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-ao-off: 0.15 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-cavity-off: 0.14 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-reflections: 0.13 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-reflections-off: 0.09 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-below-reflections-off: 0.08 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-isolation: 0.17 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-transparent: 0.12 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-ortho: 0.14 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-selected: 0.14 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-transition-0: 0.09 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-transition-3: 0.13 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-transition-9: 0.20 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).
+Classic-transition-12: 0.14 ms/frame (CPU submission + glFinish, 8 frames after 3 warmups).

@@ -655,6 +655,8 @@ public sealed class ViewportControl : OpenGlControlBase
             OverhangAngleDegrees = Configuration.AppConfig.Current.Viewport.OverhangAngleDegrees,
             PlateOpacityFromBelow = Configuration.AppConfig.Current.Viewport.PlateOpacityFromBelow,
             ShowPlateShadows = Configuration.AppConfig.Current.Viewport.PlateShadowsEnabled,
+            PlateReflectionsEnabled = Configuration.AppConfig.Current.Viewport.PlateReflectionsEnabled,
+            PlateReflectionStrength = Configuration.AppConfig.Current.Viewport.PlateReflectionStrength,
             OverhangColorA = Configuration.AppConfig.ParseColor(
                 Configuration.AppConfig.Current.Viewport.OverhangColorA, new Vector3(0.98f, 0.80f, 0.15f)),
             OverhangColorB = Configuration.AppConfig.ParseColor(

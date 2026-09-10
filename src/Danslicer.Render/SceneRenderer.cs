@@ -34,8 +34,10 @@ public sealed class RenderFrame
     public bool ShowOverhangs { get; init; }
     /// <summary>Overhang threshold measured from the vertical wall: 45 tints anything steeper.</summary>
     public float OverhangAngleDegrees { get; init; } = 45f;
-    /// <summary>Plate opacity when the view grazes or passes under it: 0 invisible, 1 opaque (no fade).</summary>
-    public float PlateOpacityFromBelow { get; init; } = 1f;
+    /// <summary>Legacy name: remaining perimeter visibility below; the surface always disappears.</summary>
+    public float PlateOpacityFromBelow { get; init; } = 0.3f;
+    public bool PlateReflectionsEnabled { get; init; } = true;
+    public float PlateReflectionStrength { get; init; } = 0.12f;
     /// <summary>Each visible object's shadow on the plate (design "Shadow"); both paths.</summary>
     public bool ShowPlateShadows { get; init; } = true;
     /// <summary>The two overhang checker colours and the checker cell edge in millimetres.</summary>
@@ -127,6 +129,7 @@ public sealed partial class SceneRenderer : IDisposable
     {
         // The deferred path lives in SceneRenderer.Deferred.cs and is opt-in per frame; any GL
         // failure there logs, latches off and falls back so a frame is always produced.
+        PreparePlateReflection(frame);
         _pickTargetsValid = false; // only a completed deferred frame re-arms ID picking
         var deferredDrawn = frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame);
         if (!deferredDrawn) RenderClassic(frame);
@@ -165,7 +168,7 @@ public sealed partial class SceneRenderer : IDisposable
         PruneMeshCache(frame);
         // Looking along or up at the plate, it fades toward the configured opacity so the model
         // stays visible; it then draws after the opaque passes so blending sees them.
-        var plateOpacity = PlateFade.OpacityFor(frame.Camera, frame.PlateOpacityFromBelow);
+        var plateOpacity = PlateFade.SurfaceOpacityFor(frame.Camera);
         var plateFaded = plateOpacity < 1f;
         if (!plateFaded)
         {
@@ -174,9 +177,10 @@ public sealed partial class SceneRenderer : IDisposable
         }
         DrawObjects(frame, view, projection, ghosted: false);
         DrawWireframe(frame, view, projection);
-        DrawAuxMeshes(frame, view, projection);
+        DrawAuxMeshes(frame, view, projection, transparent: false);
         if (plateFaded && plateOpacity > 0.001f)
             DrawPlate(frame.Printer, view, projection, plateOpacity);
+        DrawAuxMeshes(frame, view, projection, transparent: true);
         DrawObjects(frame, view, projection, ghosted: true);
         DrawLines(frame, view * projection);
 
@@ -205,7 +209,11 @@ public sealed partial class SceneRenderer : IDisposable
         var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
         BindMeshShader(model, view, projection, PlateColor, opacity, backfaceTint: 0f,
             warnOutsideBuildVolume: false, overhangCos: 2f, clip: default);
+        BindPlateMaterial(_meshShader, true);
+        // Convex slab: only the visible skin blends, avoiding multiple translucent layers.
+        gl.Enable(EnableCap.CullFace);
         _plate.Draw();
+        gl.Disable(EnableCap.CullFace);
         if (faded)
         {
             gl.Disable(EnableCap.Blend);
@@ -229,8 +237,9 @@ public sealed partial class SceneRenderer : IDisposable
                 gpu = new GpuMesh(_gl, obj.Mesh);
                 _meshes[obj.Mesh] = gpu;
             }
-            BindMeshShader(obj.Transform.ToMatrix(), view, projection, PlateShadowColor, 1f,
+            BindMeshShader(obj.Transform.ToMatrix(), view, projection, Vector3.Lerp(PlateColor, PlateShadowColor, PlateFade.ShadowStrengthFor(frame.Camera)), 1f,
                 backfaceTint: 0f, warnOutsideBuildVolume: false, overhangCos: 2f, clip: default);
+            BindPlateMaterial(_meshShader, true);
             BindShadow(_meshShader, true);
             gpu.Draw();
             BindShadow(_meshShader, false);
@@ -287,12 +296,13 @@ public sealed partial class SceneRenderer : IDisposable
         }
     }
 
-    private void DrawAuxMeshes(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection)
+    private void DrawAuxMeshes(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection, bool transparent)
     {
         if (frame.AuxMeshes.Count == 0) return;
         var gl = _gl;
         foreach (var draw in frame.AuxMeshes)
         {
+            if ((draw.Opacity < 1f) != transparent) continue;
             if (!_meshes.TryGetValue(draw.Mesh, out var gpu))
             {
                 gpu = new GpuMesh(gl, draw.Mesh);
@@ -331,6 +341,7 @@ public sealed partial class SceneRenderer : IDisposable
         var modelNormalMatrix = Matrix4x4.Transpose(modelInverse);
 
         _meshShader.Use();
+        BindPlateMaterial(_meshShader, false);
         _meshShader.Set("uModel", model);
         _meshShader.Set("uView", view);
         _meshShader.Set("uProjection", projection);
@@ -385,7 +396,7 @@ public sealed partial class SceneRenderer : IDisposable
         gl.Enable(EnableCap.DepthTest);
 
         _depthLines.Clear();
-        AddGrid(frame.Printer);
+        AddGrid(frame.Printer, PlateFade.SurfaceOpacityFor(frame.Camera), frame.PlateOpacityFromBelow);
         BindClip(_lineShader, default);
         _depthLines.Draw();
 
@@ -424,7 +435,7 @@ public sealed partial class SceneRenderer : IDisposable
         shader.Set("uClipUpperZ", clip.UpperZ);
     }
 
-    private void AddGrid(PrinterDefinition printer)
+    private void AddGrid(PrinterDefinition printer, float opacity, float perimeter)
     {
         var hw = printer.BuildVolume.X * 0.5f;
         var hd = printer.BuildVolume.Y * 0.5f;
@@ -433,6 +444,8 @@ public sealed partial class SceneRenderer : IDisposable
         var minor = new Vector4(1f, 1f, 1f, 0.07f);
         var major = new Vector4(1f, 1f, 1f, 0.16f);
         var border = new Vector4(1f, 1f, 1f, 0.35f);
+        minor.W *= opacity; major.W *= opacity;
+        border.W *= opacity + (1 - opacity) * Math.Clamp(float.IsFinite(perimeter) ? perimeter : 0.3f, 0, 1);
         var volume = new Vector4(1f, 1f, 1f, 0.10f);
 
         for (float x = 0; x <= hw + 1e-3f; x += 10f)
@@ -460,9 +473,9 @@ public sealed partial class SceneRenderer : IDisposable
         }
 
         // Axes at the plate origin.
-        _depthLines.Add(Vector3.Zero, new Vector3(hw, 0, 0), new Vector4(0.95f, 0.30f, 0.30f, 0.9f));
-        _depthLines.Add(Vector3.Zero, new Vector3(0, hd, 0), new Vector4(0.45f, 0.85f, 0.35f, 0.9f));
-        _depthLines.Add(Vector3.Zero, new Vector3(0, 0, 20f), new Vector4(0.35f, 0.55f, 0.95f, 0.9f));
+        _depthLines.Add(Vector3.Zero, new Vector3(hw, 0, 0), new Vector4(0.95f, 0.30f, 0.30f, 0.9f * opacity));
+        _depthLines.Add(Vector3.Zero, new Vector3(0, hd, 0), new Vector4(0.45f, 0.85f, 0.35f, 0.9f * opacity));
+        _depthLines.Add(Vector3.Zero, new Vector3(0, 0, 20f), new Vector4(0.35f, 0.55f, 0.95f, 0.9f * opacity));
     }
 
     private void PruneMeshCache(RenderFrame frame)
@@ -487,6 +500,7 @@ public sealed partial class SceneRenderer : IDisposable
         _plate?.Dispose();
         _depthLines.Dispose();
         _overlayLines.Dispose();
+        _reflection?.Dispose();
         _meshShader.Dispose();
         _lineShader.Dispose();
         _wideLineShader.Dispose();

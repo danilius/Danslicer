@@ -69,6 +69,13 @@ public sealed class ViewportConfig
     /// <summary>Screen-space ridge/valley shading (deferred path only).</summary>
     public bool CavityEnabled { get; set; } = true;
 
+    /// <summary>Local screen-space proximity shading on opaque geometry, deferred only.</summary>
+    public bool AmbientOcclusionEnabled { get; set; } = true;
+    public float AmbientOcclusionStrength { get; set; } = 0.35f;
+    public float AmbientOcclusionRadiusMm { get; set; } = 2f;
+    public bool PlateReflectionsEnabled { get; set; } = true;
+    public float PlateReflectionStrength { get; set; } = 0.12f;
+
     /// <summary>Brightening applied to ridges, 0 disables.</summary>
     public float CavityRidgeStrength { get; set; } = 0.35f;
 
@@ -123,8 +130,8 @@ public sealed class ViewportConfig
     public int ViewCubeSizePixels { get; set; } = 120;
 
     /// <summary>
-    /// Build-plate opacity once the view grazes the plate or looks up from under it: 0 invisible,
-    /// 1 fully opaque (no fade). The ramp between this and solid lives in <c>PlateFade</c>.
+    /// Legacy JSON name retained: perimeter visibility below, 0 hidden to 1 normal border.
+    /// The surface, grid and reflections always fade completely below (task 04).
     /// </summary>
     public float PlateOpacityFromBelow { get; set; } = 0.3f;
 
@@ -150,6 +157,10 @@ public sealed class ViewportConfig
         if (!Enum.IsDefined(CapStyle)) CapStyle = ClipCapStyle.Painted;
         CavityRidgeStrength = Clamp(CavityRidgeStrength, 0f, 4f, 0.35f);
         CavityValleyStrength = Clamp(CavityValleyStrength, 0f, 4f, 0.7f);
+        AmbientOcclusionStrength = Clamp(AmbientOcclusionStrength, 0f, 0.6f, 0.35f);
+        AmbientOcclusionRadiusMm = Clamp(AmbientOcclusionRadiusMm, 0.1f, 10f, 2f);
+        PlateReflectionStrength = Clamp(PlateReflectionStrength, 0f, 0.3f, 0.12f);
+        PlateOpacityFromBelow = Clamp(PlateOpacityFromBelow, 0f, 1f, 0.3f);
         CavityRadiusPixels = Clamp(CavityRadiusPixels, 0.5f, 8f, 1.5f);
         OutlineStrength = Clamp(OutlineStrength, 0f, 1f, 0.75f);
         ViewCubeSizePixels = Math.Clamp(ViewCubeSizePixels, 48, 192);

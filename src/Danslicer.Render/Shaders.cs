@@ -18,6 +18,7 @@ internal static class Shaders
         uniform mat4 uModelNormalMatrix; // transpose(inverse(model)), for world-space normals
         uniform float uShadow;           // 1 = project the mesh onto the plate as its shadow
         uniform vec3 uShadowDir;         // direction the shadow light travels (z < 0), world space
+        uniform float uMirror;
         uniform float uShadowZ;          // world Z of the shadow surface
 
         out vec3 vViewNormal;
@@ -38,8 +39,15 @@ internal static class Shaders
                 worldNormal = vec3(0.0, 0.0, 1.0);
                 viewNormal = normalize(mat3(uView) * worldNormal);
             }
+            vec3 sourcePosition = world.xyz;
+            if (uMirror > 0.5)
+            {
+                world.z = -world.z - 0.1;
+                worldNormal.z = -worldNormal.z;
+                viewNormal = normalize(mat3(uView) * worldNormal);
+            }
             vec4 view = uView * world;
-            vWorldPosition = world.xyz;
+            vWorldPosition = sourcePosition;
             vViewPosition = view.xyz;
             vViewNormal = viewNormal;
             vWorldNormal = worldNormal;
@@ -57,6 +65,12 @@ internal static class Shaders
         in vec3 vWorldPosition;
         in vec3 vViewPosition;
 
+        uniform float uPlateMaterial;
+        uniform float uMirror;
+        uniform float uReflectionStrength;
+        uniform highp sampler2D uReflectionTex;
+        uniform vec2 uReflectionTexel;
+        uniform vec2 uViewportSize;
         uniform vec3 uColor;
         uniform float uBackfaceTint;   // 1 = tint back faces to reveal inverted normals
         uniform float uOpacity;
@@ -84,7 +98,7 @@ internal static class Shaders
 
             vec3 n = normalize(vViewNormal);
             // A shadow is one flat surface whatever the winding of the triangles that made it.
-            bool back = !gl_FrontFacing && uShadow < 0.5;
+            bool back = (!gl_FrontFacing != (uMirror > 0.5)) && uShadow < 0.5;
             if (back) n = -n;
             vec3 v = normalize(-vViewPosition);
 
@@ -99,12 +113,34 @@ internal static class Shaders
                 max(dot(n, rim), 0.0) * 0.20;
 
             vec3 h = normalize(key + v);
-            float spec = pow(max(dot(n, h), 0.0), 48.0) * 0.18;
+            float spec = pow(max(dot(n, h), 0.0), uPlateMaterial > 0.5 ? 10.0 : 48.0) * (uPlateMaterial > 0.5 ? 0.06 : 0.18);
 
             // Fresnel-style edge lift separates silhouettes from what lies behind them.
             float edge = pow(1.0 - max(dot(n, v), 0.0), 3.0) * 0.12;
 
             vec3 color = uColor;
+            if (uMirror > 0.5 && vWorldPosition.z < 0.0) discard;
+            if (uPlateMaterial > 0.5)
+            {
+                // Broad satin highlight with a tiny world-locked brushed variation.
+                float grain = sin(vWorldPosition.x * 38.0 + sin(vWorldPosition.y * 0.7)) * 0.004;
+                color += vec3(grain);
+                if (vWorldNormal.z > 0.9 && uReflectionStrength > 0.0)
+                {
+                    vec2 uv = gl_FragCoord.xy / uViewportSize;
+                    vec4 reflection = vec4(0.0);
+                    for (int x = -1; x <= 1; x++)
+                    for (int y = -1; y <= 1; y++)
+                    {
+                        float w = (x == 0 ? 2.0 : 1.0) * (y == 0 ? 2.0 : 1.0);
+                        vec2 tap = uv + vec2(float(x), float(y)) * uReflectionTexel * 2.0;
+                        if (all(greaterThanEqual(tap, vec2(0.0))) && all(lessThanEqual(tap, vec2(1.0))))
+                            reflection += texture(uReflectionTex, tap) * w / 16.0;
+                    }
+                    // Premultiplied clear-black samples soften silhouettes without a dark border.
+                    color = color * (1.0 - reflection.a * uReflectionStrength) + reflection.rgb * uReflectionStrength;
+                }
+            }
             if (back) color = mix(color, vec3(0.85, 0.30, 0.55), uBackfaceTint * 0.6);
 
             // Overhang tint: surfaces facing downward within the threshold of straight down show
