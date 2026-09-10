@@ -188,5 +188,3 @@ public sealed class UiPreviewWindow : Window
         Grid.SetColumn(field, 1); row.Children.Add(field); return row;
     }
 }
-
-

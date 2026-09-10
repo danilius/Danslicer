@@ -53,4 +53,3 @@ public static class RefreshIcons
         Width = 20, Height = 20, Stretch = Stretch.Uniform, IsHitTestVisible = false
     };
 }
-

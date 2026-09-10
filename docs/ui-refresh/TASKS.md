@@ -14,4 +14,3 @@ Audit renderer overlap with Claude before edits. Implement shallow plate, restra
 Review approved specification against real app, run appropriate suite and manual checks, fix remaining UX defects, reconcile committed Claude work in isolated UI branch after confirming stable base. Resolve conflicts in UI checkout only. Produce reviewable final commits, known limitations, test/build/run instructions and task-05.md. Do not merge into main without user instruction.
 ## Creating each next chat
 Use the prior task's exact completed commit as starting ref for a separate project worktree/chat. Copy no uncommitted source between tasks. Read committed docs/ui-refresh/RESUME.md first. Record new chat ID/path/branch in its handoff. The coordinator can dispatch after predecessor completion; a user can resume using RESUME at any time.
-

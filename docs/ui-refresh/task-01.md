@@ -30,3 +30,6 @@ FloatingToolbar accepts explicit tool IDs/actions; host owns command enablement/
 
 ### Next task
 Task 02 only, in a separate coordinator-created chat/worktree from this task's final handoff commit. Read START.md, SPEC.md, TASKS.md, RESUME.md and this note. Integrate workspace layout/navigation with real commands while preserving every setting, status-bar item and keymap. Do not start settings persistence (03) or rendering (04). No main merge, no changes to Claude's checkout. Resolve the final handoff commit with `git rev-parse HEAD` on codex/ui-refresh; RESUME records the implementation commit and final docs commit can be its descendant.
+
+## Final checkpoint
+Implementation committed as fef5d7dfdf70698cd7ee785470e374a2456b66c0. Staged whitespace review then detected three extra EOF blank lines; removed in the final handoff commit. RESUME now records completed work, exact launch commands and task 02 boundaries. The final documentation/whitespace descendant is the coordinator's starting ref. No semantic source changes after verification.
