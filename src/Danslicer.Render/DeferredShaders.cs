@@ -143,6 +143,7 @@ internal static class DeferredShaders
         uniform float uWaterlineEnabled;
         uniform float uWaterlineZ;
         uniform int uShadingMode;      // 0 = studio lighting, 1 = MatCap lookup
+        uniform float uPlateEffectVisibility;
         uniform float uAoStrength;
         uniform float uAoRadiusMm;
         uniform float uCavityRidge;    // 0 disables ridges
@@ -177,7 +178,9 @@ internal static class DeferredShaders
                 vec3 n = normalize(sampleNormal(vUv));
                 vec3 p = viewPos(vUv, depth);
 
-                if (uShadingMode == 0)
+                bool plateMaterial = texture(uNormalTex, vUv).a < 0.5;
+                float plateEffect = plateMaterial ? uPlateEffectVisibility : 1.0;
+                if (uShadingMode == 0 || plateMaterial)
                 {
                     // The classic studio rig, reproduced from the G-buffer.
                     vec3 v = normalize(-p);
@@ -191,7 +194,7 @@ internal static class DeferredShaders
                         max(dot(n, rim), 0.0) * 0.20;
 
                     vec3 h = normalize(key + v);
-                    bool plate = texture(uNormalTex, vUv).a < 0.5;
+                    bool plate = plateMaterial;
                     float spec = pow(max(dot(n, h), 0.0), plate ? 10.0 : 48.0) * (plate ? 0.06 : 0.18);
                     float edgeLift = pow(1.0 - max(dot(n, v), 0.0), 3.0) * 0.12;
 
@@ -226,7 +229,7 @@ internal static class DeferredShaders
                         float falloff = 1.0 - smoothstep(uAoRadiusMm * 0.25, uAoRadiusMm, distanceMm);
                         occlusion += horizon * falloff;
                     }
-                    color *= 1.0 - min(occlusion * (3.0 / 16.0), 1.0) * uAoStrength;
+                    color *= 1.0 - min(occlusion * (3.0 / 16.0), 1.0) * uAoStrength * plateEffect;
                 }
 
                 if (uCavityRidge + uCavityValley > 0.0)
@@ -250,7 +253,7 @@ internal static class DeferredShaders
                     float curvature = (nn[0].x - nn[1].x) + (nn[2].y - nn[3].y);
                     float ridge = clamp(curvature, 0.0, 1.0) * uCavityRidge;
                     float valley = clamp(-curvature, 0.0, 1.0) * uCavityValley;
-                    color *= clamp(1.0 + ridge - valley, 0.0, 2.0);
+                    color *= clamp(1.0 + (ridge - valley) * plateEffect, 0.0, 2.0);
                 }
             }
 
@@ -278,7 +281,7 @@ internal static class DeferredShaders
                         selected = max(selected, max(idC.a, idN.a));
                     }
                 }
-                if (edge > 0.0 && albedo.a > 0.5)
+                if (edge > 0.0 && albedo.a > 0.5 && texture(uNormalTex, vUv).a > 0.5)
                     color = mix(color, selected > 0.5 ? uSelectColor : uOutlineColor, uOutlineStrength);
             }
 

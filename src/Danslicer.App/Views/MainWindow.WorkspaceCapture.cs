@@ -122,6 +122,26 @@ public partial class MainWindow
             Require(popup.IsOpen && popup.Shell.Bounds.Height > 28, $"Cannot open {popup.Title}");
             Require(ReferenceEquals(popup.Shell.Body!.DataContext, vm), $"Binding lost for {popup.Title}");
             if (popup == SupportsToolPopup) Capture("workspace-support.png");
+            if (popup == ViewSettingsPopup)
+            {
+                var config = Configuration.AppConfig.Current.Viewport;
+                var originalAo = config.AmbientOcclusionEnabled;
+                var originalReflection = config.PlateReflectionsEnabled;
+                var originalCap = config.CapInterior;
+                PopAo.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                PopReflections.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                var configPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Configuration.AppConfig.WorkspacePath)!, "config.json");
+                var saved = Core.Config.UserConfig.Load(configPath).Viewport;
+                Require(saved.AmbientOcclusionEnabled != originalAo && saved.PlateReflectionsEnabled != originalReflection,
+                    "AO/reflection view toggles did not save");
+                Require(saved.CapInterior == originalCap, "View effects changed saved Cap choice");
+                Require(PopAo.IsChecked == AoMenuItem.IsChecked && PopReflections.IsChecked == ReflectionsMenuItem.IsChecked,
+                    "View menu and popout effect state disagree");
+                PopAo.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                PopReflections.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Capture("workspace-view-effects.png");
+                File.WriteAllText(System.IO.Path.Combine(directory, "view-effects-ok.txt"), "AO/reflection toggles save, menu/popout states agree, saved Cap unchanged, original effect choices restored in isolated configuration.");
+            }
             Key(popup.Shell, Avalonia.Input.Key.Escape);
             Require(!popup.IsOpen, $"Cannot close {popup.Title}");
         }

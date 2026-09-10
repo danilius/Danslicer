@@ -249,11 +249,11 @@ public sealed partial class SceneRenderer
 
             gl.CullFace(TriangleFace.Front);
             gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.IncrWrap);
-            DrawCappableGeometry(frame, view, projection, singleBoundClip);
+            DrawCappableGeometry(frame, view, projection, singleBoundClip, z);
 
             gl.CullFace(TriangleFace.Back);
             gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.DecrWrap);
-            DrawCappableGeometry(frame, view, projection, singleBoundClip);
+            DrawCappableGeometry(frame, view, projection, singleBoundClip, z);
 
             // Paint the cap through the ordinary shader wherever the stencil says a solid crosses.
             gl.Disable(EnableCap.CullFace);
@@ -272,7 +272,12 @@ public sealed partial class SceneRenderer
             var id = RegisterPick(null);
             BindGBufferShader(Matrix4x4.Identity, view, projection, ObjectColor, backfaceTint: 0f,
                 warnOutsideBuildVolume: false, overhangCos: 2f, id, selected: false, frame.ClipRange);
+            // A horizontal cut closes the retained solid only on its outward side. Rendering
+            // the reverse face exposes stencil footprints through multi-part support geometry.
+            gl.Enable(EnableCap.CullFace);
+            gl.CullFace(TriangleFace.Back);
             quad.Draw();
+            gl.Disable(EnableCap.CullFace);
         }
 
         gl.Disable(EnableCap.StencilTest);
@@ -286,12 +291,15 @@ public sealed partial class SceneRenderer
     /// support geometry), colour- and depth-write-free, for one side of the stencil mask.
     /// </summary>
     private void DrawCappableGeometry(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection,
-        ViewportClipRange clip)
+        ViewportClipRange clip, float planeZ)
     {
         var gl = _gl;
         foreach (var obj in frame.Scene.Objects)
         {
             if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+            // A solid wholly on either side cannot contribute a cross-section. In particular,
+            // overlapping support parts below an upper model cut must not leave stencil residue.
+            if (obj.WorldBounds.Min.Z >= planeZ || obj.WorldBounds.Max.Z <= planeZ) continue;
             if (!_meshes.TryGetValue(obj.Mesh, out var gpu))
             {
                 gpu = new GpuMesh(gl, obj.Mesh);
@@ -305,6 +313,7 @@ public sealed partial class SceneRenderer
         foreach (var draw in frame.AuxMeshes)
         {
             if (draw.Opacity < 1f) continue;
+            if (draw.Mesh.Bounds.Min.Z >= planeZ || draw.Mesh.Bounds.Max.Z <= planeZ) continue;
             if (!_meshes.TryGetValue(draw.Mesh, out var gpu))
             {
                 gpu = new GpuMesh(gl, draw.Mesh);
@@ -410,6 +419,7 @@ public sealed partial class SceneRenderer
         shader.Set("uWaterlineZ", frame.WaterlineZ.GetValueOrDefault());
         shader.Set("uTexel", TexelSize(frame));
         shader.Set("uShadingMode", effects.Shading == ViewportShadingMode.Studio ? 0 : 1);
+        shader.Set("uPlateEffectVisibility", PlateFade.ShadowStrengthFor(frame.Camera));
         shader.Set("uAoStrength", effects.AmbientOcclusionEnabled ? effects.AmbientOcclusionStrength : 0f);
         shader.Set("uAoRadiusMm", effects.AmbientOcclusionRadiusMm);
         shader.Set("uCavityRidge", effects.CavityEnabled ? effects.CavityRidgeStrength : 0f);
