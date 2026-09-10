@@ -24,12 +24,14 @@ public partial class MainWindow
         Opened += async (_, _) =>
         {
             Directory.CreateDirectory(directory);
+            File.Delete(System.IO.Path.Combine(directory, "workspace-ok.txt"));
+            File.Delete(System.IO.Path.Combine(directory, "workspace-error.txt"));
             try
             {
                 await Task.Delay(600);
                 await CheckWorkspace(directory);
                 File.WriteAllText(System.IO.Path.Combine(directory, "workspace-ok.txt"),
-                    "Real MainWindow/VM: toolbar labels, mode scoping, all 13 popouts, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, session project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
+                    "Real MainWindow/VM: STL import, selected object transform expression/undo, duplicate/undo, toolbar labels, mode scoping, all 13 popouts, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, session project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
             }
             catch (Exception ex)
             {
@@ -53,6 +55,25 @@ public partial class MainWindow
             bitmap.Render(content); bitmap.Save(System.IO.Path.Combine(directory, name), PngBitmapEncoderOptions.Default);
         }
         var vm = ViewModel!;
+        var meshPath = System.IO.Path.Combine(directory, "workspace-smoke.stl");
+        var vertices = new System.Numerics.Vector3[] { new(0, 0, 0), new(20, 0, 0), new(0, 20, 0), new(0, 0, 20) };
+        var triangles = new[] { 0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3 };
+        var stl = new System.Text.StringBuilder("solid workspace\n");
+        for (var t = 0; t < triangles.Length; t += 3)
+        {
+            stl.AppendLine("facet normal 0 0 0\nouter loop");
+            for (var j = 0; j < 3; j++)
+            {
+                var v = vertices[triangles[t + j]];
+                stl.AppendLine(FormattableString.Invariant($"vertex {v.X} {v.Y} {v.Z}"));
+            }
+            stl.AppendLine("endloop\nendfacet");
+        }
+        stl.AppendLine("endsolid workspace");
+        File.WriteAllText(meshPath, stl.ToString());
+        vm.ImportMesh(meshPath);
+        Require(vm.Objects.Count == 1 && vm.SelectedObject is not null, "Native STL import/selection failed");
+        Viewport.FrameAll();
         Width = 1200; Height = 800;
         vm.ViewMode = WorkspaceMode.Layout;
         await Layout();
@@ -63,6 +84,18 @@ public partial class MainWindow
         Require(ReferenceEquals(ObjectsPopupContent.DataContext, vm), "Rehost lost VM binding");
         Click(TransformToolButton); await Layout();
         Require(!ObjectsToolPopup.IsOpen && TransformToolPopup.IsOpen, "Tools must be exclusive");
+        var position = TransformPopupContent.GetVisualDescendants().OfType<ExpressionBox>()
+            .Single(e => ReferenceEquals(e.DataContext, vm.Position[0]));
+        var previous = vm.Position[0].Text;
+        position.Focus(); position.Text = "10 + 2"; Key(position, Avalonia.Input.Key.Enter);
+        Require(vm.Position[0].Text == "12", "Production transform expression failed");
+        vm.UndoCommand.Execute(null);
+        Require(vm.Position[0].Text == previous, "Production transform undo failed");
+        vm.DuplicateScopedCommand.Execute(null); Require(vm.Objects.Count == 2, "Duplicate command failed");
+        vm.UndoCommand.Execute(null); Require(vm.Objects.Count == 1, "Duplicate undo failed");
+        vm.Document.Select(vm.Objects[0]);
+        await Layout();
+        Require(position.IsEffectivelyVisible && position.Bounds.Height >= 24, "Transform field not visible after undo");
         Capture("workspace-layout.png");
         _workspaceToolbar.ShowLabels = true; await Layout();
         Capture("workspace-labels.png");
@@ -75,6 +108,7 @@ public partial class MainWindow
         Require(LayoutPopout.IsOpen && vm.PlacementHeight.Text == before, "Editor Escape must precede dismissal");
         Viewport.Focus(); Key(Viewport, Avalonia.Input.Key.Escape);
         Require(!LayoutPopout.IsOpen, "Escape from viewport must dismiss popout");
+        vm.Document.Select(vm.Objects[0]);
         vm.ViewMode = WorkspaceMode.Support; await Layout();
         Require(!TransformToolButton.IsVisible && SupportsToolButton.IsVisible && !_printTool.IsVisible, "Support tool scoping failed");
         foreach (var popup in new[] { ObjectsToolPopup, SupportsToolPopup, StructureToolPopup, GuidedToolPopup, RegionToolPopup, VisibilityToolPopup, RaftsToolPopup, ViewSettingsPopup, _inspectionPopout })
@@ -96,11 +130,12 @@ public partial class MainWindow
         Require(PrintPopout.IsOpen && ReferenceEquals(PrintPopout.Shell.Body!.DataContext, vm), "Print bindings lost");
         var print = (StackPanel)PrintPopout.Shell.Body!;
         var first = (ReorderableExpander)print.Children[0];
-        var grip = first.GetVisualDescendants().OfType<Button>().Single(b => AutomationProperties.GetName(b).StartsWith("Reorder "));
+        var grip = first.GetVisualDescendants().OfType<Button>().Single(b => (AutomationProperties.GetName(b) ?? "").StartsWith("Reorder "));
         Key(grip, Avalonia.Input.Key.Down, KeyModifiers.Alt);
         Require(print.Children[1] == first, "Production section reorder failed");
         Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt);
         first.IsExpanded = false; Require(!first.IsExpanded, "Collapse failed"); first.IsExpanded = true;
+        await Layout();
         foreach (var scale in new[] { 1.0, 1.5, 2.0 }) Capture($"workspace-slicing-{scale * 100:0}.png", scale);
         Width = 640; Height = 480; await Layout();
         var resize = PrintPopout.GetVisualDescendants().OfType<Border>().Single(b => AutomationProperties.GetName(b) == "Resize popout width");
@@ -116,5 +151,6 @@ public partial class MainWindow
         OpenRecentProject(path); Require(vm.ProjectPath == path, "Recent project open failed");
         OpenRecentProject(path + ".missing"); Require(vm.ViewportStatus.StartsWith("Open failed:"), "Missing recent project must report failure");
         File.Delete(path);
+        File.Delete(meshPath);
     }
 }

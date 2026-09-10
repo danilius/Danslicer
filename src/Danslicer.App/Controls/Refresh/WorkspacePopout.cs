@@ -1,7 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
-using Avalonia.Metadata;
+
 
 namespace Danslicer.App.Controls.Refresh;
 
@@ -44,7 +44,7 @@ public sealed class WorkspacePopout : ContentControl
             border.HorizontalAlignment = HorizontalAlignment.Stretch;
             border.VerticalAlignment = VerticalAlignment.Stretch;
         }
-        Shell = new ToolPopout { Title = Title, Body = body, Margin = new Thickness(0), Width = 340 };
+        Shell = new ToolPopout { Title = Title, Body = body, Margin = new Thickness(0), Width = 340, Focusable = true };
         Shell.CloseRequested += (_, _) => close();
         Content = Shell;
     }

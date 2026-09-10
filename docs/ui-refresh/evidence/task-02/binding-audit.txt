@@ -1,0 +1,3 @@
+Status-bar XAML subtree byte-identical to accepted task-01 baseline.
+All original setting/command bindings retained. Removed only redundant host mode bindings: {'IsLayersView': 1}.
+Main VM, keymaps, core, renderer, numeric field/editor source unchanged.

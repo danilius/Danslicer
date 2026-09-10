@@ -50,3 +50,6 @@ Task 01 approved; task 02 underway. Read task-02.md for current plan. No later t
 
 ## Task 02 iteration 1
 Current worktree/branch: C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt, codex/ui-refresh-02. Last good committed plan: 5d1d143; integration commit follows this checkpoint. Main workspace native smoke passed, Release build passed; visual fixes remain (tab template, extra-tool titles, section presentation). See task-02.md. No task 03 numeric/persistence work or renderer edits.
+
+## Task 02 iteration 2
+Same worktree/branch; last good integration commit 7193d22. Visual corrections complete; native model workflows and all popout checks pass, 121 focused tests pass, Release solution build passes, prior-control native pointer suite passes. Evidence under evidence/task-02 and task-02-controls. Exact commands and remaining limits are in task-02.md. Next: final committed review handoff.

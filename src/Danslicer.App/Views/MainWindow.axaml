@@ -25,7 +25,7 @@
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="WideFieldTemplate" x:DataType="vm:NumericField">
-            <Grid ColumnDefinitions="120,*,48" Margin="0,2">
+            <Grid ColumnDefinitions="120,*,56" Margin="0,2">
                 <TextBlock Text="{Binding Label}" Classes="label" />
                 <controls:ExpressionBox Grid.Column="1" Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                 <TextBlock Grid.Column="2" Text="{Binding Suffix}" Classes="label" Margin="6,0,0,0" />
@@ -34,6 +34,9 @@
     </Window.Resources>
 
     <Window.Styles>
+        <Style Selector="ToggleButton.workspaceTab:focus-visible /template/ Border#TabBorder">
+            <Setter Property="Background" Value="#34373A" />
+        </Style>
         <Style Selector="TextBlock.label">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
@@ -116,8 +119,15 @@
             <Setter Property="BorderThickness" Value="0,0,0,2" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="TabBorder" Background="Transparent" BorderThickness="0,0,0,2" BorderBrush="Transparent" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource AppTextPrimary}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
         </Style>
-        <Style Selector="ToggleButton.workspaceTab:checked">
+        <Style Selector="ToggleButton.workspaceTab:checked /template/ Border#TabBorder">
             <Setter Property="BorderBrush" Value="#EBA548" />
             <Setter Property="Background" Value="Transparent" />
         </Style>

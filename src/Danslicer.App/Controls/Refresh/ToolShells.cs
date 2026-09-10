@@ -51,8 +51,7 @@ public sealed class FloatingToolbar : Border
         button.Background = Brushes.Transparent;
         button.BorderThickness = new Thickness(0);
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        // Keep established vector icons; replace the old text-only glyphs with vectors.
-        var glyph = button.Content as Control ?? RefreshIcons.Create(icon);
+        var glyph = RefreshIcons.Create(icon);
         button.Content = null;
         row.Children.Add(glyph);
         var text = new TextBlock { Text = label, FontSize = 12, IsVisible = ShowLabels, VerticalAlignment = VerticalAlignment.Center };

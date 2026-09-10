@@ -8,6 +8,8 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
+using Danslicer.App.Controls;
 using Danslicer.App.Controls.Refresh;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
@@ -26,6 +28,8 @@ public partial class MainWindow
     {
         // Opt-in resources stay on the workspace, preserving the status bar's existing theme.
         ViewportSurface.Resources.MergedDictionaries.Add(RefreshPalette.CreateResources());
+        ViewportSurface.Resources["AppPopupBackground"] = RefreshPalette.Panel;
+        ViewportSurface.Resources["AppTextFaint"] = RefreshPalette.Muted;
         foreach (var panel in new[] { LegacyTools, LegacyViewTools })
         {
             foreach (var popup in panel.Children.OfType<WorkspacePopout>().ToArray())
@@ -42,22 +46,23 @@ public partial class MainWindow
             panel.IsVisible = false;
         }
         _layoutTool = AddWorkspaceTool("Layout options", "move", LayoutPopout);
-        _printTool = AddWorkspaceTool("Print settings", "rafts", PrintPopout);
+        _printTool = AddWorkspaceTool("Print settings", "print", PrintPopout);
         ViewportSurface.Children.Remove(InspectionContent);
         InspectionContent.ClearValue(IsVisibleProperty);
         InspectionContent.MinHeight = 300;
         _inspectionPopout = new WorkspacePopout { Title = "Layer isolation", Content = InspectionContent };
         ViewportSurface.Children.Add(_inspectionPopout);
-        _inspectionTool = AddWorkspaceTool("Layer isolation", "visibility", _inspectionPopout);
+        _inspectionTool = AddWorkspaceTool("Layer isolation", "layers", _inspectionPopout);
         var labels = new Button();
-        _workspaceToolbar.AddExistingTool(labels, "Toolbar labels", "select");
+        _workspaceToolbar.AddExistingTool(labels, "Toolbar labels", "labels");
         labels.Click += (_, _) => { _workspaceToolbar.ShowLabels = !_workspaceToolbar.ShowLabels; PositionWorkspacePopouts(); };
         ViewportSurface.Children.Add(_workspaceToolbar);
         foreach (var popup in ViewportSurface.Children.OfType<WorkspacePopout>().ToArray())
         {
             _workspacePopouts.Add(popup);
-            if (popup.PlacementTarget is Button tool) popup.Title = ToolLabel(tool.Name);
+            if (popup.PlacementTarget is Button { Name: not null } tool) popup.Title = ToolLabel(tool.Name);
             RemoveLegacyHeader(popup.Content as Control);
+            AdaptSupportSections(popup.Content as Control);
             popup.Initialize(() => CloseWorkspacePopout(popup));
             popup.Opened += (_, _) => { PositionWorkspacePopouts(); UpdateToolSelection(); };
             popup.Closed += (_, _) => { popup.PlacementTarget?.Focus(); UpdateToolSelection(); };
@@ -91,9 +96,13 @@ public partial class MainWindow
     };
     private static string ToolIcon(string? name) => name switch
     {
-        "ObjectsToolButton" or "AddObjectToolButton" => "objects",
+        "ObjectsToolButton" => "objects", "AddObjectToolButton" => "add",
+        "UvtoolsCheckButton" => "check", "ViewSettingsButton" => "settings",
+        "GenerateToolButton" => "generate", "GuidedToolButton" => "place",
+        "StructureToolButton" => "structure", "RegionToolButton" => "region",
+        "IslandSupportToolButton" => "island", "IslandDetectionToolButton" => "detect",
         "TransformToolButton" => "move", "RaftsToolButton" => "rafts",
-        "VisibilityToolButton" or "ViewSettingsButton" or "IslandDetectionToolButton" => "visibility",
+        "VisibilityToolButton" => "visibility",
         _ => "supports"
     };
 
@@ -165,6 +174,33 @@ public partial class MainWindow
             header.Children.OfType<Button>().Any(b => b.Classes.Contains("popupClose")))
             panel.Children.Remove(header);
     }
+    private static void AdaptSupportSections(Control? content)
+    {
+        if (content is null) return;
+        foreach (var view in content.GetLogicalDescendants().OfType<SupportSettingsView>())
+        {
+            if (view.Content is not StackPanel root) continue;
+            var expanders = root.Children.OfType<Expander>().ToArray();
+            if (expanders.Length == 0) continue;
+            var sections = new StackPanel { Spacing = 4 };
+            root.Children.Insert(root.Children.IndexOf(expanders[0]), sections);
+            foreach (var old in expanders)
+            {
+                var body = old.Content as Control;
+                old.Content = null; root.Children.Remove(old);
+                var section = new ReorderableExpander(old.Header?.ToString() ?? "section", old.Header?.ToString() ?? "Settings")
+                    { Body = body, IsExpanded = old.IsExpanded };
+                section.MoveRequested += (_, offset) =>
+                {
+                    var index = sections.Children.IndexOf(section);
+                    var destination = Math.Clamp(index + offset, 0, sections.Children.Count - 1);
+                    sections.Children.RemoveAt(index); sections.Children.Insert(destination, section);
+                };
+                sections.Children.Add(section);
+            }
+        }
+    }
+
     private static void GroupSections(StackPanel panel)
     {
         var children = panel.Children.ToArray();
