@@ -1,0 +1,36 @@
+Attempt: task-05-ui
+System.InvalidOperationException: Raft must preview geometry before release without saves/undo
+   at Danslicer.App.Views.MainWindow.<CheckLiveNumericPreviews>g__Require|142_0(Boolean ok, String message) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.NumericPreviewCapture.cs:line 20
+   at Danslicer.App.Views.MainWindow.CheckLiveNumericPreviews(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.NumericPreviewCapture.cs:line 113
+   at Danslicer.App.Views.MainWindow.CheckWorkspace(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 229
+   at Danslicer.App.Views.MainWindow.<>c__DisplayClass170_0.<<ConfigureWorkspaceCapture>b__0>d.MoveNext() in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 32
+Attempt: task-05-ui-diagnostic
+System.InvalidOperationException: Generated support/raft/transform project roundtrip failed
+   at Danslicer.App.Views.MainWindow.<CheckPrintWorkflow>g__Require|148_0(Boolean ok, String message) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 16
+   at Danslicer.App.Views.MainWindow.CheckPrintWorkflow(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 58
+   at Danslicer.App.Views.MainWindow.CheckWorkspace(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 230
+   at Danslicer.App.Views.MainWindow.<>c__DisplayClass170_0.<<ConfigureWorkspaceCapture>b__0>d.MoveNext() in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 32
+Attempt: task-05-ui-workflow-diagnostic
+System.InvalidOperationException: Generated support/raft/transform project roundtrip failed: transform=Transform { Translation = <-3, -3, 5>, Rotation = {X:0 Y:0 Z:0 W:1}, Scale = <0.3, 0.3, 0.3>, EulerDegrees = <0, -0, 0> } expected=Transform { Translation = <-3, -3, 5>, Rotation = {X:0 Y:0 Z:0 W:1}, Scale = <0.3, 0.3, 0.3>, EulerDegrees = <0, -0, 0> }; raft= expected=RaftParameters { Type = Plate, Thickness = 15.01, EdgeAngleDegrees = 45, DiscDiameter = 5, BarWidth = 4, MaxBarLength = 15, Margin = 2, BridgingDistance = 8 }; nodes=12/12; segments=8/8
+   at Danslicer.App.Views.MainWindow.<CheckPrintWorkflow>g__Require|148_0(Boolean ok, String message) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 16
+   at Danslicer.App.Views.MainWindow.CheckPrintWorkflow(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 58
+   at Danslicer.App.Views.MainWindow.CheckWorkspace(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 230
+   at Danslicer.App.Views.MainWindow.<>c__DisplayClass170_0.<<ConfigureWorkspaceCapture>b__0>d.MoveNext() in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 32
+Attempt: task-05-final-ui
+System.InvalidOperationException: Fixture printer/print settings roundtrip failed
+   at Danslicer.App.Views.MainWindow.<CheckPrintWorkflow>g__Require|148_0(Boolean ok, String message) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 16
+   at Danslicer.App.Views.MainWindow.CheckPrintWorkflow(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 62
+   at Danslicer.App.Views.MainWindow.CheckWorkspace(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 230
+   at Danslicer.App.Views.MainWindow.<>c__DisplayClass170_0.<<ConfigureWorkspaceCapture>b__0>d.MoveNext() in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 32
+Attempt: task-05-print-check
+System.InvalidOperationException: Fixture printer/print settings roundtrip failed: PrinterDefinition { Id = anycubic-photon-mono-x, IsBuiltIn = True, Name = Anycubic Photon Mono X, MachineName = Photon Mono X, FileExtension = pwmx, DisplayWidthMm = 192, DisplayHeightMm = 120, ZTravelMm = 245, ResolutionX = 3840, ResolutionY = 2400, MirrorX = True, MirrorY = False, FormatVersion = 516, PreviewWidth = 224, PreviewHeight = 168, BuildVolume = <192, 120, 245>, PixelPitchX = 0.05, PixelPitchY = 0.05 }; PrintSettings { LayerHeight = 0.1, AntiAliasing = False, XyCompensation = 0 }
+   at Danslicer.App.Views.MainWindow.<CheckPrintWorkflow>g__Require|148_0(Boolean ok, String message) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 16
+   at Danslicer.App.Views.MainWindow.CheckPrintWorkflow(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 64
+   at Danslicer.App.Views.MainWindow.CheckWorkspace(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 230
+   at Danslicer.App.Views.MainWindow.<>c__DisplayClass170_0.<<ConfigureWorkspaceCapture>b__0>d.MoveNext() in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 32
+Attempt: task-05-verified-ui
+System.InvalidOperationException: Export missing raft/base or top model data
+   at Danslicer.App.Views.MainWindow.<CheckPrintWorkflow>g__Require|148_0(Boolean ok, String message) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 16
+   at Danslicer.App.Views.MainWindow.CheckPrintWorkflow(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.PrintWorkflowCapture.cs:line 81
+   at Danslicer.App.Views.MainWindow.CheckWorkspace(String directory) in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 230
+   at Danslicer.App.Views.MainWindow.<>c__DisplayClass170_0.<<ConfigureWorkspaceCapture>b__0>d.MoveNext() in C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\Views\MainWindow.WorkspaceCapture.cs:line 32

@@ -1,3 +1,17 @@
+# Current checkpoint — Task 05 complete, review candidate
+
+Worktree: C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt
+Branch: codex/ui-refresh-05
+Last-good tested source: 0e42f4d0ff69744c7fc95f26ee11a9373e8ef94c
+Core fix: b34807aac8864843823d5f3b9e6f729479d2074e
+Final evidence/documentation descendant is the handoff at branch HEAD (exact hash in final response).
+
+All authorized engineering checks complete: solution build, 1011 full tests, native integrated workflow, gallery, 112 actual GL framebuffers. No unresolved exercised failure. Three production defects fixed; see task-05-acceptance.md for specification checklist, findings, results, costs, compatibility/reconciliation and explicit remaining manual limits. Main rechecked at 7d95cebfe7f289d1e3230fb789a4526d1f3b518d, fully ancestral; no merge. Preserve 06/07 queue.
+
+Retained evidence under task-05-tests, task-05-ui-final, task-05-controls and task-05-gl. Failed-run text consolidated into initial-native-findings.txt before removing only this worktree's verified task-05 attempt directories. No other worktree/files touched. Latest RESUME.md is rewritten unambiguously; pre-task-05 RESUME retained in RESUME-history-through-04b.md. Next: user reviews MAIN app with absolute commands in RESUME; no main merge or later task dispatch.
+
+---
+Historical iteration notes follow. Their pending-work language is superseded above.
 # Task 05 — regression and integration candidate
 
 ## Current checkpoint — started 2026-09-10

@@ -1,75 +1,46 @@
-# Current checkpoint — Task 05 iteration 4
+# Current handoff — Task 05 complete, ready for user review
 
-Worktree C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt, codex/ui-refresh-05. Last-good core b34807aac8864843823d5f3b9e6f729479d2074e. Native full workflow and all existing UI contracts now pass in task-05-ui-final; final solution build and 1011 tests pass. Printer writeback and menu fixes ready for UI commit. Actual GL/gallery and final acceptance documentation pending. No merge/push; 06/07 queued. See task-05.md.
+This checkpoint supersedes all earlier queued/in-progress descriptions of task 05. User acceptance is pending; no main merge is authorized.
 
----
-Historical checkpoints:
+Worktree: C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt
+Branch: codex/ui-refresh-05
+Exact clean starting ref: c829020492020c333f1c0937b7275732927a6a4f
+Last-good tested source commit: 0e42f4d0ff69744c7fc95f26ee11a9373e8ef94c
+Core correction commit: b34807aac8864843823d5f3b9e6f729479d2074e
+Final handoff: documentation/evidence descendant of that source commit at this branch HEAD; exact hash in final task response. Resolve HEAD and require clean status before continuing.
 
-# Current checkpoint — Task 05 iteration 3
+Read SPEC.md, slider-policy-audit.md and task-05-acceptance.md. task-05.md retains every meaningful iteration and failed-check resolution. Older task-04b RESUME is preserved in RESUME-history-through-04b.md; task-01 through task-04b notes retain earlier history.
 
-Current worktree ed62 at C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt; codex/ui-refresh-05. Last-good core commit b34807a. Project raft/source copy fixed. Native follow-up exposed transient printer ComboBox writeback; guard added, 36 targeted tests pass. Full native workflow running; GL/gallery/final broad suite pending. See task-05.md. Tasks 06/07 queued, no merge/push.
+## Delivered and verified
 
----
-Historical checkpoints:
+Fixed live project open losing raft/source path, transient printer dropdown writeback replacing embedded printers, and garbled project-menu punctuation. Added complete isolated native generation/raft/project/slice/export workflow and bounded dispatcher-aware raft assertions. No renderer or slicing/support/raft algorithm changes in task 05. Status-bar subtree preserved exactly after newline normalization.
 
-# Current checkpoint — Task 05 iteration 1
+Release solution build passed; final entire suite 1011 passed, zero failures/skips. Native MAIN all settings/persistence/live numeric/lifecycle/isolation contracts passed, plus 12 generated support nodes/8 segments and 110-layer export with every decoded bitmap equal to slice. Gallery passed. Both actual GL paths passed 112 framebuffers, below picking, independent effects/caps/shadows and seven numeric preview/save/cancel comparisons. Evidence in evidence/task-05-tests, task-05-ui-final, task-05-controls and task-05-gl. See acceptance report for full checklist, errors found/fixed and timing.
 
-Worktree C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt; codex/ui-refresh-05; last-good committed plan 05a8004. Build and 1010 full tests passed. Confirmed live Document.ReplaceWith drops loaded raft and source path; fixed copy and 26 targeted regressions pass. Native full workflow recheck pending. Raft harness now awaits bounded dispatcher result; production 100ms unchanged. Project menu punctuation fixed. See task-05.md. Main remains ancestral 7d95ceb, no merge. Next: finish workflow diagnostics, actual GL and acceptance review. Tasks 06/07 queued.
+Main remains stable ancestral 7d95cebfe7f289d1e3230fb789a4526d1f3b518d. No newer committed main work, so no reconciliation merge. No other checkout/uncommitted source touched, no main merge or push.
 
----
-Previous checkpoints follow (historical).
-
-# Current checkpoint — Task 05 in progress
-
-User authorized Go ahead with 05. Current worktree: C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt; branch codex/ui-refresh-05; clean starting ref c829020492020c333f1c0937b7275732927a6a4f. Main remains ancestral 7d95ceb; no merge needed. See task-05.md for current plan/results. Build pending approved restore. Next: full regression, native workflows and actual GL evidence. Tasks 06/07 remain queued. No main merge or push.
-
----
-Historical checkpoint follows; its task-05 queued language is superseded above.
-
-# Coordinator update — Task 04b complete
-
-User confirmed Task 04b is closed/completed. This refers to 04b, not the coordination chat. Queue is now 05 regression/integration review, 06 Slicing-page resin volume and estimated print time, 07 assessment of other printers supportable now. Each remains a separate sequential chat/worktree from its predecessor's completed commit. See TASKS.md for instructions. No merge authorized. This documentation commit supersedes the previous handoff hash as the next-task starting ref.
-
-# Task 04b — implemented, ready for user review
-
-Worktree: C:/Users/plane/.codex/worktrees/da71/Danslicer-chatgpt
-Branch: codex/ui-refresh-04b
-Exact clean task-04 base: 0df54ff6014dce8f143def47c3fe4831101cd450
-Last-good production/lifecycle source: 5d26f6a1f3579a78e0a8181aaab7391c2bff5df0
-Final handoff: documentation/evidence descendant at this branch HEAD; exact hash in final response. Verify HEAD and clean status before continuing.
-
-Read SPEC.md, task-04b.md and slider-policy-audit.md. Prior task history is in task-01.md through task-04.md. Latest contracts override historical local-only preview instructions.
-
-## Delivered
-Scene-facing numeric drags now preview live. Transforms retain automatic placement/support-position behavior and commit one undo from captured originals. View/Preferences shading settings redraw immediately and save once on release without document undo. Future support settings update values without applying generated support geometry during drag. Existing selected rafts use a 100 ms coalesced preview and accurate final commit through the existing undo path. Escape/capture loss, selection/mode changes, detach and close restore originals. Unrelated config saves exclude active previews; project saving cancels numeric previews first.
-
-Filled absolute track mapping, Shift fine adjustment, centered value/unit, two-decimal precision and integers are retained. Relative transform/region scrubs stay relative. Future print/resin/placement fields keep local value preview and existing commit semantics, so dragging cannot regenerate or invalidate existing results. Slice navigation and isolation remain live/session-only and now restore on capture cancellation. Expander swapping, 250 ms displaced easing, OrderCommitted persistence, workspace-ui.json compatibility and the exact status bar are retained. Task-04 plate/cube/AO/shadow algorithms and top-strip arrangement are preserved.
-
-## MAIN application launch
+## Absolute MAIN build and launch
 
 ```powershell
-& "C:\Users\plane\.codex\worktrees\da71\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
+dotnet build "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\Danslicer.slnx" -c Release -p:UsedAvaloniaProducts= --nologo
+& "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
 ```
 
-This opens the actual main app, not a preview harness. Normal startup uses normal user configuration. Test harnesses below isolate configuration.
+This launches the actual main app using normal user configuration. No preview flags needed. Build performs restore if required; restricted NuGet access needed approved retry in this session.
 
-## Verification and reproduction
-
-Run from this exact worktree:
+## Reproduce validation with isolated config/output
 
 ```powershell
-dotnet build Danslicer.slnx -c Release --no-restore -p:UsedAvaloniaProducts= --nologo
-dotnet test tests/Danslicer.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~NumericPreview|FullyQualifiedName~UiRefreshNumeric|FullyQualifiedName~Expression|FullyQualifiedName~ConfigViewModel|FullyQualifiedName~UserConfig|FullyQualifiedName~UndoStack|FullyQualifiedName~ObjectPosition|FullyQualifiedName~LayerRange|FullyQualifiedName~IsolationHeight|FullyQualifiedName~Workspace|FullyQualifiedName~WindowKeymap|FullyQualifiedName~ModeScoped|FullyQualifiedName~ObjectCommandScope|FullyQualifiedName~Plate|FullyQualifiedName~Raft|FullyQualifiedName~RenderPath|FullyQualifiedName~ClipCap|FullyQualifiedName~PlacementAndSupportCommand' --nologo
-& "C:\Users\plane\.codex\worktrees\da71\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --workspace-capture "C:\Users\plane\.codex\worktrees\da71\Danslicer-chatgpt\docs\ui-refresh\evidence\task-04b-final-ui"
-& "C:\Users\plane\.codex\worktrees\da71\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --renderer-capture "C:\Users\plane\.codex\worktrees\da71\Danslicer-chatgpt\docs\ui-refresh\evidence\task-04b-gl"
-& "C:\Users\plane\.codex\worktrees\da71\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --ui-preview --capture-directory "C:\Users\plane\.codex\worktrees\da71\Danslicer-chatgpt\docs\ui-refresh\evidence\task-04b-controls"
+dotnet test "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\tests\Danslicer.Tests" -c Release --no-build --no-restore --nologo
+& "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --workspace-capture "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\artifacts\task05-recheck-ui"
+& "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --renderer-capture "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\artifacts\task05-recheck-gl"
+& "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --ui-preview --capture-directory "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\artifacts\task05-recheck-controls"
 ```
 
-Wait for GUI processes to exit before checking logs. Verified: Release builds; 239 focused regressions; MainWindow workspace-ok/live-numeric-ok; gallery capture-ok; GL result.txt with 112 views and seven numeric before-commit/cancel/commit comparisons. No corresponding error files. Source status-bar invariant and git diff whitespace checks pass. Tests use isolated temporary configuration; GL uses an injected UserConfig with a counting save callback.
+Run GUI harnesses sequentially and wait for each process to exit before reading logs. Windows GUI invocation may return early; use Start-Process -PassThru -Wait when scripting (hidden window style for background helpers). MAIN and unit tests use temporary isolated config; renderer/gallery do not load user config. Recheck directories avoid overwriting committed evidence.
 
-## Limits and next task
+## Limits and next action
 
-No physical input, monitor DPI transition, screen-reader, alternate-GPU, reference-bust or full-print-job certification. UI screenshots omit native GL; separate real framebuffer images supply rendering evidence. Dense raft updates are coalesced, but one synchronous rebuild can still block a frame (measured up to 82.60 ms for the 600-foot fixture). Exact CPU caps are omitted while dragging and rebuilt at release. Existing compiler/analyzer warnings remain.
+Physical mouse/touch/pen, monitor DPI transitions, screen reader, alternate GPU, native file dialogs, UVtools, SpaceMouse hardware and physical printing remain unverified. Offscreen main captures omit GL; separate real framebuffer images prove rendering. Classic has no AO/cavity; raft dense rebuild can block a frame (64.02ms maximum in this run); exact CPU caps simplify during drag and recompute on release. Existing compiler/analyzer warnings remain. Only synthetic small print workflow, no production-sized job certification.
 
-User reviews task 04b directly. Task 05 remains queued after review; do not create a later task here or implement it. A separately authorized task 05 must start from this exact final handoff in its own worktree, preserve SPEC and the slider audit, check integration/regressions and reconcile only committed Claude work after confirming a stable base. No main merge without user instruction; no changes to F:/Git Repos/Danslicer, prior worktrees or routing prototype.
-
+Next action: user reviews task 05 directly. Task 06 (Slicing-page resin volume and estimated print time) starts from this final task-05 commit in a separate worktree when instructed, followed by task 07 printer compatibility assessment. Neither was implemented or dispatched here. No main merge without user instruction.
