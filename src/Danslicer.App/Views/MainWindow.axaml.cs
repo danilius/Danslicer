@@ -629,6 +629,7 @@ public partial class MainWindow : Window
 
     private void OnPreferencesSaved()
     {
+        UpdateIsolationPlacement();
         Viewport.RequestRedraw();
         RefreshWindowKeymap();
     }
@@ -651,6 +652,7 @@ public partial class MainWindow : Window
         OutlinesMenuItem.IsChecked = viewport.OutlinesEnabled;
         FxaaMenuItem.IsChecked = viewport.FxaaEnabled;
         PlateShadowsMenuItem.IsChecked = viewport.PlateShadowsEnabled;
+        UpdateIsolationPlacement();
         SyncViewSettingsPopup();
     }
 

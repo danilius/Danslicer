@@ -29,3 +29,5 @@ Limits: offscreen native-window captures omit the GL composition surface (black 
 ## Next action / task 03
 User reviews this task directly. Do not create later tasks or implement later scope here. After approval, task 03 starts from exact final HEAD in a separate worktree and reads START, SPEC, TASKS, task-01 and task-02.
 Task 03 owns durable toolbar/section/popout-width/recent-project persistence and general production filled-slider/scrub-field/undo integration. Current toolbar/section/recents state is session-only. Isolation layer/mm fields are authorized refinement using the existing clip model, not a general numeric-control migration. Preserve the right-side Support rail exception and two-state cap choice. Task 04 alone owns plate/renderer/AO/cavity work.
+
+Latest authorized screenshot refinement in progress: cube clearance, no isolation background/border, centered Reset, checkbox label Cap. Same worktree/branch; last good 504c385cf4197408e81b8013283d6afa95bcbdf1. See task-02.md.

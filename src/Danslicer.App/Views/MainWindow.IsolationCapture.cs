@@ -17,6 +17,12 @@ public partial class MainWindow
         static void Key(Control control, Key key) => control.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = key });
         async Task Layout() { await Task.Delay(80); UpdateLayout(); PositionIsolationEditor(); }
         var clip = ViewModel!.SupportClip;
+        Require(InspectionContent.Background is null && InspectionContent.BorderThickness == default(Thickness), "Isolation must have no enclosing panel background or border");
+        Require(IsolationResetButton.HorizontalAlignment == Avalonia.Layout.HorizontalAlignment.Center, "Reset must be centered");
+        Require(IsolationCapCheckBox.Content?.ToString() == "Cap", "Checkbox label must be Cap");
+        var cube = Danslicer.Render.ViewCube.Rect((int)(Viewport.Bounds.Width * RenderScaling), (int)(Viewport.Bounds.Height * RenderScaling), RenderScaling, Configuration.AppConfig.Current.Viewport.ViewCubeSizePixels);
+        var cubeBottom = ((int)(Viewport.Bounds.Height * RenderScaling) - cube.Y) / RenderScaling;
+        Require(!Configuration.AppConfig.Current.Viewport.ViewCubeEnabled || InspectionContent.Margin.Top >= cubeBottom + 12, "Isolation must clear the view cube");
         Require(InspectionContent.ZIndex > SupportsToolPopup.ZIndex, "Isolation must remain above tool popouts");
         Require(InspectionContent.IsEffectivelyVisible, "Support isolation rail must always show");
         Require(!_workspaceToolbar.GetVisualDescendants().OfType<Button>().Any(b => AutomationProperties.GetName(b) == "Layer isolation"), "Isolation must not have a toolbar button");

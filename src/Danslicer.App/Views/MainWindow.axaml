@@ -325,10 +325,8 @@
                 <!-- Support inspection lives on the viewport edge so Support mode can use the
                      full workspace width. Higher Z is at the top, matching the model axis. -->
                 <Border x:Name="InspectionContent" ZIndex="25" HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="116"
-                        Margin="0,116,12,12" Padding="7,8" Background="#D923262A"
-                        BorderBrush="#7A858F" BorderThickness="1" CornerRadius="3"
-                        IsVisible="{Binding IsSupportView}"
-                        ToolTip.Tip="Viewport layer isolation only — slicing and support generation are unaffected">
+                        Margin="0,152,12,12" Padding="7,8"
+                        IsVisible="{Binding IsSupportView}">
                     <Grid RowDefinitions="*,Auto,Auto">
                         <controls:LayerRangeSlider x:Name="IsolationSlider" Orientation="Vertical"
                                                    HorizontalAlignment="Stretch"
@@ -340,10 +338,10 @@
                                                    IsDragging="{Binding SupportClip.IsDragging, Mode=TwoWay}"
                                                    Step="{Binding SupportClip.LayerHeightMm}"
                                                    ToolTip.Tip="Hover a handle to edit layer or mm height. Left/Right selects lower/upper; Up/Down adjusts; Enter edits." />
-                        <Button Grid.Row="1" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
+                        <Button x:Name="IsolationResetButton" Grid.Row="1" HorizontalAlignment="Center" Content="Reset" Command="{Binding SupportClip.ResetCommand}"
                                 Margin="0,7,0,0" Padding="6,2"
                                 ToolTip.Tip="Show the full model height" />
-                        <CheckBox x:Name="IsolationCapCheckBox" Grid.Row="2" Content="Cap interior" IsThreeState="False" FontSize="12" MinHeight="24" IsChecked="{Binding CapInterior, Mode=TwoWay}"
+                        <CheckBox x:Name="IsolationCapCheckBox" Grid.Row="2" Content="Cap" IsThreeState="False" FontSize="12" MinHeight="24" IsChecked="{Binding CapInterior, Mode=TwoWay}"
                                   Margin="0,7,0,0"
                                   ToolTip.Tip="Close clipped model and support interiors with viewport-only faces" />
                     </Grid>

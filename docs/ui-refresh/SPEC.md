@@ -21,3 +21,5 @@ Review at actual desktop scale, 100/150/200 percent DPI, narrow windows, light/d
 
 ## Latest approved isolation refinement
 In Support mode, layer isolation is always visible on the right, with no toolbar button. This is an explicit exception to removing permanent right settings panels. Replace fixed top/bottom edit boxes with a compact popout left of the hovered slider handle, displaying editable layer number and height in mm. Follow the handle; keep open across handle/card hover, drag and keyboard editing, with a short dismissal delay to cross the gap. Cap interior is a two-state checkbox, default on; honor the user's saved on/off selection.
+
+Latest screenshot correction: the Support isolation slider sits below the view cube with clear spacing, has no enclosing background panel or border, centers Reset below the slider, and labels its two-state checkbox "Cap". Handle-following editors remain unchanged.

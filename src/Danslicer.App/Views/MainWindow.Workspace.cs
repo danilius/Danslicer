@@ -141,6 +141,7 @@ public partial class MainWindow
     }
     private void PositionWorkspacePopouts()
     {
+        UpdateIsolationPlacement();
         var bounds = ViewportSurface.Bounds;
         var narrow = bounds.Width < 950;
         Grid.SetRow(MachineSummary, narrow ? 1 : 0);

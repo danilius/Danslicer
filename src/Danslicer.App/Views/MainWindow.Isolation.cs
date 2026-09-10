@@ -82,6 +82,19 @@ public partial class MainWindow
         Closed += (_, _) => _isolationDismissTimer.Stop();
     }
 
+    private void UpdateIsolationPlacement()
+    {
+        var settings = Configuration.AppConfig.Current.Viewport;
+        var scale = RenderScaling;
+        var pixelHeight = (int)(Viewport.Bounds.Height * scale);
+        // Use the same configured cube rectangle as rendering/hit testing, converted to DIPs.
+        // This reserves clearance for larger cubes and scaled displays as well as the default.
+        var cube = Danslicer.Render.ViewCube.Rect((int)(Viewport.Bounds.Width * scale), pixelHeight,
+            scale, settings.ViewCubeSizePixels);
+        var top = settings.ViewCubeEnabled ? (pixelHeight - cube.Y) / scale + 12 : 12;
+        InspectionContent.Margin = new Thickness(0, top, 12, 12);
+    }
+
     private static Control IsolationRow(string label, ExpressionBox input, string unit)
     {
         var row = new Grid { ColumnDefinitions = new ColumnDefinitions("42,*,22") };
@@ -113,7 +126,9 @@ public partial class MainWindow
         var point = IsolationSlider.TranslatePoint(IsolationSlider.ThumbCenter(_isolationThumb), IsolationEditorLayer);
         if (point is not { } anchor) return;
         var height = _isolationEditor.Bounds.Height > 0 ? _isolationEditor.Bounds.Height : 94;
-        Canvas.SetLeft(_isolationEditor, Math.Max(8, anchor.X - _isolationEditor.Width - 14));
-        Canvas.SetTop(_isolationEditor, Math.Clamp(anchor.Y - height / 2, 8, Math.Max(8, IsolationEditorLayer.Bounds.Height - height - 8)));
+        Canvas.SetLeft(_isolationEditor, Math.Max(8, anchor.X - _isolationEditor.Width - 32));
+        var maximumTop = Math.Max(8, IsolationEditorLayer.Bounds.Height - height - 8);
+        var minimumTop = Math.Min(InspectionContent.Margin.Top, maximumTop);
+        Canvas.SetTop(_isolationEditor, Math.Clamp(anchor.Y - height / 2, minimumTop, maximumTop));
     }
 }
