@@ -1,4 +1,4 @@
-﻿using System.Windows.Input;
+using System.Windows.Input;
 using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia.Controls;
@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Danslicer.App.Controls;
+using Danslicer.App.Controls.Refresh;
 using Danslicer.App.Configuration;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
@@ -43,10 +44,10 @@ public partial class MainWindow : Window
             _visibilityPopupState, _raftsPopupState, _transformPopupState, _guidedPopupState,
             _structurePopupState, _regionPopupState);
         InitializeComponent();
-        Configuration.WindowStatePersistence.Track(this, "main",
-            rightPanel: WorkspaceGrid.ColumnDefinitions[2],
-            rightPanelWidthProvider: PersistedRightPanelWidth);
-        _expandedRightPanelWidth = WorkspaceGrid.ColumnDefinitions[2].Width;
+        InitializeWorkspace();
+        if (!Environment.GetCommandLineArgs().Contains("--workspace-capture"))
+            Configuration.WindowStatePersistence.Track(this, "main");
+        ConfigureWorkspaceCapture();
         DataContextChanged += OnMainDataContextChanged;
         AttachPanelLayoutViewModel();
         RefreshWindowKeymap();
@@ -89,7 +90,6 @@ public partial class MainWindow : Window
     private SupportPresetEditorWindow? _presetEditorWindow;
     private readonly List<KeyBinding> _windowKeyBindings = [];
     private MainViewModel? _panelLayoutViewModel;
-    private GridLength _expandedRightPanelWidth = new(320);
     private readonly ViewportPopupState _objectsPopupState = new(ViewportTool.Objects);
     private readonly ViewportPopupState _supportsPopupState = new(ViewportTool.Supports);
     private readonly ViewportPopupState _islandDetectionPopupState = new(ViewportTool.IslandDetection);
@@ -120,47 +120,17 @@ public partial class MainWindow : Window
 
     private void OnPanelLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.Title))
+        {
+            RememberProject();
+            ProjectDropdown.Content = $"{(ViewModel?.ProjectPath is { } path ? System.IO.Path.GetFileNameWithoutExtension(path) : "Project")} ▾";
+        }
         if (e.PropertyName != nameof(MainViewModel.ViewMode)) return;
         ApplyRightPanelMode();
         ApplyViewportPopupMode();
     }
 
-    private void ApplyRightPanelMode()
-    {
-        var splitterColumn = WorkspaceGrid.ColumnDefinitions[1];
-        var rightPanelColumn = WorkspaceGrid.ColumnDefinitions[2];
-        // Only Slicing keeps the right-hand panel (printer, resin, print, slice). Layout's
-        // transform fields moved into the Transform pop-out (user decision 2026-09-08) and
-        // Support mode never had anything there.
-        var showRightPanel = ViewModel?.ViewMode == WorkspaceMode.Slicing;
-        if (!showRightPanel)
-        {
-            var currentWidth = rightPanelColumn.ActualWidth >= 220
-                ? rightPanelColumn.ActualWidth
-                : rightPanelColumn.Width.Value;
-            if (currentWidth >= 220) _expandedRightPanelWidth = new GridLength(currentWidth);
-            RightPanel.IsVisible = false;
-            RightPanelSplitter.IsVisible = false;
-            splitterColumn.Width = new GridLength(0);
-            rightPanelColumn.MinWidth = 0;
-            rightPanelColumn.Width = new GridLength(0);
-            return;
-        }
-
-        RightPanel.IsVisible = true;
-        RightPanelSplitter.IsVisible = true;
-        splitterColumn.Width = new GridLength(5);
-        rightPanelColumn.MinWidth = 220;
-        if (rightPanelColumn.Width.Value <= 0)
-            rightPanelColumn.Width = _expandedRightPanelWidth;
-    }
-
-    private double PersistedRightPanelWidth()
-    {
-        if (!RightPanel.IsVisible) return _expandedRightPanelWidth.Value;
-        var currentWidth = WorkspaceGrid.ColumnDefinitions[2].ActualWidth;
-        return currentWidth >= 220 ? currentWidth : _expandedRightPanelWidth.Value;
-    }
+    private void ApplyRightPanelMode() => ApplyWorkspaceMode();
 
     private void OnObjectsToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_objectsPopupState);
@@ -225,7 +195,7 @@ public partial class MainWindow : Window
         // View settings is the one pop-out with no mode-dependent state of its own, so it joins
         // the mutual exclusion here rather than through the group.
         var opening = !ViewSettingsPopup.IsOpen;
-        if (opening) CloseViewportToolPopups();
+        if (opening) { CloseViewportToolPopups(); CloseExtraPopouts(); }
         ViewSettingsPopup.IsOpen = opening;
     }
 
@@ -238,6 +208,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void ToggleViewportPopup(ViewportPopupState state)
     {
+        CloseExtraPopouts();
         _viewportPopups.Toggle(state);
         ViewSettingsPopup.IsOpen = false;
         ApplyViewportPopupMode();
@@ -262,7 +233,7 @@ public partial class MainWindow : Window
         ApplyViewportPopupState(_regionPopupState, RegionToolPopup);
     }
 
-    private void ApplyViewportPopupState(ViewportPopupState state, Popup popup) =>
+    private void ApplyViewportPopupState(ViewportPopupState state, WorkspacePopout popup) =>
         popup.IsOpen = state.IsVisible(ViewModel?.ViewMode ?? WorkspaceMode.Layout);
 
     private void OnViewportPopupOpened(object? sender, EventArgs e)
@@ -282,7 +253,10 @@ public partial class MainWindow : Window
         focusTarget?.Focus();
     }
 
-    private void OnViewportPopupClosed(object? sender, EventArgs e) => Viewport.Focus();
+    private void OnViewportPopupClosed(object? sender, EventArgs e)
+    {
+        if (sender is WorkspacePopout popup) popup.PlacementTarget?.Focus();
+    }
 
     private void OnViewportPopupKeyDown(object? sender, KeyEventArgs e)
     {
@@ -339,13 +313,13 @@ public partial class MainWindow : Window
         CloseViewportPopup(_regionPopupState, RegionToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
     private void CloseViewportPopup(
-        ViewportPopupState state, Popup popup, ViewportPopupCloseTrigger trigger)
+        ViewportPopupState state, WorkspacePopout popup, ViewportPopupCloseTrigger trigger)
     {
         state.Close(trigger);
         ApplyViewportPopupState(state, popup);
     }
 
-    private void CloseViewportPopup(Popup popup, ViewportPopupCloseTrigger trigger)
+    private void CloseViewportPopup(WorkspacePopout popup, ViewportPopupCloseTrigger trigger)
     {
         var state = popup switch
         {
@@ -356,6 +330,8 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(popup, RaftsToolPopup) => _raftsPopupState,
             _ when ReferenceEquals(popup, TransformToolPopup) => _transformPopupState,
             _ when ReferenceEquals(popup, GuidedToolPopup) => _guidedPopupState,
+            _ when ReferenceEquals(popup, StructureToolPopup) => _structurePopupState,
+            _ when ReferenceEquals(popup, RegionToolPopup) => _regionPopupState,
             _ => null,
         };
         if (state is not null)
@@ -490,7 +466,9 @@ public partial class MainWindow : Window
         if (path is null) return;
         try
         {
+            RememberProject();
             ApplyProjectViewState(vm.OpenProject(path));
+            RememberProject();
             Viewport.Focus();
         }
         catch (Exception ex)

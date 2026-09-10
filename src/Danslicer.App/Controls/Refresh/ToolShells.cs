@@ -38,6 +38,29 @@ public sealed class FloatingToolbar : Border
         button.Click += (_, _) => tool.Execute();
         _buttons.Add(tool.Id, button); _items.Children.Add(button);
     }
+    /// <summary>Adopt a production button without replacing its command, bindings or routed handlers.</summary>
+    public void AddExistingTool(Button button, string label, string icon)
+    {
+        button.Classes.Remove("viewportTool");
+        button.Width = double.NaN; button.Height = double.NaN;
+        button.MinHeight = 30; button.FontSize = 12;
+        button.Margin = new Thickness(0); button.Padding = new Thickness(6);
+        button.HorizontalAlignment = HorizontalAlignment.Stretch;
+        button.HorizontalContentAlignment = HorizontalAlignment.Left;
+        button.Foreground = RefreshPalette.Text;
+        button.Background = Brushes.Transparent;
+        button.BorderThickness = new Thickness(0);
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        // Keep established vector icons; replace the old text-only glyphs with vectors.
+        var glyph = button.Content as Control ?? RefreshIcons.Create(icon);
+        button.Content = null;
+        row.Children.Add(glyph);
+        var text = new TextBlock { Text = label, FontSize = 12, IsVisible = ShowLabels, VerticalAlignment = VerticalAlignment.Center };
+        _labels.Add(text); row.Children.Add(text); button.Content = row;
+        AutomationProperties.SetName(button, label);
+        if (ToolTip.GetTip(button) is null) ToolTip.SetTip(button, label);
+        _items.Children.Add(button);
+    }
     public void Select(string? id)
     {
         foreach (var (key, button) in _buttons)

@@ -47,3 +47,6 @@ Worktree: C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt
 Branch: codex/ui-refresh-02
 Accepted predecessor / last good commit: 0fadc0e2412498513e34db6337aa3bba1ed9dc8c.
 Task 01 approved; task 02 underway. Read task-02.md for current plan. No later tasks or merge. Tests so far: clean worktree/exact base verified. Next: integrate main workspace controls and navigation.
+
+## Task 02 iteration 1
+Current worktree/branch: C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt, codex/ui-refresh-02. Last good committed plan: 5d1d143; integration commit follows this checkpoint. Main workspace native smoke passed, Release build passed; visual fixes remain (tab template, extra-tool titles, section presentation). See task-02.md. No task 03 numeric/persistence work or renderer edits.

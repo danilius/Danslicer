@@ -1,0 +1,120 @@
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Danslicer.App.Controls;
+using Danslicer.App.Controls.Refresh;
+using Danslicer.Core;
+
+namespace Danslicer.App.Views;
+
+public partial class MainWindow
+{
+    // Opt-in evidence from the real main window, real VM and production bindings.
+    private void ConfigureWorkspaceCapture()
+    {
+        var args = Environment.GetCommandLineArgs();
+        var index = Array.IndexOf(args, "--workspace-capture");
+        if (index < 0 || index + 1 >= args.Length) return;
+        var directory = System.IO.Path.GetFullPath(args[index + 1]);
+        Opened += async (_, _) =>
+        {
+            Directory.CreateDirectory(directory);
+            try
+            {
+                await Task.Delay(600);
+                await CheckWorkspace(directory);
+                File.WriteAllText(System.IO.Path.Combine(directory, "workspace-ok.txt"),
+                    "Real MainWindow/VM: toolbar labels, mode scoping, all 13 popouts, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, session project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
+            }
+            catch (Exception ex)
+            {
+                Environment.ExitCode = 1;
+                File.WriteAllText(System.IO.Path.Combine(directory, "workspace-error.txt"), ex.ToString());
+            }
+            finally { Close(); }
+        };
+    }
+    private async Task CheckWorkspace(string directory)
+    {
+        static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+        static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        static void Key(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
+            target.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = key, KeyModifiers = modifiers });
+        async Task Layout() { await Task.Delay(120); UpdateLayout(); PositionWorkspacePopouts(); UpdateLayout(); }
+        void Capture(string name, double scale = 1)
+        {
+            var content = (Control)Content!;
+            using var bitmap = new RenderTargetBitmap(new PixelSize((int)(content.Bounds.Width * scale), (int)(content.Bounds.Height * scale)), new Vector(96 * scale, 96 * scale));
+            bitmap.Render(content); bitmap.Save(System.IO.Path.Combine(directory, name), PngBitmapEncoderOptions.Default);
+        }
+        var vm = ViewModel!;
+        Width = 1200; Height = 800;
+        vm.ViewMode = WorkspaceMode.Layout;
+        await Layout();
+        Require(WorkspaceGrid.ColumnDefinitions.Count <= 1, "Permanent settings columns remain");
+        Require(_workspacePopouts.Count == 13, "Settings host missing");
+        Click(ObjectsToolButton); await Layout();
+        Require(ObjectsToolPopup.IsOpen, "Objects tool failed");
+        Require(ReferenceEquals(ObjectsPopupContent.DataContext, vm), "Rehost lost VM binding");
+        Click(TransformToolButton); await Layout();
+        Require(!ObjectsToolPopup.IsOpen && TransformToolPopup.IsOpen, "Tools must be exclusive");
+        Capture("workspace-layout.png");
+        _workspaceToolbar.ShowLabels = true; await Layout();
+        Capture("workspace-labels.png");
+        Key(TransformToolPopup.Shell, Avalonia.Input.Key.Escape);
+        Require(!TransformToolPopup.IsOpen && TransformToolButton.IsFocused, "Dismiss must return invoking tool focus");
+        Click(_layoutTool); await Layout();
+        var editor = LayoutOptions.GetVisualDescendants().OfType<ExpressionBox>().Single();
+        editor.Focus(); var before = vm.PlacementHeight.Text;
+        editor.Text = "12345"; Key(editor, Avalonia.Input.Key.Escape);
+        Require(LayoutPopout.IsOpen && vm.PlacementHeight.Text == before, "Editor Escape must precede dismissal");
+        Viewport.Focus(); Key(Viewport, Avalonia.Input.Key.Escape);
+        Require(!LayoutPopout.IsOpen, "Escape from viewport must dismiss popout");
+        vm.ViewMode = WorkspaceMode.Support; await Layout();
+        Require(!TransformToolButton.IsVisible && SupportsToolButton.IsVisible && !_printTool.IsVisible, "Support tool scoping failed");
+        foreach (var popup in new[] { ObjectsToolPopup, SupportsToolPopup, StructureToolPopup, GuidedToolPopup, RegionToolPopup, VisibilityToolPopup, RaftsToolPopup, ViewSettingsPopup, _inspectionPopout })
+        {
+            Click((Button)popup.PlacementTarget!); await Layout();
+            Require(popup.IsOpen && popup.Shell.Bounds.Height > 28, $"Cannot open {popup.Title}");
+            Require(ReferenceEquals(popup.Shell.Body!.DataContext, vm), $"Binding lost for {popup.Title}");
+            if (popup == SupportsToolPopup) Capture("workspace-support.png");
+            Key(popup.Shell, Avalonia.Input.Key.Escape);
+            Require(!popup.IsOpen, $"Cannot close {popup.Title}");
+        }
+        // Open detector through policy only: don't start a potentially lengthy detection job.
+        ToggleViewportPopup(_islandDetectionPopupState); await Layout();
+        Require(IslandDetectionToolPopup.IsOpen, "Detector settings missing");
+        CloseWorkspacePopout(IslandDetectionToolPopup);
+        vm.ViewMode = WorkspaceMode.Slicing; await Layout();
+        Require(!SupportsToolButton.IsVisible && _printTool.IsVisible && !ViewSettingsButton.IsVisible, "Slicing tool scoping failed");
+        Click(_printTool); await Layout();
+        Require(PrintPopout.IsOpen && ReferenceEquals(PrintPopout.Shell.Body!.DataContext, vm), "Print bindings lost");
+        var print = (StackPanel)PrintPopout.Shell.Body!;
+        var first = (ReorderableExpander)print.Children[0];
+        var grip = first.GetVisualDescendants().OfType<Button>().Single(b => AutomationProperties.GetName(b).StartsWith("Reorder "));
+        Key(grip, Avalonia.Input.Key.Down, KeyModifiers.Alt);
+        Require(print.Children[1] == first, "Production section reorder failed");
+        Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt);
+        first.IsExpanded = false; Require(!first.IsExpanded, "Collapse failed"); first.IsExpanded = true;
+        foreach (var scale in new[] { 1.0, 1.5, 2.0 }) Capture($"workspace-slicing-{scale * 100:0}.png", scale);
+        Width = 640; Height = 480; await Layout();
+        var resize = PrintPopout.GetVisualDescendants().OfType<Border>().Single(b => AutomationProperties.GetName(b) == "Resize popout width");
+        for (var i = 0; i < 100; i++) Key(resize, Avalonia.Input.Key.Right);
+        await Layout();
+        var corner = PrintPopout.TranslatePoint(new Point(PrintPopout.Bounds.Width, PrintPopout.Bounds.Height), ViewportSurface)!.Value;
+        Require(corner.X <= ViewportSurface.Bounds.Width && corner.Y <= ViewportSurface.Bounds.Height, "Narrow popout overflow");
+        Capture("workspace-narrow.png");
+        // Project round trip uses the same successful-open path as the dropdown.
+        var path = System.IO.Path.Combine(directory, "workspace-smoke.danslicer");
+        vm.SaveProject(path, CaptureProjectViewState()); RememberProject();
+        Require(_recentProjects.Contains(path), "Saved project missing from recents");
+        OpenRecentProject(path); Require(vm.ProjectPath == path, "Recent project open failed");
+        OpenRecentProject(path + ".missing"); Require(vm.ViewportStatus.StartsWith("Open failed:"), "Missing recent project must report failure");
+        File.Delete(path);
+    }
+}
