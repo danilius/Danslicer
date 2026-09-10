@@ -1,3 +1,16 @@
+# Latest task-05 user-review refinements — complete
+
+Tested source: e27b0fcfdc3828469999ebe786b99e3f48120a13, followed by final evidence/docs commit. These additions supersede the earlier report's statements that task05 made no rendering/input changes.
+
+- **Object border width:** 1–5px in View settings and Preferences, persisted with live preview/cancel/release semantics. Existing Deferred effect; Classic remains without outlines. Actual framebuffer 1px/4px comparison passed (56416 changed channels), cancel restores identical original and commit saves once. See evidence/task-05-refinements-gl.
+- **Practical support/raft slider maxima:** base diameter 25mm, raft thickness 5mm, tip diameter 3mm, penetration 3mm, plus proportional limits for branch lengths, spacing, bracing and other fields. Full inventory in slider-range-refinement.txt. Existing saved values remain intact until edited. Corrected stem lean from mm to degrees.
+- **Editor headers:** same compact dark gripper controls as the app; native pointer and keyboard swaps pass, no drag writes, order saves on release and survives a subsequent main-window workspace save. Preferences Support headers also adapted. Screenshot: evidence/task-05-refinements-final/support-editor.png.
+- **SpaceMouse:** exclusive viewport connection ownership prevents the preview stealing the main connection permanently. Native test used the installed COM driver: editor connects, competing main connection is released, main reconnects after close. Physical device motion remains for user verification. Preferences without a viewport retain main-camera tuning behavior.
+
+Final Release build and 1011 full tests passed; native entire workflow plus new checks passed. Renderer completed 116 captures including the additional width comparison; four new width images and full result retained, unchanged duplicate frames removed. No new compiler warnings. No merge/push, 06/07 still queued. Main launch/build commands in RESUME are unchanged.
+
+---
+Previous acceptance report follows, with the additions above authoritative.
 # Task 05 acceptance and integration report
 
 Review candidate: task-05 source commit `0e42f4d0ff69744c7fc95f26ee11a9373e8ef94c`, plus its committed evidence/documentation descendant (final hash in handoff). Worktree `C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt`, branch `codex/ui-refresh-05`. Task 05 engineering review complete; user acceptance pending. Tasks 06 and 07 remain queued.

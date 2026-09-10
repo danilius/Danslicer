@@ -41,3 +41,6 @@ Actual native profile (outline plus mesh, 7 warm samples): Plate 15 feet median 
 ## Explicit property inventory: Views/ConfigWindow.axaml
 
 `OverhangAngleDegrees`, `WorkingShadowStrength`, `WorkingShadowSoftnessMm`, `PresentationShadowStrength`, `PresentationShadowSoftnessMm`, `AmbientOcclusionStrength`, `AmbientOcclusionRadiusMm`, `PlateReflectionStrength`, `CavityRidgeStrength`, `CavityValleyStrength`, `CavityRadiusPixels`, `PlateOpacityFromBelow`, `OverhangCheckerSizeMm`, `ViewCubeSizePixels`, `SupportGizmoSizePixels`, `SupportGizmoLineWidth`, `SpaceMouseOrbitSensitivity`, `SpaceMousePanSensitivity`, `SpaceMouseZoomSensitivity`, `SpaceMouseDeadzone`.
+
+## Task-05 review addition
+View and Preferences now include OutlineWidthPixels (1–5px, Deferred only). It uses the same explicit ConfigViewModel live preview transaction as other viewport settings: immediate framebuffer feedback, no drag writes, restore on cancel, single save at release. The new width is independently tested in native UI and actual GL before/during/cancel/commit captures. Slider interaction ranges were refined without rewriting old saved configuration; see slider-range-refinement.txt. Support editor headers now reuse the existing expander control and commit-only order events. SpaceMouse ownership changes do not alter numeric lifecycle policy.
