@@ -50,8 +50,8 @@ public partial class MainWindow
                         _workspacePreferences.Expanded[key] = section.IsExpanded;
                         SaveWorkspacePreferences();
                     };
-                    // Registered after the existing move handler, so this records the completed move.
-                    section.MoveRequested += (_, _) =>
+                    // Live swaps are transient until drop; cancellation must not write the preview order.
+                    section.OrderCommitted += (_, _) =>
                     {
                         _workspacePreferences.SectionOrder[group] = panel.Children.OfType<ReorderableExpander>().Select(s => s.SectionId).ToList();
                         SaveWorkspacePreferences();

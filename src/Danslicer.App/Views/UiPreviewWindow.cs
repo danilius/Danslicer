@@ -84,7 +84,7 @@ public sealed class UiPreviewWindow : Window
         locks.Children.Add(Row("Disabled", disabled));
         locks.Children.Add(Row("Long descriptive parameter label", Field(12, -100, 100)));
         var help = Section("help", "Interaction guide");
-        help.Children.Add(new TextBlock { Text = "Drag 4 px to scrub. Shift adjusts at one tenth speed. Click or Enter to type (for example 1cm + 2mm). Enter commits; Escape cancels. Invalid/out-of-range input stays in the editor until corrected or cancelled. Arrow keys step. Each committed gesture adds one undo entry.\n\nDrag the round grip to move the entire section; release over its new position. Escape cancels. Alt+Up/Down reorders with the keyboard. Drag the popout's right edge to resize it.", TextWrapping = TextWrapping.Wrap, Foreground = RefreshPalette.Muted });
+        help.Children.Add(new TextBlock { Text = "Drag 4 px to scrub. Shift adjusts at one tenth speed. Click or Enter to type (for example 1cm + 2mm). Enter commits; Escape cancels. Invalid/out-of-range input stays in the editor until corrected or cancelled. Arrow keys step. Each committed gesture adds one undo entry.\n\nDrag the round grip to move the entire section. Sections swap as you cross a neighbour; release to keep the order. Escape restores the starting order. Alt+Up/Down reorders with the keyboard. Drag the popout's right edge to resize it.", TextWrapping = TextWrapping.Wrap, Foreground = RefreshPalette.Muted });
         _popout.Body = body;
         var footer = new Border { Background = RefreshPalette.Header, Padding = new Thickness(16, 10), Child = _status };
         Grid.SetRow(footer, 2); root.Children.Add(footer); Content = root;
@@ -109,7 +109,7 @@ public sealed class UiPreviewWindow : Window
                     await Task.Delay(250);
                     using var narrow = new RenderTargetBitmap(new PixelSize((int)root.Bounds.Width, (int)root.Bounds.Height));
                     narrow.Render(root); narrow.Save(System.IO.Path.Combine(captureDirectory, "preview-narrow.png"), PngBitmapEncoderOptions.Default);
-                    File.WriteAllText(System.IO.Path.Combine(captureDirectory, "capture-ok.txt"), "Native window opened. Routed pointer and keyboard checks passed: numeric commit/cancel/lock/expression/undo, whole-section drag/reorder/cancel/settle, popout width resize/clamp/cancel, expansion and dismissal. Rendered at 100/150/200% pixel density, plus narrow icon toolbar, mid-drag and wide popout. This is not a monitor DPI or physical pointer test.");
+                    File.WriteAllText(System.IO.Path.Combine(captureDirectory, "capture-ok.txt"), "Native window opened. Routed pointer and keyboard checks passed: numeric commit/cancel/lock/expression/undo, whole-section live swap/pointer anchoring/cancel/settle, popout width resize/clamp/cancel, expansion and dismissal. Rendered at 100/150/200% pixel density, plus narrow icon toolbar, mid-drag and wide popout. This is not a monitor DPI or physical pointer test.");
                 }
                 catch (Exception ex) { Environment.ExitCode = 1; File.WriteAllText(System.IO.Path.Combine(captureDirectory, "capture-error.txt"), ex.ToString()); }
                 finally { Close(); }
@@ -163,15 +163,17 @@ public sealed class UiPreviewWindow : Window
         _sections.UpdateLayout();
         position = grip.TranslatePoint(new Point(12, 12), this)!.Value;
         var dragDistance = _sections.Children[1].Bounds.Center.Y - section.Bounds.Center.Y + 10;
+        var originalSectionTop = section.Bounds.Y;
         grip.RaiseEvent(new PointerPressedEventArgs(grip, pointer, this, position, 5, pressed, KeyModifiers.None, 1));
         grip.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, grip, pointer, this, position + new Vector(0, dragDistance), 6, pressed, KeyModifiers.None));
-        Require(((TranslateTransform)section.RenderTransform!).Y == dragDistance && section.IsExpanded, "Expanded section must follow pointer with its content");
+        Require(_sections.Children[1] == section && Math.Abs(section.Bounds.Y + ((TranslateTransform)section.RenderTransform!).Y - originalSectionTop - dragDistance) < 0.01 && section.IsExpanded, "Section must swap before release and remain anchored to pointer");
         Capture("preview-drag.png");
         grip.RaiseEvent(new PointerReleasedEventArgs(grip, pointer, this, position + new Vector(0, dragDistance), 7, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
         Require(_sections.Children[1] == section && pointer.Captured is null, "Pointer reorder must insert at drop position");
         Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt); _sections.UpdateLayout();
         grip.RaiseEvent(new PointerPressedEventArgs(grip, pointer, this, position, 8, pressed, KeyModifiers.None, 1));
-        grip.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, grip, pointer, this, position + new Vector(0, 30), 9, pressed, KeyModifiers.None));
+        grip.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, grip, pointer, this, position + new Vector(0, dragDistance), 9, pressed, KeyModifiers.None));
+        Require(_sections.Children[1] == section, "Cancel test must start with a live swap");
         Key(grip, Avalonia.Input.Key.Escape);
         Require(_sections.Children[0] == section && pointer.Captured is null && _popout.IsVisible, "Escape must cancel reorder without closing popout");
         await Task.Delay(200);

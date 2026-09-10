@@ -78,6 +78,30 @@ public partial class MainWindow
         tip.BringIntoView(); await Layout();
         var supportSection = SupportsToolPopup.GetLogicalDescendants().OfType<ReorderableExpander>().First();
         var grip = supportSection.GetVisualDescendants().OfType<Button>().Single(b => (AutomationProperties.GetName(b) ?? "").StartsWith("Reorder "));
+        var sectionPanel = (Panel)supportSection.Parent!;
+        var orderBeforeDrag = File.ReadAllText(AppConfig.WorkspacePath);
+        point = grip.TranslatePoint(new Point(12, 12), this)!.Value;
+        var swapDistance = sectionPanel.Children[1].Bounds.Center.Y - supportSection.Bounds.Center.Y + 10;
+        void StartSwap()
+        {
+            grip.RaiseEvent(new PointerPressedEventArgs(grip, pointer, this, point, 20, pressed, KeyModifiers.None, 1));
+            grip.RaiseEvent(new PointerEventArgs(PointerMovedEvent, grip, pointer, this, point + new Vector(0, swapDistance), 21, pressed, KeyModifiers.None));
+            Require(sectionPanel.Children[1] == supportSection, "Production section must swap during drag");
+            Require(File.ReadAllText(AppConfig.WorkspacePath) == orderBeforeDrag, "Live swap must not persist before drop");
+        }
+        StartSwap();
+        // Moving back across the neighbour restores its slot without ending the gesture.
+        grip.RaiseEvent(new PointerEventArgs(PointerMovedEvent, grip, pointer, this, point - new Vector(0, 10), 22, pressed, KeyModifiers.None));
+        Require(sectionPanel.Children[0] == supportSection && pointer.Captured == grip, "Live reverse swap lost position/capture");
+        Key(grip, Avalonia.Input.Key.Escape);
+        StartSwap(); pointer.Capture(null);
+        Require(sectionPanel.Children[0] == supportSection && File.ReadAllText(AppConfig.WorkspacePath) == orderBeforeDrag, "Capture loss must restore original order without saving");
+        StartSwap(); Key(grip, Avalonia.Input.Key.Escape);
+        Require(sectionPanel.Children[0] == supportSection && File.ReadAllText(AppConfig.WorkspacePath) == orderBeforeDrag, "Escape must restore original order without saving");
+        StartSwap();
+        grip.RaiseEvent(new PointerReleasedEventArgs(grip, pointer, this, point + new Vector(0, swapDistance), 23, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
+        Require(sectionPanel.Children[1] == supportSection && File.ReadAllText(AppConfig.WorkspacePath) != orderBeforeDrag, "Drop must persist final order");
+        Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt);
         Key(grip, Avalonia.Input.Key.Down, KeyModifiers.Alt); supportSection.IsExpanded = false;
         var resize = SupportsToolPopup.GetVisualDescendants().OfType<Border>().Single(b => AutomationProperties.GetName(b) == "Resize popout width");
         Key(resize, Avalonia.Input.Key.Right);

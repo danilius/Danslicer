@@ -143,6 +143,7 @@ public sealed class ReorderableExpander : Border
     public string SectionId { get; }
     public event EventHandler? ExpansionChanged;
     public event EventHandler<int>? MoveRequested;
+    public event EventHandler? OrderCommitted;
     public bool IsExpanded
     {
         get => _expanded;
@@ -160,59 +161,92 @@ public sealed class ReorderableExpander : Border
         var grip = new Button { Content = RefreshIcons.Create("grip"), Width = 26, Height = 26, MinHeight = 0, Padding = new Thickness(4), Background = RefreshPalette.Header, Cursor = new Cursor(StandardCursorType.SizeAll) };
         AutomationProperties.SetName(grip, $"Reorder {title}"); ToolTip.SetTip(grip, "Drag to reorder; Alt+Up/Down");
         double? origin = null;
+        double originalTop = 0, lastPointerY = 0;
+        int originalIndex = -1;
         var translation = new TranslateTransform(); RenderTransform = translation;
         IPointer? dragPointer = null;
-        bool dragging = false;
+        bool dragging = false, moving = false;
         void Settle()
         {
             translation.Transitions = new Transitions { new DoubleTransition { Property = TranslateTransform.YProperty, Duration = TimeSpan.FromMilliseconds(150) } };
             translation.Y = 0; ZIndex = 0;
         }
+        void Move(int offset, double visualY)
+        {
+            if (offset == 0 || Parent is not Panel panel) return;
+            // Hosts remove/reinsert the real section. Ignore transient capture loss during reparenting.
+            moving = true;
+            try
+            {
+                MoveRequested?.Invoke(this, offset);
+                panel.UpdateLayout();
+                translation.Y = visualY - Bounds.Y;
+                grip.Focus();
+                dragPointer?.Capture(grip);
+            }
+            finally { moving = false; }
+        }
         void CancelDrag()
         {
+            var visualY = Bounds.Y + translation.Y;
+            if (dragging && Parent is Panel panel) Move(originalIndex - panel.Children.IndexOf(this), visualY);
             origin = null; dragging = false;
             var pointer = dragPointer; dragPointer = null; pointer?.Capture(null); Settle();
         }
+        void UpdateDrag(double pointerY)
+        {
+            if (origin is not { } start) return;
+            var delta = pointerY - start;
+            if (!dragging && Math.Abs(delta) < 6) return;
+            var direction = Math.Sign(pointerY - lastPointerY);
+            lastPointerY = pointerY;
+            dragging = true; ZIndex = 10;
+            var visualY = originalTop + delta;
+            translation.Y = visualY - Bounds.Y;
+            if (Parent is not Panel panel || direction == 0) return;
+            var index = panel.Children.IndexOf(this);
+            var center = visualY + Bounds.Height / 2;
+            var destination = index;
+            for (var i = index + direction; i >= 0 && i < panel.Children.Count; i += direction)
+            {
+                if (panel.Children[i] is not ReorderableExpander) break;
+                if (direction > 0 ? center <= panel.Children[i].Bounds.Center.Y : center >= panel.Children[i].Bounds.Center.Y) break;
+                destination = i;
+            }
+            Move(destination - index, visualY);
+        }
         grip.AddHandler(PointerPressedEvent, (_, e) =>
         {
-            if (!e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed) return;
+            if (!e.GetCurrentPoint(grip).Properties.IsLeftButtonPressed || Parent is not Panel panel) return;
             grip.Focus(); translation.Transitions = null; translation.Y = 0;
-            origin = e.GetPosition(TopLevel.GetTopLevel(this)).Y; dragPointer = e.Pointer;
+            originalTop = Bounds.Y; originalIndex = panel.Children.IndexOf(this);
+            origin = lastPointerY = e.GetPosition(TopLevel.GetTopLevel(this)).Y; dragPointer = e.Pointer;
             e.Pointer.Capture(grip); e.Handled = true;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         grip.PointerMoved += (_, e) =>
         {
-            if (origin is not { } start) return;
-            var delta = e.GetPosition(TopLevel.GetTopLevel(this)).Y - start;
-            if (!dragging && Math.Abs(delta) < 6) return;
-            dragging = true; ZIndex = 10; translation.Y = delta; e.Handled = true;
+            if (origin is null) return;
+            UpdateDrag(e.GetPosition(TopLevel.GetTopLevel(this)).Y); e.Handled = true;
         };
         grip.AddHandler(PointerReleasedEvent, (_, e) =>
         {
-            if (origin is not { } start) return;
-            var delta = e.GetPosition(TopLevel.GetTopLevel(this)).Y - start;
+            if (origin is null) return;
+            UpdateDrag(e.GetPosition(TopLevel.GetTopLevel(this)).Y);
+            var changed = dragging && Parent is Panel panel && panel.Children.IndexOf(this) != originalIndex;
             origin = null; dragPointer = null; e.Pointer.Capture(null);
-            if (dragging && Parent is Panel panel)
-            {
-                var index = panel.Children.IndexOf(this);
-                var center = Bounds.Center.Y + delta;
-                var destination = index;
-                for (var i = 0; i < panel.Children.Count; i++)
-                    if (i != index && (delta > 0 ? i > index && center > panel.Children[i].Bounds.Center.Y : i < index && center < panel.Children[i].Bounds.Center.Y))
-                        destination = delta > 0 ? Math.Max(destination, i) : Math.Min(destination, i);
-                var visualY = Bounds.Y + translation.Y;
-                if (destination != index) MoveRequested?.Invoke(this, destination - index);
-                panel.UpdateLayout(); translation.Y = visualY - Bounds.Y;
-            }
             dragging = false; Settle();
+            if (changed) OrderCommitted?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        grip.PointerCaptureLost += (_, _) => { if (origin is not null) CancelDrag(); };
+        grip.PointerCaptureLost += (_, _) => { if (!moving && origin is not null) CancelDrag(); };
         grip.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape && origin is not null) { CancelDrag(); e.Handled = true; }
-            else if (e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.Key is Key.Up or Key.Down)
-            { MoveRequested?.Invoke(this, e.Key == Key.Up ? -1 : 1); e.Handled = true; }
+            else if (origin is null && e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.Key is Key.Up or Key.Down)
+            {
+                MoveRequested?.Invoke(this, e.Key == Key.Up ? -1 : 1);
+                OrderCommitted?.Invoke(this, EventArgs.Empty); e.Handled = true;
+            }
         };
         header.Children.Add(_disclosure); Grid.SetColumn(grip, 1); header.Children.Add(grip);
         _body = new ContentControl { Margin = new Thickness(8) };
