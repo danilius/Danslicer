@@ -2995,26 +2995,39 @@ public sealed class ViewportControl : OpenGlControlBase
     // Locks the device's rotation axes only (3Dconnexion convention); MMB orbit stays available.
     private bool _spaceMouseRotationLock;
 
-    // DANSLICER_TRACE=1 diagnostic for choppy motion: a deflected cap that returns the exact same
-    // reading on consecutive polls means the driver is not refreshing the sensor between our
-    // ticks. Streaks of a handful are normal jitter; streaks near 30 (half a second at 15 ms) are
-    // the fault. Logged once per streak so the log stays readable.
+    // DANSLICER_TRACE=1 diagnostic for choppy motion. Once a second, while the cap is being used,
+    // log how many times the timer fired, how many polls saw deflection, how many of those
+    // carried a value different from the previous poll, and the longest gap between two
+    // different readings. Healthy: ~66 polls, near-66 changes, gap under 50 ms. A poll count far
+    // below 66 blames the timer; few changes or a gap near 500 ms blames the driver.
     private SixAxisMotion _lastTracedMotion;
-    private int _staleStreak;
+    private long _traceWindowStart, _traceLastChange;
+    private int _tracePolls, _traceNonZero, _traceChanges;
+    private long _traceMaxGapMs;
 
     private void TraceSpaceMouseStaleness(SixAxisMotion m)
     {
-        if (!m.IsZero && m == _lastTracedMotion)
+        var now = Environment.TickCount64;
+        if (_traceWindowStart == 0) _traceWindowStart = now;
+        _tracePolls++;
+        if (!m.IsZero)
         {
-            _staleStreak++;
-        }
-        else
-        {
-            if (_staleStreak >= 3)
-                Log($"SpaceMouse stale reading repeated {_staleStreak + 1} polls (~{(_staleStreak + 1) * 15} ms)");
-            _staleStreak = 0;
+            _traceNonZero++;
+            if (m != _lastTracedMotion)
+            {
+                _traceChanges++;
+                if (_traceLastChange != 0) _traceMaxGapMs = Math.Max(_traceMaxGapMs, now - _traceLastChange);
+                _traceLastChange = now;
+            }
         }
         _lastTracedMotion = m;
+        if (now - _traceWindowStart < 1000) return;
+        if (_traceNonZero > 0)
+            Log($"SpaceMouse 1s: polls {_tracePolls}, deflected {_traceNonZero}, changed {_traceChanges}, max gap {_traceMaxGapMs} ms");
+        _traceWindowStart = now;
+        _tracePolls = _traceNonZero = _traceChanges = 0;
+        _traceMaxGapMs = 0;
+        if (m.IsZero) _traceLastChange = 0;
     }
 
     private void HandleSpaceMouseButton(SixAxisButtonPress press)
