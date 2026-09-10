@@ -162,12 +162,26 @@ public sealed class UiPreviewWindow : Window
         Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt);
         _sections.UpdateLayout();
         position = grip.TranslatePoint(new Point(12, 12), this)!.Value;
-        var dragDistance = _sections.Children[1].Bounds.Center.Y - section.Bounds.Center.Y + 10;
+        var neighbour = (ReorderableExpander)_sections.Children[1];
+        var neighbourGrip = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(neighbour).OfType<Button>().Single(b => AutomationProperties.GetName(b)?.StartsWith("Reorder") == true);
+        var midpointDistance = neighbourGrip.TranslatePoint(new Point(0, 13), this)!.Value.Y - grip.TranslatePoint(new Point(0, 13), this)!.Value.Y;
+        var dragDistance = midpointDistance + 0.5;
         var originalSectionTop = section.Bounds.Y;
         grip.RaiseEvent(new PointerPressedEventArgs(grip, pointer, this, position, 5, pressed, KeyModifiers.None, 1));
+        grip.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, grip, pointer, this, position + new Vector(0, midpointDistance - 0.5), 6, pressed, KeyModifiers.None));
+        Require(_sections.Children[0] == section, "Must not swap before gripper midpoint");
         grip.RaiseEvent(new PointerEventArgs(InputElement.PointerMovedEvent, grip, pointer, this, position + new Vector(0, dragDistance), 6, pressed, KeyModifiers.None));
         Require(_sections.Children[1] == section && Math.Abs(section.Bounds.Y + ((TranslateTransform)section.RenderTransform!).Y - originalSectionTop - dragDistance) < 0.01 && section.IsExpanded, "Section must swap before release and remain anchored to pointer");
+        var displacedTransform = (TranslateTransform)neighbour.RenderTransform!;
+        var transition = displacedTransform.Transitions!.OfType<Avalonia.Animation.DoubleTransition>().Single();
+        Require(transition.Duration == TimeSpan.FromMilliseconds(250) && transition.Easing is Avalonia.Animation.Easings.CubicEaseOut,
+            "Displaced section must use 250ms deceleration");
+        await Task.Delay(70);
+        var duringAnimation = displacedTransform.Y;
+        Require(duringAnimation > 0, "Displaced section must animate rather than jump");
         Capture("preview-drag.png");
+        await Task.Delay(300);
+        Require(displacedTransform.Y == 0, "Displaced section must finish in its new slot");
         grip.RaiseEvent(new PointerReleasedEventArgs(grip, pointer, this, position + new Vector(0, dragDistance), 7, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
         Require(_sections.Children[1] == section && pointer.Captured is null, "Pointer reorder must insert at drop position");
         Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt); _sections.UpdateLayout();

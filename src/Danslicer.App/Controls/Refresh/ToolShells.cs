@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls.Documents;
 
 namespace Danslicer.App.Controls.Refresh;
@@ -139,6 +140,7 @@ public sealed class ReorderableExpander : Border
     private readonly StackPanel _root = new();
     private readonly Button _disclosure;
     private readonly ContentControl _body;
+    private readonly Button _grip;
     private bool _expanded = true;
     public string SectionId { get; }
     public event EventHandler? ExpansionChanged;
@@ -158,7 +160,7 @@ public sealed class ReorderableExpander : Border
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Background = RefreshPalette.Header };
         _disclosure = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Height = 26, MinHeight = 0, Padding = new Thickness(8, 2), Background = RefreshPalette.Header, Foreground = RefreshPalette.Text };
         _disclosure.Click += (_, _) => IsExpanded = !IsExpanded;
-        var grip = new Button { Content = RefreshIcons.Create("grip"), Width = 26, Height = 26, MinHeight = 0, Padding = new Thickness(4), Background = RefreshPalette.Header, Cursor = new Cursor(StandardCursorType.SizeAll) };
+        var grip = _grip = new Button { Content = RefreshIcons.Create("grip"), Width = 26, Height = 26, MinHeight = 0, Padding = new Thickness(4), Background = RefreshPalette.Header, Cursor = new Cursor(StandardCursorType.SizeAll) };
         AutomationProperties.SetName(grip, $"Reorder {title}"); ToolTip.SetTip(grip, "Drag to reorder; Alt+Up/Down");
         double? origin = null;
         double originalTop = 0, lastPointerY = 0;
@@ -175,12 +177,16 @@ public sealed class ReorderableExpander : Border
         {
             if (offset == 0 || Parent is not Panel panel) return;
             // Hosts remove/reinsert the real section. Ignore transient capture loss during reparenting.
+            var previousTops = panel.Children.OfType<ReorderableExpander>()
+                .Where(section => section != this)
+                .ToDictionary(section => section, section => section.Bounds.Y + ((TranslateTransform)section.RenderTransform!).Y);
             moving = true;
             try
             {
                 MoveRequested?.Invoke(this, offset);
                 panel.UpdateLayout();
                 translation.Y = visualY - Bounds.Y;
+                foreach (var (section, top) in previousTops) section.AnimateDisplacement(top);
                 grip.Focus();
                 dragPointer?.Capture(grip);
             }
@@ -205,12 +211,13 @@ public sealed class ReorderableExpander : Border
             translation.Y = visualY - Bounds.Y;
             if (Parent is not Panel panel || direction == 0) return;
             var index = panel.Children.IndexOf(this);
-            var center = visualY + Bounds.Height / 2;
+            var center = _grip.TranslatePoint(new Point(0, _grip.Bounds.Height / 2), panel)!.Value.Y;
             var destination = index;
             for (var i = index + direction; i >= 0 && i < panel.Children.Count; i += direction)
             {
-                if (panel.Children[i] is not ReorderableExpander) break;
-                if (direction > 0 ? center <= panel.Children[i].Bounds.Center.Y : center >= panel.Children[i].Bounds.Center.Y) break;
+                if (panel.Children[i] is not ReorderableExpander neighbour) break;
+                var targetCenter = neighbour._grip.TranslatePoint(new Point(0, neighbour._grip.Bounds.Height / 2), panel)!.Value.Y;
+                if (direction > 0 ? center <= targetCenter : center >= targetCenter) break;
                 destination = i;
             }
             Move(destination - index, visualY);
@@ -251,6 +258,24 @@ public sealed class ReorderableExpander : Border
         header.Children.Add(_disclosure); Grid.SetColumn(grip, 1); header.Children.Add(grip);
         _body = new ContentControl { Margin = new Thickness(8) };
         _root.Children.Add(header); _root.Children.Add(_body); Child = _root; Update();
+    }
+    private void AnimateDisplacement(double previousVisualTop)
+    {
+        var transform = (TranslateTransform)RenderTransform!;
+        var offset = previousVisualTop - Bounds.Y;
+        // FLIP: keep the displaced section at its visible position, then ease into its new slot.
+        transform.Transitions = null;
+        transform.Y = offset;
+        transform.Transitions = new Transitions
+        {
+            new DoubleTransition
+            {
+                Property = TranslateTransform.YProperty,
+                Duration = TimeSpan.FromMilliseconds(250),
+                Easing = new CubicEaseOut()
+            }
+        };
+        transform.Y = 0;
     }
     private void Update()
     {

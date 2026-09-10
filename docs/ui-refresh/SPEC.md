@@ -30,3 +30,5 @@ Production bounded support/raft fields use existing limits and setters with cent
 Main capture and unit-test VMs use isolated temporary configuration. The Support rail keeps its 300ms gap grace, shared ViewCube.Rect plus 12-DIP clearance, centered Reset and saved two-state Cap choice.
 
 Latest approved expander behavior: swap immediately during dragging when the dragged section crosses a neighbouring section midpoint, keeping the complete expanded content under the pointer. Allow swapping back on reversal. Escape/capture loss restores initial order; persist only completed drop or keyboard reorder. Preserve 150ms release settling and round grippers. This supersedes historical drop-only reordering notes.
+
+Authoritative gripper correction: a swap triggers just after the dragged gripper centre passes the displayed centre of another gripper. Full expander centres are not swap targets. The displaced, ungripped section animates from its current visible position to its new slot over 250ms with smooth deceleration (cubic ease-out). Preserve drag anchoring, cancellation/restoration and save-on-release behavior.

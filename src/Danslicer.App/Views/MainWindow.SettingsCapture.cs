@@ -81,7 +81,7 @@ public partial class MainWindow
         var sectionPanel = (Panel)supportSection.Parent!;
         var orderBeforeDrag = File.ReadAllText(AppConfig.WorkspacePath);
         point = grip.TranslatePoint(new Point(12, 12), this)!.Value;
-        var swapDistance = sectionPanel.Children[1].Bounds.Center.Y - supportSection.Bounds.Center.Y + 10;
+        var swapDistance = sectionPanel.Children[1].Bounds.Y - supportSection.Bounds.Y + 1;
         void StartSwap()
         {
             grip.RaiseEvent(new PointerPressedEventArgs(grip, pointer, this, point, 20, pressed, KeyModifiers.None, 1));
@@ -94,11 +94,11 @@ public partial class MainWindow
         grip.RaiseEvent(new PointerEventArgs(PointerMovedEvent, grip, pointer, this, point - new Vector(0, 10), 22, pressed, KeyModifiers.None));
         Require(sectionPanel.Children[0] == supportSection && pointer.Captured == grip, "Live reverse swap lost position/capture");
         Key(grip, Avalonia.Input.Key.Escape);
-        StartSwap(); pointer.Capture(null);
+        await Task.Delay(300); StartSwap(); pointer.Capture(null);
         Require(sectionPanel.Children[0] == supportSection && File.ReadAllText(AppConfig.WorkspacePath) == orderBeforeDrag, "Capture loss must restore original order without saving");
-        StartSwap(); Key(grip, Avalonia.Input.Key.Escape);
+        await Task.Delay(300); StartSwap(); Key(grip, Avalonia.Input.Key.Escape);
         Require(sectionPanel.Children[0] == supportSection && File.ReadAllText(AppConfig.WorkspacePath) == orderBeforeDrag, "Escape must restore original order without saving");
-        StartSwap();
+        await Task.Delay(300); StartSwap();
         grip.RaiseEvent(new PointerReleasedEventArgs(grip, pointer, this, point + new Vector(0, swapDistance), 23, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
         Require(sectionPanel.Children[1] == supportSection && File.ReadAllText(AppConfig.WorkspacePath) != orderBeforeDrag, "Drop must persist final order");
         Key(grip, Avalonia.Input.Key.Up, KeyModifiers.Alt);
