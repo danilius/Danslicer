@@ -4,7 +4,7 @@ Every task: read START, SPEC, RESUME and prior task notes; verify branch/worktre
 Coordinator owns package, approved references, Claude note and task dispatch. Current implementation starts with 01.
 ## 01 — Controls and native preview [complete; see task-01.md]
 Audit existing Avalonia styles, icons, ExpressionBox, settings and tests. Implement reusable theme/icon assets, floating toolbar shell with both modes, popout shell, dark draggable expander, filled numeric slider, scrub field with optional locks. Reuse existing facilities where appropriate. Build a native preview window/harness isolated from normal startup to exercise controls before application integration. Preserve existing behavior. Test meaningful interaction/state logic and build. Supply launch command and visual evidence if available; document visual verification limits. Deliver controls, preview, tests and task-01.md; no renderer or main-layout integration.
-## 02 — Workspace layout and navigation [queued; depends 01]
+## 02 — Workspace layout and navigation [in progress; 01 accepted at 0fadc0e]
 Integrate floating toolbar and anchored popouts with real existing commands; remove permanent right settings layout while keeping access to every existing setting. Implement workspace tabs, recent projects and subtle machine/resin display. Preserve status bar exactly and keymaps/mode behavior. Validate representative workflows and narrow windows. Deliver task-02.md.
 ## 03 — Settings integration and persistence [queued; depends 02]
 Apply controls to support, visibility, transform and available raft settings. Preserve numeric expressions, unit conversion, undo; add locks only with explicit semantics. Persist toolbar mode, expander order/state compatibly; handle scroll/focus/Escape. No invented raft functionality. Validate settings round trips, keyboard and DPI; deliver task-03.md.
@@ -14,3 +14,4 @@ Audit renderer overlap with Claude before edits. Implement shallow plate, restra
 Review approved specification against real app, run appropriate suite and manual checks, fix remaining UX defects, reconcile committed Claude work in isolated UI branch after confirming stable base. Resolve conflicts in UI checkout only. Produce reviewable final commits, known limitations, test/build/run instructions and task-05.md. Do not merge into main without user instruction.
 ## Creating each next chat
 Use the prior task's exact completed commit as starting ref for a separate project worktree/chat. Copy no uncommitted source between tasks. Read committed docs/ui-refresh/RESUME.md first. Record new chat ID/path/branch in its handoff. The coordinator can dispatch after predecessor completion; a user can resume using RESUME at any time.
+

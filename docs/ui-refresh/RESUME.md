@@ -41,3 +41,9 @@ dotnet run --no-build --project src/Danslicer.App -- --ui-preview --capture-dire
 ## Exact next action
 Coordinator should resolve `git rev-parse codex/ui-refresh` and create a separate task 02 chat/worktree from that final committed ref. Read START, SPEC, TASKS and task-01. Implement ONLY workspace layout/navigation with real commands and preserve the status bar/keymaps/settings. Task 03 owns production persistence and numeric model/undo integration. Task 04 owns rendering. This task must not create later chats or merge main.
 Working tree at handoff: intended clean after this documentation checkpoint; verify `git status --short` before resuming. No uncommitted source must be copied between tasks.
+
+# Task 02 start — current checkpoint
+Worktree: C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt
+Branch: codex/ui-refresh-02
+Accepted predecessor / last good commit: 0fadc0e2412498513e34db6337aa3bba1ed9dc8c.
+Task 01 approved; task 02 underway. Read task-02.md for current plan. No later tasks or merge. Tests so far: clean worktree/exact base verified. Next: integrate main workspace controls and navigation.

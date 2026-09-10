@@ -15,3 +15,6 @@ AO/cavity are desired subtle geometric readability effects; inspect existing ren
 ## References are conceptual
 Mockup settings are illustrative: bind real existing parameters and commands. Raft controls must not imply functionality absent from the application. Preserve core slicing/support algorithms and project compatibility.
 Review at actual desktop scale, 100/150/200 percent DPI, narrow windows, light/dark states where supported, keyboard operation, unlocked/locked fields and long labels.
+
+## Approved compact refinements (task 01 acceptance)
+12-DIP typography, 26-DIP section headers, 28-DIP popout headers, 24-DIP numeric fields. Resizable popout right edge (keyboard Left/Right; Escape cancels resize). Six round 2-DIP grip dots on a 4-DIP grid with a 26-DIP hit target. Drag the entire expanded section and settle over 150 ms; Alt+Up/Down reorders. Preserve these accepted controls during integration. Production numeric bindings/undo and durable toolbar/section state belong to task 03.
