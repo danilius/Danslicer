@@ -1,34 +1,31 @@
-# Current checkpoint — task 02 implemented, awaiting user review
+# Current checkpoint — task 02 with approved isolation refinement
 
-Date: 2026-09-10
-Task: 02 — workspace layout and navigation.
+Date: 2026-09-10. Task 02 implementation ready for user review.
 Worktree: C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt
 Branch: codex/ui-refresh-02
 Task-01 accepted starting commit: 0fadc0e2412498513e34db6337aa3bba1ed9dc8c.
-Last good tested implementation/evidence commit: 173977652b2e5b94c7303194b4c9ea3e0b262337.
-Final handoff ref: HEAD of codex/ui-refresh-02, the documentation-only descendant of that implementation. Resolve with `git rev-parse HEAD`; the task's final response gives the exact handoff hash. Expected clean status after the final documentation commit.
+Last good implementation/evidence commit: 070a5a8d1d4cf37f4ce813644903f87f01934ffe.
+Final handoff: documentation-only descendant at HEAD of codex/ui-refresh-02; exact hash in final response. Verify `git rev-parse HEAD` and clean `git status --short`.
 
-## Completed
-Floating inset toolbar adopts original production buttons, preserving command bindings, enablement and mode rules. Icon-only/tooltips and icons-plus-text modes; selected popout tool highlighted. All 13 settings popouts are inline, resizable, tool-anchored and viewport-constrained. Print settings and layer isolation are tools; no permanent right settings panel. Slim underline workspace tabs, responsive machine/resin strip, project dropdown with real session recent-project open and Open another project. Compact draggable section shells in Transform, Support and Print. Existing numeric binding/undo implementation, keymaps and status bar remain intact. No renderer/core changes, other checkout edits or main merge.
+## Current behavior
+Floating inset toolbar retains real buttons, commands/enablement/mode policies; icon-only/tooltips and icons-plus-labels. 12 inline resizable, constrained settings popouts. Slim underline Layout/Support/Slicing tabs; responsive selected machine/resin strip; project dropdown with actual session recents and open-another action. Compact draggable sections in Transform, Support and Print. Status bar preserved exactly; no renderer/core geometry changes or main merge.
 
-Changed source: Controls/Refresh/{ToolShells,RefreshPalette,WorkspacePopout}.cs and Views/MainWindow.axaml, MainWindow.axaml.cs, MainWindow.Workspace.cs, MainWindow.WorkspaceCapture.cs. Documentation/evidence under docs/ui-refresh.
+Latest user instruction supersedes earlier task-02 notes: layer isolation always appears on the RIGHT in SUPPORT mode only, without a toolbar button. Resized tool popouts reserve its space. Fixed top/bottom edit boxes replaced by a handle-following card on the left with editable layer number and mm height. The 300ms gap-crossing delay, dragging, card hover and typing retain it; blur/exit dismisses only the card. Keyboard Left/Right chooses bottom/top, Up/Down steps a print layer (Shift fine), Enter edits. Escape reverts text or cancels active dragging; Escape on idle slider hides the card. Reset and a two-state Cap interior checkbox remain below. Cap interior defaults on already; explicit saved off choice is preserved.
 
-## Main application launch
+Main sources: Controls/Refresh/{ToolShells,RefreshPalette,WorkspacePopout}.cs; Controls/LayerRangeSlider.cs; ViewModels/LayerRangeClipViewModel.cs; Views/MainWindow.axaml and its Workspace, Isolation and native-capture partials. Existing NumericField/ExpressionBox model/editor and global keymap source unchanged. New paired layer/mm tests: IsolationHeightEditorTests.cs. Details and iteration history: task-02.md.
+
+## Launch MAIN application
 ```powershell
 & "C:\Users\plane\.codex\worktrees\3713\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
 ```
-No preview flag. Build from this worktree with `dotnet build Danslicer.slnx -c Release -p:UsedAvaloniaProducts=`.
+Build from this worktree: `dotnet build Danslicer.slnx -c Release -p:UsedAvaloniaProducts=`.
+Native smoke/capture: same executable with `--workspace-capture docs/ui-refresh/evidence/task-02`. Wait for exit; failures emit workspace-error.txt and nonzero exit. Capture skips window geometry persistence.
 
 ## Actual verification
-Release app and solution builds passed. 121 focused existing tests passed, 0 failed/skipped. Native main-window checks passed: STL import, selected transform expression/undo, duplicate/undo, all popouts/modes, focus/Escape, section reorder, resizing/narrow bounds, project save/open and missing-file status. Prior task-01 native pointer/keyboard controls suite re-run successfully. Status-bar XAML byte-identical and original setting/command bindings retained. `git diff --check` passed. See task-02.md for exact commands and evidence paths.
+Release app/solution build passed. Latest refinement: 87 focused tests passed, 0 failed/skipped, covering layer range, paired layer/mm fields, cap policy, toolbar, keymaps, workspace and command scoping. Earlier task-02 suite had 121 passing tests and task-01 controls native smoke passed. Latest main native smoke passed for STL import, transform expression/undo, duplicate/undo, 12 popouts, isolation handle hover/drag/release/cancel, editor gap/focus/typing/revert, keyboard access, narrow 640x480 bounds and project round trip/error handling. Status-bar XAML re-audited byte-identical; diff whitespace check passed.
+Evidence: evidence/task-02/workspace-isolation.png and workspace-isolation-narrow.png plus refreshed support/layout/print captures, workspace-ok.txt and binding-audit.txt. Reviewed isolation images at normal and narrow sizes. Existing compiler/analyzer warnings only.
+Limits: offscreen native-window captures omit the GL composition surface (black viewport); 100/150/200 density renders are not physical monitor DPI checks. No physical mouse, screen-reader, monitor transition or light-theme verification. Full geometry suite/native export dialogs/UVtools process/full support-generation job not run. No renderer changes.
 
-Limits: render-density captures (100/150/200) are not physical monitor DPI checks. Offscreen captures omit the OpenGL composition surface, so viewport backgrounds appear black. No physical mouse, screen-reader, monitor transition or light-theme verification. Full geometry suite, native export/file dialogs, actual UVtools launch and full support-generation/slicing jobs not run; relevant existing command tests passed. Existing SurfaceContour/ViewportControl/RaftBuilderTests warnings remain.
-
-## Next action / task 03 handoff
-User reviews task 02 directly. Do not create the next task or start later work here. After approval, task 03 should start from the exact final committed HEAD in a separate worktree. Read START, SPEC, TASKS, task-01 and task-02.
-Task 03 owns durable toolbar mode, popout width/section order/expansion and recent-project persistence, plus the approved filled numeric slider/scrub controls wired to real parameter metadata and exactly one existing undo path. Current session state is preserved across popout toggles, but intentionally not across restarts. Existing ExpressionBox/NumericUpDown production editors remain until task 03. Review narrow content, focus and DPI during that integration. Existing layer navigation sliders are unchanged; they are not replacement numeric setting controls. Task 04 alone owns renderer/plate/AO/cavity work.
-
-## Latest user refinement — in progress
-Authorized Support-only persistent right isolation rail, no toolbar button; handle-following editable layer/mm hover card; two-state Cap interior checkbox, default on. Supersedes earlier isolation-popout text above. Worktree/branch unchanged; last good commit 1fb53e442bbcc888a73c14ffb3beec42a38d2365. See task-02.md. Next: implement and validate.
-
-Isolation iteration: implementation and first native check pass; 87 focused tests pass. Last good committed ref remains 1fb53e4 until refinement commit. Final drag-release/checkbox polish and verification underway; see task-02.md.
+## Next action / task 03
+User reviews this task directly. Do not create later tasks or implement later scope here. After approval, task 03 starts from exact final HEAD in a separate worktree and reads START, SPEC, TASKS, task-01 and task-02.
+Task 03 owns durable toolbar/section/popout-width/recent-project persistence and general production filled-slider/scrub-field/undo integration. Current toolbar/section/recents state is session-only. Isolation layer/mm fields are authorized refinement using the existing clip model, not a general numeric-control migration. Preserve the right-side Support rail exception and two-state cap choice. Task 04 alone owns plate/renderer/AO/cavity work.
