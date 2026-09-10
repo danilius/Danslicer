@@ -47,6 +47,7 @@ public sealed class RenderFrame
     /// <summary>Which pipeline draws this frame. Deferred falls back to Classic on GL failure.</summary>
     public RenderPathMode RenderPath { get; init; } = RenderPathMode.Classic;
     /// <summary>Shading and effect settings for the deferred path; ignored by Classic.</summary>
+    public ShadowEffects Shadows { get; init; } = new();
     public DeferredEffects Deferred { get; init; } = DeferredEffects.Default;
     /// <summary>Support-mode world-Z isolation. Full/inactive ranges leave output bit-identical.</summary>
     public ViewportClipRange ClipRange { get; init; }
@@ -129,6 +130,7 @@ public sealed partial class SceneRenderer : IDisposable
     {
         // The deferred path lives in SceneRenderer.Deferred.cs and is opt-in per frame; any GL
         // failure there logs, latches off and falls back so a frame is always produced.
+        PrepareModelShadows(frame);
         PreparePlateReflection(frame);
         _pickTargetsValid = false; // only a completed deferred frame re-arms ID picking
         var deferredDrawn = frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame);
@@ -358,6 +360,7 @@ public sealed partial class SceneRenderer : IDisposable
         _meshShader.Set("uOverhangCell", _overhangCell);
         BindShadow(_meshShader, false);
         BindClip(_meshShader, clip);
+        BindModelShadows(_meshShader, opacity >= 1f);
         _meshShader.Set("uWaterlineEnabled", waterlineZ.HasValue ? 1f : 0f);
         _meshShader.Set("uWaterlineZ", waterlineZ.GetValueOrDefault());
     }
@@ -500,6 +503,7 @@ public sealed partial class SceneRenderer : IDisposable
         _plate?.Dispose();
         _depthLines.Dispose();
         _overlayLines.Dispose();
+        _modelShadowMap?.Dispose();
         _reflection?.Dispose();
         _meshShader.Dispose();
         _lineShader.Dispose();

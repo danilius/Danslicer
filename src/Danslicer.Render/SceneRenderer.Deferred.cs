@@ -413,6 +413,7 @@ public sealed partial class SceneRenderer
         Matrix4x4.Invert(view, out var invView);
         var shader = pipeline.CompositeShader;
         shader.Use();
+        BindModelShadows(shader, true);
         shader.Set("uInvProjection", invProjection);
         shader.Set("uInvView", invView);
         shader.Set("uWaterlineEnabled", frame.WaterlineZ.HasValue ? 1f : 0f);

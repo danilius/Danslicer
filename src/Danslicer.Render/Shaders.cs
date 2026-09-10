@@ -59,7 +59,7 @@ internal static class Shaders
     /// Studio lighting: fixed key, fill and rim lights in view space so that every surface has a lit and
     /// a shaded side regardless of view direction. Half-Lambert wrap keeps shadow sides readable.
     /// </summary>
-    public const string MeshFragment = """
+    public const string MeshFragment = ShadowShaders.Sampling + """
         in vec3 vViewNormal;
         in vec3 vWorldNormal;
         in vec3 vWorldPosition;
@@ -177,6 +177,10 @@ internal static class Shaders
             }
 
             vec3 lit = color * (diffuse + 0.08) + vec3(spec) + vec3(edge);
+            // Plate shadows remain their existing separate option. Reflections and transparent
+            // geometry do not receive model shadows; preserve inspection overlays afterwards.
+            if (uPlateMaterial < 0.5 && uMirror < 0.5 && uOpacity >= 1.0)
+                lit *= modelShadow(vWorldPosition, normalize(vWorldNormal) * (back ? -1.0 : 1.0));
 
             // A derivative-sized band stays approximately constant in screen pixels as the
             // camera moves. Tight world-space clamps keep grazing and nearly-horizontal faces

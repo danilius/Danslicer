@@ -64,6 +64,11 @@ internal sealed class RendererCaptureWindow : Window
                 var model = new SceneObject("Contact fixture", Box(new(-16, -10, 12), new(16, 10, 19)));
                 doc.AddObject(model);
                 doc.AddObject(new SceneObject("Ridge", Box(new(-9, -5, 19), new(0, 5, 27))));
+                var selfDoc = new Document();
+                var baseMesh = model.Mesh; var ridgeMesh = doc.Scene.Objects[1].Mesh;
+                selfDoc.AddObject(new SceneObject("Single mesh self-shadow fixture", new Mesh(
+                    baseMesh.Positions.Concat(ridgeMesh.Positions).ToArray(),
+                    baseMesh.Indices.Concat(ridgeMesh.Indices.Select(i => i + baseMesh.VertexCount)).ToArray())));
                 var aux = new List<AuxMeshDraw>();
                 for (var x = -12; x <= 12; x += 6)
                     for (var y = -6; y <= 6; y += 6)
@@ -73,15 +78,15 @@ internal sealed class RendererCaptureWindow : Window
                 var captures = new Dictionary<string, byte[]>();
                 var report = new List<string> { $"GL: {_renderer.GlVersion}", $"GPU: {gl.GetStringS(StringName.Renderer)}", $"Framebuffer {width}x{height}; synthetic closed box model and 15 support-like aux pillars; no user config loaded." };
                 foreach (var path in new[] { RenderPathMode.Deferred, RenderPathMode.Classic })
-                foreach (var shot in new[] { "above", "below", "grazing", "contact", "effects-off", "ao-off", "cavity-off", "reflections", "reflections-off", "below-reflections-off", "isolation", "transparent", "ortho", "selected", "transition-0", "transition-3", "transition-9", "transition-12", "supports-below", "supports-contact", "supports-ao-off", "supports-isolation", "supports-cap-off", "supports-isolation-below", "supports-cap-off-below", "transparent-grazing", "matcap", "dense", "dense-effects-off", "cube", "cube-below", "cube-top" })
+                foreach (var shot in new[] { "above", "below", "grazing", "contact", "effects-off", "ao-off", "cavity-off", "reflections", "reflections-off", "below-reflections-off", "isolation", "transparent", "ortho", "selected", "transition-0", "transition-3", "transition-9", "transition-12", "supports-below", "supports-contact", "supports-ao-off", "supports-isolation", "supports-cap-off", "supports-isolation-below", "supports-cap-off-below", "transparent-grazing", "matcap", "dense", "dense-effects-off", "cube", "cube-below", "cube-top", "shadow-off", "shadow-working", "shadow-presentation", "shadow-hard", "shadow-zero", "shadow-below", "shadow-clipped", "shadow-transparent", "shadow-self", "shadow-self-off" })
                 {
                     var camera = new Camera { Target = new(0, 0, 12), Distance = shot == "above" || shot.StartsWith("dense") ? 260 : 85 };
                     camera.SetView(-65, (shot.StartsWith("below") || shot == "supports-below" || shot.EndsWith("-below")) ? -35 : shot.StartsWith("transition-") ? float.Parse(shot[11..]) : shot is "grazing" or "transparent-grazing" ? 6 : 28);
                     if (shot == "cube-top") camera.ViewTop();
                     camera.Orthographic = shot == "ortho";
-                    var clip = shot == "isolation" || shot.StartsWith("supports-isolation") || shot.StartsWith("supports-cap-off") ? new ViewportClipRange(0, 27, 6, 23, true) : default;
+                    var clip = shot == "shadow-clipped" || shot == "isolation" || shot.StartsWith("supports-isolation") || shot.StartsWith("supports-cap-off") ? new ViewportClipRange(0, 27, 6, 23, true) : default;
                     var sourceAux = shot.StartsWith("supports-") ? realSupports : shot.StartsWith("dense") ? denseSupports : aux;
-                    var draws = sourceAux.Select(a => shot.StartsWith("transparent") ? a with { Opacity = 0.3f } : a).ToList();
+                    var draws = sourceAux.Select(a => (shot.StartsWith("transparent") || shot == "shadow-transparent") ? a with { Opacity = 0.3f } : a).ToList();
                     var cap = !shot.StartsWith("supports-cap-off");
                     // Mirror the app's Classic fallback: exact sliced caps are supplied by the host.
                     if (clip.IsClipping && cap && path == RenderPathMode.Classic)
@@ -99,10 +104,11 @@ internal sealed class RendererCaptureWindow : Window
                     }
                     var frame = new RenderFrame
                     {
-                        Framebuffer = fb, Width = width, Height = height, Camera = camera, Scene = doc.Scene,
+                        Framebuffer = fb, Width = width, Height = height, Camera = camera, Scene = shot.StartsWith("shadow-self") ? selfDoc.Scene : doc.Scene,
                         IsSelected = o => shot == "selected" && o == model, Printer = doc.Printer, RenderPath = path,
                         PlateOpacityFromBelow = new ViewportConfig().PlateOpacityFromBelow,
                         AuxMeshes = draws,
+                        Shadows = new ShadowEffects { Mode = shot is "shadow-off" or "shadow-self-off" or "effects-off" or "dense-effects-off" ? ModelShadowMode.Off : shot is "shadow-presentation" or "shadow-hard" ? ModelShadowMode.Presentation : ModelShadowMode.Working, Strength = shot == "shadow-zero" ? 0 : shot is "shadow-presentation" or "shadow-hard" ? 0.5f : 0.22f, SoftnessMm = shot == "shadow-hard" ? 0 : shot == "shadow-presentation" ? 1.2f : 0.6f },
                         Deferred = new DeferredEffects { AmbientOcclusionEnabled = shot is not ("effects-off" or "ao-off" or "supports-ao-off" or "dense-effects-off"), CavityEnabled = shot is not ("effects-off" or "cavity-off" or "dense-effects-off"), Shading = shot == "matcap" ? ViewportShadingMode.MatCapClay : ViewportShadingMode.Studio },
                         PlateReflectionsEnabled = shot is not ("effects-off" or "reflections-off" or "below-reflections-off" or "dense-effects-off"),
                         ShowPlateShadows = shot is not ("reflections" or "reflections-off"),
@@ -110,6 +116,8 @@ internal sealed class RendererCaptureWindow : Window
                         CapStyle = path == RenderPathMode.Deferred ? ClipCapStyle.Painted : ClipCapStyle.Sliced, ShowViewCube = shot.StartsWith("cube"),
                     };
                     for (var warm = 0; warm < 12; warm++) _renderer.Render(frame);
+                    if (_renderer.ModelShadowsActive != (frame.Shadows.Mode != ModelShadowMode.Off && frame.Shadows.Strength > 0))
+                        throw new InvalidOperationException("Model shadow activation failed: " + shot);
                     gl.Finish();
                     var times = new List<double>();
                     for (var sample = 0; sample < 30; sample++)
@@ -142,6 +150,27 @@ internal sealed class RendererCaptureWindow : Window
                 }
                 foreach (var path in new[] { "Classic", "Deferred" })
                 {
+                    // A broad illuminated flat face must not acquire shadow acne/PCF patterns.
+                    var checkCamera = new Camera { Target = new(0, 0, 12), Distance = 85 };
+                    checkCamera.SetView(-65, 28);
+                    foreach (var world in new[] { new Vector3(10, 0, 19), new Vector3(10, -10, 15) })
+                    {
+                        var screen = checkCamera.WorldToScreen(world, width, height)!.Value;
+                        for (var oy = -3; oy <= 3; oy++)
+                        for (var ox = -3; ox <= 3; ox++)
+                        for (var c = 0; c < 3; c++)
+                        {
+                            var pixel = ((height - 1 - (int)screen.Y + oy) * width + (int)screen.X + ox) * 4 + c;
+                            if (Math.Abs(captures[$"{path}-shadow-off"][pixel] - captures[$"{path}-shadow-presentation"][pixel]) > 2)
+                                throw new InvalidOperationException($"False shadow on illuminated flat face: {path} {world}");
+                        }
+                    }
+                    report.Add($"{path} illuminated flat-face acne regression passed.");
+                    Compare(path, "shadow-self", "shadow-self-off", same: false);
+                    Compare(path, "shadow-off", "shadow-zero", same: true);
+                    Compare(path, "shadow-off", "shadow-working", same: false);
+                    Compare(path, "shadow-working", "shadow-presentation", same: false);
+                    Compare(path, "shadow-presentation", "shadow-hard", same: false);
                     Compare(path, "below", "below-reflections-off", same: true);
                     Compare(path, "reflections", "reflections-off", same: false);
                     Compare(path, "contact", "ao-off", same: path == "Classic");

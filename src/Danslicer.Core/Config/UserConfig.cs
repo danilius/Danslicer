@@ -52,6 +52,9 @@ public enum ClipCapStyle
     Painted,
 }
 
+/// <summary>Model and support cast/self-shadow presets.</summary>
+public enum ModelShadowMode { Off, Working, Presentation }
+
 /// <summary>Viewport display tuning.</summary>
 public sealed class ViewportConfig
 {
@@ -69,6 +72,13 @@ public sealed class ViewportConfig
     /// <summary>Screen-space ridge/valley shading (deferred path only).</summary>
     public bool CavityEnabled { get; set; } = true;
 
+    /// <summary>Soft directional model/support shadows, both render paths.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ModelShadowMode ModelShadows { get; set; } = ModelShadowMode.Working;
+    public float WorkingShadowStrength { get; set; } = 0.22f;
+    public float PresentationShadowStrength { get; set; } = 0.5f;
+    public float WorkingShadowSoftnessMm { get; set; } = 0.6f;
+    public float PresentationShadowSoftnessMm { get; set; } = 1.2f;
     /// <summary>Local screen-space proximity shading on opaque geometry, deferred only.</summary>
     public bool AmbientOcclusionEnabled { get; set; } = true;
     public float AmbientOcclusionStrength { get; set; } = 0.35f;
@@ -157,6 +167,11 @@ public sealed class ViewportConfig
         if (!Enum.IsDefined(CapStyle)) CapStyle = ClipCapStyle.Painted;
         CavityRidgeStrength = Clamp(CavityRidgeStrength, 0f, 4f, 0.35f);
         CavityValleyStrength = Clamp(CavityValleyStrength, 0f, 4f, 0.7f);
+        if (!Enum.IsDefined(ModelShadows)) ModelShadows = ModelShadowMode.Working;
+        WorkingShadowStrength = Clamp(WorkingShadowStrength, 0, 0.7f, 0.22f);
+        PresentationShadowStrength = Clamp(PresentationShadowStrength, 0, 0.7f, 0.5f);
+        WorkingShadowSoftnessMm = Clamp(WorkingShadowSoftnessMm, 0, 4, 0.6f);
+        PresentationShadowSoftnessMm = Clamp(PresentationShadowSoftnessMm, 0, 4, 1.2f);
         AmbientOcclusionStrength = Clamp(AmbientOcclusionStrength, 0f, 0.6f, 0.35f);
         AmbientOcclusionRadiusMm = Clamp(AmbientOcclusionRadiusMm, 0.1f, 10f, 2f);
         PlateReflectionStrength = Clamp(PlateReflectionStrength, 0f, 0.3f, 0.12f);

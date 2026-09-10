@@ -45,4 +45,4 @@ Auto drop belongs at the left of the same strip as the workspace tabs. Layout/Su
 
 Orientation style now follows the user's compact dark cube with fine outlines and red X, green Y and blue Z arrows/letters, superseding earlier large face-word styling. Preserve snapping, orbit and isolation clearance.
 
-Shadow design agreed in discussion: subtle working shadows by default and stronger optional presentation mode. AO remains independent. Model cast/self-shadow implementation is not included in this refinement; do not claim it from the existing plate shadows or contact AO.
+Authorized model/support cast and self-shadows: Working is the subtle default, Presentation is stronger, Off bypasses the pass. Both modes remember independent strength and softness settings in View settings; AO remains independent. The common directional light follows the camera. Shadow strength is bounded to retain readable illumination; transparent/ghost geometry is excluded. This is viewport shading only, with no slicing/support geometry changes.

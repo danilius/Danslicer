@@ -128,7 +128,7 @@ internal static class DeferredShaders
     /// Lighting, cavity and outlines from the G-buffer. Background pixels (albedo alpha 0) pass
     /// through untouched, so the clear colour survives compositing exactly as in the classic path.
     /// </summary>
-    public const string CompositeFragment = """
+    public const string CompositeFragment = ShadowShaders.Sampling + """
         in vec2 vUv;
 
         // highp: the ES default for sampler2D is lowp, far too coarse for depth reconstruction.
@@ -205,6 +205,9 @@ internal static class DeferredShaders
                     // MatCaps are authored around mid-grey; the 2x restores full range.
                     color = color * texture(uMatCap, n.xy * 0.5 + 0.5).rgb * 2.0;
                 }
+
+                if (!plateMaterial)
+                    color *= modelShadow((uInvView * vec4(p, 1.0)).xyz, normalize(mat3(uInvView) * n));
 
                 if (uAoStrength > 0.0)
                 {

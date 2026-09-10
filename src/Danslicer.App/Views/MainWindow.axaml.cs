@@ -680,6 +680,12 @@ public partial class MainWindow : Window
             PopShading.ItemsSource ??= new[] { "Studio", "MatCap Clay", "MatCap Metal", "MatCap Pearl" };
             PopShading.SelectedIndex = Array.IndexOf(ShadingOrder, viewport.Shading);
             PopShading.IsEnabled = deferred;
+            PopShadowMode.ItemsSource ??= new[] { "Off", "Working", "Presentation" };
+            PopShadowMode.SelectedIndex = (int)viewport.ModelShadows;
+            var shadows = Danslicer.Render.ShadowEffects.FromConfig(viewport);
+            PopShadowStrength.Value = shadows.Strength;
+            PopShadowSoftness.Value = shadows.SoftnessMm;
+            PopShadowStrength.IsEnabled = PopShadowSoftness.IsEnabled = shadows.Mode != ModelShadowMode.Off;
             PopAo.IsChecked = viewport.AmbientOcclusionEnabled;
             PopAo.IsEnabled = deferred;
             PopAoStrength.Value = viewport.AmbientOcclusionStrength;
@@ -700,6 +706,31 @@ public partial class MainWindow : Window
         {
             _syncingViewSettings = false;
         }
+    }
+
+    private void OnPopShadowModeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingViewSettings || PopShadowMode.SelectedIndex < 0) return;
+        AppConfig.Current.Viewport.ModelShadows = (ModelShadowMode)PopShadowMode.SelectedIndex;
+        ApplyRenderPathChange();
+    }
+
+    private void OnShadowStrengthCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
+    {
+        if (_syncingViewSettings) return;
+        var viewport = AppConfig.Current.Viewport;
+        if (viewport.ModelShadows == ModelShadowMode.Presentation) viewport.PresentationShadowStrength = (float)e.NewValue;
+        else if (viewport.ModelShadows == ModelShadowMode.Working) viewport.WorkingShadowStrength = (float)e.NewValue;
+        ApplyRenderPathChange();
+    }
+
+    private void OnShadowSoftnessCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
+    {
+        if (_syncingViewSettings) return;
+        var viewport = AppConfig.Current.Viewport;
+        if (viewport.ModelShadows == ModelShadowMode.Presentation) viewport.PresentationShadowSoftnessMm = (float)e.NewValue;
+        else if (viewport.ModelShadows == ModelShadowMode.Working) viewport.WorkingShadowSoftnessMm = (float)e.NewValue;
+        ApplyRenderPathChange();
     }
 
     private void OnPopShadingChanged(object? sender, SelectionChangedEventArgs e)

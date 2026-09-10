@@ -850,6 +850,18 @@
                                     <ComboBox x:Name="PopShading" Grid.Column="1"
                                               SelectionChanged="OnPopShadingChanged" />
                                 </Grid>
+                                <Grid ColumnDefinitions="80,*" Margin="0,2,0,5">
+                                    <TextBlock Text="Shadows" Classes="label" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="PopShadowMode" Grid.Column="1" SelectionChanged="OnPopShadowModeChanged" ToolTip.Tip="Working keeps support contacts readable. Presentation adds stronger soft shadows. Each mode remembers its own settings." />
+                                </Grid>
+                                <Grid ColumnDefinitions="100,*" Margin="0,2,0,5">
+                                    <TextBlock Text="Strength" Classes="label" VerticalAlignment="Center" />
+                                    <refresh:FilledNumericSlider x:Name="PopShadowStrength" Grid.Column="1" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.7" Step="0.05" Format="0.00" EditCommitted="OnShadowStrengthCommitted" />
+                                </Grid>
+                                <Grid ColumnDefinitions="100,*" Margin="0,2,0,5">
+                                    <TextBlock Text="Softness" Classes="label" VerticalAlignment="Center" />
+                                    <refresh:FilledNumericSlider x:Name="PopShadowSoftness" Grid.Column="1" UnitKind="Length" Unit="mm" Minimum="0" Maximum="4" Step="0.1" Format="0.0" EditCommitted="OnShadowSoftnessCommitted" />
+                                </Grid>
                                 <CheckBox x:Name="PopAo" Content="Contact depth (AO)" Click="OnToggleAoClick" ToolTip.Tip="Subtle local proximity shading on opaque models and supports. Strength and radius: Preferences, Viewport." />
                                 <Grid ColumnDefinitions="100,*" Margin="0,2,0,5">
                                     <TextBlock Text="AO strength" Classes="label" VerticalAlignment="Center" />

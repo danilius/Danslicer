@@ -663,6 +663,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 Configuration.AppConfig.Current.Viewport.OverhangColorB, new Vector3(0.90f, 0.12f, 0.10f)),
             OverhangCheckerSizeMm = Configuration.AppConfig.Current.Viewport.OverhangCheckerSizeMm,
             RenderPath = Configuration.AppConfig.Current.Viewport.RenderPath,
+            Shadows = ShadowEffects.FromConfig(Configuration.AppConfig.Current.Viewport),
             Deferred = DeferredEffects.FromConfig(Configuration.AppConfig.Current.Viewport),
             ClipRange = ClipRange,
             CapInterior = CapInterior,

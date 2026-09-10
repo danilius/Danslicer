@@ -1,3 +1,12 @@
+# Optional shadow system — latest authorized work
+Same e262 worktree, branch codex/ui-refresh-04. Prior good code: 2f3e48e1c18298989812bd2f37221b83fc20fc72; implementation plan: aa95a8b. Resolve current committed HEAD for the shadow handoff. User approved implementing subtle default shadows plus stronger optional Presentation.
+
+View settings now offers Shadows: Off / Working / Presentation. Working defaults to strength 0.22, softness 0.6 mm; Presentation defaults to 0.50 and 1.2 mm. Each mode retains independent saved fields. AO is separate. Both Classic and Deferred render opaque model/support cast and self-shadows from one camera-relative directional light. Plate rendering retains its existing separate controls.
+
+One 2048-square depth map and 48 fixed disk taps; receiver-plane depth correction at actual sampled texel centres prevents flat-face acne. No temporal accumulation. Strength capped at 0.7 to retain illumination. Off/zero strength skips the map pass. Transparent/ghost/overlay geometry is excluded. Geometry is clipped before casting; Deferred painted caps are screen-space faces and are not additional shadow casters. Synthetic box/support fixtures validate the effect; no actual bust asset or alternate GPU was tested. This is an approximation of soft studio shadows, not ray-traced global illumination. Map resolution bounds very large-scene detail; final harness timing is in the evidence log.
+
+Release solution build, 115 focused tests, native shadow controls/persistence checks and real GL checks are documented in task-04.md. Historical handoffs below describe earlier revisions and are superseded by this section where they say model shadows are not implemented. MAIN launch command below remains correct. No task 05 or main merge.
+
 # Latest task-04 refinement — ready for review
 Same e262 worktree and codex/ui-refresh-04 branch. Starting/last-good prior handoff: acbff390c73835cfde7235e8c7159047888f4281. Current HEAD is the committed refinement; resolve exact ref before continuing. Auto drop restored to left of top strip, workspace tabs centered, AO strength/radius directly in View settings, compact dark cube/XYZ arrows implemented. Build, 127 focused tests, native main checks and 64 GL views passed. Details and evidence in task-04.md and evidence/task-04-refinement-{ui,gl}. MAIN launch command below is unchanged.
 
