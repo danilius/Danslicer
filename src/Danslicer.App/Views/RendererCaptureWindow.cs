@@ -73,10 +73,11 @@ internal sealed class RendererCaptureWindow : Window
                 var captures = new Dictionary<string, byte[]>();
                 var report = new List<string> { $"GL: {_renderer.GlVersion}", $"GPU: {gl.GetStringS(StringName.Renderer)}", $"Framebuffer {width}x{height}; synthetic closed box model and 15 support-like aux pillars; no user config loaded." };
                 foreach (var path in new[] { RenderPathMode.Deferred, RenderPathMode.Classic })
-                foreach (var shot in new[] { "above", "below", "grazing", "contact", "effects-off", "ao-off", "cavity-off", "reflections", "reflections-off", "below-reflections-off", "isolation", "transparent", "ortho", "selected", "transition-0", "transition-3", "transition-9", "transition-12", "supports-below", "supports-contact", "supports-ao-off", "supports-isolation", "supports-cap-off", "supports-isolation-below", "supports-cap-off-below", "transparent-grazing", "matcap", "dense", "dense-effects-off" })
+                foreach (var shot in new[] { "above", "below", "grazing", "contact", "effects-off", "ao-off", "cavity-off", "reflections", "reflections-off", "below-reflections-off", "isolation", "transparent", "ortho", "selected", "transition-0", "transition-3", "transition-9", "transition-12", "supports-below", "supports-contact", "supports-ao-off", "supports-isolation", "supports-cap-off", "supports-isolation-below", "supports-cap-off-below", "transparent-grazing", "matcap", "dense", "dense-effects-off", "cube", "cube-below", "cube-top" })
                 {
                     var camera = new Camera { Target = new(0, 0, 12), Distance = shot == "above" || shot.StartsWith("dense") ? 260 : 85 };
                     camera.SetView(-65, (shot.StartsWith("below") || shot == "supports-below" || shot.EndsWith("-below")) ? -35 : shot.StartsWith("transition-") ? float.Parse(shot[11..]) : shot is "grazing" or "transparent-grazing" ? 6 : 28);
+                    if (shot == "cube-top") camera.ViewTop();
                     camera.Orthographic = shot == "ortho";
                     var clip = shot == "isolation" || shot.StartsWith("supports-isolation") || shot.StartsWith("supports-cap-off") ? new ViewportClipRange(0, 27, 6, 23, true) : default;
                     var sourceAux = shot.StartsWith("supports-") ? realSupports : shot.StartsWith("dense") ? denseSupports : aux;
@@ -106,7 +107,7 @@ internal sealed class RendererCaptureWindow : Window
                         PlateReflectionsEnabled = shot is not ("effects-off" or "reflections-off" or "below-reflections-off" or "dense-effects-off"),
                         ShowPlateShadows = shot is not ("reflections" or "reflections-off"),
                         ClipRange = clip, CapInterior = cap,
-                        CapStyle = path == RenderPathMode.Deferred ? ClipCapStyle.Painted : ClipCapStyle.Sliced, ShowViewCube = false,
+                        CapStyle = path == RenderPathMode.Deferred ? ClipCapStyle.Painted : ClipCapStyle.Sliced, ShowViewCube = shot.StartsWith("cube"),
                     };
                     for (var warm = 0; warm < 12; warm++) _renderer.Render(frame);
                     gl.Finish();

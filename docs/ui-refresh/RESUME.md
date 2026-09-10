@@ -1,4 +1,9 @@
-# Task 04 � completed implementation, ready for user review
+# Latest task-04 refinement — ready for review
+Same e262 worktree and codex/ui-refresh-04 branch. Starting/last-good prior handoff: acbff390c73835cfde7235e8c7159047888f4281. Current HEAD is the committed refinement; resolve exact ref before continuing. Auto drop restored to left of top strip, workspace tabs centered, AO strength/radius directly in View settings, compact dark cube/XYZ arrows implemented. Build, 127 focused tests, native main checks and 64 GL views passed. Details and evidence in task-04.md and evidence/task-04-refinement-{ui,gl}. MAIN launch command below is unchanged.
+
+User chose gentle working shadows by default plus stronger optional presentation mode during discussion. That is the agreed direction for subsequent shadow work, not implemented cast/self-shadows in this revision. No later task or merge. Physical-input/alternate-GPU limits below remain. The historical task-04 handoff follows.
+
+# Task 04 — completed implementation, ready for user review
 
 Date: 2026-09-10
 Worktree: C:/Users/plane/.codex/worktrees/e262/Danslicer-chatgpt

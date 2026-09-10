@@ -14,7 +14,7 @@ public sealed unsafe class ViewCube : IDisposable
 {
     // A cell coordinate past this magnitude belongs to the edge/corner band of its face.
     private const float Band = 0.6f;
-    private const float OrthoExtent = 2.1f; // > cube diagonal radius sqrt(3), any rotation fits
+    private const float OrthoExtent = 4.2f; // cube plus positive-axis arrows and billboard letters
 
     /// <summary>Default on-screen size in DIP-independent pixels, before DPI scaling. Raised from
     /// 96 to 120 by the user after seeing full-word labels at both sizes.</summary>
@@ -66,12 +66,25 @@ public sealed unsafe class ViewCube : IDisposable
     private readonly uint _vao;
     private readonly uint _vbo;
     private readonly int _vertexCount;
+    private readonly uint _axesVao;
+    private readonly uint _axesVbo;
 
     public ViewCube(GL gl, bool gles)
     {
         _gl = gl;
         var preamble = Shaders.Preamble(gles);
         _shader = new ShaderProgram(gl, preamble + CubeVertex, preamble + CubeFragment);
+
+        _axesVao = gl.GenVertexArray();
+        _axesVbo = gl.GenBuffer();
+        gl.BindVertexArray(_axesVao);
+        gl.BindBuffer(BufferTargetARB.ArrayBuffer, _axesVbo);
+        gl.EnableVertexAttribArray(0);
+        gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 7 * sizeof(float), (void*)0);
+        gl.EnableVertexAttribArray(1);
+        gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 7 * sizeof(float), (void*)(3 * sizeof(float)));
+        gl.EnableVertexAttribArray(2);
+        gl.VertexAttribPointer(2, 1, VertexAttribPointerType.Float, false, 7 * sizeof(float), (void*)(6 * sizeof(float)));
 
         var verts = BuildVertices();
         _vertexCount = verts.Length / 7;
@@ -127,7 +140,8 @@ public sealed unsafe class ViewCube : IDisposable
     public static float DragDegreesPerPixel(int sizePixels = DefaultSizePixels)
     {
         var clamped = Math.Clamp(sizePixels, MinSizePixels, MaxSizePixels);
-        var pixelsPerUnit = clamped / (2f * OrthoExtent);
+        // Preserve the established orbit speed while the new visual cube is more compact.
+        var pixelsPerUnit = clamped / 4.2f;
         // sqrt(2) is the edge-midpoint radius: between the face centres you usually grab and the
         // corners, so neither a face drag nor a corner drag feels wrong.
         var radiusPixels = MathF.Sqrt(2f) * pixelsPerUnit;
@@ -157,8 +171,18 @@ public sealed unsafe class ViewCube : IDisposable
         var origin = Vector3.Transform(new Vector3(u, v, 3f), toCube);
         var direction = Vector3.TransformNormal(new Vector3(0, 0, -1f), toCube);
 
-        if (!RayUnitBox(origin, direction, out var hit)) return -1;
-        return RegionId(Component(hit.X), Component(hit.Y), Component(hit.Z));
+        if (RayUnitBox(origin, direction, out var hit))
+            return RegionId(Component(hit.X), Component(hit.Y), Component(hit.Z));
+        for (var axis = 0; axis < 3; axis++)
+        {
+            var tip = Vector3.TransformNormal(AxisVector(axis) * 3.2f, rot);
+            var tip2 = new Vector2(tip.X, tip.Y);
+            if (tip2.LengthSquared() < 0.01f) continue;
+            var label = tip2 + Vector2.Normalize(tip2) * 0.45f;
+            if (Vector2.Distance(new(u, v), label) < 0.48f || Vector2.Distance(new(u, v), tip2) < 0.28f)
+                return RegionId(axis == 0 ? 1 : 0, axis == 1 ? 1 : 0, axis == 2 ? 1 : 0);
+        }
+        return -1;
 
         static int Component(float c) => c > Band ? 1 : c < -Band ? -1 : 0;
     }
@@ -195,7 +219,18 @@ public sealed unsafe class ViewCube : IDisposable
 
         var projection = Matrix4x4.CreateOrthographic(OrthoExtent * 2, OrthoExtent * 2, -4f, 4f);
         _shader.Use();
-        _shader.Set("uView", RotationOnly(cameraView));
+        var rotation = RotationOnly(cameraView);
+        var axes = BuildAxes(rotation);
+        _shader.Set("uView", Matrix4x4.Identity);
+        _shader.Set("uProjection", projection);
+        _shader.Set("uHover", -10f);
+        gl.Disable(EnableCap.CullFace);
+        gl.BindVertexArray(_axesVao);
+        gl.BindBuffer(BufferTargetARB.ArrayBuffer, _axesVbo);
+        fixed (float* p = axes) gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(axes.Length * sizeof(float)), p, BufferUsageARB.DynamicDraw);
+        gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)(axes.Length / 7));
+        gl.Enable(EnableCap.CullFace);
+        _shader.Set("uView", rotation);
         _shader.Set("uProjection", projection);
         _shader.Set("uHover", hoverRegion < 0 ? -10f : hoverRegion);
         gl.BindVertexArray(_vao);
@@ -209,6 +244,8 @@ public sealed unsafe class ViewCube : IDisposable
 
     public void Dispose()
     {
+        _gl.DeleteBuffer(_axesVbo);
+        _gl.DeleteVertexArray(_axesVao);
         _gl.DeleteBuffer(_vbo);
         _gl.DeleteVertexArray(_vao);
         _shader.Dispose();
@@ -254,19 +291,16 @@ public sealed unsafe class ViewCube : IDisposable
 
     /// <summary>Blender axis palette; negative faces dimmed, border cells darkened a touch.</summary>
     /// <summary>
-    /// Neutral greys. The axis colours (red/green/blue by axis, dimmed on the -side) are gone at
-    /// the user's request — Fusion's cube, the reference they gave, is a plain light-grey solid.
-    /// A small per-axis step and a dim on the -axis faces remain so the cube still reads as a lit
-    /// object rather than a flat silhouette; the only colour left on it is the amber hover tint
-    /// applied in the fragment shader, which now has the whole cube to itself.
+    /// Dark neutral faces for the user's compact cube/XYZ-arrow reference. Only the arrows
+    /// carry axis colours; amber hover feedback preserves the 26 existing snap regions.
     /// </summary>
     private static Vector3 FaceColor(int axis, int sign)
     {
         var level = axis switch
         {
-            0 => 0.72f,
-            1 => 0.76f,
-            _ => 0.82f, // Z: the top face catches the most light, as it would in life
+            0 => 0.28f,
+            1 => 0.34f,
+            _ => 0.40f, // Z: the top face catches the most light, as it would in life
         };
         return new Vector3(sign > 0 ? level : level * 0.86f);
     }
@@ -292,18 +326,24 @@ public sealed unsafe class ViewCube : IDisposable
                     Set(ref rx, ref ry, ref rz, t2, cj);
                     var region = RegionId(rx, ry, rz);
                     var color = FaceColor(axis, sign);
-                    if (ci != 0 || cj != 0) color *= 0.82f; // sketch the region grid
+                    // Pick regions remain, but there is no visible 3x3 face grid.
                     Quad(data, axis, sign, t1, t2,
                         edges[i], edges[i + 1], edges[j], edges[j + 1], color, region);
                 }
             }
         }
 
-        // Labels draw last so they land on top of the face quads above (Draw() has no depth
-        // test, so later-submitted triangles simply win the pixel — no texture, no extra pass,
-        // and the same buffer/shader draws both render paths since ViewCube.Draw is shared).
-        foreach (var (axis, sign, text) in ViewCubeLabels.Faces)
-            AddLabel(data, axis, sign, text);
+        // Fine silhouette edges on each face; no large face words in the compact axis style.
+        for (var axis = 0; axis < 3; axis++)
+        foreach (var sign in new[] { -1, 1 })
+        {
+            var t1 = (axis + 1) % 3; var t2 = (axis + 2) % 3;
+            var ink = new Vector3(0.62f);
+            Quad(data, axis, sign, t1, t2, -1, -0.92f, -1, 1, ink, -100);
+            Quad(data, axis, sign, t1, t2, 0.92f, 1, -1, 1, ink, -100);
+            Quad(data, axis, sign, t1, t2, -1, 1, -1, -0.92f, ink, -100);
+            Quad(data, axis, sign, t1, t2, -1, 1, 0.92f, 1, ink, -100);
+        }
 
         return [.. data];
 
@@ -360,6 +400,34 @@ public sealed unsafe class ViewCube : IDisposable
                 data.Add(centerRegion);
             }
         }
+    }
+
+    private static float[] BuildAxes(Matrix4x4 rotation)
+    {
+        var data = new List<float>();
+        for (var axis = 0; axis < 3; axis++)
+        {
+            var color = axis switch { 0 => new Vector3(0.96f, 0.36f, 0.28f), 1 => new Vector3(0.45f, 0.84f, 0.32f), _ => new Vector3(0.38f, 0.70f, 0.96f) };
+            var endpoint = Vector3.TransformNormal(AxisVector(axis) * 3.2f, rotation);
+            var tip = new Vector2(endpoint.X, endpoint.Y);
+            if (tip.LengthSquared() < 0.01f) continue;
+            var direction = Vector2.Normalize(tip);
+            var side = new Vector2(-direction.Y, direction.X);
+            var neck = tip - direction * 0.3f;
+            Quad2(direction * 0.8f + side * 0.045f, neck + side * 0.045f,
+                neck - side * 0.045f, direction * 0.8f - side * 0.045f, color);
+            Vertex(tip, color); Vertex(neck + side * 0.14f, color); Vertex(neck - side * 0.14f, color);
+            var label = tip + direction * 0.45f;
+            foreach (var (row, col) in ViewCubeLabels.Glyph("XYZ"[axis]))
+            {
+                var lo = label + new Vector2((col - 2.5f) * 0.1f, (2.5f - row) * 0.1f);
+                Quad2(lo, lo + new Vector2(0.1f, 0), lo + new Vector2(0.1f), lo + new Vector2(0, 0.1f), color);
+            }
+        }
+        return data.ToArray();
+        void Vertex(Vector2 p, Vector3 c) { data.AddRange([p.X, p.Y, 0, c.X, c.Y, c.Z, -100]); }
+        void Quad2(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Vector3 color)
+        { Vertex(a, color); Vertex(b, color); Vertex(c, color); Vertex(a, color); Vertex(c, color); Vertex(d, color); }
     }
 
     private static Vector3 AxisVector(int axis) =>

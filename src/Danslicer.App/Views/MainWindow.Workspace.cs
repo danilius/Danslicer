@@ -144,9 +144,10 @@ public partial class MainWindow
     {
         UpdateIsolationPlacement();
         var bounds = ViewportSurface.Bounds;
-        var narrow = bounds.Width < 950;
+        var narrow = bounds.Width < 1100;
         Grid.SetRow(MachineSummary, narrow ? 1 : 0);
-        Grid.SetColumn(MachineSummary, narrow ? 0 : 1);
+        Grid.SetColumn(MachineSummary, 0);
+        MachineSummary.Margin = narrow ? new Thickness(0, 3, 0, 0) : new Thickness(96, 0, 8, 0);
         Grid.SetColumnSpan(MachineSummary, narrow ? 3 : 1);
         _workspaceToolbar.MaxHeight = Math.Max(40, bounds.Height - 24);
         foreach (var popup in _workspacePopouts)

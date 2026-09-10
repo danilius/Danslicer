@@ -77,6 +77,13 @@ public partial class MainWindow
         Width = 1200; Height = 800;
         vm.ViewMode = WorkspaceMode.Layout;
         await Layout();
+        Require(HeaderAutoDrop.IsEffectivelyVisible && HeaderAutoDrop.IsEnabled, "Auto drop missing from Layout header");
+        var autoDrop = vm.AutoDropEnabled;
+        HeaderAutoDrop.IsChecked = !autoDrop;
+        Require(vm.AutoDropEnabled != autoDrop, "Header Auto drop binding failed");
+        HeaderAutoDrop.IsChecked = autoDrop;
+        var tabsCentre = WorkspaceTabs.TranslatePoint(new Point(WorkspaceTabs.Bounds.Width / 2, 0), WorkspaceHeader)!.Value.X;
+        Require(Math.Abs(tabsCentre - WorkspaceHeader.Bounds.Width / 2) < 1, "Workspace tabs are not centered");
         Require(WorkspaceGrid.ColumnDefinitions.Count <= 1, "Permanent settings columns remain");
         Require(_workspacePopouts.Count == 12, "Settings host missing");
         Click(ObjectsToolButton); await Layout();
@@ -139,6 +146,23 @@ public partial class MainWindow
                     "View menu and popout effect state disagree");
                 PopAo.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 PopReflections.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                var oldStrength = config.AmbientOcclusionStrength;
+                var oldRadius = config.AmbientOcclusionRadiusMm;
+                void EditAo(ScrubField field, string expression)
+                {
+                    field.Focus(); Key(field, Avalonia.Input.Key.Enter);
+                    var input = field.GetVisualDescendants().OfType<TextBox>().Single();
+                    input.Text = expression; Key(input, Avalonia.Input.Key.Enter);
+                }
+                EditAo(PopAoStrength, "0.1 + 0.1");
+                EditAo(PopAoRadius, "0.3 cm");
+                Require(Math.Abs(config.AmbientOcclusionStrength - 0.2f) < 0.0001 && Math.Abs(config.AmbientOcclusionRadiusMm - 3) < 0.0001,
+                    "AO popout expressions/units failed");
+                saved = Core.Config.UserConfig.Load(configPath).Viewport;
+                Require(saved.AmbientOcclusionStrength == config.AmbientOcclusionStrength && saved.AmbientOcclusionRadiusMm == 3,
+                    "AO popout values were not persisted");
+                EditAo(PopAoStrength, oldStrength.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                EditAo(PopAoRadius, oldRadius.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 Capture("workspace-view-effects.png");
                 File.WriteAllText(System.IO.Path.Combine(directory, "view-effects-ok.txt"), "AO/reflection toggles save, menu/popout states agree, saved Cap unchanged, original effect choices restored in isolated configuration.");
             }
@@ -168,6 +192,9 @@ public partial class MainWindow
         await Layout();
         var corner = PrintPopout.TranslatePoint(new Point(PrintPopout.Bounds.Width, PrintPopout.Bounds.Height), ViewportSurface)!.Value;
         Require(corner.X <= ViewportSurface.Bounds.Width && corner.Y <= ViewportSurface.Bounds.Height, "Narrow popout overflow");
+        tabsCentre = WorkspaceTabs.TranslatePoint(new Point(WorkspaceTabs.Bounds.Width / 2, 0), WorkspaceHeader)!.Value.X;
+        Require(Math.Abs(tabsCentre - WorkspaceHeader.Bounds.Width / 2) < 1, "Narrow workspace tabs are not centered");
+        Require(HeaderAutoDrop.IsEffectivelyVisible, "Narrow Auto drop disappeared");
         Capture("workspace-narrow.png");
         // Project round trip uses the same successful-open path as the dropdown.
         var path = System.IO.Path.Combine(directory, "workspace-smoke.danslicer");

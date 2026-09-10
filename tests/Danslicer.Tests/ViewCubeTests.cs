@@ -10,6 +10,17 @@ public sealed class ViewCubeTests
         Matrix4x4.CreateLookAt(eye, Vector3.Zero, Vector3.UnitZ);
 
     [Fact]
+    public void CompactAxisLabelSnapsToPositiveAxis()
+    {
+        const int width = 1000, height = 800;
+        var (x, y, size) = ViewCube.Rect(width, height, 1);
+        // From -Y, world X projects right; label centre is 3.65 in the 8.4-unit viewport.
+        var hit = ViewCube.HitRegion(x + size * (0.5f + 3.65f / 8.4f), height - 1 - (y + size / 2f),
+            width, height, 1, LookFrom(new(0, -10, 0)));
+        Assert.Equal((0f, 0f), ViewCube.ViewAngles(hit, 0));
+    }
+
+    [Fact]
     public void CentreOfTheCubeRectHitsTheFaceTowardTheCamera()
     {
         const int width = 1000, height = 800;

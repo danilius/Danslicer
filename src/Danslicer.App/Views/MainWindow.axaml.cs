@@ -682,6 +682,9 @@ public partial class MainWindow : Window
             PopShading.IsEnabled = deferred;
             PopAo.IsChecked = viewport.AmbientOcclusionEnabled;
             PopAo.IsEnabled = deferred;
+            PopAoStrength.Value = viewport.AmbientOcclusionStrength;
+            PopAoRadius.Value = viewport.AmbientOcclusionRadiusMm;
+            PopAoStrength.IsEnabled = PopAoRadius.IsEnabled = deferred;
             PopReflections.IsChecked = viewport.PlateReflectionsEnabled;
             PopCavity.IsChecked = viewport.CavityEnabled;
             PopOutlines.IsChecked = viewport.OutlinesEnabled;
@@ -739,6 +742,18 @@ public partial class MainWindow : Window
         if (sender is MenuItem { Tag: string tag } &&
             Enum.TryParse<ViewportShadingMode>(tag, out var mode))
             AppConfig.Current.Viewport.Shading = mode;
+        ApplyRenderPathChange();
+    }
+
+    private void OnAoStrengthCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
+    {
+        AppConfig.Current.Viewport.AmbientOcclusionStrength = (float)e.NewValue;
+        ApplyRenderPathChange();
+    }
+
+    private void OnAoRadiusCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
+    {
+        AppConfig.Current.Viewport.AmbientOcclusionRadiusMm = (float)e.NewValue;
         ApplyRenderPathChange();
     }
 

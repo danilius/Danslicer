@@ -39,3 +39,10 @@ AO is explicitly in scope: independent subtle local proximity/contact depth shad
 Surface/reflections/grid disappear completely below regardless of a legacy residual-opacity setting; that retained JSON value now controls the optional faint perimeter. Plate geometry is viewport-only, beneath Z=0. Below picking must reach models/supports. Real GL framebuffer evidence, above/below/contact and independent toggles, is required; offscreen Avalonia screenshots with black GL regions cannot validate rendering. Tests/previews isolate configuration.
 
 Raft orientation authority is the actual geometry/spec: outer top lip wider than bottom, holes vertical, matching the existing committed scraper-lip implementation. No task-04 geometry mismatch was found or geometry correction made. Task 05 must retain core slicing/support output compatibility.
+
+## Latest user refinement — top strip and orientation widget
+Auto drop belongs at the left of the same strip as the workspace tabs. Layout/Support/Slicing is centered in that strip, with equal outer space; keep machine/resin and Project accessible at narrow sizes. Auto drop retains existing Layout placement semantics. AO strength and radius must be readily configurable from View settings with the approved numeric field interaction.
+
+Orientation style now follows the user's compact dark cube with fine outlines and red X, green Y and blue Z arrows/letters, superseding earlier large face-word styling. Preserve snapping, orbit and isolation clearance.
+
+Shadow design agreed in discussion: subtle working shadows by default and stronger optional presentation mode. AO remains independent. Model cast/self-shadow implementation is not included in this refinement; do not claim it from the existing plate shadows or contact AO.
