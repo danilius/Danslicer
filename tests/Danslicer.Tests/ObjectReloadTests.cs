@@ -192,6 +192,9 @@ public sealed class ObjectReloadTests
             ProjectFile.Save(path, document, new ProjectViewState());
             var loaded = ProjectFile.Load(path);
             Assert.Equal(@"C:\models\part.stl", loaded.Document.Scene.Objects[0].SourcePath);
+            var viewModel = new MainViewModel();
+            viewModel.OpenProject(path);
+            Assert.Equal(obj.SourcePath, Assert.Single(viewModel.Objects).SourcePath);
         }
         finally
         {

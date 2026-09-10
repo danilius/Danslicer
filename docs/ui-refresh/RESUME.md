@@ -1,3 +1,10 @@
+# Current checkpoint — Task 05 iteration 1
+
+Worktree C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt; codex/ui-refresh-05; last-good committed plan 05a8004. Build and 1010 full tests passed. Confirmed live Document.ReplaceWith drops loaded raft and source path; fixed copy and 26 targeted regressions pass. Native full workflow recheck pending. Raft harness now awaits bounded dispatcher result; production 100ms unchanged. Project menu punctuation fixed. See task-05.md. Main remains ancestral 7d95ceb, no merge. Next: finish workflow diagnostics, actual GL and acceptance review. Tasks 06/07 queued.
+
+---
+Previous checkpoints follow (historical).
+
 # Current checkpoint — Task 05 in progress
 
 User authorized Go ahead with 05. Current worktree: C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt; branch codex/ui-refresh-05; clean starting ref c829020492020c333f1c0937b7275732927a6a4f. Main remains ancestral 7d95ceb; no merge needed. See task-05.md for current plan/results. Build pending approved restore. Next: full regression, native workflows and actual GL evidence. Tasks 06/07 remain queued. No main merge or push.

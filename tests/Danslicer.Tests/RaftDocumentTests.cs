@@ -183,6 +183,13 @@ public class RaftDocumentTests
 
             var back = Assert.Single(loaded.Document.Scene.Objects);
             Assert.Equal(obj.Raft, back.Raft);
+
+            // Opening in the running app retains its Document and subscriptions.
+            // The file reader alone did not catch the live-document copy losing rafts.
+            var live = new Document();
+            live.ReplaceWith(loaded.Document);
+            Assert.Equal(obj.Raft, Assert.Single(live.Scene.Objects).Raft);
+            Assert.Equal(document.FeetOf(obj).Count, live.FeetOf(live.Scene.Objects[0]).Count);
         }
         finally
         {

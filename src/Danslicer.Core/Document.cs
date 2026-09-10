@@ -128,6 +128,8 @@ public sealed class Document
             Transform = obj.Transform,
             RenderState = obj.RenderState,
             Regions = obj.Regions,
+            SourcePath = obj.SourcePath,
+            Raft = obj.Raft,
         }));
         Supports.ReplaceWith(source.Supports.Nodes.Select(node => node.Clone()),
             source.Supports.Segments.Select(segment => segment.Clone()));
