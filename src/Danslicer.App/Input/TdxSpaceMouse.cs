@@ -32,6 +32,13 @@ public sealed class TdxSpaceMouse : ISixAxisInput
     /// <summary>True when the button event hook is live; motion can work without it.</summary>
     public bool ButtonsConnected { get; private set; }
 
+    /// <summary>
+    /// The driver's own sensor refresh interval in seconds (<c>ISensor.Period</c>), read once at
+    /// connect for diagnostics; <c>null</c> when the driver would not report it. A healthy device
+    /// reports a few milliseconds; a large value means the driver itself is throttling us.
+    /// </summary>
+    public double? DriverPeriodSeconds { get; private set; }
+
     public bool TryConnect()
     {
         if (IsConnected) return true;
@@ -44,6 +51,7 @@ public sealed class TdxSpaceMouse : ISixAxisInput
             _device.Connect();
             _sensor = _device.Sensor;
             IsConnected = true;
+            try { DriverPeriodSeconds = (double)_sensor!.Period; } catch { DriverPeriodSeconds = null; }
             ConnectKeyboard();
             return true;
         }

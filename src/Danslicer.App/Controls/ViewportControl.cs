@@ -2943,9 +2943,10 @@ public sealed class ViewportControl : OpenGlControlBase
             device.Dispose();
             return;
         }
-        Log(device.ButtonsConnected
+        Log((device.ButtonsConnected
             ? "SpaceMouse connected via 3DxWare COM, buttons hooked"
-            : "SpaceMouse connected via 3DxWare COM, button events unavailable");
+            : "SpaceMouse connected via 3DxWare COM, button events unavailable")
+            + $"; driver period {(device.DriverPeriodSeconds is { } p ? $"{p * 1000:F1} ms" : "unknown")}");
         _sixAxis = device;
         _sixAxisTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(15) };
         _sixAxisTimer.Tick += (_, _) => PollSpaceMouse();
