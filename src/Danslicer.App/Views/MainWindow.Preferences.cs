@@ -65,7 +65,17 @@ public partial class MainWindow
     {
         if (_workspacePreferences is null) return;
         _workspacePreferences.RecentProjects = _recentProjects.ToList();
-        try { _workspacePreferences.Save(AppConfig.WorkspacePath); }
+        try
+        {
+            // The modeless preset editor owns this namespace and may have saved since
+            // the main window loaded its workspace snapshot.
+            var latest = WorkspacePreferences.Load(AppConfig.WorkspacePath);
+            foreach (var pair in latest.SectionOrder.Where(p => p.Key.StartsWith("SupportPresetEditor/", StringComparison.Ordinal)))
+                _workspacePreferences.SectionOrder[pair.Key] = pair.Value;
+            foreach (var pair in latest.Expanded.Where(p => p.Key.StartsWith("SupportPresetEditor/", StringComparison.Ordinal)))
+                _workspacePreferences.Expanded[pair.Key] = pair.Value;
+            _workspacePreferences.Save(AppConfig.WorkspacePath);
+        }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             if (ViewModel is { } vm) vm.ViewportStatus = "Could not save workspace preferences: " + e.Message;

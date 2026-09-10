@@ -704,6 +704,8 @@ public partial class MainWindow : Window
             PopReflections.IsChecked = viewport.PlateReflectionsEnabled;
             PopCavity.IsChecked = viewport.CavityEnabled;
             PopOutlines.IsChecked = viewport.OutlinesEnabled;
+            PopOutlineWidth.Value = viewport.OutlineWidthPixels;
+            PopOutlineWidth.IsEnabled = deferred;
             PopFxaa.IsChecked = viewport.FxaaEnabled;
             PopCavity.IsEnabled = deferred;
             PopOutlines.IsEnabled = deferred;

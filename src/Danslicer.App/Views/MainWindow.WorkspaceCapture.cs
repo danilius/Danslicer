@@ -232,6 +232,7 @@ public partial class MainWindow
         await CheckSettingsIntegration(directory);
         await CheckLiveNumericPreviews(directory);
         await CheckPrintWorkflow(directory);
+        await CheckSupportEditorRefinements(directory);
         File.Delete(path);
         File.Delete(meshPath);
     }

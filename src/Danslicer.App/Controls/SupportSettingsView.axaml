@@ -59,17 +59,17 @@
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports tip contact diameter mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Tip diameter" Classes="label" ToolTip.Tip="Diameter of the tip's end where it meets the model, mm. Smaller leaves a smaller mark and holds less." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportTipDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="100" Step="0.05" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportTipDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="3" Step="0.05" Format="0.##"
                                    Value="{Binding SupportTipDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports tip ball snap diameter none zero mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Ball diameter (0 = none)" Classes="label" ToolTip.Tip="A sphere at the very tip, mm, for a rounder contact that snaps off cleanly. 0 = the cone ends flat." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBallDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="0.05" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBallDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="5" Step="0.05" Format="0.##"
                                    Value="{Binding SupportBallDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports tip penetration depth embedding mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Penetration depth" Classes="label" ToolTip.Tip="How far the tip sinks into the model surface along its axis, mm, so the contact bonds rather than touches." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportPenetrationDepth" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="0.05" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportPenetrationDepth" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="3" Step="0.05" Format="0.##"
                                    Value="{Binding SupportPenetrationDepth, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
@@ -79,12 +79,12 @@
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports members trunk diameter mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Trunk diameter" Classes="label" ToolTip.Tip="Diameter of the vertical member rising from the base, mm." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportTrunkDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="100" Step="0.05" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportTrunkDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="10" Step="0.05" Format="0.##"
                                    Value="{Binding SupportTrunkDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members branch diameter mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Branch diameter" Classes="label" ToolTip.Tip="Diameter of the angled members that carry tips to a trunk, mm." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBranchDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="100" Step="0.05" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBranchDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="10" Step="0.05" Format="0.##"
                                    Value="{Binding SupportBranchDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members angle degrees maximum" ColumnDefinitions="170,*" Margin="0,2">
@@ -94,12 +94,12 @@
                 </Grid>
                 <Grid Tag="supports members tip member length mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Cone length" Classes="label" ToolTip.Tip="Length of the cone from the tip's end back to where it joins its branch or trunk, mm." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportTipMemberLength" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="100" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportTipMemberLength" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="15" Step="0.1" Format="0.##"
                                    Value="{Binding SupportTipMemberLength, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members maximum branch length mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max branch length" Classes="label" ToolTip.Tip="The longest branch the router will lay from a tip to a trunk, mm; a tip further than this gets its own trunk." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportMaxBranchLength" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.5" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportMaxBranchLength" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="50" Step="0.5" Format="0.##"
                                    Value="{Binding SupportMaxBranchLength, Mode=TwoWay}" />
                 </Grid>
                 <CheckBox Tag="supports members prefer existing trunks branch first" Content="Prefer existing trunks"
@@ -110,19 +110,19 @@
                           IsChecked="{Binding SupportIndependentManualSupports, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports members existing trunk branch range mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Existing trunk range" Classes="label" ToolTip.Tip="How far around a new tip the router looks for a trunk already standing to branch onto, mm." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportExistingTrunkBranchRange" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.5" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportExistingTrunkBranchRange" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="50" Step="0.5" Format="0.##"
                                    Value="{Binding SupportExistingTrunkBranchRange, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members minimum surface gap separation mm disabled zero"
                       ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Min surface gap" Classes="label" ToolTip.Tip="Minimum gap between the surfaces of members that do not meet, mm, so neighbours do not fuse. 0 = no rule." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportMinMemberSeparationMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportMinMemberSeparationMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="10" Step="0.1" Format="0.##"
                                    Value="{Binding SupportMinMemberSeparationMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members minimum branch attach height above plate mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Min branch height" Classes="label"
                                ToolTip.Tip="No branch joins a trunk, and no junction is made, below this height above the plate" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportMinBranchAttachHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="500" Step="1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportMinBranchAttachHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="50" Step="1" Format="0.##"
                                    Value="{Binding SupportMinBranchAttachHeightMm, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
@@ -137,17 +137,17 @@
                 </Grid>
                 <Grid Tag="supports base diameter mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Base diameter" Classes="label" ToolTip.Tip="Diameter of the base disc on the plate, mm. Bases never shrink to fit; a base that would hit the model moves instead." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBaseDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="100" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBaseDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="25" Step="0.1" Format="0.##"
                                    Value="{Binding SupportBaseDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports base height thickness mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Base height" Classes="label" ToolTip.Tip="Height of the base disc, mm." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBaseHeight" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBaseHeight" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="10" Step="0.1" Format="0.##"
                                    Value="{Binding SupportBaseHeight, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports base cone height mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Base cone height" Classes="label" ToolTip.Tip="Height of the cone from the disc up to the trunk diameter (Disc + cone), mm." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBaseConeHeight" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBaseConeHeight" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="10" Step="0.1" Format="0.##"
                                    Value="{Binding SupportBaseConeHeight, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
@@ -159,7 +159,7 @@
                           IsChecked="{Binding SupportUseBaseGrid, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports base square grid pitch spacing mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Grid pitch" Classes="label" ToolTip.Tip="Spacing of the imaginary grid bases snap to, mm. Coarser gives a tidier forest, finer reaches more tips." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBaseGridPitch" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBaseGridPitch" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="50" Step="1" Format="0.##"
                                    Value="{Binding SupportBaseGridPitch, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
@@ -178,18 +178,18 @@
                 </Grid>
                 <Grid Tag="supports reinforce ring contact count" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Ring tip count" Classes="label" ToolTip.Tip="How many extra tips the ring places around the seed." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportReinforceCount" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="1" Maximum="100" Step="1" Format="0"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportReinforceCount" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="1" Maximum="20" Step="1" Format="0"
                                    Value="{Binding SupportReinforceCount, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports reinforce ring radius mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Ring radius" Classes="label" ToolTip.Tip="Radius of the ring of extra tips around the seed, mm." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportReinforceRingRadius" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportReinforceRingRadius" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="25" Step="0.1" Format="0.##"
                                    Value="{Binding SupportReinforceRingRadius, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports reinforce ring tip diameter multiplier"
                       ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Tip diameter multiplier" Classes="label" ToolTip.Tip="The ring's tips use the tip diameter times this: heavier tips where the print starts." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportReinforceRingDiameterMultiplier" UnitKind="Scalar" Unit="×" Grid.Column="1" Minimum="0.01" Maximum="100" Step="0.05" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportReinforceRingDiameterMultiplier" UnitKind="Scalar" Unit="×" Grid.Column="1" Minimum="0.01" Maximum="5" Step="0.05" Format="0.##"
                                    Value="{Binding SupportReinforceRingDiameterMultiplier, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
@@ -207,7 +207,7 @@
                       IsEnabled="{Binding !SupportGuidedIgnoreExistingSupports}">
                     <TextBlock Text="Guided tip clearance" Classes="label"
                                ToolTip.Tip="When guided tools respect existing supports: no guided tip closer than this to an existing tip" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportGuidedExistingClearanceMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.1" Maximum="100" Step="0.5" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportGuidedExistingClearanceMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.1" Maximum="25" Step="0.5" Format="0.##"
                                    Value="{Binding SupportGuidedExistingClearanceMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports guided densify insert tips between neighbours count" ColumnDefinitions="170,*" Margin="0,2">
@@ -240,7 +240,7 @@
                           IsChecked="{Binding SupportAutoParenting, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports parenting max branch length mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max branch length" Classes="label" ToolTip.Tip="How far a tip may reach to join a trunk when parented (J), mm. 0 = the Members value." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMaxBranchLength" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="1000" Step="0.5" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMaxBranchLength" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="50" Step="0.5" Format="0.##"
                                    Value="{Binding SupportParentingMaxBranchLength, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports parenting max branch angle degrees" ColumnDefinitions="170,*" Margin="0,2">
@@ -250,7 +250,7 @@
                 </Grid>
                 <Grid Tag="supports parenting trunk search range mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Trunk search range" Classes="label" ToolTip.Tip="How far around a tip parenting looks for a trunk to join before raising its own, mm. 0 = the Members existing trunk range." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingTrunkRange" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="1000" Step="0.5" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingTrunkRange" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="50" Step="0.5" Format="0.##"
                                    Value="{Binding SupportParentingTrunkRange, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports parenting minimum tips per trunk" ColumnDefinitions="170,*" Margin="0,2">
@@ -274,7 +274,7 @@
                 <Grid Tag="supports parenting max branches per trunk" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max branches per trunk" Classes="label"
                                ToolTip.Tip="How many branches one trunk may carry when parented. 0 = the growth rule's default (6)." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMaxBranchesPerTrunk" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="0" Maximum="200" Step="1" Format="0"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMaxBranchesPerTrunk" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="0" Maximum="30" Step="1" Format="0"
                                    Value="{Binding SupportParentingMaxBranchesPerTrunk, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
@@ -296,7 +296,7 @@
                 </Grid>
                 <Grid Tag="supports bracing brace diameter mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Brace diameter" Classes="label" ToolTip.Tip="0 = the branch diameter" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="20" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingDiameter" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="10" Step="0.1" Format="0.##"
                                    Value="{Binding SupportBracingDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing angle degrees" ColumnDefinitions="170,*" Margin="0,2">
@@ -306,22 +306,22 @@
                 </Grid>
                 <Grid Tag="supports bracing spacing vertical pitch mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Brace spacing" Classes="label" ToolTip.Tip="Vertical pitch between the braces of one pair of trunks. 0 = continuous: each brace starts where the last one ended" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="500" Step="1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
                                    Value="{Binding SupportBracingSpacingMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing lowest brace height mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Lowest brace height" Classes="label" ToolTip.Tip="No brace foot below this height above the plate. 0 = the min branch height" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingLowestHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="500" Step="1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingLowestHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
                                    Value="{Binding SupportBracingLowestHeightMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing min support height mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Min support height" Classes="label" ToolTip.Tip="Only trunks rising at least this far above the plate are braced" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingMinSupportHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="500" Step="1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingMinSupportHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
                                    Value="{Binding SupportBracingMinSupportHeightMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing neighbour distance mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Neighbour distance" Classes="label" ToolTip.Tip="Largest horizontal gap between two trunks that a brace may span" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingNeighbourDistanceMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.5" Maximum="500" Step="0.5" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingNeighbourDistanceMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.5" Maximum="100" Step="0.5" Format="0.##"
                                    Value="{Binding SupportBracingNeighbourDistanceMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing max brace partners per trunk" ColumnDefinitions="170,*" Margin="0,2">
@@ -332,13 +332,13 @@
                 <Grid Tag="supports bracing max stem lean degrees branch continues trunk" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max stem lean °" Classes="label"
                                ToolTip.Tip="A branch continuing a trunk upward within this lean from vertical is braced as part of the trunk" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingMaxStemLeanDegrees" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="89" Step="5" Format="0"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingMaxStemLeanDegrees" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="0" Maximum="89" Step="5" Format="0"
                                    Value="{Binding SupportBracingMaxStemLeanDegrees, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing cluster gap bundle mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Cluster gap" Classes="label"
                                ToolTip.Tip="Trunks whose surfaces are closer than this are braced as one bundle: no braces inside the cluster, the row ties to its outer trunk. 0 = never" />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingClusterGapMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="0.5" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingClusterGapMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="50" Step="0.5" Format="0.##"
                                    Value="{Binding SupportBracingClusterGapMm, Mode=TwoWay}" />
                 </Grid>
             </StackPanel>
@@ -348,24 +348,24 @@
             <StackPanel Margin="8,2,0,6">
                 <Grid Tag="supports placement spacing density mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Spacing" Classes="label" ToolTip.Tip="Distance between neighbouring tips on an overhang, mm. Closer holds better and marks more." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportSpacing" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportSpacing" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="25" Step="0.1" Format="0.##"
                                    Value="{Binding SupportSpacing, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement island spacing dedup radius mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Island spacing" Classes="label" ToolTip.Tip="Tip spacing inside an island, mm; islands start the print off the plate, so they get denser tips than an ordinary overhang." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportIslandSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportIslandSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="25" Step="0.1" Format="0.##"
                                    Value="{Binding SupportIslandSpacingMm, Mode=TwoWay}" />
                 </Grid>
                 <!-- Painted regions only: the even grid replaces overhang sampling there, and
                      vertical rows are the axis that has to stay even. -->
                 <Grid Tag="supports placement painted region grid vertical row pitch mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Painted row pitch (Z)" Classes="label" ToolTip.Tip="Row pitch in Z for a painted region, mm: rows are what matters most on a wall." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportRegionGridVerticalPitchMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportRegionGridVerticalPitchMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="25" Step="0.1" Format="0.##"
                                    Value="{Binding SupportRegionGridVerticalPitchMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement painted region grid horizontal along surface pitch mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Painted row spacing" Classes="label" ToolTip.Tip="Spacing along each painted row, measured along the surface, mm." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportRegionGridHorizontalPitchMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportRegionGridHorizontalPitchMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="25" Step="0.1" Format="0.##"
                                    Value="{Binding SupportRegionGridHorizontalPitchMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement overhang angle degrees threshold" ColumnDefinitions="170,*" Margin="0,2">
@@ -375,7 +375,7 @@
                 </Grid>
                 <Grid Tag="supports placement minimum island area square mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Min island area mm²" Classes="label" ToolTip.Tip="An island smaller than this is ignored, mm². Below the minimum a region does not carry the layer above it." />
-                    <refresh:FilledNumericSlider PreviewProperty="SupportMinIslandAreaMm2" UnitKind="Scalar" Unit="mm²" Grid.Column="1" Minimum="0" Maximum="1000000" Step="0.1" Format="0.##"
+                    <refresh:FilledNumericSlider PreviewProperty="SupportMinIslandAreaMm2" UnitKind="Scalar" Unit="mm²" Grid.Column="1" Minimum="0" Maximum="100" Step="0.1" Format="0.##"
                                    Value="{Binding SupportMinIslandAreaMm2, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports placement contact face maximum angle from straight down degrees eligible"

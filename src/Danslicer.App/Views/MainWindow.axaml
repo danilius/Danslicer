@@ -705,7 +705,7 @@
                                     <TextBlock Text="Island tool tuning" Classes="label" FontWeight="SemiBold" />
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Min island area mm²" Classes="label" ToolTip.Tip="An island smaller than this is not reported, mm²." />
-                                        <refresh:FilledNumericSlider PreviewProperty="SupportMinIslandAreaMm2" UnitKind="Scalar" Unit="mm²" Grid.Column="1" Minimum="0" Maximum="1000000" Step="0.1"
+                                        <refresh:FilledNumericSlider PreviewProperty="SupportMinIslandAreaMm2" UnitKind="Scalar" Unit="mm²" Grid.Column="1" Minimum="0" Maximum="100" Step="0.1"
                                                        Format="0.##" Value="{Binding SupportSettings.SupportMinIslandAreaMm2, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
@@ -715,7 +715,7 @@
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Island spacing mm" Classes="label" ToolTip.Tip="Tip spacing the island generator uses inside an island, mm." />
-                                        <refresh:FilledNumericSlider PreviewProperty="SupportIslandSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="1000" Step="0.1"
+                                        <refresh:FilledNumericSlider PreviewProperty="SupportIslandSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="25" Step="0.1"
                                                        Format="0.##" Value="{Binding SupportSettings.SupportIslandSpacingMm, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2,0,6">
@@ -874,6 +874,10 @@
                                 <CheckBox x:Name="PopReflections" Content="Plate reflections" Click="OnToggleReflectionsClick" ToolTip.Tip="Restrained rough reflections, fading completely below. Strength: Preferences, Viewport." />
                                 <CheckBox x:Name="PopCavity" Content="Cavity" Click="OnToggleCavityClick" ToolTip.Tip="Darken creases and lighten ridges so the model's shape reads at a glance." />
                                 <CheckBox x:Name="PopOutlines" Content="Outlines" Click="OnToggleOutlinesClick" ToolTip.Tip="Draw a thin outline where surfaces meet the background or each other." />
+                                <Grid ColumnDefinitions="100,*" Margin="0,2">
+                                    <TextBlock Text="Border width" Classes="label" />
+                                    <refresh:FilledNumericSlider x:Name="PopOutlineWidth" Grid.Column="1" UnitKind="Scalar" Unit="px" Minimum="1" Maximum="5" Step="0.25" />
+                                </Grid>
                                 <CheckBox x:Name="PopFxaa" Content="FXAA" Click="OnToggleFxaaClick" ToolTip.Tip="Smooth jagged edges with fast anti-aliasing." />
                                 <CheckBox x:Name="PopWireframe" Content="Wireframe overlay"
                                           Click="OnToggleWireframeClick" ToolTip.Tip="Draw the mesh's triangle edges over the shading." />

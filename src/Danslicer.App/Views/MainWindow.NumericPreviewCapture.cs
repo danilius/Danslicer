@@ -60,6 +60,7 @@ public partial class MainWindow
         PopShadowMode.SelectedIndex = (int)ModelShadowMode.Working;
         await Check(PopAoStrength, this, () => AppConfig.Current.Viewport.AmbientOcclusionStrength, "View AO strength");
         await Check(PopAoRadius, this, () => AppConfig.Current.Viewport.AmbientOcclusionRadiusMm, "View AO radius");
+        await Check(PopOutlineWidth, this, () => AppConfig.Current.Viewport.OutlineWidthPixels, "View border width");
         await Check(PopShadowStrength, this, () => AppConfig.Current.Viewport.WorkingShadowStrength, "View shadow strength");
         await Check(PopShadowSoftness, this, () => AppConfig.Current.Viewport.WorkingShadowSoftnessMm, "View shadow softness");
         // A mode switch mid-drag restores the captured mode's setting and drops capture.

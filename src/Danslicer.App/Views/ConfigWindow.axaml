@@ -153,6 +153,10 @@
                         <refresh:FilledNumericSlider PreviewProperty="PlateReflectionStrength" Grid.Column="1" Height="24" UnitKind="Scalar" Unit="" Minimum="0" Maximum="0.3" Step="0.01" Format="0.00" Value="{Binding PlateReflectionStrength, Mode=TwoWay}" />
                     </Grid>
                     <CheckBox Tag="viewport plate shadows enabled off" Content="Plate shadows" IsChecked="{Binding PlateShadowsEnabled, Mode=TwoWay}" Margin="0,4" />
+                    <Grid Tag="viewport outline border width pixels deferred" ColumnDefinitions="240,*" Margin="0,3">
+                        <TextBlock Text="Object border width (px, Deferred)" Classes="label" />
+                        <refresh:FilledNumericSlider PreviewProperty="OutlineWidthPixels" Grid.Column="1" UnitKind="Scalar" Unit="px" Minimum="1" Maximum="5" Step="0.25" Value="{Binding OutlineWidthPixels, Mode=TwoWay}" />
+                    </Grid>
                     <CheckBox Tag="viewport cavity shading enabled off" Content="Cavity shading" IsChecked="{Binding CavityEnabled, Mode=TwoWay}" Margin="0,4" />
                     <Grid Tag="viewport cavity cavity ridge strength" ColumnDefinitions="190,*" Margin="0,2">
                         <TextBlock Text="Cavity ridge strength" Classes="label" />

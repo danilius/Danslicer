@@ -13,6 +13,8 @@ public partial class MainWindow
         void Redraw() { SyncRenderPathMenu(); Viewport.RequestRedraw(); }
         config.ViewportPreviewed += Redraw;
         config.ViewportSaved += Redraw;
+        PopOutlineWidth.BeginPreview = () => config.BeginNumericPreview(nameof(config.OutlineWidthPixels));
+        PopOutlineWidth.EditCommitted += (_, e) => { if (!PopOutlineWidth.CommittedPreview) config.OutlineWidthPixels = (float)e.NewValue; };
         PopAoStrength.BeginPreview = () => config.BeginNumericPreview(nameof(config.AmbientOcclusionStrength));
         PopAoRadius.BeginPreview = () => config.BeginNumericPreview(nameof(config.AmbientOcclusionRadiusMm));
         PopShadowStrength.BeginPreview = () => config.BeginNumericPreview(AppConfig.Current.Viewport.ModelShadows == ModelShadowMode.Presentation

@@ -171,7 +171,7 @@ public partial class MainWindow
             header.Children.OfType<Button>().Any(b => b.Classes.Contains("popupClose")))
             panel.Children.Remove(header);
     }
-    private static void AdaptSupportSections(Control? content)
+    internal static void AdaptSupportSections(Control? content)
     {
         if (content is null) return;
         foreach (var view in content.GetLogicalDescendants().OfType<SupportSettingsView>())

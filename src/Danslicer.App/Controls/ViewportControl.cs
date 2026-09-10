@@ -2925,17 +2925,49 @@ public sealed class ViewportControl : OpenGlControlBase
         _gizmo.ShowMove = ShowMoveGizmo;
         _gizmo.ShowRotate = ShowRotateGizmo;
         _gizmo.ShowScale = ShowScaleGizmo;
-        ConnectSpaceMouse();
+        _spaceMouseWindow = TopLevel.GetTopLevel(this) as Window;
+        if (_spaceMouseWindow is not null)
+        {
+            _spaceMouseWindow.Activated += OnSpaceMouseWindowActivated;
+            if (_spaceMouseWindow.IsActive) AcquireSpaceMouse();
+        }
         UpdateStatus();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (_spaceMouseWindow is not null)
+        {
+            _spaceMouseWindow.Activated -= OnSpaceMouseWindowActivated;
+            _spaceMouseWindow = null;
+        }
+        ReleaseSpaceMouse();
+    }
+
+    private static ViewportControl? _spaceMouseOwner;
+    internal static ViewportControl? SpaceMouseOwner => _spaceMouseOwner;
+    internal bool SpaceMouseConnected => _sixAxis?.IsConnected == true;
+    private Window? _spaceMouseWindow;
+    private void OnSpaceMouseWindowActivated(object? sender, EventArgs e) => AcquireSpaceMouse();
+
+    private void AcquireSpaceMouse()
+    {
+        // Only one viewport may hold the driver's COM connection. Preferences without a
+        // viewport leave the current camera usable for live sensitivity tuning.
+        if (_spaceMouseOwner != this) _spaceMouseOwner?.ReleaseSpaceMouse();
+        _spaceMouseOwner = this;
+        ConnectSpaceMouse();
+        UpdateStatus();
+    }
+
+    private void ReleaseSpaceMouse()
+    {
         _sixAxisTimer?.Stop();
         _sixAxisTimer = null;
         _sixAxis?.Dispose();
         _sixAxis = null;
+        if (_spaceMouseOwner == this) _spaceMouseOwner = null;
     }
 
     // ----- SpaceMouse -----
