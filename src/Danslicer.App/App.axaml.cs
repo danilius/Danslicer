@@ -17,6 +17,14 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Renderer evidence never constructs configuration or the user's document.
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime glDesktop
+            && Array.IndexOf(glDesktop.Args ?? [], "--renderer-capture") is var glIndex && glIndex >= 0)
+        {
+            glDesktop.MainWindow = new RendererCaptureWindow(glDesktop.Args![glIndex + 1]);
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
         // Isolated native gallery: do not construct the main VM, renderer or load user settings.
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime previewDesktop
             && (previewDesktop.Args ?? []).Contains("--ui-preview"))
