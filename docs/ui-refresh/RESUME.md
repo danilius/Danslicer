@@ -1,3 +1,10 @@
+# Current checkpoint — Task 05 in progress
+
+User authorized Go ahead with 05. Current worktree: C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt; branch codex/ui-refresh-05; clean starting ref c829020492020c333f1c0937b7275732927a6a4f. Main remains ancestral 7d95ceb; no merge needed. See task-05.md for current plan/results. Build pending approved restore. Next: full regression, native workflows and actual GL evidence. Tasks 06/07 remain queued. No main merge or push.
+
+---
+Historical checkpoint follows; its task-05 queued language is superseded above.
+
 # Coordinator update — Task 04b complete
 
 User confirmed Task 04b is closed/completed. This refers to 04b, not the coordination chat. Queue is now 05 regression/integration review, 06 Slicing-page resin volume and estimated print time, 07 assessment of other printers supportable now. Each remains a separate sequential chat/worktree from its predecessor's completed commit. See TASKS.md for instructions. No merge authorized. This documentation commit supersedes the previous handoff hash as the next-task starting ref.
@@ -44,3 +51,4 @@ Wait for GUI processes to exit before checking logs. Verified: Release builds; 2
 No physical input, monitor DPI transition, screen-reader, alternate-GPU, reference-bust or full-print-job certification. UI screenshots omit native GL; separate real framebuffer images supply rendering evidence. Dense raft updates are coalesced, but one synchronous rebuild can still block a frame (measured up to 82.60 ms for the 600-foot fixture). Exact CPU caps are omitted while dragging and rebuilt at release. Existing compiler/analyzer warnings remain.
 
 User reviews task 04b directly. Task 05 remains queued after review; do not create a later task here or implement it. A separately authorized task 05 must start from this exact final handoff in its own worktree, preserve SPEC and the slider audit, check integration/regressions and reconcile only committed Claude work after confirming a stable base. No main merge without user instruction; no changes to F:/Git Repos/Danslicer, prior worktrees or routing prototype.
+
