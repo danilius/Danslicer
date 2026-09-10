@@ -1,44 +1,47 @@
-# Task 04 active — recovery and handoff
-
-Current worktree: C:/Users/plane/.codex/worktrees/e262/Danslicer-chatgpt. Branch: codex/ui-refresh-04. Clean exact accepted task-03 base and last good commit: 8a0fac4f52515f18f1560a54b938dbb2b8f17a60. Task 03 is user-confirmed complete. Task 04 plan/audit is in task-04.md; next action is baseline native GL framebuffer evidence and renderer implementation. No renderer verification yet. Historical task-03 handoff follows.
-
-# Task 03 completed — recovery and handoff
+# Task 04 � completed implementation, ready for user review
 
 Date: 2026-09-10
-Worktree: C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt
-Branch: codex/ui-refresh-03
-Exact accepted task-02 base: a0fed8b933f3358e875e4650bbe8915d5a57c574. User said task 02 is done; all earlier pending-review wording is historical.
-Last good implementation/evidence commit: dfc760f (full hash available through git rev-parse dfc760f).
-Final handoff is the following committed descendant, which also preserves thread-safe lazy AppConfig initialization; exact hash in the final response. Verify HEAD and clean status before continuing.
+Worktree: C:/Users/plane/.codex/worktrees/e262/Danslicer-chatgpt
+Branch: codex/ui-refresh-04
+Exact user-accepted task-03 base: 8a0fac4f52515f18f1560a54b938dbb2b8f17a60.
+Last-good implementation/evidence: cafca37cbc74f9f0bf21094271f2b2bb07961f1f.
+Final handoff is the following documentation-only descendant; resolve branch HEAD and check clean status. No main merge or later task created. Main, previous worktrees and routing prototype were not modified; shared Git metadata only was used for this worktree's commits.
 
-## Shipped
-Durable workspace-ui.json sidecar beside existing user config: toolbar label mode, completed preferred popout widths, expander order/expansion and ten recent project paths. Atomic replacement, corrupt/missing fallback, stale/duplicate identifiers filtered, new sections appended, unknown properties preserved, newer schema read-only. Unrelated existing user config is not rewritten by workspace preference saves. Missing/offline recent paths remain in history and fail through existing status handling when opened.
-Production support/available raft bounded controls retain limits, increments, validation and existing saving bindings; centered numeric value and unit inside rectangular fill. Transform, print, region and placement use ModelScrubField through the existing NumericField/model callback once per commit, with no Value binding double-apply. Transform drag has one document undo; support configuration retains its pre-existing immediate-save behavior without document undo. Visibility retains real switches/modes; no numeric opacity or raft parameters invented; no field locks without semantics.
-Compact typography, whole-expander drag/settling, round grippers, constrained resizable popouts and Support-only right isolation rail preserved. Resize cancellation restores preferred width even before pending layout completes and does not persist a transient width. Isolation keeps shared ViewCube.Rect plus 12 DIP, no enclosing panel, centered Reset, saved two-state Cap and the 300ms handle/card grace.
+## Delivered
+Viewport-only 2 mm chamfered build plate, exact printable footprint/top offset retained. Restrained quarter-resolution blurred planar reflections on both paths. Smooth angle/eye-height fade removes surface, reflection and grid below; optional perimeter remains. Legacy PlateOpacityFromBelow JSON value is preserved but now controls perimeter only (Preferences label updated). Deferred ID picking passes through below; Classic CPU picking traverses document objects only and has no plate candidate.
 
-## Verification
-Release solution/app builds passed; 181 focused tests passed, 0 failures/skips. Existing SurfaceContour CA2014, ViewportControl CS8602 and raft-test xUnit2031 warnings only. Native main capture and reusable control preview each exited 0. Final main capture re-run after thread-safe lazy configuration change also passed.
-Native checks cover import, transform pointer previews/single commit/undo/cancel, expressions/units, invalid and range rejection, blur/no-op/integer/keyboard semantics, support setter called once, raft config and saved cap-off round trips, actual new-window preference restoration, recent projects, resize cancellation, twelve popouts, isolation interaction and narrow layout. Unit tests and main capture now use fresh temporary config; previews branch before config loading.
-Reviewed transform/support/raft/print/narrow/isolation images in evidence/task-03. Control smoke evidence is in evidence/task-03-controls. Status-bar subtree unchanged after newline normalization; no Core/Render/ViewportControl diff. Whitespace check passed.
-Limits: screenshots are offscreen native-window renders and omit GL composition (black viewport). 100/150/200 render densities are not physical monitor DPI or monitor-transition checks. Physical mouse/hit-testing, screen readers and light theme not verified (app has dark themes). Full geometry suite, native picker/export dialogs, UVtools execution and full support-generation/slicing job not run. Early isolation timing failure was resolved by a bounded dispatcher wait in the test only; production 300ms timing unchanged.
+Deferred contact AO now provides independent local depth/proximity shading; existing cavity ridge/valley effect retained. View menu/popout toggles, Preferences filled numeric fields for AO strength/radius and reflection strength. Existing settings saving conventions. AO/cavity operate on opaque geometry in Deferred; Classic fallback retains studio shading without these effects. Both paths have plate/reflections. Plate material remains satin Studio in model MatCap modes and fades its deferred effects before crossing to translucent rendering.
+
+Fixed faded-plate ordering before transparent supports. Required real-support GL checks also exposed a painted-cap stencil artifact; the narrow renderer fix excludes solids not crossing the named cap plane and culls reverse cap faces. Framebuffer regression guards phantom upper-cap marks. No raft, slicing or support-generation algorithm/output changes. Existing outward-only top scraper lip confirmed by mesh/slicing tests, so no geometry correction commit.
+
+## Verification and evidence
+Release solution build passed. Broad targeted run: 280 passed, zero failures/skips. Final cap/plate/raft/render-config run after refinements: 50 passed, zero failures/skips. Existing SurfaceContour CA2014, viewport CS8602 and raft-test xUnit2031 warnings only; final incremental build may not re-emit all.
+
+Actual GL host framebuffer reads on ANGLE OpenGL ES 3.0 / NVIDIA RTX4090 at 1000x760: 58 views passed without GL errors or deferred fallback. Above, below, grazing/0/3/6/9/12-degree transitions, contact, independent AO/cavity/reflection toggles, orthographic, MatCap, selection, transparent supports, production cone/disc/trunk support meshes, upper/lower painted and exact sliced caps, 600-support fixture. Below reflection toggles byte-identical; deferred GPU pick reaches underside model. Cap on/off and no-phantom-cap pixel assertions passed. Inspected representative images, including both sides of caps and new view-settings popout.
+
+- evidence/task-04-before: unchanged baseline renderer (captured at harness commit 2446a42).
+- evidence/task-04-after: final actual GL PNGs and result.txt with timing/toggle metrics; painted-cap-before-fix.png is explicitly pre-fix evidence.
+- evidence/task-04-ui: native main workflows/settings/view-toggle round trips and screenshots. These offscreen UI screenshots omit GL composition; use the GL directories for renderer claims.
+- evidence/task-04-controls: native reusable-control checks, including gripper thresholds, 250ms ease, reversal/cancel and persistence boundary.
+
+Native main/control checks passed. Status-bar subtree identical to task-03 after newline normalization; no ToolShells, workspace persistence, isolation, support or slicing source diff. User preferences were isolated in tests; GL harness bypasses AppConfig entirely.
 
 ## Launch MAIN application
 ```powershell
-& "C:\Users\plane\.codex\worktrees\3321\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
+& "C:\Users\plane\.codex\worktrees\e262\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
 ```
 Build from this worktree: `dotnet build Danslicer.slnx -c Release --no-restore -p:UsedAvaloniaProducts= --nologo`.
-Main native check: same absolute executable with `--workspace-capture docs/ui-refresh/evidence/task-03`; wait for process exit and inspect workspace-ok.txt/settings-ok.txt (failure writes workspace-error.txt and exits nonzero).
-Control check: same executable with `--ui-preview --capture-directory docs/ui-refresh/evidence/task-03-controls`.
-Focused test filter and iteration history are in task-03.md.
+GL evidence: same absolute executable with `--renderer-capture docs/ui-refresh/evidence/task-04-after`.
+Main checks: same executable with `--workspace-capture docs/ui-refresh/evidence/task-04-ui`.
+Controls: same executable with `--ui-preview --capture-directory docs/ui-refresh/evidence/task-04-controls`.
+Check result.txt/workspace-ok.txt/capture-ok.txt and absence of corresponding error files; Windows GUI launch can return before process completion. Commands use relative evidence destinations from this worktree. Full test filter is in task-04.md.
 
-## Exact next action / task 04
-User follows up here. No further task was created and no main merge performed. For task 04, start a separate isolated worktree from this exact final handoff HEAD, read START/SPEC/TASKS/RESUME and task-01/02/03. Audit committed renderer overlap before editing; do not touch F:/Git Repos/Danslicer, prior worktrees or routing prototype, or absorb uncommitted changes. Task 04 owns modelled plate, subtle reflections, transparency and selection through from below, AO/cavity audit, and only a confirmed outward bevel correction. Preserve task-03 numeric/persistence contracts, the Support rail, all status content, modes and keymaps. Obtain actual above/below GL evidence; these offscreen captures cannot verify renderer work.
+## Cost and limitations
+AO: 16 depth samples per lit opaque deferred pixel in existing composite, bounded to 96 pixels and a world-mm radius; no extra full-resolution attachment/pass. Cavity: existing four depth/normal neighbours. Reflections: one extra opaque geometry pass at quarter width/height, RGBA8 + depth24 (about 0.38 MB at 1000x760), nine weighted texture taps on top plate; no pass below/off. Does not reflect ghosts/transparent supports. No temporal accumulation, global illumination, off-screen AO, transparent-surface AO or physically based reflection claim. Screen-space AO is view-dependent and may miss subpixel contacts; Classic has no AO/cavity. Reflection allocation failure disables it for that session with a log.
 
-## Latest user refinement — live expander swapping
-Approved after the task-03 handoff at 97eedfc404614494e0fea4cab382b6b4ff2c3459. Same worktree C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt and branch codex/ui-refresh-03; current HEAD is the new handoff. Expanders swap immediately when the dragged section crosses a neighbour midpoint, retaining pointer anchoring through layout changes. Reverse dragging swaps back; Escape/capture loss restores starting order. Only release (or a keyboard reorder) persists order; existing 150ms settling remains. New OrderCommitted event is the persistence boundary, MoveRequested also carries transient swaps. Native preview and full main smoke passed these cases, including on-disk preference checks. Release build passed; drag screenshot reviewed. Earlier physical DPI/input/GL limits remain. Exact commit in final response; next action is user review, with task 04 still owning rendering only.
+Final 30-frame median timings after 12 warmups, CPU submission plus glFinish: small contact Deferred 0.28 ms vs 0.19 with AO/cavity/reflections off; Classic 0.13 vs 0.09. 600 supports / 422400 aux triangles: Deferred 0.22 vs 0.16; Classic 0.22 vs 0.15. Short earlier samples had outliers up to 15 ms; these are fixture measurements, not end-to-end or portable hardware promises. See result.txt for p95/max. Baseline/after effects-off screenshots are not an exact shared toggle configuration; use within-after toggle comparisons.
 
-## Latest correction — gripper-centred swap targets
-Same worktree C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt and codex/ui-refresh-03 branch; prior good HEAD 996e65e90590ddd38749e16e2c223cc2598b7be6. Current HEAD is the new handoff. Swapping is triggered by the dragged gripper crossing the displayed centre of another gripper, not a section midpoint. Displaced ungripped sections animate into place with a 250ms cubic ease-out, preserving visible positions on retarget. Existing pointer anchoring, reversal, cancellation and drop-only persistence remain. Release app build and native preview/main checks passed; before/after gripper threshold and intermediate/end animation checks passed. Mid-animation screenshot reviewed in evidence/task-03-gripper-swap. Exact commit in response. Next action remains user review; task 04 rendering boundaries and physical DPI/input/GL verification limits unchanged.
+No physical mouse/orbit, monitor/DPI transitions, screen readers, alternate GPU/native desktop GL3.3 driver, forced failure injection, full geometry suite, full production support generation/slicing job, dialogs or UVtools verification. Real GL ES compilation/execution and both explicitly selected renderer paths were verified. UI density captures are not physical monitor DPI tests.
 
-## Task 04 implementation checkpoint
-Active e262 worktree, codex/ui-refresh-04; last good committed baseline 2446a42. Plate/reflection/AO implementation and 280 passing targeted tests are detailed in task-04.md. Both renderer paths have actual GL framebuffer evidence in evidence/task-04-after; native main smoke passed in task-04-ui. No raft geometry change warranted. Next: real support/cap and view-toggle checks, final solution build and handoff. Historical task-03 notes above remain preservation contracts.
+## Next action / task 05 review instructions
+User reviews this MAIN build. Do not create/implement task 05 here. After acceptance, task 05 starts in a separate worktree from this exact final HEAD. Read START/SPEC/TASKS/task-01..04 and this RESUME; verify base/status and audit committed Claude overlap before any reconciliation. Preserve task-03 numeric/expression/units/undo, filled sliders, status/keymaps/modes, gripper-centred swaps with 250ms displaced ease and OrderCommitted-only saving, and the Support-only borderless right rail with cube Rect +12 DIP, centered Reset/Cap, saved off choice and 300ms hover grace. Review normal models/dense supports at real desktop scale, both projections, isolation/caps/selection, effects toggles, alternate GPU and physical DPI; run integration regressions. Keep rendering and any future confirmed geometry changes separate. No main merge without user instruction.

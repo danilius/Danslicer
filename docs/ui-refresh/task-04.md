@@ -37,3 +37,17 @@ Plate material now stays satin Studio when model MatCap changes. Plate AO/cavity
 Final solution build passed. 50 focused cap/plate/raft/render-config tests passed after the correction (earlier broad 280-test run remains valid for unchanged UI/core contracts). Final GL run completed 58 views, all GL errors/picking/effect-difference/cap-leak assertions passed; main smoke re-run passed, including new view controls. Native control preview passed, preserving gripper threshold, pointer anchoring/cancel/250ms displaced easing and save-on-release tests. Status-bar subtree compared identical to 8a0fac4 after newline normalization; no support/slicing/ToolShells/persistence/isolation source diff. Existing compiler/analyzer warnings only.
 
 Timings now record median/p95/max over 30 glFinish-synchronized frames after 12 warmups at 1000x760 on ANGLE ES3 / RTX4090. Latest tiny contact: deferred median 0.28 ms enabled / 0.19 off; Classic 0.13 / 0.09. Dense fixture: deferred 0.22 / 0.16 ms; Classic 0.22 / 0.15. These are in-process render submission + completion measurements, not end-to-end interaction latency or portable GPU guarantees. Prior short runs had outliers up to 15 ms; retain this limitation and use the detailed final result.txt.
+
+
+## Final recovery checkpoint and commands
+Same worktree/branch. Last-good source/evidence: cafca37cbc74f9f0bf21094271f2b2bb07961f1f. Final documentation-only descendant is the handoff HEAD; exact full ref in final response. Read RESUME for launch, controls, effect costs/limits and task-05 review instructions. The initial status-bar audit script used the wrong XAML property spelling (DockPanel instead of DockPanel.Dock); corrected audit then passed, confirming identical status content. No unresolved renderer failure remains in exercised fixtures. Physical/alternate-GPU/full-job limits remain explicit.
+
+Broad regression command (280 passed):
+```powershell
+dotnet test tests/Danslicer.Tests -c Release -p:UsedAvaloniaProducts= --filter 'FullyQualifiedName~Plate|FullyQualifiedName~Raft|FullyQualifiedName~RenderPath|FullyQualifiedName~Deferred|FullyQualifiedName~ClipCap|FullyQualifiedName~LayerRange|FullyQualifiedName~SupportRenderMesh|FullyQualifiedName~Workspace|FullyQualifiedName~UiRefreshNumeric|FullyQualifiedName~Expression|FullyQualifiedName~ConfigViewModel|FullyQualifiedName~UserConfig|FullyQualifiedName~IsolationHeight|FullyQualifiedName~ViewportToolbar|FullyQualifiedName~WindowKeymap|FullyQualifiedName~ModeScoped|FullyQualifiedName~ObjectCommandScope|FullyQualifiedName~ProjectFile|FullyQualifiedName~NewProject|FullyQualifiedName~SliceCommand|FullyQualifiedName~ObjectPosition|FullyQualifiedName~UndoStack' --nologo
+```
+Final refined renderer checks (50 passed):
+```powershell
+dotnet test tests/Danslicer.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~ClipCap|FullyQualifiedName~PlateReadability|FullyQualifiedName~Raft|FullyQualifiedName~RenderPath' --nologo
+```
+Final actual command results, not inferred: solution build exit 0; renderer result.txt and no error.txt; main workspace-ok.txt/view-effects-ok.txt and no workspace-error.txt; controls capture-ok.txt; git diff --check passed. Git status clean at source checkpoint; documentation changes are committed as the final descendant. No later task or main merge.
