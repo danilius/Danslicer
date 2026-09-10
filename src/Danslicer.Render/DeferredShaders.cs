@@ -150,6 +150,7 @@ internal static class DeferredShaders
         uniform float uCavityValley;   // 0 disables valleys
         uniform float uCavityRadius;   // sample offset, pixels
         uniform float uOutlineStrength; // 0 disables outlines
+        uniform float uOutlineWidth;
         uniform vec3 uOutlineColor;
         uniform vec3 uSelectColor;
 
@@ -267,14 +268,14 @@ internal static class DeferredShaders
                 float edge = 0.0;
                 float selected = 0.0;
                 vec2 offs[4];
-                offs[0] = vec2(uTexel.x, 0.0); offs[1] = -offs[0];
-                offs[2] = vec2(0.0, uTexel.y); offs[3] = -offs[2];
+                offs[0] = vec2(uTexel.x, 0.0) * uOutlineWidth; offs[1] = -offs[0];
+                offs[2] = vec2(0.0, uTexel.y) * uOutlineWidth; offs[3] = -offs[2];
                 for (int i = 0; i < 4; i++)
                 {
                     vec2 uv = vUv + offs[i];
                     vec4 idN = texture(uIdTex, uv);
                     float zN = viewPos(uv, texture(uDepthTex, uv).r).z;
-                    // The line lands on the nearer surface only, keeping outlines one pixel wide.
+                    // The line lands inside the nearer surface at the configured pixel width.
                     bool inFront = zC >= zN - 0.001;
                     bool idEdge = distance(idN.rgb, idC.rgb) > 0.001;
                     bool depthEdge = (zC - zN) > max(1.0, abs(zC) * 0.04);

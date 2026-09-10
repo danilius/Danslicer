@@ -100,6 +100,7 @@ public sealed class ViewportConfig
 
     /// <summary>Outline blend strength, 0 to 1.</summary>
     public float OutlineStrength { get; set; } = 0.75f;
+    public float OutlineWidthPixels { get; set; } = 1f;
 
     /// <summary>Anti-aliasing on the final deferred image.</summary>
     public bool FxaaEnabled { get; set; } = true;
@@ -178,6 +179,7 @@ public sealed class ViewportConfig
         PlateOpacityFromBelow = Clamp(PlateOpacityFromBelow, 0f, 1f, 0.3f);
         CavityRadiusPixels = Clamp(CavityRadiusPixels, 0.5f, 8f, 1.5f);
         OutlineStrength = Clamp(OutlineStrength, 0f, 1f, 0.75f);
+        OutlineWidthPixels = Clamp(OutlineWidthPixels, 1f, 5f, 1f);
         ViewCubeSizePixels = Math.Clamp(ViewCubeSizePixels, 48, 192);
         SupportGizmoSizePixels = Math.Clamp(SupportGizmoSizePixels, 24, 400);
         SupportGizmoLineWidth = Clamp(SupportGizmoLineWidth, 1f, 12f, 3f);

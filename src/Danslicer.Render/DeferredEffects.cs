@@ -19,6 +19,7 @@ public sealed record DeferredEffects
     public float CavityRadiusPixels { get; init; } = 1.5f;
     public bool OutlinesEnabled { get; init; } = true;
     public float OutlineStrength { get; init; } = 0.75f;
+    public float OutlineWidthPixels { get; init; } = 1f;
     public bool FxaaEnabled { get; init; } = true;
 
     public static DeferredEffects Default { get; } = new();
@@ -35,6 +36,7 @@ public sealed record DeferredEffects
         CavityRadiusPixels = Clamp(config.CavityRadiusPixels, 0.5f, 8f, 1.5f),
         OutlinesEnabled = config.OutlinesEnabled,
         OutlineStrength = Clamp(config.OutlineStrength, 0f, 1f, 0.75f),
+        OutlineWidthPixels = Clamp(config.OutlineWidthPixels, 1f, 5f, 1f),
         FxaaEnabled = config.FxaaEnabled,
     };
 

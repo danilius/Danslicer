@@ -428,6 +428,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public bool PlateReflectionsEnabled { get => Viewport.PlateReflectionsEnabled; set => UpdateViewport(() => Viewport.PlateReflectionsEnabled = value); }
     public bool PlateShadowsEnabled { get => Viewport.PlateShadowsEnabled; set => UpdateViewport(() => Viewport.PlateShadowsEnabled = value); }
     public bool CavityEnabled { get => Viewport.CavityEnabled; set => UpdateViewport(() => Viewport.CavityEnabled = value); }
+    public float OutlineWidthPixels { get => Viewport.OutlineWidthPixels; set => UpdateViewport(() => Viewport.OutlineWidthPixels = Math.Clamp(value, 1f, 5f)); }
     public bool ViewCubeEnabled { get => Viewport.ViewCubeEnabled; set => UpdateViewport(() => Viewport.ViewCubeEnabled = value); }
     public float WorkingShadowStrength { get => Viewport.WorkingShadowStrength; set => UpdateViewport(() => Viewport.WorkingShadowStrength = Math.Clamp(value, 0f, 0.7f)); }
     public float PresentationShadowStrength { get => Viewport.PresentationShadowStrength; set => UpdateViewport(() => Viewport.PresentationShadowStrength = Math.Clamp(value, 0f, 0.7f)); }

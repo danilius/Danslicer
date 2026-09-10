@@ -231,7 +231,7 @@ internal sealed class RendererCaptureWindow : Window
             var cases = new (string Property, double Value)[] {
                 ("AmbientOcclusionStrength", 0.6), ("AmbientOcclusionRadiusMm", 8),
                 ("WorkingShadowStrength", 0.65), ("WorkingShadowSoftnessMm", 3),
-                ("PlateReflectionStrength", 0.3), ("CavityRidgeStrength", 3), ("CavityRadiusPixels", 6)
+                ("PlateReflectionStrength", 0.3), ("CavityRidgeStrength", 3), ("CavityRadiusPixels", 6), ("OutlineWidthPixels", 4)
             };
             foreach (var (property, value) in cases)
             {

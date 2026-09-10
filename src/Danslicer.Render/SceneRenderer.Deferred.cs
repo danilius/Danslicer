@@ -427,6 +427,7 @@ public sealed partial class SceneRenderer
         shader.Set("uCavityValley", effects.CavityEnabled ? effects.CavityValleyStrength : 0f);
         shader.Set("uCavityRadius", effects.CavityRadiusPixels);
         shader.Set("uOutlineStrength", effects.OutlinesEnabled ? effects.OutlineStrength : 0f);
+        shader.Set("uOutlineWidth", effects.OutlineWidthPixels);
         shader.Set("uOutlineColor", OutlineColor);
         shader.Set("uSelectColor", SelectionOutlineColor);
         pipeline.DrawFullscreen();
