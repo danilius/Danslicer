@@ -114,6 +114,8 @@ public sealed class ViewportControl : OpenGlControlBase
     // A Layout-mode click awaiting ID-buffer resolution on the next rendered frame (design 6.5).
     private (Vector2 Mouse, bool Additive)? _pendingGpuPick;
     private int _viewCubeHover = -1;
+    /// <summary>A press on the cube, still deciding whether it is a snap-click or a drag-orbit.</summary>
+    private ViewCubeDragGesture? _viewCubeDrag;
 
     private int HitViewCube(Point pos)
     {
@@ -765,6 +767,10 @@ public sealed class ViewportControl : OpenGlControlBase
 
         if (props.IsMiddleButtonPressed)
         {
+            // A middle-button press takes over outright, including from a cube drag still holding
+            // the pointer — otherwise the cube branch would keep swallowing moves and leave
+            // _orbiting latched on after the release.
+            EndViewCubeDrag();
             if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) _panning = true;
             else _orbiting = true;
             e.Pointer.Capture(this);
@@ -845,12 +851,14 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             var m = MouseVector(e);
 
-            // The view cube floats over everything, so it wins the click.
+            // The view cube floats over everything, so it wins the press. Whether that press is a
+            // snap-click or the start of a drag-orbit is not known yet — the gesture decides on
+            // the first move past its threshold, and the snap happens on release if it never does.
             if (HitViewCube(_lastPointer) is var cubeRegion && cubeRegion >= 0)
             {
-                var (yaw, pitch) = ViewCube.ViewAngles(cubeRegion, Camera.Yaw * 180f / MathF.PI);
-                Camera.SetView(yaw, pitch);
-                Redraw();
+                _viewCubeDrag = ViewCubeDragGesture.Begin(cubeRegion, m.X, m.Y,
+                    Configuration.AppConfig.Current.Viewport.ViewCubeSizePixels);
+                e.Pointer.Capture(this);
                 e.Handled = true;
                 return;
             }
@@ -1002,6 +1010,19 @@ public sealed class ViewportControl : OpenGlControlBase
         var dy = (float)(pos.Y - _lastPointer.Y);
         _lastPointer = pos;
 
+        if (_viewCubeDrag is { } cubeDrag)
+        {
+            // A cube drag owns the pointer completely: no marquee, no gizmo hover, and no cube
+            // hover tint chasing the pointer across regions while the cube is turning under it.
+            if (cubeDrag.Move((float)pos.X, (float)pos.Y) is { } delta)
+            {
+                Camera.Orbit(delta.DxPixels, delta.DyPixels);
+                if (_viewCubeHover >= 0) _viewCubeHover = -1;
+                Redraw();
+            }
+            return;
+        }
+
         if (_brushing)
         {
             if (PickSurface(MouseVector(e), out var triangle, out var point, out _) is not null &&
@@ -1105,6 +1126,23 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_viewCubeDrag is { } cubeDrag)
+        {
+            EndViewCubeDrag();
+            e.Pointer.Capture(null);
+            // Never moved past the threshold, so this was a click after all: snap to the region
+            // under the button-down point, not under the release point.
+            if (cubeDrag.IsClick)
+            {
+                var (yaw, pitch) = ViewCube.ViewAngles(cubeDrag.Region, Camera.Yaw * 180f / MathF.PI);
+                Camera.SetView(yaw, pitch);
+            }
+            // The release can land anywhere, including off the cube; re-pick so the tint is honest.
+            _viewCubeHover = HitViewCube(e.GetPosition(this));
+            Redraw();
+            e.Handled = true;
+            return;
+        }
         if (_editDrag is not null)
         {
             CommitSupportEditDrag();
@@ -1180,6 +1218,25 @@ public sealed class ViewportControl : OpenGlControlBase
             e.Pointer.Capture(null);
             UpdateStatus();
         }
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        // Losing capture (a window switch, a touch cancel) ends the drag where it stands. No snap:
+        // there is no release position to judge, and silently jumping the camera would be worse
+        // than leaving the view the user has already dragged it to.
+        if (_viewCubeDrag is not null)
+        {
+            EndViewCubeDrag();
+            Redraw();
+        }
+    }
+
+    private void EndViewCubeDrag()
+    {
+        _viewCubeDrag = null;
+        _viewCubeHover = -1;
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)

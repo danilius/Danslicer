@@ -111,6 +111,29 @@ public sealed unsafe class ViewCube : IDisposable
         return (width - size - margin, height - size - margin, size);
     }
 
+    /// <summary>
+    /// Camera rotation per pointer pixel while dragging the cube, in degrees. Chosen so the cube
+    /// turns under the pointer like a ball of its own on-screen radius — a pixel of drag is one
+    /// pixel of arc at that radius — which is what makes a cube feel grabbed rather than nudged.
+    /// That comes out at about 1.42 deg/px at the default 120px cube, roughly three times a
+    /// viewport orbit; the cube is a coarse control by nature, being only ~60px across.
+    ///
+    /// Pointer deltas arrive in DIPs, and <see cref="Rect"/> scales the cube by exactly the same
+    /// DPI factor the pointer positions are scaled by, so the scaling cancels and the cube's size
+    /// in pointer units is just <paramref name="sizePixels"/>. Deriving the rate from the size
+    /// keeps the same "grab and turn" feel across the whole configurable range (3.5 deg/px at the
+    /// 48px minimum, 0.89 deg/px at 192px) instead of making a small cube sluggish.
+    /// </summary>
+    public static float DragDegreesPerPixel(int sizePixels = DefaultSizePixels)
+    {
+        var clamped = Math.Clamp(sizePixels, MinSizePixels, MaxSizePixels);
+        var pixelsPerUnit = clamped / (2f * OrthoExtent);
+        // sqrt(2) is the edge-midpoint radius: between the face centres you usually grab and the
+        // corners, so neither a face drag nor a corner drag feels wrong.
+        var radiusPixels = MathF.Sqrt(2f) * pixelsPerUnit;
+        return 180f / MathF.PI / radiusPixels;
+    }
+
     // ----- Pure-math picking -----
 
     /// <summary>

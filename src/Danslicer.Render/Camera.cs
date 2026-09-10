@@ -11,6 +11,14 @@ public sealed class Camera
 {
     private const float MaxPitch = 89.9f * MathF.PI / 180f;
 
+    /// <summary>
+    /// Rotation per pixel of pointer movement for <see cref="Orbit"/>, the one orbit path in the
+    /// app. The view cube's drag-orbit is faster than a viewport drag, but it gets there by
+    /// pre-scaling its pixel deltas against this number (see <see cref="ViewCubeDragGesture"/>)
+    /// rather than by owning a second rotation rule and a second pitch clamp.
+    /// </summary>
+    public const float OrbitRadiansPerPixel = 0.008f;
+
     public Vector3 Target { get; set; } = new(0, 0, 30);
     public float Distance { get; set; } = 400;
     /// <summary>Rotation about Z. 0 looks along -X from +X; -90 degrees is the front view looking along +Y.</summary>
@@ -56,8 +64,8 @@ public sealed class Camera
 
     public void Orbit(float dxPixels, float dyPixels)
     {
-        Yaw -= dxPixels * 0.008f;
-        Pitch = Math.Clamp(Pitch + dyPixels * 0.008f, -MaxPitch, MaxPitch);
+        Yaw -= dxPixels * OrbitRadiansPerPixel;
+        Pitch = Math.Clamp(Pitch + dyPixels * OrbitRadiansPerPixel, -MaxPitch, MaxPitch);
     }
 
     public void Pan(float dxPixels, float dyPixels, float viewportHeightPixels)
