@@ -4,8 +4,9 @@ namespace Danslicer.App.Configuration;
 /// then puts the live preview back without notifications, jobs or additional writes.</summary>
 internal static class PreviewPersistence
 {
-    private static readonly List<(Action Restore, Action Preview)> Entries = [];
-    private static bool _saving;
+    [ThreadStatic] private static List<(Action Restore, Action Preview)>? _entries;
+    private static List<(Action Restore, Action Preview)> Entries => _entries ??= [];
+    [ThreadStatic] private static bool _saving;
     public static Action Register(Action restore, Action preview)
     {
         var entry = (restore, preview);

@@ -83,6 +83,7 @@ public class ScrubField : UserControl
         _editor.LostFocus += (_, _) => { if (_editing && !CommitText()) Cancel(); };
         GotFocus += (_, _) => _surface.BorderBrush = RefreshPalette.Accent;
         LostFocus += (_, _) => _surface.BorderBrush = RefreshPalette.Edge;
+        LayoutUpdated += (_, _) => { if (_session is not null && !IsEffectivelyVisible) Cancel(); };
         Refresh();
     }
 
@@ -218,6 +219,7 @@ public class ScrubField : UserControl
         base.OnKeyDown(e);
         if (e.Handled) return;
         if (e.Key == Key.Escape && (_session is not null || _editing)) { Cancel(); e.Handled = true; }
+        else if (_session is not null) { e.Handled = true; }
         else if (!IsLocked && e.Key is Key.Enter or Key.F2) { BeginText(); e.Handled = true; }
         else if (!IsLocked && e.Key is Key.Left or Key.Right or Key.Up or Key.Down && Maximum >= Minimum)
         {

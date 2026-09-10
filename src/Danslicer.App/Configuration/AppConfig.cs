@@ -21,7 +21,8 @@ public static class AppConfig
         _path = Path.Combine(directory, "config.json");
     }
 
-    public static void Save() => PreviewPersistence.Save(() => Current.Save(_path));
+    internal static int SaveCount { get; private set; }
+    public static void Save() => PreviewPersistence.Save(() => { Current.Save(_path); SaveCount++; });
 
     /// <summary>Parses "#RRGGBB" (leading '#' optional) into linear-ish RGB; fallback on junk.</summary>
     public static Vector3 ParseColor(string? hex, Vector3 fallback)

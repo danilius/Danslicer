@@ -47,6 +47,12 @@ public partial class MainWindow
         origin = Position(LayerRangeSliderThumb.Upper);
         IsolationSlider.RaiseEvent(new PointerPressedEventArgs(IsolationSlider, pointer, this, origin, 4, pressed, KeyModifiers.None, 1));
         IsolationSlider.RaiseEvent(new PointerEventArgs(PointerMovedEvent, IsolationSlider, pointer, this, origin + new Vector(0, 20), 5, pressed, KeyModifiers.None));
+        Require(clip.UpperZ < oldUpper, "Capture-loss isolation fixture did not preview");
+        pointer.Capture(null);
+        Require(!clip.IsDragging && Math.Abs(clip.UpperZ - oldUpper) < 1e-6, "Capture loss did not restore isolation plane");
+        origin = Position(LayerRangeSliderThumb.Upper);
+        IsolationSlider.RaiseEvent(new PointerPressedEventArgs(IsolationSlider, pointer, this, origin, 4, pressed, KeyModifiers.None, 1));
+        IsolationSlider.RaiseEvent(new PointerEventArgs(PointerMovedEvent, IsolationSlider, pointer, this, origin + new Vector(0, 20), 5, pressed, KeyModifiers.None));
         IsolationSlider.RaiseEvent(new PointerReleasedEventArgs(IsolationSlider, pointer, this, origin + new Vector(0, 20), 6, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.LeftButtonReleased), KeyModifiers.None, MouseButton.Left));
         Require(!clip.IsDragging && pointer.Captured is null && clip.UpperZ < oldUpper, "Released drag must retain height and release capture");
         Hover(Position(LayerRangeSliderThumb.Lower)); await Layout();

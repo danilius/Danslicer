@@ -226,6 +226,7 @@ public partial class MainWindow
         OpenRecentProject(path); Require(vm.ProjectPath == path, "Recent project open failed");
         OpenRecentProject(path + ".missing"); Require(vm.ViewportStatus.StartsWith("Open failed:"), "Missing recent project must report failure");
         await CheckSettingsIntegration(directory);
+        await CheckLiveNumericPreviews(directory);
         File.Delete(path);
         File.Delete(meshPath);
     }

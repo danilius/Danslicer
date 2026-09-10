@@ -19,7 +19,7 @@ public partial class MainWindow
             ? nameof(config.PresentationShadowStrength) : nameof(config.WorkingShadowStrength));
         PopShadowSoftness.BeginPreview = () => config.BeginNumericPreview(AppConfig.Current.Viewport.ModelShadows == ModelShadowMode.Presentation
             ? nameof(config.PresentationShadowSoftnessMm) : nameof(config.WorkingShadowSoftnessMm));
-        Closing += (_, _) => { ScrubField.CancelActive(); IsolationSlider.CancelDrag(); };
-        Deactivated += (_, _) => { ScrubField.CancelActive(); IsolationSlider.CancelDrag(); };
+        Closing += (_, _) => { ScrubField.CancelActive(); IsolationSlider.CancelDrag(); SlicePreviewSlider.CancelDrag(); };
+        Deactivated += (_, _) => { ScrubField.CancelActive(); IsolationSlider.CancelDrag(); SlicePreviewSlider.CancelDrag(); };
     }
 }

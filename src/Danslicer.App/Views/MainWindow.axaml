@@ -351,7 +351,7 @@
                 <DockPanel IsVisible="{Binding IsLayersView}">
                     <Border DockPanel.Dock="Bottom" Background="{DynamicResource AppHeader}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,1,0,0" Padding="10,4">
                         <Grid ColumnDefinitions="*,Auto">
-                            <Slider Minimum="0" Maximum="{Binding PreviewLayerMax}" Value="{Binding PreviewLayer}"
+                            <controls:PreviewLayerSlider x:Name="SlicePreviewSlider" Minimum="0" Maximum="{Binding PreviewLayerMax}" Value="{Binding PreviewLayer}"
                                     TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{Binding PreviewLayerText}" Classes="label" Margin="16,0,0,0" MinWidth="360" />
                         </Grid>

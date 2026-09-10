@@ -23,6 +23,7 @@ public sealed class ConfigViewModel : ViewModelBase
     private readonly Action _saveConfig;
     private bool _previewing;
     private bool _serializingPreview;
+    private readonly Document? _document;
     private readonly SupportConfig? _supportOverride;
     private readonly bool _persistChanges;
     private readonly Action? _supportChanged;
@@ -66,6 +67,7 @@ public sealed class ConfigViewModel : ViewModelBase
         Action? supportChanged, Document? document)
     {
         _config = config;
+        _document = document;
         _saveConfig = () => PreviewPersistence.Save(saveConfig);
         _supportOverride = supportOverride;
         _persistChanges = persistChanges;
@@ -368,6 +370,22 @@ public sealed class ConfigViewModel : ViewModelBase
             throw new ArgumentException("Preview requires a numeric property", nameof(property));
         var original = member.GetValue(this)!;
         var latest = original;
+        // New rafts remain an explicit Add action. Existing selected rafts can preview their
+        // parameters; outline+mesh rebuilding measured up to 83 ms for 600 feet, so coalesce.
+        var raftObjects = property.StartsWith("SupportRaft", StringComparison.Ordinal) && _supportOverride is null
+            ? _document?.Selection.Where(o => o.Raft is not null).Select(o => (Object: o, Original: o.Raft)).ToArray()
+            : null;
+        var raftTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        RaftParameters? pendingRaft = null;
+        var raftApplied = false;
+        raftTimer.Tick += (_, _) =>
+        {
+            raftTimer.Stop();
+            if (pendingRaft is null || raftObjects is null) return;
+            foreach (var item in raftObjects) item.Object.Raft = pendingRaft;
+            pendingRaft = null; raftApplied = true;
+            _document!.NotifyTransientChange();
+        };
         void Set(object value, bool silent = false)
         {
             _previewing = true; _serializingPreview = silent;
@@ -379,7 +397,21 @@ public sealed class ConfigViewModel : ViewModelBase
         {
             latest = Convert.ChangeType(value, member.PropertyType);
             Set(latest);
-        }, () => { unregister(); Set(original); }, value =>
+            if (raftObjects is { Length: > 0 })
+            {
+                pendingRaft = Supports.ToRaftParameters();
+                if (!raftTimer.IsEnabled) raftTimer.Start();
+            }
+        }, () =>
+        {
+            raftTimer.Stop(); pendingRaft = null;
+            unregister(); Set(original);
+            if (raftApplied && raftObjects is not null)
+            {
+                foreach (var item in raftObjects) item.Object.Raft = item.Original;
+                _document!.NotifyTransientChange();
+            }
+        }, value =>
         {
             var final = Convert.ChangeType(value, member.PropertyType);
             if (!final.Equals(original)) member.SetValue(this, final);

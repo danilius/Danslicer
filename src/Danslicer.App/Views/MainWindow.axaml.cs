@@ -125,6 +125,7 @@ public partial class MainWindow : Window
         {
             ScrubField.CancelActive();
             IsolationSlider.CancelDrag();
+            SlicePreviewSlider.CancelDrag();
         }
         if (e.PropertyName == nameof(MainViewModel.Title))
         {
@@ -720,7 +721,9 @@ public partial class MainWindow : Window
     private void OnPopShadowModeChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_syncingViewSettings || PopShadowMode.SelectedIndex < 0) return;
-        AppConfig.Current.Viewport.ModelShadows = (ModelShadowMode)PopShadowMode.SelectedIndex;
+        var requestedMode = (ModelShadowMode)PopShadowMode.SelectedIndex;
+        ScrubField.CancelActive();
+        AppConfig.Current.Viewport.ModelShadows = requestedMode;
         ApplyRenderPathChange();
     }
 

@@ -704,6 +704,7 @@ public partial class MainViewModel : ViewModelBase
         Document.SelectionChanged += OnDocumentSelectionChanged;
         Document.SupportSelectionChanged += () =>
         {
+            Controls.Refresh.ScrubField.CancelActive();
             HideUnselectedSupportsCommand.NotifyCanExecuteChanged();
             DeleteCommand.NotifyCanExecuteChanged();
             HideCommand.NotifyCanExecuteChanged();
@@ -775,6 +776,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnDocumentSelectionChanged()
     {
+        Controls.Refresh.ScrubField.CancelActive();
         if (_syncingSelection) return;
         _syncingSelection = true;
         try
@@ -925,6 +927,7 @@ public partial class MainViewModel : ViewModelBase
 
     public void SaveProject(string path, ProjectViewState viewState)
     {
+        Controls.Refresh.ScrubField.CancelActive();
         ProjectFile.Save(path, Document, viewState);
         ProjectPath = System.IO.Path.GetFullPath(path);
         Title = $"{System.IO.Path.GetFileNameWithoutExtension(ProjectPath)} — Danslicer";

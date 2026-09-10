@@ -621,7 +621,9 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var batch in supportBatches) _combinedAuxMeshes.Add(batch.Draw);
         _combinedAuxMeshes.AddRange(_placementGhost);
         _combinedAuxMeshes.AddRange(_regionOverlays);
-        _combinedAuxMeshes.AddRange(_clipCaps);
+        // Exact caps belong to the previous plane until release; show open clipped surfaces
+        // during the simplified preview instead of drawing stale geometry at the old height.
+        if (!ClipDragging) _combinedAuxMeshes.AddRange(_clipCaps);
         if (_islandMarkerMesh is { } markers)
             _combinedAuxMeshes.Add(new AuxMeshDraw(markers, new Vector3(1f, 0.03f, 0.03f), 1f));
         if (_selectedSupportMesh is { } selected)

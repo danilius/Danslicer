@@ -49,6 +49,7 @@ public sealed class ModelScrubField : ScrubField
     {
         if (Field is not { } field) return;
         UnitKind = field.Kind; Format = field.Format; Unit = field.Suffix;
+        IsInteger = field.Format == "0";
         Step = field.Kind == Danslicer.Core.Utilities.UnitKind.Angle ? 1 : 0.1;
         AutomationProperties.SetName(this, field.Label);
         Value = field.Value;

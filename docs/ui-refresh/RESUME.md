@@ -1,3 +1,9 @@
+# Task 04b native lifecycle checks resolved
+Same da71 worktree / codex/ui-refresh-04b. Final main native run passes including layer navigation; see task-04b.md and evidence/task-04b-final-ui. Build passed. Next: gallery, final regression record, evidence cleanup and clean handoff commit. Prior good checkpoint d3624ff; this iteration is ready for its source checkpoint.
+
+# Task 04b iteration 2
+Same da71 worktree / codex/ui-refresh-04b; prior good d3624ff. GL numeric preview evidence and 225 regressions pass. Audit at slider-policy-audit.md. Expanded native suite found layer-navigation capture-loss issue; fix builds and fresh native rerun is in progress. Next: verify fresh final native outputs, control gallery, final build/checks and clean commit. Task 05 remains queued.
+
 # Task 04b iteration 1
 Same da71 worktree / codex/ui-refresh-04b. Prior checkpoint 5300cb7. Transaction implementation builds; 51 focused tests and updated native MainWindow checks pass. Read task-04b.md for changed files/evidence. Next: real GL preview evidence and raft profile, native shading/lifecycle coverage, complete audit/regression. Task 05 remains queued.
 
@@ -72,5 +78,7 @@ No physical mouse/orbit, monitor/DPI transitions, screen readers, alternate GPU/
 
 ## Next action / task 05 review instructions
 User reviews this MAIN build. Do not create/implement task 05 here. After acceptance, task 05 starts in a separate worktree from this exact final HEAD. Read START/SPEC/TASKS/task-01..04 and this RESUME; verify base/status and audit committed Claude overlap before any reconciliation. Preserve task-03 numeric/expression/units/undo, filled sliders, status/keymaps/modes, gripper-centred swaps with 250ms displaced ease and OrderCommitted-only saving, and the Support-only borderless right rail with cube Rect +12 DIP, centered Reset/Cap, saved off choice and 300ms hover grace. Review normal models/dense supports at real desktop scale, both projections, isolation/caps/selection, effects toggles, alternate GPU and physical DPI; run integration regressions. Keep rendering and any future confirmed geometry changes separate. No main merge without user instruction.
+
+
 
 
