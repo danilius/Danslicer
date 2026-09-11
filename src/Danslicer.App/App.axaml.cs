@@ -42,6 +42,13 @@ public partial class App : Application
             && (captureDesktop.Args ?? []).Contains("--workspace-capture"))
         {
             var isolated = Path.Combine(Path.GetTempPath(), "Danslicer-workspace-" + Guid.NewGuid().ToString("N"));
+            var captureArgs = captureDesktop.Args ?? [];
+            var probeIndex = Array.IndexOf(captureArgs, "--toolbar-preference-probe");
+            if (probeIndex >= 0 && probeIndex + 1 < captureArgs.Length)
+            {
+                Directory.CreateDirectory(isolated);
+                File.Copy(captureArgs[probeIndex + 1], Path.Combine(isolated, "workspace-ui.json"));
+            }
             AppConfig.UseIsolatedDirectory(isolated);
             captureDesktop.Exit += (_, _) => { if (Directory.Exists(isolated)) Directory.Delete(isolated, true); };
         }

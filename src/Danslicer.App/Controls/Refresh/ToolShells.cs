@@ -21,12 +21,66 @@ public sealed class FloatingToolbar : Border
     private readonly StackPanel _items = new() { Spacing = 4 };
     private readonly List<TextBlock> _labels = [];
     private readonly Dictionary<string, ToggleButton> _buttons = [];
+    public const double IconWidth = 58, LabelledWidth = 184;
+    private Point? _resizeOrigin;
+    private double _originalWidth;
+    private bool _originalLabels;
+    private IPointer? _resizePointer;
+    public bool IsResizing => _resizeOrigin is not null;
+    public event EventHandler? LabelsCommitted;
+    public Border ResizeEdge { get; } = new()
+    {
+        Width = 12, Background = Brushes.Transparent, HorizontalAlignment = HorizontalAlignment.Right,
+        Cursor = new Cursor(StandardCursorType.SizeWestEast), Focusable = true
+    };
     public FloatingToolbar()
     {
         Background = RefreshPalette.Panel; BorderBrush = RefreshPalette.Edge; BorderThickness = new Thickness(1);
         CornerRadius = new CornerRadius(6); Padding = new Thickness(6); Margin = new Thickness(16);
         HorizontalAlignment = HorizontalAlignment.Left; VerticalAlignment = VerticalAlignment.Top;
-        Child = new ScrollViewer { Content = _items, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        Padding = new Thickness(6, 6, 0, 6); Width = ShowLabels ? LabelledWidth : IconWidth;
+        ClipToBounds = true;
+        var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,12") };
+        root.Children.Add(new ScrollViewer { Content = _items, ClipToBounds = true, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        var focusMark = new Border { Width = 2, Margin = new Thickness(0, 4), Background = RefreshPalette.Fill, IsVisible = false };
+        ResizeEdge.Child = focusMark;
+        ResizeEdge.GotFocus += (_, _) => focusMark.IsVisible = true;
+        ResizeEdge.LostFocus += (_, _) => focusMark.IsVisible = false;
+        Grid.SetColumn(ResizeEdge, 1); root.Children.Add(ResizeEdge); Child = root;
+        AutomationProperties.SetName(ResizeEdge, "Resize toolbar labels");
+        ToolTip.SetTip(ResizeEdge, "Drag right to show labels, left to hide; Left/Right keys");
+        ResizeEdge.PointerPressed += (_, e) =>
+        {
+            if (IsResizing || !e.GetCurrentPoint(ResizeEdge).Properties.IsLeftButtonPressed) return;
+            ResizeEdge.Focus(); _resizeOrigin = e.GetPosition(TopLevel.GetTopLevel(this));
+            _originalWidth = Bounds.Width; _originalLabels = ShowLabels;
+            _resizePointer = e.Pointer; e.Pointer.Capture(ResizeEdge); e.Handled = true;
+        };
+        ResizeEdge.PointerMoved += (_, e) =>
+        {
+            if (!IsResizing || e.Pointer != _resizePointer) return;
+            PreviewWidth(e.GetPosition(TopLevel.GetTopLevel(this)).X); e.Handled = true;
+        };
+        ResizeEdge.PointerReleased += (_, e) =>
+        {
+            if (!IsResizing || e.Pointer != _resizePointer || e.InitialPressMouseButton != MouseButton.Left) return;
+            PreviewWidth(e.GetPosition(TopLevel.GetTopLevel(this)).X);
+            var changed = ShowLabels != _originalLabels;
+            EndResize(); UpdateLabels();
+            if (changed) LabelsCommitted?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        };
+        ResizeEdge.PointerCaptureLost += (_, _) => CancelResize();
+        ResizeEdge.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape && IsResizing) { CancelResize(); e.Handled = true; }
+            else if (e.Key is Key.Left or Key.Right)
+            {
+                if (!IsResizing) ShowLabels = e.Key == Key.Right;
+                e.Handled = true;
+            }
+        };
+        DetachedFromVisualTree += (_, _) => CancelResize();
     }
     public void AddTool(RefreshTool tool)
     {
@@ -69,11 +123,45 @@ public sealed class FloatingToolbar : Border
             button.Background = key == id ? RefreshPalette.Fill : RefreshPalette.Panel;
         }
     }
+    private void PreviewWidth(double x)
+    {
+        if (_resizeOrigin is not { } origin) return;
+        Width = Math.Clamp(_originalWidth + x - origin.X, IconWidth, LabelledWidth);
+        var fraction = (Width - IconWidth) / (LabelledWidth - IconWidth);
+        // Separate thresholds allow reversal without flicker around the midpoint.
+        if (fraction >= 0.6) ShowLabels = true;
+        else if (fraction <= 0.4) ShowLabels = false;
+        UpdateLabels();
+    }
+    private void EndResize()
+    {
+        _resizeOrigin = null;
+        var pointer = _resizePointer; _resizePointer = null; pointer?.Capture(null);
+    }
+    public void CancelResize()
+    {
+        if (!IsResizing) return;
+        ShowLabels = _originalLabels; // Remains transient until the capture is released.
+        EndResize(); UpdateLabels();
+    }
+    private void UpdateLabels()
+    {
+        if (!IsResizing) Width = ShowLabels ? LabelledWidth : IconWidth;
+        var fraction = Math.Clamp((Width - IconWidth) / (LabelledWidth - IconWidth), 0, 1);
+        foreach (var label in _labels)
+        {
+            label.IsVisible = IsResizing ? fraction > 0 : ShowLabels;
+            label.Opacity = IsResizing ? fraction : 1;
+        }
+    }
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
         if (change.Property == ShowLabelsProperty)
-            foreach (var label in _labels) label.IsVisible = ShowLabels;
+        {
+            UpdateLabels();
+            if (!IsResizing) LabelsCommitted?.Invoke(this, EventArgs.Empty);
+        }
     }
 }
 

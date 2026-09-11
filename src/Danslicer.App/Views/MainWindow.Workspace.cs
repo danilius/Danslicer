@@ -47,9 +47,8 @@ public partial class MainWindow
         _layoutTool = AddWorkspaceTool("Layout options", "move", LayoutPopout);
         _printTool = AddWorkspaceTool("Print settings", "print", PrintPopout);
         InitializeIsolationEditor();
-        var labels = new Button();
-        _workspaceToolbar.AddExistingTool(labels, "Toolbar labels", "labels");
-        labels.Click += (_, _) => { _workspaceToolbar.ShowLabels = !_workspaceToolbar.ShowLabels; PositionWorkspacePopouts(); };
+        Closing += (_, _) => _workspaceToolbar.CancelResize();
+        Deactivated += (_, _) => _workspaceToolbar.CancelResize();
         ViewportSurface.Children.Add(_workspaceToolbar);
         foreach (var popup in ViewportSurface.Children.OfType<WorkspacePopout>().ToArray())
         {
@@ -117,6 +116,7 @@ public partial class MainWindow
     }
     private void ApplyWorkspaceMode()
     {
+        _workspaceToolbar.CancelResize();
         if (_printTool is null) return;
         _printTool.IsVisible = ViewModel?.IsLayersView == true;
         _layoutTool.IsVisible = ViewModel?.IsLayoutView == true;
@@ -149,6 +149,7 @@ public partial class MainWindow
         Grid.SetColumn(MachineSummary, 0);
         MachineSummary.Margin = narrow ? new Thickness(0, 3, 0, 0) : new Thickness(96, 0, 8, 0);
         Grid.SetColumnSpan(MachineSummary, narrow ? 3 : 1);
+        _workspaceToolbar.MaxWidth = Math.Max(FloatingToolbar.IconWidth, bounds.Width - 24);
         _workspaceToolbar.MaxHeight = Math.Max(40, bounds.Height - 24);
         foreach (var popup in _workspacePopouts)
         {

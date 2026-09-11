@@ -15,9 +15,8 @@ public partial class MainWindow
         _workspacePreferences = WorkspacePreferences.Load(AppConfig.WorkspacePath);
         _workspaceToolbar.ShowLabels = _workspacePreferences.ShowToolbarLabels;
         _recentProjects.AddRange(_workspacePreferences.RecentProjects);
-        _workspaceToolbar.PropertyChanged += (_, e) =>
+        _workspaceToolbar.LabelsCommitted += (_, _) =>
         {
-            if (e.Property != FloatingToolbar.ShowLabelsProperty) return;
             _workspacePreferences.ShowToolbarLabels = _workspaceToolbar.ShowLabels;
             SaveWorkspacePreferences();
         };

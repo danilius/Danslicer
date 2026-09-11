@@ -29,6 +29,15 @@ public partial class MainWindow
             try
             {
                 await Task.Delay(600);
+                var probeIndex = Array.IndexOf(args, "--toolbar-preference-probe");
+                if (probeIndex >= 0)
+                {
+                    var expected = bool.Parse(args[probeIndex + 2]);
+                    if (_workspaceToolbar.ShowLabels != expected)
+                        throw new InvalidOperationException("Fresh process did not restore committed toolbar labels");
+                    File.WriteAllText(System.IO.Path.Combine(directory, "toolbar-restart-ok.txt"), $"Fresh MAIN process restored toolbar labels={expected} from compatible workspace JSON.");
+                    return;
+                }
                 await CheckWorkspace(directory);
                 File.WriteAllText(System.IO.Path.Combine(directory, "workspace-ok.txt"),
                     "Real MainWindow/VM: STL import, selected object transform expression/undo, duplicate/undo, toolbar labels, mode scoping, all 12 popouts and persistent panel-free Support isolation rail with cube clearance/centered Reset/Cap label, handle-hover layer/mm editing, pointer drag commit/cancel and delayed dismissal, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, durable project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
@@ -105,6 +114,7 @@ public partial class MainWindow
         vm.Document.Select(vm.Objects[0]);
         await Layout();
         Require(position.IsEffectivelyVisible && position.Bounds.Height >= 24, "Transform field not visible after undo");
+        await CheckToolbarResize(directory);
         Capture("workspace-layout.png");
         _workspaceToolbar.ShowLabels = true; await Layout();
         Capture("workspace-labels.png");
@@ -235,5 +245,6 @@ public partial class MainWindow
         await CheckSupportEditorRefinements(directory);
         File.Delete(path);
         File.Delete(meshPath);
+        PrepareToolbarCloseCheck(directory);
     }
 }
