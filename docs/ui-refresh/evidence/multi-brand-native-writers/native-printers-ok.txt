@@ -1,0 +1,1 @@
+Actual Preferences: native format status, experimental notice, Mono 4K selection, print width expression, automatic user copy, separate display scale, persistence and copy deletion passed using isolated config.

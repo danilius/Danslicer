@@ -41,6 +41,10 @@ public sealed record PrinterDefinition(
     // Defaults deliberately preserve existing Mono X files and embedded user definitions.
     public bool PerLayerSettings { get; init; } = true;
     public uint MachinePropertyFields { get; init; } = 1;
+    /// <summary>Explicit container identity where several incompatible formats share a suffix.</summary>
+    public string NativeFormat { get; init; } = "photon-workshop";
+    /// <summary>Tilt-vat firmware controls peeling; CTB motion fields carry compatibility placeholders.</summary>
+    public bool FirmwareControlsPeel { get; init; }
 
     [JsonIgnore]
     public string CompatibilityNote => Id == PhotonMonoXId

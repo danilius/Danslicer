@@ -70,8 +70,9 @@ public sealed class PrinterEditorViewModel : ViewModelBase
             if (SelectedPrinter is not { } printer) return "";
             try
             {
-                Core.IO.PhotonWorkshopFormat.ValidatePrinter(printer);
-                return $"Native Photon Workshop export: .{printer.FileExtension}, version {printer.FormatVersion}.";
+                Core.IO.NativePrintWriter.ValidatePrinter(printer);
+                return $"Native {printer.NativeFormat} export: .{printer.FileExtension}, version {printer.FormatVersion}. "
+                    + Core.IO.NativePrintWriter.Limitations(printer);
             }
             catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
             {

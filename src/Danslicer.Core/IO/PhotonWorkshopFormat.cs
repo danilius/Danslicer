@@ -38,6 +38,11 @@ public static class PhotonWorkshopFormat
     public static void Validate(SliceResult result)
     {
         ValidatePrinter(result.Printer);
+        ValidateContent(result);
+    }
+
+    internal static void ValidateContent(SliceResult result)
+    {
         if (result.LayerCount == 0 || !Positive(result.Settings.LayerHeight))
             throw new InvalidOperationException("A print needs layers with a positive layer height.");
         if (!float.IsFinite(result.MinX) || !float.IsFinite(result.MinY) || !float.IsFinite(result.MaxX)

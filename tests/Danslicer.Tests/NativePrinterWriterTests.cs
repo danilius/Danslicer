@@ -166,11 +166,11 @@ public sealed class NativePrinterWriterTests
     [Fact]
     public void CatalogAndCopiesPersistNewFormatAndAreaFields()
     {
-        Assert.Equal(18, PrinterCatalog.BuiltIn.Count);
-        Assert.Equal(18, PrinterCatalog.BuiltIn.Select(p => p.Id).Distinct().Count());
+        Assert.Equal(18, PrinterCatalog.BuiltIn.Count(p => p.NativeFormat == "photon-workshop"));
+        Assert.Equal(PrinterCatalog.BuiltIn.Count, PrinterCatalog.BuiltIn.Select(p => p.Id).Distinct().Count());
         foreach (var p in PrinterCatalog.BuiltIn)
         {
-            PhotonWorkshopFormat.ValidatePrinter(p);
+            NativePrintWriter.ValidatePrinter(p);
             Assert.Equal(p, p.Normalize());
             Assert.Equal(p, JsonSerializer.Deserialize<PrinterDefinition>(JsonSerializer.Serialize(p)));
             var copy = p.CreateUserCopy("custom").Normalize();

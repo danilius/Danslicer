@@ -16,6 +16,10 @@ if (args.Length == 0)
 
 switch (args[0])
 {
+    case "printers":
+        foreach (var printer in PrinterCatalog.BuiltIn)
+            Console.WriteLine($"{printer.Id}\t{printer.Name}\t.{printer.FileExtension}\t{printer.NativeFormat}\t{printer.CompatibilityNote}");
+        return 0;
     case "info":
         return Info(args.Skip(1).ToArray());
     case "slice":
@@ -40,6 +44,8 @@ switch (args[0])
 void Usage()
 {
     Console.Error.WriteLine("Usage:");
+    Console.Error.WriteLine("  danslicer printers");
+    Console.Error.WriteLine("  danslicer slice <mesh|project> -o <output> --printer <profile-id> [slice options]");
     Console.Error.WriteLine("  danslicer info <file.stl|file.obj|file.danslicer>");
     Console.Error.WriteLine("  danslicer slice <file.stl|file.obj>... | <file.danslicer> -o <out.pwmx> [--allow-out-of-bounds] [--layer 0.05] [--exposure 2] [--bottom-exposure 30] [--bottom-layers 5] [--no-aa] [--xy 0]");
     Console.Error.WriteLine("  danslicer inspect <file.pwmx>");

@@ -25,7 +25,7 @@ public static class PrinterCatalog
         Profile("mono-m5s-pro", "Photon Mono M5s Pro", "m5sp", 518, 223.642f, 126.976f, 200, 13312, 5120),
         Profile("ultra", "Photon Ultra", "dlp", 516, 102.4f, 57.6f, 165, 1280, 720),
         Profile("d2", "Photon D2", "dl2p", 517, 130.56f, 73.44f, 165, 2560, 1440),
-    });
+    }.Concat(MultiBrandPrinterCatalog.Profiles).ToArray());
 
     public static bool IsBuiltInId(string id) => BuiltIn.Any(p =>
         string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase));

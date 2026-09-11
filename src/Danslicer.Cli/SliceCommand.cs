@@ -18,6 +18,7 @@ internal static class SliceCommand
         var errorWriter = standardError ?? Console.Error;
         var inputs = new List<string>();
         string? output = null;
+        string? printerId = null;
         float? layerHeight = null;
         float? exposure = null;
         float? bottomExposure = null;
@@ -30,6 +31,7 @@ internal static class SliceCommand
             switch (args[i])
             {
                 case "-o": output = args[++i]; break;
+                case "--printer": printerId = args[++i]; break;
                 case "--layer": layerHeight = Parse(args[++i]); break;
                 case "--exposure": exposure = Parse(args[++i]); break;
                 case "--bottom-exposure": bottomExposure = Parse(args[++i]); break;
@@ -47,6 +49,13 @@ internal static class SliceCommand
         }
 
         var printer = PrinterDefinition.PhotonMonoX;
+        var overridePrinter = printerId is null ? null : PrinterCatalog.BuiltIn.FirstOrDefault(p =>
+            string.Equals(p.Id, printerId, StringComparison.OrdinalIgnoreCase));
+        if (printerId is not null && overridePrinter is null)
+        {
+            errorWriter.WriteLine($"error: unknown printer '{printerId}'. Run 'danslicer printers' to list profile IDs.");
+            return 1;
+        }
         List<SceneObject> objects;
         Danslicer.Core.Supports.SupportGraph? supports = null;
         PrintSettings settings;
@@ -83,6 +92,7 @@ internal static class SliceCommand
                 objects.Add(obj);
             }
         }
+        printer = overridePrinter ?? printer;
         settings = settings with
         {
             LayerHeight = layerHeight ?? settings.LayerHeight,
@@ -107,10 +117,11 @@ internal static class SliceCommand
         SliceResult result;
         try
         {
+            NativePrintWriter.ValidatePrinter(printer);
             result = Slicer.Slice(objects, printer, settings, progress, supports: supports,
                 resinSettings: resin, allowOutOfBounds: allowOutOfBounds);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
         {
             errorWriter.WriteLine();
             errorWriter.WriteLine($"error: {ex.Message}");
@@ -121,7 +132,7 @@ internal static class SliceCommand
             errorWriter.WriteLine($"warning: {warning["Warning: ".Length..]}");
         try
         {
-            PhotonWorkshopWriter.Write(result, output);
+            NativePrintWriter.Write(result, output);
         }
         catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {

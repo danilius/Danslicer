@@ -95,6 +95,14 @@ public partial class MainWindow
             bitmap.Render(content);
             bitmap.Save(System.IO.Path.Combine(directory, "workflow-sliced.png"), PngBitmapEncoderOptions.Default);
         }
+        var originalPrinter = vm.Document.Printer;
+        vm.Document.Printer = originalPrinter with { Id = "goo-workflow-fixture", Name = "GOO workflow fixture", NativeFormat = "goo", FileExtension = "goo", FormatVersion = 3 };
+        string gooOutput = System.IO.Path.Combine(directory, "workflow.goo");
+        Require(await vm.ExportAsync(gooOutput), "Native GOO export through MainWindow failed: " + vm.ViewportStatus);
+        Require(File.ReadAllBytes(gooOutput).AsSpan(0, 4).SequenceEqual("V3.0"u8), "MainWindow did not dispatch to GOO writer");
+        Require(vm.LastSlice?.Printer.NativeFormat == "goo", "Export reused an old printer's slice");
+        vm.Document.Printer = originalPrinter;
+        File.WriteAllText(System.IO.Path.Combine(directory, "multi-brand-export-ok.txt"), "MainWindow export invalidated the old printer slice and produced a native GOO file from the generated support/raft scene.");
         File.WriteAllText(System.IO.Path.Combine(directory, "workflow-ok.txt"),
             $"Native MainWindow VM: imported STL; transform undo/redo; explicit generation ({nodeCount} nodes/{segmentCount} segments), one-step undo/redo; Add raft undo/redo; project reload preserving geometry, source path, transform and printer/print settings; explicit slicing ({slice.LayerCount} layers); preview navigation; export and decoding every layer/header passed. Every exported bitmap equals its sliced source; raft/support/model interior layers contain data; unchanged export reused slice. Temporary 480x300 printer fixture, not physical printer certification. No file picker/UVtools dialog exercised.\nExport SHA256: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(output)))}\n");
     }

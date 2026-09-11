@@ -1359,14 +1359,14 @@ public partial class MainViewModel : ViewModelBase
     public async Task<bool> ExportAsync(string path)
     {
         var result = LastSlice;
-        if (result is null || result.Settings != Document.PrintSettings ||
+        if (result is null || result.Printer != Document.Printer || result.Settings != Document.PrintSettings ||
             result.ResinSettings != Document.ResinSettings)
             result = await Slice();
         if (result is null) return false;
 
         try
         {
-            await Task.Run(() => PhotonWorkshopWriter.Write(result, path));
+            await Task.Run(() => NativePrintWriter.Write(result, path));
             _lastExportPath = System.IO.Path.GetFullPath(path);
             RefreshUvtoolsAvailability();
             ViewportStatus = $"Exported {System.IO.Path.GetFileName(path)}: {result.LayerCount} layers, {result.VolumeMl:0.##} ml.";
