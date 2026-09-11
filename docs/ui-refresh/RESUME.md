@@ -1,46 +1,24 @@
-# Current handoff — Task 05 refinements complete, ready for review
+# Current handoff — Task 06 implemented and validated
 
-This checkpoint supersedes all earlier queued/in-progress descriptions of task 05. User acceptance is pending; no main merge is authorized.
+Worktree: C:/Users/plane/.codex/worktrees/271f/Danslicer-chatgpt
+Branch: codex/ui-refresh-06
+Clean task-05 base: dc4664cd7321030cfe04b866815427b6b4f8a531
+Last-good tested source: f988a327e45ec344e4ada145ae3a9b54109edf1c
+Final handoff: documentation/evidence descendant at this branch HEAD; resolve `git rev-parse HEAD` and require clean `git status --short`. Exact final hash is in the task response.
 
-Worktree: C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt
-Branch: codex/ui-refresh-05
-Exact clean starting ref: c829020492020c333f1c0937b7275732927a6a4f
-Last-good tested source commit: 7d88af03b3e69d35f4873ea6799ca8cb28512d3f
-Core correction commit: b34807aac8864843823d5f3b9e6f729479d2074e
-Final handoff: documentation/evidence descendant of that source commit at this branch HEAD; exact hash in final task response. Resolve HEAD and require clean status before continuing.
+Read task-06.md for calculation audit, assumptions, tests, screenshots and limitations. Slicing now displays theoretical resin mL and approximate print duration beneath navigation, preserving status bar. Clipped union area prevents off-plate material overcount; time includes actual bottom/normal layers, lift/retract and wait. Unknown firmware overhead/transition behavior is disclosed. Document changes conservatively invalidate estimates, including resin-only edits; no automatic generation or slice. Snapshot/revision protection rejects changed-during-slice results.
 
-Read SPEC.md, slider-policy-audit.md and task-05-acceptance.md. task-05.md retains every meaningful iteration and failed-check resolution. Older task-04b RESUME is preserved in RESUME-history-through-04b.md; task-01 through task-04b notes retain earlier history.
-
-## Delivered and verified
-
-Fixed live project open losing raft/source path, transient printer dropdown writeback replacing embedded printers, and garbled project-menu punctuation. Added complete isolated native generation/raft/project/slice/export workflow and bounded dispatcher-aware raft assertions. User-review additions: configurable 1–5px Deferred outline width, practical support/raft slider maxima (base 25mm), matching draggable Support editor headers, exclusive SpaceMouse ownership with a persistent shared driver session and neutral-cap gate on handoff (fixes continuous rotation on editor close). Slicing/support/raft algorithms unchanged. See latest acceptance report and evidence/task-05-refinements-final plus task-05-refinements-gl. Status-bar subtree preserved exactly after newline normalization.
-
-Release solution build passed; final entire suite 1013 passed, zero failures/skips. Native MAIN all settings/persistence/live numeric/lifecycle/isolation contracts passed, plus 12 generated support nodes/8 segments and 110-layer export with every decoded bitmap equal to slice. Gallery passed. Both actual GL paths passed 116 framebuffers in the refinement run, below picking, independent effects/caps/shadows and eight numeric preview/save/cancel comparisons. Evidence in evidence/task-05-tests, task-05-ui-final, task-05-controls and task-05-gl. See acceptance report for full checklist, errors found/fixed and timing.
-
-Main remains stable ancestral 7d95cebfe7f289d1e3230fb789a4526d1f3b518d. No newer committed main work, so no reconciliation merge. No other checkout/uncommitted source touched, no main merge or push.
+Release solution build passed. Final full suite 1020 passed, no failures/skips. Native MAIN entire workspace and print workflow completed ten success logs; 110 layers, 0.24170238mL, 1368.333333s => 0.24mL / approximately 23min. Every exported bitmap equals its sliced source. Full/narrow/stale/150/200-density evidence in evidence/task-06. No renderer changes or redundant GL run. Existing warnings remain. Physical SpaceMouse retest and actual printer/timing certification remain unverified.
 
 ## Absolute MAIN build and launch
 
 ```powershell
-dotnet build "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\Danslicer.slnx" -c Release -p:UsedAvaloniaProducts= --nologo
-& "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
+dotnet build "C:\Users\plane\.codex\worktrees\271f\Danslicer-chatgpt\Danslicer.slnx" -c Release -p:UsedAvaloniaProducts= --nologo
+& "C:\Users\plane\.codex\worktrees\271f\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe"
 ```
 
-This launches the actual main app using normal user configuration. No preview flags needed. Build performs restore if required; restricted NuGet access needed approved retry in this session.
+This launches the real app with normal user configuration. Isolated test/capture commands are in task-06.md.
 
-## Reproduce validation with isolated config/output
+## Exact next action / parallel coordination
 
-```powershell
-dotnet test "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\tests\Danslicer.Tests" -c Release --no-build --no-restore --nologo
-& "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --workspace-capture "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\artifacts\task05-recheck-ui"
-& "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --renderer-capture "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\artifacts\task05-recheck-gl"
-& "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.exe" --ui-preview --capture-directory "C:\Users\plane\.codex\worktrees\ed62\Danslicer-chatgpt\artifacts\task05-recheck-controls"
-```
-
-Run GUI harnesses sequentially and wait for each process to exit before reading logs. Windows GUI invocation may return early; use Start-Process -PassThru -Wait when scripting (hidden window style for background helpers). MAIN and unit tests use temporary isolated config; renderer/gallery do not load user config. Recheck directories avoid overwriting committed evidence.
-
-## Limits and next action
-
-Physical mouse/touch/pen, monitor DPI transitions, screen reader, alternate GPU, native file dialogs, UVtools, SpaceMouse physical motion and physical printing remain unverified; actual COM connection continuity across handoffs passed; synthetic held-rotation/neutral recovery tests passed. Offscreen main captures omit GL; separate real framebuffer images prove rendering. Classic has no AO/cavity; raft dense rebuild can block a frame (64.02ms maximum in this run); exact CPU caps simplify during drag and recompute on release. Existing compiler/analyzer warnings remain. Only synthetic small print workflow, no production-sized job certification.
-
-Next action: user reviews task 05 directly. Task 06 (Slicing-page resin volume and estimated print time) starts from this final task-05 commit in a separate worktree when instructed, followed by task 07 printer compatibility assessment. Neither was implemented or dispatched here. No main merge without user instruction.
+User reviews task 06 in MAIN. Task 07 assessment runs independently from the SAME task-05 base dc4664c, not sequentially after task 06. Import its report deliberately when available; reconcile its TASKS/RESUME notes without assuming ancestry. No printer support implementation, further tasks, main merge/push or other checkout changes were made. Task-05 physical SpaceMouse motion still needs user verification. Prior task-05 acceptance/evidence remain in task-05-acceptance.md and their existing evidence directories.
