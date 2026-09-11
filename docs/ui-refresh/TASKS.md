@@ -31,3 +31,6 @@ Task 01 was approved by the user; accepted handoff: 0fadc0e2412498513e34db6337aa
 See task-08.md and queued instruction files committed at 188f166. Baseline da530dd deliberately combines Task06 estimates and all Task07 native writers. Tasks09/10 stay queued for coordinator dispatch. User authorized autonomous completion without routine visual approval stops.
 
 Task08 completed at tested source/evidence 800c20dc50c49787dfa7fded73e5ec0676004878: build, 1061 tests and 14 native markers pass. See RESUME/task-08.md. Tasks09/10 still queued; no main integration done here.
+
+## Task09 — authorized integration and cleanup active
+Task08 complete at a5d2bd2. Task09 supersedes prior no-main-merge instructions for its authorized scope. Audit and recovery: task-09.md. Isolated build and 1061 tests pass. Task10 remains queued separately in artifacts/ui-refresh-handoff/task-10-queued.md.
