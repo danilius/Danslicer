@@ -1,0 +1,6 @@
+Final preservation verification: 31/31 main user-file SHA256 hashes unchanged.
+All retained prior worktree HEADs and status match pre-audit.
+Six worktree removals, seven local branch deletions, 16 remote branch deletions recorded.
+Live origin retains exactly main and grid-routing-prototype; main unchanged at 7d95cebfe7f289d1e3230fb789a4526d1f3b518d.
+Main Release executable exists; native capture exited 0, 14 success markers and no errors.
+Final Task09 documentation/evidence commit will fast-forward main; source is unchanged from tested Task08.

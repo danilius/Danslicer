@@ -39,4 +39,3 @@ Task08 completed at tested source/evidence 800c20dc50c49787dfa7fded73e5ec0676004
 
 ## Task09 — authorized integration and cleanup active
 Task08 complete at a5d2bd2. Task09 supersedes prior no-main-merge instructions for its authorized scope. Audit and recovery: task-09.md. Isolated build and 1061 tests pass. Task10 remains queued separately in artifacts/ui-refresh-handoff/task-10-queued.md.
-
