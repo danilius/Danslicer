@@ -282,7 +282,7 @@
                 <Grid x:Name="WorkspaceHeader" ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,Auto">
                     <ToggleButton x:Name="HeaderAutoDrop" Classes="tool" Content="Auto drop" HorizontalAlignment="Left" VerticalAlignment="Center" IsChecked="{Binding AutoDropEnabled, Mode=TwoWay}" IsEnabled="{Binding IsLayoutView}" ToolTip.Tip="Re-seat the lowest mesh point at the entered offset after every transform" />
                     <StackPanel x:Name="MachineSummary" Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" Margin="96,0,8,0">
-                        <TextBlock Text="{Binding SelectedPrinterName}" Classes="label" MaxWidth="180" TextTrimming="CharacterEllipsis" ToolTip.Tip="Selected machine; change in Print settings" />
+                        <Button x:Name="PrinterPresetButton" Click="OnPrinterPresetsClick" Padding="4,2" MinHeight="24" ToolTip.Tip="Edit printer presets"><TextBlock Text="{Binding SelectedPrinterName}" Classes="label" MaxWidth="180" TextTrimming="CharacterEllipsis" /></Button>
                         <ComboBox ItemsSource="{Binding SupportSettings.Resins.DisplayNames}" SelectedIndex="{Binding SupportSettings.Resins.SelectedIndex, Mode=TwoWay}" MaxWidth="180" MinHeight="24" FontSize="12" ToolTip.Tip="Selected resin" />
                     </StackPanel>
                     <Button x:Name="ProjectDropdown" Grid.Column="2" HorizontalAlignment="Right" Content="Project ▾" Click="OnProjectDropdownClick" FontSize="12" MaxWidth="180" ToolTip.Tip="Recent projects and open another project" />
@@ -917,6 +917,7 @@
                         <ComboBox ItemsSource="{Binding PrinterDisplayNames}"
                                   SelectedIndex="{Binding SelectedPrinterIndex, Mode=TwoWay}"
                                   Margin="0,0,0,4" />
+                        <Button Content="Edit presets…" Click="OnPrinterPresetsClick" HorizontalAlignment="Left" />
 
                         <TextBlock Text="Resin" Classes="section" />
                         <ComboBox ItemsSource="{Binding SupportSettings.Resins.DisplayNames}"

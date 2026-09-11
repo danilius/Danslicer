@@ -78,9 +78,7 @@
                     <ListBoxItem Content="Appearance" />
                     <ListBoxItem Content="Viewport" />
                     <ListBoxItem Content="Keymap" />
-                    <ListBoxItem Content="Printers" />
                     <ListBoxItem Content="Resins" />
-                    <ListBoxItem Content="Supports" />
                     <ListBoxItem Content="External tools" />
                     <ListBoxItem Content="SpaceMouse" />
                 </ListBox>
@@ -256,70 +254,6 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <StackPanel x:Name="PrintersSection">
-                    <TextBlock Text="Printers" Classes="section" />
-                    <Grid Tag="printers machines definitions add duplicate rename delete resolution display size mirror format"
-                          ColumnDefinitions="190,*" ColumnSpacing="14">
-                        <StackPanel>
-                            <ListBox ItemsSource="{Binding Printers.Items}"
-                                     SelectedIndex="{Binding Printers.SelectedIndex, Mode=TwoWay}"
-                                     MinHeight="180" MaxHeight="300">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate x:DataType="printers:PrinterDefinition">
-                                        <StackPanel Margin="2">
-                                            <TextBlock Text="{Binding Name}" FontSize="12" />
-                                            <TextBlock Text="Built-in" Classes="label" FontSize="10"
-                                                       IsVisible="{Binding IsBuiltIn}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                            <WrapPanel Margin="0,6,0,0">
-                                <Button Content="Add" Command="{Binding Printers.AddCommand}" Margin="0,0,4,4" />
-                                <Button Content="Duplicate" Command="{Binding Printers.DuplicateCommand}" Margin="0,0,4,4" />
-                                <Button Content="Delete" Command="{Binding Printers.DeleteCommand}" Margin="0,0,4,4" />
-                            </WrapPanel>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" IsEnabled="{Binding Printers.HasSelectedPrinter}">
-                            <TextBlock Text="{Binding Printers.CompatibilityNote}" Classes="label"
-                                       TextWrapping="Wrap" Margin="0,0,0,6" />
-                            <TextBlock Text="{Binding Printers.FormatStatus}" Classes="label"
-                                       TextWrapping="Wrap" Margin="0,0,0,6" />
-                            <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,0,0,6"
-                                       IsVisible="{Binding Printers.IsBuiltInSelected}"
-                                       Text="Built-in definitions are read-only. The first edit creates a user copy." />
-                            <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="6" Margin="0,2">
-                                <TextBlock Text="Name" Classes="label" />
-                                <TextBox Grid.Column="1" Text="{Binding Printers.NameDraft}" />
-                                <Button Grid.Column="2" Content="Rename" Command="{Binding Printers.RenameCommand}" />
-                            </Grid>
-                    <TextBlock Classes="hint" Text="How the printer is listed in Danslicer and saved with the project." />
-                            <Grid ColumnDefinitions="130,*" Margin="0,2">
-                                <TextBlock Text="Machine name" Classes="label" />
-                                <TextBox Grid.Column="1" Text="{Binding Printers.MachineName, Mode=TwoWay}" />
-                            </Grid>
-                    <TextBlock Classes="hint" Text="The name written into the print file's header. Some printers refuse a file whose machine name is not their own." />
-                            <Grid ColumnDefinitions="130,*" Margin="0,2">
-                                <TextBlock Text="File extension" Classes="label" />
-                                <TextBox Grid.Column="1" Text="{Binding Printers.FileExtension, Mode=TwoWay}" />
-                            </Grid>
-                    <TextBlock Classes="hint" Text="Native export checks the extension and format version together. Unsupported combinations cannot be exported." />
-                            <ItemsControl ItemsSource="{Binding Printers.Fields}"
-                                          ItemTemplate="{StaticResource PrinterFieldTemplate}" />
-                            <TextBlock Classes="hint" Text="Display dimensions set pixel scale. Print width and depth limit the usable area at the centre of that display." />
-                            <WrapPanel Margin="0,4,0,0">
-                                <TextBlock Text="Mirror layer image" Classes="label" Width="130" />
-                                <CheckBox Content="X" IsChecked="{Binding Printers.MirrorX}" Margin="0,0,12,0" />
-                                <CheckBox Content="Y" IsChecked="{Binding Printers.MirrorY}" />
-                            </WrapPanel>
-                            <TextBlock Classes="hint" Text="Flip every layer image on that axis before writing, for printers whose screen is mirrored relative to the plate. Wrong here prints a mirrored model." />
-                            <TextBlock Text="{Binding Printers.ValidationMessage}"
-                                       IsVisible="{Binding Printers.HasValidationMessage}"
-                                       Foreground="{DynamicResource AppAccent}" FontSize="12" Margin="0,6,0,0" />
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-
                 <StackPanel x:Name="ResinsSection">
                     <TextBlock Text="Resins" Classes="section" />
                     <Grid Tag="resin presets exposure cure bottom layers lift retract light off delay"
@@ -354,12 +288,6 @@
                                           ItemTemplate="{StaticResource PrinterFieldTemplate}" />
                         </StackPanel>
                     </Grid>
-                </StackPanel>
-
-                <StackPanel x:Name="SupportsSection">
-                    <TextBlock Text="Supports" Classes="section" />
-                    <TextBlock Classes="hint" Text="The recipe every generation, placement, parenting and bracing uses; the same settings as the Support settings pop-out in Support mode. Hover any setting for what it does. Presets snapshot the whole recipe." />
-                    <controls:SupportSettingsView DataContext="{Binding}" />
                 </StackPanel>
 
                 <StackPanel x:Name="ExternalToolsSection">

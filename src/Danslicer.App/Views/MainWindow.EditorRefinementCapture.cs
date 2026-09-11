@@ -18,9 +18,11 @@ public partial class MainWindow
     {
         static void Require(bool ok, string message) { if (!ok) throw new InvalidOperationException(message); }
         var originalDevice = Viewport.SpaceMouseDevice;
-        var vm = new SupportPresetEditorViewModel(AppConfig.Current.ActiveSupportPresetName, () => null);
-        var editor = new SupportPresetEditorWindow(vm);
-        editor.Show(this); editor.Activate();
+        ViewModel!.SupportSettings.EditSupportPresetCommand.Execute(null);
+        var editor = _presetEditorWindow!;
+        Require(editor is not null, "Workspace Support editor command did not open the editor");
+        var vm = (SupportPresetEditorViewModel)editor!.DataContext!;
+        editor.Activate();
         await Task.Delay(250); editor.UpdateLayout();
         var preview = editor.GetVisualDescendants().OfType<ViewportControl>().Single();
         Require(ViewportControl.SpaceMouseOwner == preview, "Editor did not acquire exclusive SpaceMouse ownership");

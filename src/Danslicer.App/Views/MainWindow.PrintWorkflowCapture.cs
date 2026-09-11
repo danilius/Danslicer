@@ -126,6 +126,8 @@ public partial class MainWindow
             "Changed input must clear estimates without slicing");
         CaptureEstimate("estimates-stale");
         Width = originalWidth; Height = originalHeight; _workspaceToolbar.ShowLabels = false;
+        Require(await vm.ExportAsync(output) && vm.LastSlice is not null,
+            "Failed to restore a cached slice after estimate invalidation");
         var originalPrinter = vm.Document.Printer;
         vm.Document.Printer = originalPrinter with { Id = "goo-workflow-fixture", Name = "GOO workflow fixture", NativeFormat = "goo", FileExtension = "goo", FormatVersion = 3 };
         string gooOutput = System.IO.Path.Combine(directory, "workflow.goo");
@@ -138,4 +140,3 @@ public partial class MainWindow
             $"Native MainWindow VM: imported STL; transform undo/redo; explicit generation ({nodeCount} nodes/{segmentCount} segments), one-step undo/redo; Add raft undo/redo; project reload preserving geometry, source path, transform and printer/print settings; explicit slicing ({slice.LayerCount} layers); preview navigation; export and decoding every layer/header passed. Every exported bitmap equals its sliced source; raft/support/model interior layers contain data; unchanged export reused slice. Temporary 480x300 printer fixture, not physical printer certification. No file picker/UVtools dialog exercised.\nExport SHA256: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(output)))}\n");
     }
 }
-

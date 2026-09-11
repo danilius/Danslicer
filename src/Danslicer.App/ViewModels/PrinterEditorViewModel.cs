@@ -5,7 +5,7 @@ using Danslicer.Core.Utilities;
 
 namespace Danslicer.App.ViewModels;
 
-/// <summary>Persisted printer collection editor used by Preferences.</summary>
+/// <summary>Persisted printer collection editor used by the dedicated preset window.</summary>
 public sealed class PrinterEditorViewModel : ViewModelBase
 {
     private readonly UserConfig _config;
@@ -153,7 +153,9 @@ public sealed class PrinterEditorViewModel : ViewModelBase
         NumericField? field = null;
         field = new NumericField(label, unit, format, value =>
         {
-            Edit(printer => apply(printer, value));
+            // Reject invalid dimensions before nullable usable-size defaults become an explicit copy.
+            if (double.IsFinite(value) && value > 0)
+                Edit(printer => apply(printer, value));
             RefreshFields();
         }, suffix);
         return field;
@@ -202,6 +204,7 @@ public sealed class PrinterEditorViewModel : ViewModelBase
     {
         if (SelectedPrinter is not { } selected) return;
         var edited = apply(selected).Normalize();
+        if (edited == selected) return;
         string selectedId;
         if (selected.IsBuiltIn)
         {

@@ -7,6 +7,37 @@ namespace Danslicer.Tests;
 public sealed class PrinterEditorViewModelTests
 {
     [Fact]
+    public void CreationRenameValidationAndReopenPreserveNativeIdentity()
+    {
+        var config = new UserConfig();
+        var saves = 0;
+        var editor = new PrinterEditorViewModel(config, () => saves++);
+        editor.NameDraft = editor.SelectedPrinter!.Name;
+        editor.RenameCommand.Execute(null);
+        editor.PrintWidth.CommitValue(-1);
+        Assert.Equal(0, saves);
+        Assert.True(editor.SelectedPrinter.IsBuiltIn);
+        editor.AddCommand.Execute(null);
+        var id = editor.SelectedPrinter!.Id;
+        editor.NameDraft = " ";
+        editor.RenameCommand.Execute(null);
+        Assert.True(editor.HasValidationMessage);
+        editor.NameDraft = config.Printers[0].Name.ToUpperInvariant();
+        editor.RenameCommand.Execute(null);
+        Assert.True(editor.HasValidationMessage);
+        Assert.Equal(1, saves);
+        editor.NameDraft = "Task08 fixture";
+        editor.RenameCommand.Execute(null);
+        Assert.Equal(id, editor.SelectedPrinter.Id);
+        var reopened = new PrinterEditorViewModel(config, () => saves++);
+        reopened.SelectedIndex = config.Printers.FindIndex(p => p.Id == id);
+        Assert.Equal("Task08 fixture", reopened.NameDraft);
+        Assert.Equal(editor.SelectedPrinter, reopened.SelectedPrinter);
+        reopened.DeleteCommand.Execute(null);
+        Assert.Null(config.FindPrinter(id));
+    }
+
+    [Fact]
     public void EditingBuiltInCreatesAndContinuesEditingAUserCopy()
     {
         var config = new UserConfig();

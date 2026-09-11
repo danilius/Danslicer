@@ -87,6 +87,7 @@ public partial class MainWindow : Window
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
+    private PrinterPresetEditorWindow? _printerEditorWindow;
     private ConfigWindow? _configWindow;
     private SupportPresetEditorWindow? _presetEditorWindow;
     private readonly List<KeyBinding> _windowKeyBindings = [];
@@ -349,6 +350,26 @@ public partial class MainWindow : Window
         if (ViewportToolbarPolicy.ShouldClosePopup(trigger)) popup.IsOpen = false;
     }
 
+    private void OnPrinterPresetsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_printerEditorWindow is { } open) { open.Activate(); return; }
+        if (ViewModel is not { } main) return;
+        var editor = main.SupportSettings.Printers;
+        editor.SelectedIndex = editor.Items.ToList().FindIndex(p => p.Id == main.Document.Printer.Id);
+        _printerEditorWindow = new PrinterPresetEditorWindow(editor, printer =>
+        {
+            if (main.Document.Printer == printer) return;
+            main.Document.Printer = printer;
+            main.Document.NotifyTransientChange();
+            main.RefreshPrinterOptions();
+        });
+        _printerEditorWindow.Closed += (_, _) =>
+        {
+            editor.NameDraft = editor.SelectedPrinter?.Name ?? "";
+            _printerEditorWindow = null;
+        };
+        _printerEditorWindow.Show(this);
+    }
     private void OpenSupportPresetEditor()
     {
         if (_presetEditorWindow is { } open)

@@ -26,3 +26,6 @@ Use the prior task's exact completed commit as starting ref for a separate proje
 
 ## Accepted baseline and current review
 Task 01 was approved by the user; accepted handoff: 0fadc0e2412498513e34db6337aa3bba1ed9dc8c. Task 02 started 2026-09-10 in C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt on codex/ui-refresh-02. Tested implementation including authorized Support isolation refinement: ba25565f7adaf7e11664af38c328fe462c7200d9; final documentation descendant at branch HEAD is the review handoff. User confirmed task 02 is done at a0fed8b933f3358e875e4650bbe8915d5a57c574. Task 03 is implemented and verified in C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt on codex/ui-refresh-03.
+
+## Task 08 — active dedicated preset editors
+See task-08.md and queued instruction files committed at 188f166. Baseline da530dd deliberately combines Task06 estimates and all Task07 native writers. Tasks09/10 stay queued for coordinator dispatch. User authorized autonomous completion without routine visual approval stops.

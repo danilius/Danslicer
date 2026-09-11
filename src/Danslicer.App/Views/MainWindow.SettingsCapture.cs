@@ -206,18 +206,31 @@ public partial class MainWindow
             bitmap.Render(preferencesContent);
             bitmap.Save(System.IO.Path.Combine(directory, "settings-viewport.png"), PngBitmapEncoderOptions.Default);
         }
-        var printerEditor = ((ViewModels.ConfigViewModel)preferences.DataContext!).Printers;
-        printerEditor.SelectedIndex = printerEditor.Items.ToList().FindIndex(p => p.FileExtension == "pwma");
-        preferences.FindControl<ListBox>("SectionList")!.SelectedIndex = 3;
-        preferences.Width = 1000; preferences.Height = 850;
+        Require(preferences.FindControl<StackPanel>("PrintersSection") is null && preferences.FindControl<StackPanel>("SupportsSection") is null,
+            "Preferences still contains preset management");
+        preferences.Close();
+        var printerSession = Viewport.SpaceMouseDevice;
+        var printerSessionOwner = Controls.ViewportControl.SpaceMouseOwner;
+        this.FindControl<Button>("PrinterPresetButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Layout();
-        preferences.FindControl<ScrollViewer>("Scroll")!.Offset = new Vector(0, preferences.FindControl<StackPanel>("PrintersSection")!.Bounds.Y);
+        var printerWindow = _printerEditorWindow!;
+        Require(printerWindow is not null, "Workspace printer editor entry did not open");
+        OnPrinterPresetsClick(this, new RoutedEventArgs());
+        Require(ReferenceEquals(printerWindow, _printerEditorWindow), "Printer editor must be single instance");
+        Require(ReferenceEquals(printerSession, Viewport.SpaceMouseDevice) &&
+            ReferenceEquals(printerSessionOwner, Controls.ViewportControl.SpaceMouseOwner), "Printer window disturbed SpaceMouse ownership/session");
+        var printerEditor = (ViewModels.PrinterEditorViewModel)printerWindow!.DataContext!;
+        var projectPrinterBeforeBrowsing = vm.Document.Printer;
+        printerEditor.SelectedIndex = printerEditor.Items.ToList().FindIndex(p => p.FileExtension == "pwma");
+        printerWindow.Width = 1000; printerWindow.Height = 850;
+        await Layout();
+        preferencesContent = (Control)printerWindow.Content!;
         await Layout();
         Require(printerEditor.CompatibilityNote.Contains("unverified") && printerEditor.FormatStatus.Contains("516"),
             "Printer compatibility and native format status missing");
-        var printWidthBox = preferences.GetVisualDescendants().OfType<Controls.ExpressionBox>()
-            .Single(f => ReferenceEquals(f.DataContext, printerEditor.PrintWidth));
-        printWidthBox.Focus(); printWidthBox.Text = "130mm"; Key(printWidthBox, Avalonia.Input.Key.Enter);
+        var printWidthField = printerWindow.GetVisualDescendants().OfType<ModelScrubField>()
+            .Single(f => ReferenceEquals(f.Field, printerEditor.PrintWidth));
+        var printWidthBox = Edit(printWidthField, "130mm"); Key(printWidthBox, Avalonia.Input.Key.Enter);
         var printerCopy = printerEditor.SelectedPrinter!;
         Require(!printerCopy.IsBuiltIn && printerCopy.BuildVolume.X == 130 && printerCopy.DisplayWidthMm == 134.4f,
             "Print-width edit must create a copy without changing pixel scale");
@@ -231,7 +244,7 @@ public partial class MainWindow
             bitmap.Save(System.IO.Path.Combine(directory, "settings-printers.png"), PngBitmapEncoderOptions.Default);
         }
         File.WriteAllText(System.IO.Path.Combine(directory, "native-printers-ok.txt"),
-            "Actual Preferences: native format status, experimental notice, Mono 4K selection, print width expression, automatic user copy, separate display scale, persistence and copy deletion passed using isolated config.");
+            "Actual standalone printer editor: native format status, experimental notice, Mono 4K selection, print width expression, automatic user copy, separate display scale, persistence and copy deletion passed using isolated config.");
         foreach (var format in new[] { "goo", "ctb-encrypted", "cxdlp", "sl1", "cws-rgb", "lgs", "svgx", "anet", "phz", "chitu-zip" })
         {
             printerEditor.SelectedIndex = printerEditor.Items.ToList().FindIndex(p => p.NativeFormat == format);
@@ -251,8 +264,29 @@ public partial class MainWindow
             bitmap.Save(System.IO.Path.Combine(directory, "settings-multi-brand.png"), PngBitmapEncoderOptions.Default);
         }
         File.WriteAllText(System.IO.Path.Combine(directory, "multi-brand-printers-ok.txt"),
-            "Selected all native format families in Preferences; experimental labels, format status, duplicate persistence and deletion passed with isolated config.");
-        preferences.Close();
+            "Selected all native format families in standalone editor; experimental labels, format status, duplicate persistence and deletion passed with isolated config.");
+        Require(vm.Document.Printer == projectPrinterBeforeBrowsing, "Browsing/editing unrelated presets changed the project printer");
+        var useButton = printerWindow.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Use printer in project");
+        useButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(vm.Document.Printer.Id == "elegoo-saturn-3", "Explicit printer selection failed");
+        printerEditor.NameDraft = "Discard this unsubmitted rename";
+        printerWindow.Close();
+        OnPrinterPresetsClick(this, new RoutedEventArgs());
+        await Layout();
+        Require(printerEditor.SelectedPrinter?.Id == vm.Document.Printer.Id && printerEditor.NameDraft == vm.Document.Printer.Name,
+            "Reopen did not preserve selection/discard name draft");
+        _printerEditorWindow!.Close();
+        var embeddedPrinter = vm.Document.Printer.CreateUserCopy("Task08 embedded-only");
+        vm.Document.Printer = embeddedPrinter;
+        vm.RefreshPrinterOptions();
+        OnPrinterPresetsClick(this, new RoutedEventArgs());
+        await Layout();
+        Require(!printerEditor.HasSelectedPrinter && vm.Document.Printer == embeddedPrinter,
+            "Opening editor replaced an embedded-only printer");
+        _printerEditorWindow!.Close();
+        vm.Document.Printer = projectPrinterBeforeBrowsing;
+        vm.RefreshPrinterOptions();
+        File.WriteAllText(System.IO.Path.Combine(directory, "dedicated-editors-ok.txt"), "Preferences preset sections absent; workspace button opens single standalone editor; browse/edit preserves project; explicit Use selects; close/reopen restores selected identity and discards unsubmitted name. Existing Support editor capture runs separately.");
         File.WriteAllText(System.IO.Path.Combine(directory, "viewport-preferences-ok.txt"), "Actual Preferences bindings: shadow Off synchronizes to View popout; AO, reflections, plate shadows, cavity and cube off persist independently. Original values restored.");
         File.WriteAllText(System.IO.Path.Combine(directory, "settings-ok.txt"), "Production transform pointer previews/single commit/undo/cancel, unit expressions, invalid and out-of-range rejection, focus-loss commit, support setter called once, raft thickness, durable workspace restoration and config/cap-off round trips passed using isolated temporary configuration. Visibility uses its existing display modes and switches; no numeric opacity parameter is invented. Support config settings retain existing immediate-save semantics (no document undo was present).\n");
         void Capture(string name)
@@ -263,4 +297,3 @@ public partial class MainWindow
         }
     }
 }
-
