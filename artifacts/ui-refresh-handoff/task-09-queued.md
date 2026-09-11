@@ -1,0 +1,16 @@
+# Task 09 — Merge to main and clean up
+
+Status: queued by user after task 08. This is explicit authorization to merge the completed work into main and clean up local files, local branches and remote branches that are no longer useful. Do not execute before task 08 is complete.
+
+## Preconditions and integration
+Read current handoffs for tasks 06, 07 and 08 and identify the final implementation lineage, including the printer assessment and dedicated editors. Inspect main, remote refs and all worktrees afresh. Coordinate with any active Claude or Codex work: preserve uncommitted/untracked user work and do not switch, delete or overwrite an active checkout. Do not infer that an idle-looking branch is obsolete. If concurrent work prevents safe integration, document the precise blocking state and wait for that work to reach a stable handoff.
+
+Integrate completed committed work with current main, resolve conflicts preserving both sides' intended functionality, and run appropriate regression/build checks. The user now authorizes the main merge, superseding earlier no-main-merge boundaries for this task only. Record pre-merge main, integrated commit and actual results in a durable handoff before cleanup. A force push or rewriting main history is not authorized. The request explicitly permits remote branch cleanup; it does not require publishing main, so inspect existing publication instructions before deciding whether a push is authorized.
+
+## Cleanup audit and execution
+Inventory local branches, worktrees, remote branches, build outputs and temporary/capture files. Record each candidate, ownership/purpose and evidence it is obsolete. Prefer Git ancestry/merged-ref checks against integrated main; if commits were squash/cherry-picked, verify equivalence rather than assuming an unmerged branch is safe to delete. Preserve unrelated branches, collaborators' active work, unique commits, untracked source/assets, approved references, tests and required recovery/design documentation.
+
+Remove only clean obsolete worktrees using git worktree remove, never force removal of dirty worktrees. Delete local and remote branches only when verified merged/redundant and no longer used. Verify exact remote identity and latest ref immediately before remote deletion; never delete protected/default branches or broad wildcard sets. Do not force-delete branches with unique work. Restrict filesystem cleanup to identified disposable outputs owned by this workflow; no blanket git clean or recursive deletion of guessed directories. On Windows, resolve and verify every recursive deletion target within its intended directory, use one shell and literal paths end-to-end. Do not remove the checkout running this task; leave it for a safe later cleanup if necessary.
+
+## Durable completion record
+Keep a recovery map of old branch names/commit hashes and removed worktree paths, merge commit, retained useful branches/assets and actual validation. Update task-09.md and RESUME after meaningful steps. Preserve that record in the surviving repository. Final response: main integration status, tests, exact deletions, retained items/reasons and any remaining action. Do not claim remote/local cleanup complete if some items could not safely be verified.
