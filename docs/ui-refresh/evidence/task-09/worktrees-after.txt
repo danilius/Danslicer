@@ -1,0 +1,28 @@
+worktree F:/Git Repos/Danslicer
+HEAD 4016153960aee1cb06f47e414cd3c54fcc8759fc
+branch refs/heads/main
+
+worktree C:/Users/plane/.codex/worktrees/271f/Danslicer-chatgpt
+HEAD 93844c4fd2cb2518b5594bf6ce0ef5935754185a
+branch refs/heads/codex/ui-refresh-06
+
+worktree C:/Users/plane/.codex/worktrees/9947/Danslicer-chatgpt
+HEAD 4016153960aee1cb06f47e414cd3c54fcc8759fc
+branch refs/heads/codex/ui-refresh-09
+
+worktree C:/Users/plane/.codex/worktrees/a19b/Danslicer-chatgpt
+HEAD ede24be229782e6574817631ad90b9d36cd355a3
+branch refs/heads/codex/native-printer-writers
+
+worktree C:/Users/plane/.codex/worktrees/e7d1/Danslicer-chatgpt
+HEAD a5d2bd2f4e197b66544ae806b3f8b8822a0a54b4
+branch refs/heads/codex/dedicated-preset-editors
+
+worktree F:/Git Repos/.danslicer-review5
+HEAD 083915c593eb597166261fc673f771678b146f78
+detached
+
+worktree F:/Git Repos/Danslicer-chatgpt
+HEAD 24c4fa7712244968d049d103e2b46b776efb091a
+branch refs/heads/grid-routing-prototype
+

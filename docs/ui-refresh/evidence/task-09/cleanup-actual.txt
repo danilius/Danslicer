@@ -1,0 +1,45 @@
+REMOVE WORKTREE C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt branch=codex/ui-refresh-03 old=8a0fac4f52515f18f1560a54b938dbb2b8f17a60
+DONE worktree and branch removed
+REMOVE WORKTREE C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt branch=codex/ui-refresh-02 old=a0fed8b933f3358e875e4650bbe8915d5a57c574
+DONE worktree and branch removed
+REMOVE WORKTREE C:/Users/plane/.codex/worktrees/da71/Danslicer-chatgpt branch=codex/ui-refresh-04b old=c829020492020c333f1c0937b7275732927a6a4f
+DONE worktree and branch removed
+REMOVE WORKTREE C:/Users/plane/.codex/worktrees/e262/Danslicer-chatgpt branch=codex/ui-refresh-04 old=0df54ff6014dce8f143def47c3fe4831101cd450
+DONE worktree and branch removed
+REMOVE WORKTREE C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt branch=codex/ui-refresh-05 old=dc4664cd7321030cfe04b866815427b6b4f8a531
+DONE worktree and branch removed
+REMOVE WORKTREE C:/Users/plane/.codex/worktrees/f60d/Danslicer-chatgpt branch=codex/ui-refresh old=0fadc0e2412498513e34db6337aa3bba1ed9dc8c
+DONE worktree and branch removed
+DONE local branch codex/ui-refresh-07 removed old=6adcd39b0a8bbbbbb6caaf478146b7f32068c701
+DELETE origin refs/heads/build-volume-check old=91999498cd36eac23cceb9483fef62737a81d521 protected=false retired per remote-retirement-evidence.json
+DONE origin/build-volume-check removed
+DELETE origin refs/heads/fix-slicing-stack-overflow old=e289e51d56a9be81280ddb0d97447de9368ac04b protected=false retired per remote-retirement-evidence.json
+DONE origin/fix-slicing-stack-overflow removed
+DELETE origin refs/heads/gizmos-and-layer-view old=f5d5a2f733c871c93b9d768189f4dae45948538a protected=false retired per remote-retirement-evidence.json
+DONE origin/gizmos-and-layer-view removed
+DELETE origin refs/heads/hide-objects old=056cdaeeae55db3659b274509a82471e143b3e19 protected=false retired per remote-retirement-evidence.json
+DONE origin/hide-objects removed
+DELETE origin refs/heads/lay-flat-on-face old=cb6a1274010c38e33308a320b5b9dd4013ddf723 protected=false retired per remote-retirement-evidence.json
+DONE origin/lay-flat-on-face removed
+DELETE origin refs/heads/manual-supports old=f9d6ccffedf8f376f200393d5c8f4dc4b42e653e protected=false retired per remote-retirement-evidence.json
+DONE origin/manual-supports removed
+DELETE origin refs/heads/obj-import old=635a1d7711354f7caa877b45fb085ba360406314 protected=false retired per remote-retirement-evidence.json
+DONE origin/obj-import removed
+DELETE origin refs/heads/overhang-tint old=49d2573c059236fd34f0122f79c520679212531e protected=false retired per remote-retirement-evidence.json
+DONE origin/overhang-tint removed
+DELETE origin refs/heads/overnight-integration old=df8e69f0df3360e14b4efcf13a928b5cdbb26ee4 protected=false retired per remote-retirement-evidence.json
+DONE origin/overnight-integration removed
+DELETE origin refs/heads/region-generation old=513cae9a71dba282975d0483ac72efff0df0050e protected=false retired per remote-retirement-evidence.json
+DONE origin/region-generation removed
+DELETE origin refs/heads/spacemouse old=5359724b880701c198d0879e463e2c539400e5c0 protected=false retired per remote-retirement-evidence.json
+DONE origin/spacemouse removed
+DELETE origin refs/heads/support-graph old=71d658a1fa718d45a0c4191203a5e6982d8abcfe protected=false retired per remote-retirement-evidence.json
+DONE origin/support-graph removed
+DELETE origin refs/heads/support-selection old=71e00d86596166edf1cc30bde2d7066e477bf56a protected=false retired per remote-retirement-evidence.json
+DONE origin/support-selection removed
+DELETE origin refs/heads/support-slicing old=012964e5a5678f5dd0404ee5df233d54a327726d protected=false retired per remote-retirement-evidence.json
+DONE origin/support-slicing removed
+DELETE origin refs/heads/support-tip-move old=3ea344dce2fc51100ceebbe7c695cc22dd21b5b4 protected=false retired per remote-retirement-evidence.json
+DONE origin/support-tip-move removed
+DELETE origin refs/heads/whole-support-selection old=4fb46c7600a2cf38b5c4a4745d43b24434edfe77 protected=false retired per remote-retirement-evidence.json
+DONE origin/whole-support-selection removed

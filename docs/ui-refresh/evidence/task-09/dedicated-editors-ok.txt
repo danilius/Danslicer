@@ -1,0 +1,1 @@
+Preferences preset sections absent; workspace button opens single standalone editor; browse/edit preserves project; explicit Use selects; close/reopen restores selected identity and discards unsubmitted name. Existing Support editor capture runs separately.

@@ -1,3 +1,8 @@
+# Latest status — Task09 complete; Task10 queued
+
+Task09 explicitly authorized and completed main integration plus verified cleanup, superseding the historical no-main-merge instructions below for Task09. See RESUME.md and task-09.md for surviving main, exact recovery map and retained items. Build, 1061 tests and actual main native capture passed. Six clean worktrees, seven local branches and 16 retired remote branches removed. Main not published. Coordinator dispatches Task10 separately from final integrated main using tracked artifacts/ui-refresh-handoff/task-10-queued.md; no Task10 work occurred here.
+
+Historical task records follow.
 # Latest dispatch authority — tasks 06 and 07
 
 User explicitly authorized BOTH tasks from clean task-05 dc4664cd7321030cfe04b866815427b6b4f8a531 in separate isolated worktrees. Task 06 is implemented on codex/ui-refresh-06 (tested source f988a327e45ec344e4ada145ae3a9b54109edf1c; 1020 tests and native workflow passed). Task 07 is an independent assessment, not a dependency or descendant. Later coordination must deliberately import its report and reconcile documentation; do not assume sequential ancestry. No main merge/push. This supersedes the historical sequential dispatch instructions below.
@@ -34,3 +39,4 @@ Task08 completed at tested source/evidence 800c20dc50c49787dfa7fded73e5ec0676004
 
 ## Task09 — authorized integration and cleanup active
 Task08 complete at a5d2bd2. Task09 supersedes prior no-main-merge instructions for its authorized scope. Audit and recovery: task-09.md. Isolated build and 1061 tests pass. Task10 remains queued separately in artifacts/ui-refresh-handoff/task-10-queued.md.
+
