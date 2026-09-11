@@ -202,7 +202,14 @@ public static class Slicer
                 {
                     Rle = PhotonRle.Encode(worker.Pixels.AsSpan(0, pixelCount)),
                     LitPixels = lit,
-                    AreaMm2 = (float)MeshSlicer.AreaMm2(polygons),
+                    // Material is the printed union inside the LCD, including supports/rafts.
+                    // Keep rasterization unchanged; AA grey levels are not cured-volume fractions.
+                    AreaMm2 = (float)MeshSlicer.AreaMm2(Clipper2Lib.Clipper.RectClip(
+                        new Clipper2Lib.Rect64(
+                            (long)Math.Round(-halfX * MeshSlicer.UnitsPerMm),
+                            (long)Math.Round(-halfY * MeshSlicer.UnitsPerMm),
+                            (long)Math.Round(halfX * MeshSlicer.UnitsPerMm),
+                            (long)Math.Round(halfY * MeshSlicer.UnitsPerMm)), polygons)),
                     Z = (float)((i + 1) * h),
                 };
 

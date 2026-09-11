@@ -26,15 +26,15 @@ public sealed record ResinSettings
     /// <summary>Rough print time in seconds for the given layer count.</summary>
     public double EstimatePrintTime(int layerCount)
     {
-        double total = 0;
-        for (var i = 0; i < layerCount; i++)
-        {
-            var lift = LiftHeightForLayer(i);
-            var liftSpeed = Math.Max(LiftSpeedForLayer(i), 1f) / 60.0;
-            var retract = Math.Max(RetractSpeed, 1f) / 60.0;
-            total += ExposureForLayer(i) + LightOffDelay + lift / liftSpeed + lift / retract;
-        }
-        return total;
+        if (layerCount < 0 || this != Normalize()) return double.NaN;
+        var bottom = Math.Min(layerCount, BottomLayers);
+        var normal = layerCount - bottom;
+        double Cycle(float exposure, float height, float speed) =>
+            exposure + (double)LightOffDelay + 60.0 * height / speed + 60.0 * height / RetractSpeed;
+        // The writer uses a single non-zero lift stage and no transition exposure schedule.
+        // Delay is modeled as an additional wait; firmware overhead/acceleration is unknown.
+        return bottom * Cycle(BottomExposure, BottomLiftHeight, BottomLiftSpeed)
+            + normal * Cycle(Exposure, LiftHeight, LiftSpeed);
     }
 
     public ResinSettings Normalize() => this with

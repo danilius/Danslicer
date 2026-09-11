@@ -53,6 +53,9 @@ public class RaftSlicingTests
         var aboveRaft = (int)Math.Round(1f / Settings.LayerHeight) + 2;
         Assert.Equal(LayerArea(bare, aboveRaft), LayerArea(rafted, aboveRaft), 2);
         Assert.Equal(bare.LayerCount, rafted.LayerCount);
+        Assert.True(rafted.VolumeMl > bare.VolumeMl);
+        Assert.Equal(rafted.Layers.Sum(l => (double)l.AreaMm2) * Settings.LayerHeight / 1000,
+            rafted.VolumeMl, 5);
     }
 
     [Fact]

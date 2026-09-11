@@ -64,6 +64,7 @@ public partial class MainWindow
         Require(vm.Document.Printer.ResolutionX == 480 && vm.Document.PrintSettings.LayerHeight == 0.1f,
             $"Fixture printer/print settings roundtrip failed: {vm.Document.Printer}; {vm.Document.PrintSettings}");
         vm.ViewMode = WorkspaceMode.Slicing;
+        Require(vm.ResinVolumeText == "—" && vm.PrintDurationText == "—", "Unsliced estimates must be unavailable");
         Require(vm.SliceScopedCommand.CanExecute(null) && !vm.GenerateSupportsScopedCommand.CanExecute(null),
             "Print workflow mode scoping failed");
         await vm.SliceCommand.ExecuteAsync(null);
@@ -89,12 +90,42 @@ public partial class MainWindow
             "Export missing raft, support or model interior data");
         vm.PreviewLayer = Math.Min(10, vm.PreviewLayerMax);
         await Task.Delay(180); UpdateLayout();
+        Require(this.FindControl<TextBlock>("SliceResinEstimate")!.Text == vm.ResinVolumeText &&
+            this.FindControl<TextBlock>("SliceTimeEstimate")!.Text == vm.PrintDurationText,
+            "Slicing page estimate bindings failed");
+        Require(vm.ResinVolumeText.EndsWith(" mL") && vm.PrintDurationText.StartsWith("≈"), "Estimate units missing");
+        File.WriteAllText(System.IO.Path.Combine(directory, "estimates-ok.txt"),
+            $"Completed slice: {slice.LayerCount} layers; theoretical union volume {slice.VolumeMl:R} mL; time {slice.EstimatedSeconds:R} seconds; UI {vm.ResinVolumeText}, {vm.PrintDurationText}.\n{vm.EstimateAssumptions}\n");
         var content = (Control)Content!;
         using (var bitmap = new RenderTargetBitmap(new PixelSize((int)content.Bounds.Width, (int)content.Bounds.Height)))
         {
             bitmap.Render(content);
             bitmap.Save(System.IO.Path.Combine(directory, "workflow-sliced.png"), PngBitmapEncoderOptions.Default);
         }
+        void CaptureEstimate(string name, double scale = 1)
+        {
+            using var bitmap = new RenderTargetBitmap(
+                new PixelSize((int)(content.Bounds.Width * scale), (int)(content.Bounds.Height * scale)),
+                new Avalonia.Vector(96 * scale, 96 * scale));
+            bitmap.Render(content);
+            bitmap.Save(System.IO.Path.Combine(directory, name + ".png"), PngBitmapEncoderOptions.Default);
+        }
+        CaptureEstimate("estimates-150", 1.5);
+        CaptureEstimate("estimates-200", 2);
+        var originalWidth = Width; var originalHeight = Height;
+        Width = 640; Height = 480; _workspaceToolbar.ShowLabels = true;
+        await Task.Delay(180); UpdateLayout();
+        var estimatePanel = this.FindControl<Border>("SliceEstimatePanel")!;
+        var panelOrigin = estimatePanel.TranslatePoint(default, ViewportSurface)!.Value;
+        Require(panelOrigin.Y > _workspaceToolbar.Bounds.Bottom, "Estimate panel overlaps toolbar at narrow size");
+        CaptureEstimate("estimates-narrow-labels");
+        vm.Document.ResinSettings = vm.Document.ResinSettings with { Exposure = vm.Document.ResinSettings.Exposure + 1 };
+        vm.Document.NotifyTransientChange();
+        await Task.Delay(80); UpdateLayout();
+        Require(vm.LastSlice is null && vm.ResinVolumeText == "—" && vm.PrintDurationText == "—" && !vm.IsSlicing,
+            "Changed input must clear estimates without slicing");
+        CaptureEstimate("estimates-stale");
+        Width = originalWidth; Height = originalHeight; _workspaceToolbar.ShowLabels = false;
         File.WriteAllText(System.IO.Path.Combine(directory, "workflow-ok.txt"),
             $"Native MainWindow VM: imported STL; transform undo/redo; explicit generation ({nodeCount} nodes/{segmentCount} segments), one-step undo/redo; Add raft undo/redo; project reload preserving geometry, source path, transform and printer/print settings; explicit slicing ({slice.LayerCount} layers); preview navigation; export and decoding every layer/header passed. Every exported bitmap equals its sliced source; raft/support/model interior layers contain data; unchanged export reused slice. Temporary 480x300 printer fixture, not physical printer certification. No file picker/UVtools dialog exercised.\nExport SHA256: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(output)))}\n");
     }

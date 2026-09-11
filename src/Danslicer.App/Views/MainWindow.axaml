@@ -349,6 +349,19 @@
                 </Border>
 
                 <DockPanel IsVisible="{Binding IsLayersView}">
+                    <Border x:Name="SliceEstimatePanel" DockPanel.Dock="Bottom" Background="{DynamicResource AppHeader}" BorderBrush="{DynamicResource AppBorder}"
+                            BorderThickness="0,1,0,0" Padding="14,8" ToolTip.Tip="{Binding EstimateAssumptions}">
+                        <StackPanel Spacing="4">
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBlock Text="Resin (theoretical)" Classes="label" VerticalAlignment="Center" />
+                                <TextBlock x:Name="SliceResinEstimate" Text="{Binding ResinVolumeText}" FontSize="14" FontWeight="SemiBold" Margin="8,0,24,0" />
+                                <TextBlock Text="Estimated print time" Classes="label" VerticalAlignment="Center" />
+                                <TextBlock x:Name="SliceTimeEstimate" Text="{Binding PrintDurationText}" FontSize="14" FontWeight="SemiBold" Margin="8,0,16,0" />
+                                <TextBlock Text="Assumptions ⓘ" Classes="label" VerticalAlignment="Center" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding EstimateState}" Classes="label" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                     <Border DockPanel.Dock="Bottom" Background="{DynamicResource AppHeader}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,1,0,0" Padding="10,4">
                         <Grid ColumnDefinitions="*,Auto">
                             <controls:PreviewLayerSlider x:Name="SlicePreviewSlider" Minimum="0" Maximum="{Binding PreviewLayerMax}" Value="{Binding PreviewLayer}"

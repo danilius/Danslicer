@@ -553,9 +553,18 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSlice))]
+    [NotifyPropertyChangedFor(nameof(ResinVolumeText))]
+    [NotifyPropertyChangedFor(nameof(PrintDurationText))]
     public partial SliceResult? LastSlice { get; set; }
 
     public bool HasSlice => LastSlice is not null;
+    public string ResinVolumeText => SliceEstimate.Volume(LastSlice);
+    public string PrintDurationText => SliceEstimate.Duration(LastSlice);
+    public string EstimateAssumptions => SliceEstimate.Assumptions;
+    private long _sliceInputRevision;
+
+    [ObservableProperty]
+    public partial string EstimateState { get; set; } = "Slice to calculate material and time.";
 
     private string? _lastExportPath;
     private UvtoolsLaunchAvailability _uvtoolsLaunchAvailability =
@@ -863,6 +872,8 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnDocumentChanged()
     {
+        _sliceInputRevision++;
+        if (IsSlicing) _sliceCancellation?.Cancel();
         OnPropertyChanged(nameof(RaftSelectionText));
         if (IsGeneratingSupports && !_applyingGenerationBatch)
             _generationCancellation?.Cancel();
@@ -880,7 +891,7 @@ public partial class MainViewModel : ViewModelBase
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z);
 
         // Geometry changed: the slice no longer matches the scene.
-        if (LastSlice is not null && !IsSlicing) InvalidateSlice();
+        if (LastSlice is not null || IsSlicing) InvalidateSlice();
     }
 
     private void RefreshFields()
@@ -951,6 +962,7 @@ public partial class MainViewModel : ViewModelBase
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Not sliced yet.";
+        EstimateState = "Slice to calculate material and time.";
         ViewMode = WorkspaceMode.Layout;
         ProjectPath = null;
         Title = "Danslicer";
@@ -973,6 +985,7 @@ public partial class MainViewModel : ViewModelBase
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Not sliced yet.";
+        EstimateState = "Slice to calculate material and time.";
         ViewMode = loaded.ViewState.WorkspaceMode;
         ProjectPath = System.IO.Path.GetFullPath(path);
         Title = $"{System.IO.Path.GetFileNameWithoutExtension(ProjectPath)} — Danslicer";
@@ -1302,11 +1315,19 @@ public partial class MainViewModel : ViewModelBase
     {
         if (IsSlicing) return null;
         IsSlicing = true;
+        InvalidateSlice();
+        EstimateState = "Slicing… estimates pending.";
         SliceProgress = 0;
         SliceCommand.NotifyCanExecuteChanged();
         _sliceCancellation = new CancellationTokenSource();
         var token = _sliceCancellation.Token;
-        var objects = Document.Scene.Objects.ToList();
+        var revision = _sliceInputRevision;
+        // Worker reads a stable snapshot, including support ownership IDs and raft parameters.
+        var objects = Document.Scene.Objects.Select(o => new SceneObject(o.Name, o.Mesh, o.Id)
+        { Transform = o.Transform, RenderState = o.RenderState, Raft = o.Raft }).ToList();
+        var supports = new Danslicer.Core.Supports.SupportGraph();
+        foreach (var node in Document.Supports.Nodes) supports.AddNode(node.Clone());
+        foreach (var segment in Document.Supports.Segments) supports.AddSegment(segment.Clone());
         var printer = Document.Printer;
         var settings = Document.PrintSettings;
         var resin = Document.ResinSettings;
@@ -1319,13 +1340,21 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token,
-                Document.Supports, resin, allowOutOfBounds: true), token);
+                supports, resin, allowOutOfBounds: true), token);
+            token.ThrowIfCancellationRequested();
+            if (revision != _sliceInputRevision || printer != Document.Printer ||
+                settings != Document.PrintSettings || resin != Document.ResinSettings)
+            {
+                EstimateState = "Inputs changed — slice again to calculate.";
+                return null;
+            }
             LastSlice = result;
+            EstimateState = "From completed slice · theoretical resin · approximate time";
             SliceWarning = result.BuildVolumeWarning;
             SliceSummary =
                 $"{result.LayerCount} layers × {settings.LayerHeight:0.###} mm = {result.PrintHeight:0.##} mm\n" +
-                $"{result.VolumeMl:0.##} ml resin\n" +
-                $"≈ {TimeSpan.FromSeconds(result.EstimatedSeconds):h\\:mm\\:ss}\n" +
+                $"{ResinVolumeText} theoretical resin\n" +
+                $"Estimated print time: {PrintDurationText}\n" +
                 $"footprint X {result.MinX:0.#}…{result.MaxX:0.#}  Y {result.MinY:0.#}…{result.MaxY:0.#} mm";
             PreviewLayerMax = Math.Max(0, result.LayerCount - 1);
             PreviewLayer = Math.Min(PreviewLayer, PreviewLayerMax);
@@ -1336,11 +1365,14 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
+            EstimateState = revision != _sliceInputRevision
+                ? "Inputs changed — slice again to calculate." : "Slicing cancelled — slice to calculate.";
             ViewportStatus = "Slicing cancelled.";
             return null;
         }
         catch (Exception ex)
         {
+            EstimateState = "Slicing failed — estimates unavailable.";
             ViewportStatus = $"Slicing failed: {ex.Message}";
             SliceSummary = ex.Message;
             return null;
@@ -1391,6 +1423,7 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Drops a stale slice and returns to the model view.</summary>
     public void InvalidateSlice()
     {
+        EstimateState = "Inputs changed — slice again to calculate.";
         LastSlice = null;
         SliceWarning = null;
         PreviewImage = null;
