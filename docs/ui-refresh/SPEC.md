@@ -61,3 +61,7 @@ Latest SpaceMouse correction: retain one driver session across main/editor focus
 
 ## Task 08 â€” dedicated preset editors
 Preferences no longer hosts Support or Printer preset management. Existing Support editor remains reachable from its workspace command; standalone Printer editor reuses persisted collection lifecycle and native experimental notices, accessible from machine name and Print settings. Committed printer edits save immediately; Name requires Rename. Browsing does not change project selection; Use printer explicitly applies it. Embedded project definitions and unrelated settings remain compatible. No new printers or formats in task08.
+
+## Task10 — toolbar labels by resizing
+
+Replace the toolbar labels toggle with a comfortable dedicated right-edge drag area and horizontal resize cursor. Right expands/reveals labels, left hides; continuous visual preview, stable hysteresis and usable settled endpoints. Preserve tool clicks/tooltips/mode selection, viewport interaction, popout resizing/anchoring and narrow bounds. Escape/capture loss, detach, mode changes and closing/deactivation cancel to the starting state. Persist only a completed changed mode, using existing ShowToolbarLabels compatibility; unrelated saves must not capture preview. Focusable edge has a clear accessible name, visible focus cue and Left/Right keyboard equivalent.

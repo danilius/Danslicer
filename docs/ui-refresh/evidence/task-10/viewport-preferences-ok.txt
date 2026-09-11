@@ -1,0 +1,1 @@
+Actual Preferences bindings: shadow Off synchronizes to View popout; AO, reflections, plate shadows, cavity and cube off persist independently. Original values restored.

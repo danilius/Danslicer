@@ -1,0 +1,1 @@
+Closing actual MAIN during resize restored initial labels and retained saved preference.
