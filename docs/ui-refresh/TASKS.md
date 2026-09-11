@@ -29,3 +29,5 @@ Task 01 was approved by the user; accepted handoff: 0fadc0e2412498513e34db6337aa
 
 ## Task 08 — active dedicated preset editors
 See task-08.md and queued instruction files committed at 188f166. Baseline da530dd deliberately combines Task06 estimates and all Task07 native writers. Tasks09/10 stay queued for coordinator dispatch. User authorized autonomous completion without routine visual approval stops.
+
+Task08 completed at tested source/evidence 800c20dc50c49787dfa7fded73e5ec0676004878: build, 1061 tests and 14 native markers pass. See RESUME/task-08.md. Tasks09/10 still queued; no main integration done here.
