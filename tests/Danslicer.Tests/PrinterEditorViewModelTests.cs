@@ -15,7 +15,7 @@ public sealed class PrinterEditorViewModelTests
 
         editor.MirrorY = true;
 
-        Assert.Equal(2, config.Printers.Count);
+        Assert.Equal(PrinterCatalog.BuiltIn.Count + 1, config.Printers.Count);
         Assert.Equal(PrinterDefinition.PhotonMonoX, config.Printers[0]);
         Assert.False(editor.SelectedPrinter!.IsBuiltIn);
         Assert.True(editor.SelectedPrinter.MirrorY);
@@ -25,7 +25,7 @@ public sealed class PrinterEditorViewModelTests
         editor.NameDraft = "My printer";
         editor.RenameCommand.Execute(null);
 
-        Assert.Equal(2, config.Printers.Count);
+        Assert.Equal(PrinterCatalog.BuiltIn.Count + 1, config.Printers.Count);
         Assert.Equal(copyId, editor.SelectedPrinter.Id);
         Assert.Equal("Edited machine", editor.SelectedPrinter.MachineName);
         Assert.Equal("My printer", editor.SelectedPrinter.Name);
@@ -40,14 +40,14 @@ public sealed class PrinterEditorViewModelTests
 
         Assert.False(editor.DeleteCommand.CanExecute(null));
         editor.DuplicateCommand.Execute(null);
-        Assert.Equal(2, config.Printers.Count);
+        Assert.Equal(PrinterCatalog.BuiltIn.Count + 1, config.Printers.Count);
         Assert.NotEqual(config.Printers[0].Id, config.Printers[1].Id);
         Assert.True(editor.DeleteCommand.CanExecute(null));
 
         editor.DeleteCommand.Execute(null);
 
-        Assert.Single(config.Printers);
-        Assert.Equal(PrinterDefinition.PhotonMonoXId, editor.SelectedPrinter!.Id);
+        Assert.Equal(PrinterCatalog.BuiltIn, config.Printers);
+        Assert.True(editor.SelectedPrinter!.IsBuiltIn);
         Assert.False(editor.DeleteCommand.CanExecute(null));
     }
 }

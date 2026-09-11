@@ -89,6 +89,9 @@ public static class Slicer
         ResinSettings? resinSettings = null,
         bool allowOutOfBounds = false)
     {
+        if (printer.ResolutionX <= 0 || printer.ResolutionY <= 0
+            || (long)printer.ResolutionX * printer.ResolutionY > int.MaxValue)
+            throw new InvalidOperationException("Printer resolution exceeds the slicer's pixel-buffer limits.");
         resinSettings = (resinSettings ?? ResinSettings.Default).Normalize();
         var prepared = new List<MeshSlicer.PreparedMesh>();
         var previewObjects = new List<PreviewRenderer.RenderObject>();
@@ -178,7 +181,10 @@ public static class Slicer
         var done = 0;
 
         Parallel.For(0, layerCount,
-            new ParallelOptions { CancellationToken = cancellation },
+            // Bound raster-buffer memory on high-resolution displays (e.g. 14K).
+            new ParallelOptions { CancellationToken = cancellation,
+                MaxDegreeOfParallelism = (int)Math.Max(1, Math.Min(Environment.ProcessorCount,
+                    256L * 1024 * 1024 / (2L * pixelCount))) },
             () => new Worker(printer, settings),
             (i, _, worker) =>
             {

@@ -119,7 +119,15 @@ internal static class SliceCommand
         errorWriter.WriteLine();
         if (result.BuildVolumeWarning is { } warning)
             errorWriter.WriteLine($"warning: {warning["Warning: ".Length..]}");
-        PhotonWorkshopWriter.Write(result, output);
+        try
+        {
+            PhotonWorkshopWriter.Write(result, output);
+        }
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            errorWriter.WriteLine($"error: {ex.Message}");
+            return 2;
+        }
         stopwatch.Stop();
 
         outputWriter.WriteLine($"Wrote:      {output}");

@@ -34,6 +34,7 @@ public sealed class LayerRasterizer
     private readonly double _halfDepthUnits;
     private readonly bool _mirrorX;
     private readonly bool _mirrorY;
+    private readonly double _minPixelX, _maxPixelX, _minPixelY, _maxPixelY;
 
     public LayerRasterizer(PrinterDefinition printer, bool antiAliasing)
     {
@@ -41,10 +42,14 @@ public sealed class LayerRasterizer
         Height = printer.ResolutionY;
         AntiAliasing = antiAliasing;
         _coverage = new float[Width + 1];
-        _pixelsPerUnitX = Width / (printer.BuildVolume.X * MeshSlicer.UnitsPerMm);
-        _pixelsPerUnitY = Height / (printer.BuildVolume.Y * MeshSlicer.UnitsPerMm);
-        _halfWidthUnits = printer.BuildVolume.X * MeshSlicer.UnitsPerMm * 0.5;
-        _halfDepthUnits = printer.BuildVolume.Y * MeshSlicer.UnitsPerMm * 0.5;
+        _pixelsPerUnitX = Width / (printer.DisplayWidthMm * MeshSlicer.UnitsPerMm);
+        _pixelsPerUnitY = Height / (printer.DisplayHeightMm * MeshSlicer.UnitsPerMm);
+        _halfWidthUnits = printer.DisplayWidthMm * MeshSlicer.UnitsPerMm * 0.5;
+        _halfDepthUnits = printer.DisplayHeightMm * MeshSlicer.UnitsPerMm * 0.5;
+        _minPixelX = Width * (1 - printer.BuildVolume.X / (double)printer.DisplayWidthMm) * 0.5;
+        _maxPixelX = Width - _minPixelX;
+        _minPixelY = Height * (1 - printer.BuildVolume.Y / (double)printer.DisplayHeightMm) * 0.5;
+        _maxPixelY = Height - _minPixelY;
         _mirrorX = printer.MirrorX;
         _mirrorY = printer.MirrorY;
     }
@@ -79,6 +84,7 @@ public sealed class LayerRasterizer
             for (int s = 0; s < subSamples; s++)
             {
                 var ys = row + (s + 0.5) / subSamples;
+                if (ys < _minPixelY || ys >= _maxPixelY) continue;
 
                 while (nextEdge < _edges.Count && _edges[nextEdge].Y0 <= ys)
                     _active.Add(nextEdge++);
@@ -102,8 +108,8 @@ public sealed class LayerRasterizer
                 {
                     winding += _crossings[i].w;
                     if (winding == 0) continue;
-                    var xa = Math.Max(0, _crossings[i].x);
-                    var xb = Math.Min(Width, _crossings[i + 1].x);
+                    var xa = Math.Max(_minPixelX, _crossings[i].x);
+                    var xb = Math.Min(_maxPixelX, _crossings[i + 1].x);
                     if (xb <= xa) continue;
                     AddSpan(xa, xb);
                     rowTouched = true;
