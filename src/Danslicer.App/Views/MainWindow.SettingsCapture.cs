@@ -206,6 +206,52 @@ public partial class MainWindow
             bitmap.Render(preferencesContent);
             bitmap.Save(System.IO.Path.Combine(directory, "settings-viewport.png"), PngBitmapEncoderOptions.Default);
         }
+        var printerEditor = ((ViewModels.ConfigViewModel)preferences.DataContext!).Printers;
+        printerEditor.SelectedIndex = printerEditor.Items.ToList().FindIndex(p => p.FileExtension == "pwma");
+        preferences.FindControl<ListBox>("SectionList")!.SelectedIndex = 3;
+        preferences.Width = 1000; preferences.Height = 850;
+        await Layout();
+        preferences.FindControl<ScrollViewer>("Scroll")!.Offset = new Vector(0, preferences.FindControl<StackPanel>("PrintersSection")!.Bounds.Y);
+        await Layout();
+        Require(printerEditor.CompatibilityNote.Contains("unverified") && printerEditor.FormatStatus.Contains("516"),
+            "Printer compatibility and native format status missing");
+        var printWidthBox = preferences.GetVisualDescendants().OfType<Controls.ExpressionBox>()
+            .Single(f => ReferenceEquals(f.DataContext, printerEditor.PrintWidth));
+        printWidthBox.Focus(); printWidthBox.Text = "130mm"; Key(printWidthBox, Avalonia.Input.Key.Enter);
+        var printerCopy = printerEditor.SelectedPrinter!;
+        Require(!printerCopy.IsBuiltIn && printerCopy.BuildVolume.X == 130 && printerCopy.DisplayWidthMm == 134.4f,
+            "Print-width edit must create a copy without changing pixel scale");
+        Require(UserConfig.Load(configPath).FindPrinter(printerCopy.Id) == printerCopy, "Printer copy did not persist");
+        printerEditor.DeleteCommand.Execute(null);
+        printerEditor.SelectedIndex = printerEditor.Items.ToList().FindIndex(p => p.FileExtension == "pwma");
+        await Layout();
+        using (var bitmap = new RenderTargetBitmap(new PixelSize((int)preferencesContent.Bounds.Width, (int)preferencesContent.Bounds.Height)))
+        {
+            bitmap.Render(preferencesContent);
+            bitmap.Save(System.IO.Path.Combine(directory, "settings-printers.png"), PngBitmapEncoderOptions.Default);
+        }
+        File.WriteAllText(System.IO.Path.Combine(directory, "native-printers-ok.txt"),
+            "Actual Preferences: native format status, experimental notice, Mono 4K selection, print width expression, automatic user copy, separate display scale, persistence and copy deletion passed using isolated config.");
+        foreach (var format in new[] { "goo", "ctb-encrypted", "cxdlp", "sl1", "cws-rgb", "lgs", "svgx", "anet", "phz", "chitu-zip" })
+        {
+            printerEditor.SelectedIndex = printerEditor.Items.ToList().FindIndex(p => p.NativeFormat == format);
+            Require(printerEditor.SelectedPrinter?.NativeFormat == format && printerEditor.FormatStatus.Contains("Native "),
+                "Missing selectable native format: " + format);
+        }
+        printerEditor.SelectedIndex = printerEditor.Items.ToList().FindIndex(p => p.Id == "elegoo-saturn-3");
+        printerEditor.DuplicateCommand.Execute(null);
+        Require(printerEditor.SelectedPrinter is { IsBuiltIn: false, NativeFormat: "goo" }, "Duplicated printer lost native format");
+        Require(UserConfig.Load(configPath).FindPrinter(printerEditor.SelectedPrinter!.Id)?.NativeFormat == "goo", "Native format did not persist");
+        printerEditor.DeleteCommand.Execute(null);
+        printerEditor.SelectedIndex = printerEditor.Items.ToList().FindIndex(p => p.Id == "elegoo-saturn-3");
+        await Layout();
+        using (var bitmap = new RenderTargetBitmap(new PixelSize((int)preferencesContent.Bounds.Width, (int)preferencesContent.Bounds.Height)))
+        {
+            bitmap.Render(preferencesContent);
+            bitmap.Save(System.IO.Path.Combine(directory, "settings-multi-brand.png"), PngBitmapEncoderOptions.Default);
+        }
+        File.WriteAllText(System.IO.Path.Combine(directory, "multi-brand-printers-ok.txt"),
+            "Selected all native format families in Preferences; experimental labels, format status, duplicate persistence and deletion passed with isolated config.");
         preferences.Close();
         File.WriteAllText(System.IO.Path.Combine(directory, "viewport-preferences-ok.txt"), "Actual Preferences bindings: shadow Off synchronizes to View popout; AO, reflections, plate shadows, cavity and cube off persist independently. Original values restored.");
         File.WriteAllText(System.IO.Path.Combine(directory, "settings-ok.txt"), "Production transform pointer previews/single commit/undo/cancel, unit expressions, invalid and out-of-range rejection, focus-loss commit, support setter called once, raft thickness, durable workspace restoration and config/cap-off round trips passed using isolated temporary configuration. Visibility uses its existing display modes and switches; no numeric opacity parameter is invented. Support config settings retain existing immediate-save semantics (no document undo was present).\n");

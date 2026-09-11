@@ -27,6 +27,10 @@ public sealed class PrinterEditorViewModel : ViewModelBase
             (printer, value) => printer with { DisplayWidthMm = Positive(value, printer.DisplayWidthMm) });
         DisplayHeight = Field("Display height", "0.###", UnitKind.Length,
             (printer, value) => printer with { DisplayHeightMm = Positive(value, printer.DisplayHeightMm) });
+        PrintWidth = Field("Print width", "0.###", UnitKind.Length,
+            (printer, value) => printer with { PrintWidthMm = Math.Min(printer.DisplayWidthMm, Positive(value, printer.BuildVolume.X)) });
+        PrintHeight = Field("Print depth", "0.###", UnitKind.Length,
+            (printer, value) => printer with { PrintHeightMm = Math.Min(printer.DisplayHeightMm, Positive(value, printer.BuildVolume.Y)) });
         ZTravel = Field("Z travel", "0.###", UnitKind.Length,
             (printer, value) => printer with { ZTravelMm = Positive(value, printer.ZTravelMm) });
         ResolutionX = Field("Resolution X", "0", UnitKind.Scalar,
@@ -35,7 +39,7 @@ public sealed class PrinterEditorViewModel : ViewModelBase
             (printer, value) => printer with { ResolutionY = PositiveInt(value, printer.ResolutionY) }, "px");
         FormatVersion = Field("Format version", "0", UnitKind.Scalar,
             (printer, value) => printer with { FormatVersion = PositiveUInt(value, printer.FormatVersion) });
-        Fields = [DisplayWidth, DisplayHeight, ZTravel, ResolutionX, ResolutionY, FormatVersion];
+        Fields = [DisplayWidth, DisplayHeight, PrintWidth, PrintHeight, ZTravel, ResolutionX, ResolutionY, FormatVersion];
         Refresh();
     }
 
@@ -58,6 +62,24 @@ public sealed class PrinterEditorViewModel : ViewModelBase
 
     public bool HasSelectedPrinter => SelectedPrinter is not null;
     public bool IsBuiltInSelected => SelectedPrinter?.IsBuiltIn == true;
+    public string CompatibilityNote => SelectedPrinter?.CompatibilityNote ?? "";
+    public string FormatStatus
+    {
+        get
+        {
+            if (SelectedPrinter is not { } printer) return "";
+            try
+            {
+                Core.IO.NativePrintWriter.ValidatePrinter(printer);
+                return $"Native {printer.NativeFormat} export: .{printer.FileExtension}, version {printer.FormatVersion}. "
+                    + Core.IO.NativePrintWriter.Limitations(printer);
+            }
+            catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
+            {
+                return ex.Message;
+            }
+        }
+    }
 
     public string NameDraft
     {
@@ -110,6 +132,8 @@ public sealed class PrinterEditorViewModel : ViewModelBase
 
     public NumericField DisplayWidth { get; }
     public NumericField DisplayHeight { get; }
+    public NumericField PrintWidth { get; }
+    public NumericField PrintHeight { get; }
     public NumericField ZTravel { get; }
     public NumericField ResolutionX { get; }
     public NumericField ResolutionY { get; }
@@ -212,6 +236,8 @@ public sealed class PrinterEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedPrinter));
         OnPropertyChanged(nameof(HasSelectedPrinter));
         OnPropertyChanged(nameof(IsBuiltInSelected));
+        OnPropertyChanged(nameof(CompatibilityNote));
+        OnPropertyChanged(nameof(FormatStatus));
         OnPropertyChanged(nameof(MachineName));
         OnPropertyChanged(nameof(FileExtension));
         OnPropertyChanged(nameof(MirrorX));
@@ -229,6 +255,8 @@ public sealed class PrinterEditorViewModel : ViewModelBase
         if (SelectedPrinter is not { } printer) return;
         DisplayWidth.SetValue(printer.DisplayWidthMm);
         DisplayHeight.SetValue(printer.DisplayHeightMm);
+        PrintWidth.SetValue(printer.BuildVolume.X);
+        PrintHeight.SetValue(printer.BuildVolume.Y);
         ZTravel.SetValue(printer.ZTravelMm);
         ResolutionX.SetValue(printer.ResolutionX);
         ResolutionY.SetValue(printer.ResolutionY);

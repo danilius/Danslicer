@@ -814,7 +814,7 @@ public sealed class UserConfig
         new() { Name = OrganicDenseSupportPresetName, Settings = new SupportConfig() },
     ];
 
-    private static List<PrinterDefinition> CreateBuiltInPrinters() => [PrinterDefinition.PhotonMonoX];
+    private static List<PrinterDefinition> CreateBuiltInPrinters() => [.. PrinterCatalog.BuiltIn];
 
     private static List<ResinPreset> CreateBuiltInResinPresets() => [ResinPreset.Default];
 
@@ -827,10 +827,12 @@ public sealed class UserConfig
         {
             if (printer is null) continue;
             var item = printer.Normalize();
-            if (item.Id == PrinterDefinition.PhotonMonoXId || !ids.Add(item.Id)) continue;
+            if (item.Id == PrinterDefinition.PhotonMonoXId
+                || (printer.IsBuiltIn && PrinterCatalog.IsBuiltInId(item.Id)) || !ids.Add(item.Id)) continue;
             normalized.Add(item with { IsBuiltIn = false });
         }
-        normalized.Insert(0, PrinterDefinition.PhotonMonoX);
+        // A newly introduced catalog ID must not replace a pre-existing custom definition.
+        normalized.InsertRange(0, PrinterCatalog.BuiltIn.Where(p => !ids.Contains(p.Id)));
         Printers = normalized;
     }
 

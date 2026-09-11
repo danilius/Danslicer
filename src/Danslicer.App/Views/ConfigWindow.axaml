@@ -281,6 +281,10 @@
                             </WrapPanel>
                         </StackPanel>
                         <StackPanel Grid.Column="1" IsEnabled="{Binding Printers.HasSelectedPrinter}">
+                            <TextBlock Text="{Binding Printers.CompatibilityNote}" Classes="label"
+                                       TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <TextBlock Text="{Binding Printers.FormatStatus}" Classes="label"
+                                       TextWrapping="Wrap" Margin="0,0,0,6" />
                             <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,0,0,6"
                                        IsVisible="{Binding Printers.IsBuiltInSelected}"
                                        Text="Built-in definitions are read-only. The first edit creates a user copy." />
@@ -299,19 +303,20 @@
                                 <TextBlock Text="File extension" Classes="label" />
                                 <TextBox Grid.Column="1" Text="{Binding Printers.FileExtension, Mode=TwoWay}" />
                             </Grid>
-                    <TextBlock Classes="hint" Text="The print file format this printer reads, for example pwmx; it decides how the layers are packed." />
+                    <TextBlock Classes="hint" Text="Native export checks the extension and format version together. Unsupported combinations cannot be exported." />
                             <ItemsControl ItemsSource="{Binding Printers.Fields}"
                                           ItemTemplate="{StaticResource PrinterFieldTemplate}" />
+                            <TextBlock Classes="hint" Text="Display dimensions set pixel scale. Print width and depth limit the usable area at the centre of that display." />
                             <WrapPanel Margin="0,4,0,0">
                                 <TextBlock Text="Mirror layer image" Classes="label" Width="130" />
                                 <CheckBox Content="X" IsChecked="{Binding Printers.MirrorX}" Margin="0,0,12,0" />
                                 <CheckBox Content="Y" IsChecked="{Binding Printers.MirrorY}" />
                             </WrapPanel>
+                            <TextBlock Classes="hint" Text="Flip every layer image on that axis before writing, for printers whose screen is mirrored relative to the plate. Wrong here prints a mirrored model." />
                             <TextBlock Text="{Binding Printers.ValidationMessage}"
                                        IsVisible="{Binding Printers.HasValidationMessage}"
                                        Foreground="{DynamicResource AppAccent}" FontSize="12" Margin="0,6,0,0" />
                         </StackPanel>
-                    <TextBlock Classes="hint" Text="Flip every layer image on that axis before writing, for printers whose screen is mirrored relative to the plate. Wrong here prints a mirrored model." />
                     </Grid>
                 </StackPanel>
 

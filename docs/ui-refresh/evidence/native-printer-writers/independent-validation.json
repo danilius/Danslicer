@@ -1,0 +1,205 @@
+{
+  "validator": "UVtools portable v6.2.0",
+  "profiles": 18,
+  "layersCompared": 36,
+  "results": [
+    {
+      "file": "anycubic-photon-d2.dl2p",
+      "version": 517,
+      "resolution": [
+        2560,
+        1440
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "47d3d2cf86b31791b39f7fdc254cdba7e1ec0e2cb6421008b91a8dd1af71277e",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-m3-max.pm3m",
+      "version": 516,
+      "resolution": [
+        6480,
+        3600
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "eddf24a5be8175896542297eb85c67de10101fea73e2f5db0db7e0d88dedf644",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-m3-plus.pwmb",
+      "version": 517,
+      "resolution": [
+        5760,
+        3600
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "488ac83b8185aaf1db90b0c7df2c0f9925b3092e4d5249c62365c4340f86ec07",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-m3-premium.pm3r",
+      "version": 517,
+      "resolution": [
+        7680,
+        4320
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "d1af2c931ea44e15641f7507288c65baf480837d7e8d9b67019e3129e3c2de55",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-m3.pm3",
+      "version": 516,
+      "resolution": [
+        4096,
+        2560
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "2c1e2d8545786ab0bb0c947d228f1276d1c6214eee20fbf4cb63aab5eed61eaf",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-2.pm3n",
+      "version": 517,
+      "resolution": [
+        4096,
+        2560
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "2c1e2d8545786ab0bb0c947d228f1276d1c6214eee20fbf4cb63aab5eed61eaf",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-4k.pwma",
+      "version": 516,
+      "resolution": [
+        3840,
+        2400
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "5433c7cfb8ec4c94dd42b4ab42dcd1997647fe2bb0b4f2fb476bf1a8c9959ef5",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-m5.pm5",
+      "version": 517,
+      "resolution": [
+        11520,
+        5120
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "dd4b2dcd3962cce6c85fc9b748e2cfd9e1eefd9f92ea64a7064fb967f7347d19",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-m5s-pro.m5sp",
+      "version": 518,
+      "resolution": [
+        13312,
+        5120
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "c81bd756366e68e5cc57fb1d6bc65113445200144efeaddb30e35ee281f295c8",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-m5s.pm5s",
+      "version": 518,
+      "resolution": [
+        11520,
+        5120
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "dd4b2dcd3962cce6c85fc9b748e2cfd9e1eefd9f92ea64a7064fb967f7347d19",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-se.pwms",
+      "version": 1,
+      "resolution": [
+        1620,
+        2560
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "dbb68a1e8218f3d4fb60e45df0ef5d3cf5483293f45cfb6741175e95b24bc83e",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-sq.pmsq",
+      "version": 515,
+      "resolution": [
+        2400,
+        2560
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "56b528e78fb7c7dbb665ee1eb4cb33269e336e04156e4fcebd6c1643804b2a72",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-x-6k.pwmb",
+      "version": 516,
+      "resolution": [
+        5760,
+        3600
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "488ac83b8185aaf1db90b0c7df2c0f9925b3092e4d5249c62365c4340f86ec07",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-x-6ks.px6s",
+      "version": 517,
+      "resolution": [
+        5760,
+        3600
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "488ac83b8185aaf1db90b0c7df2c0f9925b3092e4d5249c62365c4340f86ec07",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-x.pwmx",
+      "version": 516,
+      "resolution": [
+        3840,
+        2400
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "5433c7cfb8ec4c94dd42b4ab42dcd1997647fe2bb0b4f2fb476bf1a8c9959ef5",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono-x2.pmx2",
+      "version": 517,
+      "resolution": [
+        4096,
+        2560
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "2c1e2d8545786ab0bb0c947d228f1276d1c6214eee20fbf4cb63aab5eed61eaf",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-mono.pwmo",
+      "version": 515,
+      "resolution": [
+        1620,
+        2560
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "dbb68a1e8218f3d4fb60e45df0ef5d3cf5483293f45cfb6741175e95b24bc83e",
+      "result": "PASS"
+    },
+    {
+      "file": "anycubic-photon-ultra.dlp",
+      "version": 516,
+      "resolution": [
+        1280,
+        720
+      ],
+      "layersCompared": 2,
+      "sha256Pixels": "7b02fd8e837672fffeab61804343e0e869f708a4d99c6464d0789fb233e3dde4",
+      "result": "PASS"
+    }
+  ]
+}
