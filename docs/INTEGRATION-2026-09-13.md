@@ -37,4 +37,6 @@ Remote cleanup is deferred. `origin` points to `https://github.com/danilius/Dans
 
 ## Validation
 
-Release regression suite: 1,071 passed, zero failed or skipped on the resolved integration (before excluding Forge). Repeat the suite from the destination after the final merge. Existing warnings concern SurfaceContour stack allocation, ViewportControl nullable references and RaftBuilder test assertions. No interactive viewport or physical printing validation is claimed.
+Final integrated source commit: `7c7edbd` (integration resolution `1a65186`, followed by ancestry consolidation of the superseded review merge). Main was fast-forwarded to this result.
+
+Release regression suite run from `F:/Git Repos/Danslicer` after excluding Forge: 1,071 passed, zero failed or skipped. Command: `dotnet test tests/Danslicer.Tests -c Release --no-restore -p:UsedAvaloniaProducts= --verbosity minimal`. Existing warnings concern SurfaceContour stack allocation, ViewportControl nullable references and RaftBuilder test assertions. No interactive viewport or physical printing validation is claimed.
