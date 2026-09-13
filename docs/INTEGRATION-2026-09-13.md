@@ -40,3 +40,19 @@ Remote cleanup is deferred. `origin` points to `https://github.com/danilius/Dans
 Final integrated source commit: `7c7edbd` (integration resolution `1a65186`, followed by ancestry consolidation of the superseded review merge). Main was fast-forwarded to this result.
 
 Release regression suite run from `F:/Git Repos/Danslicer` after excluding Forge: 1,071 passed, zero failed or skipped. Command: `dotnet test tests/Danslicer.Tests -c Release --no-restore -p:UsedAvaloniaProducts= --verbosity minimal`. Existing warnings concern SurfaceContour stack allocation, ViewportControl nullable references and RaftBuilder test assertions. No interactive viewport or physical printing validation is claimed.
+
+## Authorized cleanup and fresh build
+
+The user subsequently authorized all five consolidation steps and a fresh build. This section supersedes the earlier deferred-cleanup status.
+
+- Preserved 7,734 untracked/ignored files (1,123.5 MiB) from the seven additional worktrees in `F:/Git Repos/Danslicer/artifacts/consolidation-recovery-20260913`. Each copied file was checked with SHA-256. `manifest.csv` records source, destination, size and hash; `refs-before.txt` and `worktrees-before.txt` preserve the recovery map. Disposable `bin` and `obj` contents were excluded. The archive remains local and ignored by Git.
+- Removed all five inactive Codex UI worktrees and `F:/Git Repos/.danslicer-review5`, using non-forced Git worktree removal. The native-writer worktree's three untracked notes were verified against the archive before removing their originals.
+- Deleted the six merged local feature branches listed above, including `grid-routing-prototype`. The temporary consolidation branch is also retired after this completion record is fast-forwarded to main.
+- Removed the self-referencing `localmain` remote and its tracking refs, plus the merged orphan `refs/remotes/localmain-fetch/main` at `cf172cf`.
+- Pushed main to `https://github.com/danilius/Danslicer.git`. Deleted GitHub's fully merged `grid-routing-prototype` at `ab28a1b348da288156f39357aa6f5b26f60e1960`, guarded by an exact-tip lease. GitHub's default branch remains main.
+- Rebuilt the entire solution with `dotnet build Danslicer.slnx -c Release --no-restore -t:Rebuild -p:UsedAvaloniaProducts=`: zero errors, five existing warnings. All 1,071 tests passed against the fresh build.
+- Published a self-contained Windows x64 app to `F:/Git Repos/Danslicer/artifacts/publish/consolidated-20260913/win-x64/app/Danslicer.App.exe`. Executable SHA-256: `F1ECC708723192B2DF4F89514F9A20111508AD4253CA714C3A591D21CFCEEEC8`.
+
+### Remaining app handoff
+
+The active task and saved Codex project still reference `F:/Git Repos/Danslicer-chatgpt`. The available handoff tool cannot move the calling task, and no available project-management tool can change the saved project's path. Therefore that one active worktree remains, with its useful files already archived in main. It is detached after consolidation so main is the sole remaining local branch. Open `F:/Git Repos/Danslicer` as the Codex project for the next task, then recheck and remove the old worktree. Do not resume old tasks against removed worktrees.
