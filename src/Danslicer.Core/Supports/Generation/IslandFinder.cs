@@ -10,7 +10,7 @@ internal readonly record struct Island(Vector3 Centroid, float AreaMm2, float Z,
     public Paths64 Footprint { get; init; } = new();
 }
 
-/// <summary>Layer regions requiring support. Generation includes overhang strips;
+/// <summary>Layer regions requiring support. Broad print checks include overhang strips;
 /// standalone detection considers disconnected components only.</summary>
 internal static class IslandFinder
 {
@@ -33,26 +33,42 @@ internal static class IslandFinder
             ? MeshSlicer.NewbornIslands(layers.Select(l => l.Polygons).ToList(), inflateMm)
             : null;
 
+        var previous = new Paths64();
         for (int i = 0; i < layers.Count; i++)
         {
             // Only the layer straddling the plate can obtain support from it.
             if (layers[i].Z - layerHeight / 2 <= plateZ + 1e-4 &&
-                meshMinZ <= plateZ + 1e-4) continue;
+                meshMinZ <= plateZ + 1e-4)
+            {
+                previous = layers[i].Polygons;
+                continue;
+            }
+            var carriesNext = new Paths64();
             var regions = PolygonComponents.Split(newborn is null ? layers[i].Polygons : newborn[i]);
             foreach (var region in regions)
             {
                 if (newborn is null && i > 0 && MeshSlicer.AreaMm2(
-                    Clipper.Intersect(region, layers[i - 1].Polygons, FillRule.NonZero)) > 0)
+                    Clipper.Intersect(region, previous, FillRule.NonZero)) > 0)
+                {
+                    carriesNext.AddRange(region);
                     continue;
+                }
                 var area = MeshSlicer.AreaMm2(region);
                 if (area < minAreaMm2) continue;
+                carriesNext.AddRange(region);
                 var point = PointOnSolid(region);
                 result.Add(new Island(new Vector3(point, layers[i].Z), (float)area,
                     layers[i].Z, layers[i].Index) { Footprint = region });
             }
+            previous = carriesNext;
         }
         return result;
     }
+
+    public static List<Island> FindStarts(
+        IReadOnlyList<SliceLayer> layers, float meshMinZ, float layerHeight,
+        float minAreaMm2, float plateZ, float overhangAngleDegrees = 45f) =>
+        Find(layers, meshMinZ, layerHeight, minAreaMm2, plateZ, overhangAngleDegrees, includeOverhangs: false);
 
     private static Vector2 PointOnSolid(Paths64 region)
     {

@@ -1,4 +1,4 @@
-namespace Danslicer.Core;
+﻿namespace Danslicer.Core;
 
 public enum WorkspaceMode { Layout, Support, Slicing }
 
@@ -24,7 +24,8 @@ public static class WorkspaceSelection
                 document.SelectAll();
                 break;
             case WorkspaceMode.Support:
-                document.ClearSelection();
+                // The object selection is the support target and scopes the select-all, so it
+                // stays put; only the Objects pop-out changes which model is supported.
                 document.SelectAllSupportElements();
                 break;
             case WorkspaceMode.Slicing:

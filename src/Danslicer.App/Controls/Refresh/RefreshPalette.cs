@@ -1,0 +1,80 @@
+using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
+using Avalonia.Media;
+
+namespace Danslicer.App.Controls.Refresh;
+
+/// <summary>Opt-in palette: existing application themes are untouched.</summary>
+public static class RefreshPalette
+{
+    public static readonly IBrush Canvas = Brush.Parse("#191B1D");
+    public static readonly IBrush Panel = Brush.Parse("#292C2F");
+    public static readonly IBrush Header = Brush.Parse("#202225");
+    public static readonly IBrush Field = Brush.Parse("#34373A");
+    public static readonly IBrush Edge = Brush.Parse("#4A4D50");
+    public static readonly IBrush Text = Brush.Parse("#E3E4E6");
+    public static readonly IBrush Muted = Brush.Parse("#A8ADB3");
+    public static readonly IBrush Accent = Brush.Parse("#EBA548");
+    public static readonly IBrush Fill = Brush.Parse("#765322");
+
+    public static ResourceDictionary CreateResources()
+    {
+        var resources = new ResourceDictionary();
+        foreach (var key in new[] { "ButtonBackground", "ToggleButtonBackground", "TextControlBackground" }) resources[key] = Field;
+        foreach (var key in new[] { "ButtonForeground", "ToggleButtonForeground", "ToggleButtonForegroundChecked", "TextControlForeground" }) resources[key] = Text;
+        foreach (var key in new[] { "ButtonBackgroundPointerOver", "ToggleButtonBackgroundPointerOver" }) resources[key] = Edge;
+        foreach (var key in new[] { "ToggleButtonBackgroundChecked", "ToggleButtonBackgroundCheckedPointerOver" }) resources[key] = Fill;
+        foreach (var key in new[] { "CheckBoxCheckBackgroundFillChecked", "CheckBoxCheckBackgroundFillCheckedPointerOver", "TextControlBorderBrushFocused" }) resources[key] = Accent;
+        return resources;
+    }
+}
+
+/// <summary>Outline geometries on a 24-unit grid, reconstructed from the Charcoal study.</summary>
+public static class RefreshIcons
+{
+    private static readonly IReadOnlyDictionary<string, string> Paths = new Dictionary<string, string>
+    {
+        ["add"] = "M3,8 L10,4 L17,8 L17,18 L10,22 L3,18 Z M3,8 L10,12 L17,8 M10,12 L10,22 M19,2 L19,10 M15,6 L23,6",
+        ["check"] = "M4,3 L16,3 L20,7 L20,21 L4,21 Z M7,12 L11,16 L17,9",
+        ["settings"] = "M4,6 L20,6 M4,12 L20,12 M4,18 L20,18 M8,3 L8,9 M16,9 L16,15 M10,15 L10,21",
+        ["generate"] = "M12,8 L12,21 M5,10 L5,14 L12,18 L19,14 L19,10 M8,21 L16,21 M18,2 L18,8 M15,5 L21,5",
+        ["place"] = "M12,2 L12,10 M8,6 L16,6 M12,13 L12,21 M8,21 L16,21 M3,11 L5,13 M21,11 L19,13",
+        ["structure"] = "M5,3 L5,21 M19,3 L19,21 M5,6 L19,18 M19,6 L5,18 M2,21 L8,21 M16,21 L22,21",
+        ["region"] = "M4,6 L12,3 L20,6 L20,18 L12,21 L4,18 Z M4,6 L12,12 L20,6 M12,12 L12,21 M8,8 L16,18 M16,8 L8,18",
+        ["island"] = "M3,16 L7,12 L12,15 L17,11 L21,16 L12,21 Z M12,5 L12,15 M9,8 L12,5 L15,8",
+        ["detect"] = "M3,17 L7,13 L11,16 L16,13 L20,18 L12,22 Z M11,6 A4,4 0 1 0 19,6 A4,4 0 1 0 11,6 M18,9 L22,13",
+        ["print"] = "M6,3 L18,3 L18,8 M6,8 L6,3 M3,8 L21,8 L21,18 L17,18 M7,18 L3,18 L3,8 M7,14 L17,14 L17,22 L7,22 Z",
+        ["layers"] = "M3,6 L12,2 L21,6 L12,10 Z M3,11 L12,15 L21,11 M3,16 L12,20 L21,16",
+        ["labels"] = "M3,5 L7,5 L7,9 L3,9 Z M11,7 L21,7 M3,15 L7,15 L7,19 L3,19 Z M11,17 L21,17",
+        ["select"] = "M5,3 L18,14 L12,14 L15,21 L12,22 L9,15 L5,19 Z",
+        ["move"] = "M12,2 L12,22 M2,12 L22,12 M8,6 L12,2 L16,6 M8,18 L12,22 L16,18 M6,8 L2,12 L6,16 M18,8 L22,12 L18,16",
+        ["rotate"] = "M20,8 A9,9 0 1 0 21,14 M20,2 L20,8 L14,8",
+        ["scale"] = "M3,21 L21,3 M13,3 L21,3 L21,11 M3,13 L3,21 L11,21",
+        ["objects"] = "M3,7 L12,2 L21,7 L21,17 L12,22 L3,17 Z M3,7 L12,12 L21,7 M12,12 L12,22",
+        ["supports"] = "M12,3 L12,21 M5,7 L5,12 L12,17 L19,12 L19,7 M8,21 L16,21 M10,3 A2,2 0 1 0 14,3 A2,2 0 1 0 10,3 M3,5 A2,2 0 1 0 7,5 A2,2 0 1 0 3,5 M17,5 A2,2 0 1 0 21,5 A2,2 0 1 0 17,5",
+        ["visibility"] = "M2,12 Q12,-1 22,12 Q12,25 2,12 Z M8,12 A4,4 0 1 0 16,12 A4,4 0 1 0 8,12",
+        ["rafts"] = "M2,8 L12,3 L22,8 L12,13 Z M2,12 L12,17 L22,12 M2,16 L12,21 L22,16",
+        ["close"] = "M5,5 L19,19 M19,5 L5,19",
+        ["lock"] = "M7,10 L7,6 A5,5 0 0 1 17,6 L17,10 M5,10 L19,10 L19,21 L5,21 Z M12,14 L12,17",
+        ["unlock"] = "M7,10 L7,6 A5,5 0 0 1 17,6 M5,10 L19,10 L19,21 L5,21 Z M12,14 L12,17"
+    };
+    public static Control Create(string name)
+    {
+        if (name == "grip")
+        {
+            var dots = new Canvas { Width = 8, Height = 12, IsHitTestVisible = false };
+            for (var y = 0; y < 3; y++)
+                for (var x = 0; x < 2; x++)
+                {
+                    var dot = new Ellipse { Width = 2, Height = 2, Fill = RefreshPalette.Muted };
+                    Canvas.SetLeft(dot, x * 4); Canvas.SetTop(dot, y * 4); dots.Children.Add(dot);
+                }
+            return dots;
+        }
+        return new Avalonia.Controls.Shapes.Path
+        {
+            Data = Geometry.Parse(Paths[name]), Stroke = RefreshPalette.Text, StrokeThickness = 1.5,
+            Width = 20, Height = 20, Stretch = Stretch.Uniform, IsHitTestVisible = false
+        };
+    }
+}

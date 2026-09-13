@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
@@ -34,8 +34,12 @@ public sealed class RenderFrame
     public bool ShowOverhangs { get; init; }
     /// <summary>Overhang threshold measured from the vertical wall: 45 tints anything steeper.</summary>
     public float OverhangAngleDegrees { get; init; } = 45f;
-    /// <summary>Plate opacity when the camera is below it: 0 invisible, 1 opaque (no fade).</summary>
-    public float PlateOpacityFromBelow { get; init; } = 1f;
+    /// <summary>Legacy name: remaining perimeter visibility below; the surface always disappears.</summary>
+    public float PlateOpacityFromBelow { get; init; } = 0.3f;
+    public bool PlateReflectionsEnabled { get; init; } = true;
+    public float PlateReflectionStrength { get; init; } = 0.12f;
+    /// <summary>Each visible object's shadow on the plate (design "Shadow"); both paths.</summary>
+    public bool ShowPlateShadows { get; init; } = true;
     /// <summary>The two overhang checker colours and the checker cell edge in millimetres.</summary>
     public Vector3 OverhangColorA { get; init; } = new(0.98f, 0.80f, 0.15f);
     public Vector3 OverhangColorB { get; init; } = new(0.90f, 0.12f, 0.10f);
@@ -43,6 +47,7 @@ public sealed class RenderFrame
     /// <summary>Which pipeline draws this frame. Deferred falls back to Classic on GL failure.</summary>
     public RenderPathMode RenderPath { get; init; } = RenderPathMode.Classic;
     /// <summary>Shading and effect settings for the deferred path; ignored by Classic.</summary>
+    public ShadowEffects Shadows { get; init; } = new();
     public DeferredEffects Deferred { get; init; } = DeferredEffects.Default;
     /// <summary>Support-mode world-Z isolation. Full/inactive ranges leave output bit-identical.</summary>
     public ViewportClipRange ClipRange { get; init; }
@@ -77,10 +82,21 @@ public sealed partial class SceneRenderer : IDisposable
     private static readonly Vector3 ObjectColor = new(0.70f, 0.71f, 0.74f);
     private static readonly Vector3 SelectedColor = new(0.96f, 0.60f, 0.18f);
     private static readonly Vector3 PlateColor = new(0.20f, 0.21f, 0.23f);
+    /// <summary>The shadow is the plate colour in shade, so it reads as the plate, not paint.</summary>
+    private static readonly Vector3 PlateShadowColor = PlateColor * 0.62f;
+    /// <summary>
+    /// A fixed overhead light leaning a little toward -X/-Y (world space), so the shadow steps
+    /// slightly out from under the model instead of being its exact footprint. Steep enough that
+    /// a tall part never throws its shadow across the plate.
+    /// </summary>
+    private static readonly Vector3 PlateShadowLight = Vector3.Normalize(new Vector3(-0.18f, -0.12f, -1f));
+    /// <summary>Between the plate face at -0.05 and the grid lines at 0, so neither Z-fights it.</summary>
+    private const float PlateShadowZ = -0.025f;
 
     private readonly GL _gl;
     private readonly ShaderProgram _meshShader;
     private readonly ShaderProgram _lineShader;
+    private readonly ShaderProgram _wideLineShader;
     private readonly ShaderProgram _wireShader;
     private readonly LineBatch _depthLines;
     private readonly LineBatch _overlayLines;
@@ -104,6 +120,7 @@ public sealed partial class SceneRenderer : IDisposable
         var preamble = Shaders.Preamble(IsGles);
         _meshShader = new ShaderProgram(_gl, preamble + Shaders.MeshVertex, preamble + Shaders.MeshFragment);
         _lineShader = new ShaderProgram(_gl, preamble + Shaders.LineVertex, preamble + Shaders.LineFragment);
+        _wideLineShader = new ShaderProgram(_gl, preamble + Shaders.WideLineVertex, preamble + Shaders.LineFragment);
         _wireShader = new ShaderProgram(_gl, preamble + Shaders.WireVertex, preamble + Shaders.WireFragment);
         _depthLines = new LineBatch(_gl);
         _overlayLines = new LineBatch(_gl);
@@ -113,6 +130,8 @@ public sealed partial class SceneRenderer : IDisposable
     {
         // The deferred path lives in SceneRenderer.Deferred.cs and is opt-in per frame; any GL
         // failure there logs, latches off and falls back so a frame is always produced.
+        PrepareModelShadows(frame);
+        PreparePlateReflection(frame);
         _pickTargetsValid = false; // only a completed deferred frame re-arms ID picking
         var deferredDrawn = frame.RenderPath == RenderPathMode.Deferred && TryRenderDeferred(frame);
         if (!deferredDrawn) RenderClassic(frame);
@@ -149,15 +168,21 @@ public sealed partial class SceneRenderer : IDisposable
         _buildVolume = frame.Printer.BuildVolume;
 
         PruneMeshCache(frame);
-        // Looking up from under the plate, the plate fades to the configured opacity so the
-        // model stays visible; it then draws after the opaque passes so blending sees them.
-        var plateFaded = frame.Camera.Eye.Z < 0f && frame.PlateOpacityFromBelow < 1f;
-        if (!plateFaded) DrawPlate(frame.Printer, view, projection, 1f);
+        // Looking along or up at the plate, it fades toward the configured opacity so the model
+        // stays visible; it then draws after the opaque passes so blending sees them.
+        var plateOpacity = PlateFade.SurfaceOpacityFor(frame.Camera);
+        var plateFaded = plateOpacity < 1f;
+        if (!plateFaded)
+        {
+            DrawPlate(frame.Printer, view, projection, 1f);
+            if (frame.ShowPlateShadows) DrawPlateShadows(frame, view, projection);
+        }
         DrawObjects(frame, view, projection, ghosted: false);
         DrawWireframe(frame, view, projection);
-        DrawAuxMeshes(frame, view, projection);
-        if (plateFaded && frame.PlateOpacityFromBelow > 0.001f)
-            DrawPlate(frame.Printer, view, projection, frame.PlateOpacityFromBelow);
+        DrawAuxMeshes(frame, view, projection, transparent: false);
+        if (plateFaded && plateOpacity > 0.001f)
+            DrawPlate(frame.Printer, view, projection, plateOpacity);
+        DrawAuxMeshes(frame, view, projection, transparent: true);
         DrawObjects(frame, view, projection, ghosted: true);
         DrawLines(frame, view * projection);
 
@@ -186,12 +211,48 @@ public sealed partial class SceneRenderer : IDisposable
         var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
         BindMeshShader(model, view, projection, PlateColor, opacity, backfaceTint: 0f,
             warnOutsideBuildVolume: false, overhangCos: 2f, clip: default);
+        BindPlateMaterial(_meshShader, true);
+        // Convex slab: only the visible skin blends, avoiding multiple translucent layers.
+        gl.Enable(EnableCap.CullFace);
         _plate.Draw();
+        gl.Disable(EnableCap.CullFace);
         if (faded)
         {
             gl.Disable(EnableCap.Blend);
             gl.DepthMask(true);
         }
+    }
+
+    /// <summary>
+    /// The visible objects again, each flattened onto the plate by the vertex shader (see
+    /// <c>uShadow</c> in <see cref="Shaders.MeshVertex"/>). Drawn opaque right after the plate, so
+    /// overlapping triangles cannot darken twice and the model then wins the depth test above it.
+    /// Ghosted and hidden objects throw no shadow; nor does anything when the plate has faded.
+    /// </summary>
+    private void DrawPlateShadows(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection)
+    {
+        foreach (var obj in frame.Scene.Objects)
+        {
+            if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+            if (!_meshes.TryGetValue(obj.Mesh, out var gpu))
+            {
+                gpu = new GpuMesh(_gl, obj.Mesh);
+                _meshes[obj.Mesh] = gpu;
+            }
+            BindMeshShader(obj.Transform.ToMatrix(), view, projection, Vector3.Lerp(PlateColor, PlateShadowColor, PlateFade.ShadowStrengthFor(frame.Camera)), 1f,
+                backfaceTint: 0f, warnOutsideBuildVolume: false, overhangCos: 2f, clip: default);
+            BindPlateMaterial(_meshShader, true);
+            BindShadow(_meshShader, true);
+            gpu.Draw();
+            BindShadow(_meshShader, false);
+        }
+    }
+
+    private static void BindShadow(ShaderProgram shader, bool on)
+    {
+        shader.Set("uShadow", on ? 1f : 0f);
+        shader.Set("uShadowDir", PlateShadowLight);
+        shader.Set("uShadowZ", PlateShadowZ);
     }
 
     private void DrawObjects(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection, bool ghosted)
@@ -237,12 +298,13 @@ public sealed partial class SceneRenderer : IDisposable
         }
     }
 
-    private void DrawAuxMeshes(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection)
+    private void DrawAuxMeshes(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection, bool transparent)
     {
         if (frame.AuxMeshes.Count == 0) return;
         var gl = _gl;
         foreach (var draw in frame.AuxMeshes)
         {
+            if ((draw.Opacity < 1f) != transparent) continue;
             if (!_meshes.TryGetValue(draw.Mesh, out var gpu))
             {
                 gpu = new GpuMesh(gl, draw.Mesh);
@@ -281,6 +343,7 @@ public sealed partial class SceneRenderer : IDisposable
         var modelNormalMatrix = Matrix4x4.Transpose(modelInverse);
 
         _meshShader.Use();
+        BindPlateMaterial(_meshShader, false);
         _meshShader.Set("uModel", model);
         _meshShader.Set("uView", view);
         _meshShader.Set("uProjection", projection);
@@ -295,7 +358,9 @@ public sealed partial class SceneRenderer : IDisposable
         _meshShader.Set("uOverhangColorA", _overhangColorA);
         _meshShader.Set("uOverhangColorB", _overhangColorB);
         _meshShader.Set("uOverhangCell", _overhangCell);
+        BindShadow(_meshShader, false);
         BindClip(_meshShader, clip);
+        BindModelShadows(_meshShader, opacity >= 1f);
         _meshShader.Set("uWaterlineEnabled", waterlineZ.HasValue ? 1f : 0f);
         _meshShader.Set("uWaterlineZ", waterlineZ.GetValueOrDefault());
     }
@@ -334,7 +399,7 @@ public sealed partial class SceneRenderer : IDisposable
         gl.Enable(EnableCap.DepthTest);
 
         _depthLines.Clear();
-        AddGrid(frame.Printer);
+        AddGrid(frame.Printer, PlateFade.SurfaceOpacityFor(frame.Camera), frame.PlateOpacityFromBelow);
         BindClip(_lineShader, default);
         _depthLines.Draw();
 
@@ -342,15 +407,28 @@ public sealed partial class SceneRenderer : IDisposable
         foreach (var line in frame.DepthOverlay) _depthLines.Add(line);
         BindClip(_lineShader, frame.ClipRange);
         _depthLines.Draw();
+        DrawWide(_depthLines, frame, viewProjection, frame.ClipRange);
 
         gl.Disable(EnableCap.DepthTest);
         _overlayLines.Clear();
         foreach (var line in frame.Overlay) _overlayLines.Add(line);
+        _lineShader.Use();
         BindClip(_lineShader, default);
         _overlayLines.Draw();
+        DrawWide(_overlayLines, frame, viewProjection, default);
 
         gl.Enable(EnableCap.DepthTest);
         gl.Disable(EnableCap.Blend);
+    }
+
+    private void DrawWide(LineBatch batch, RenderFrame frame, in Matrix4x4 viewProjection, ViewportClipRange clip)
+    {
+        if (!batch.HasWide) return;
+        _wideLineShader.Use();
+        _wideLineShader.Set("uViewProjection", viewProjection);
+        _wideLineShader.Set("uViewport", new Vector2(frame.Width, frame.Height));
+        BindClip(_wideLineShader, clip);
+        batch.DrawWide();
     }
 
     private static void BindClip(ShaderProgram shader, ViewportClipRange clip)
@@ -360,7 +438,7 @@ public sealed partial class SceneRenderer : IDisposable
         shader.Set("uClipUpperZ", clip.UpperZ);
     }
 
-    private void AddGrid(PrinterDefinition printer)
+    private void AddGrid(PrinterDefinition printer, float opacity, float perimeter)
     {
         var hw = printer.BuildVolume.X * 0.5f;
         var hd = printer.BuildVolume.Y * 0.5f;
@@ -369,6 +447,8 @@ public sealed partial class SceneRenderer : IDisposable
         var minor = new Vector4(1f, 1f, 1f, 0.07f);
         var major = new Vector4(1f, 1f, 1f, 0.16f);
         var border = new Vector4(1f, 1f, 1f, 0.35f);
+        minor.W *= opacity; major.W *= opacity;
+        border.W *= opacity + (1 - opacity) * Math.Clamp(float.IsFinite(perimeter) ? perimeter : 0.3f, 0, 1);
         var volume = new Vector4(1f, 1f, 1f, 0.10f);
 
         for (float x = 0; x <= hw + 1e-3f; x += 10f)
@@ -396,9 +476,9 @@ public sealed partial class SceneRenderer : IDisposable
         }
 
         // Axes at the plate origin.
-        _depthLines.Add(Vector3.Zero, new Vector3(hw, 0, 0), new Vector4(0.95f, 0.30f, 0.30f, 0.9f));
-        _depthLines.Add(Vector3.Zero, new Vector3(0, hd, 0), new Vector4(0.45f, 0.85f, 0.35f, 0.9f));
-        _depthLines.Add(Vector3.Zero, new Vector3(0, 0, 20f), new Vector4(0.35f, 0.55f, 0.95f, 0.9f));
+        _depthLines.Add(Vector3.Zero, new Vector3(hw, 0, 0), new Vector4(0.95f, 0.30f, 0.30f, 0.9f * opacity));
+        _depthLines.Add(Vector3.Zero, new Vector3(0, hd, 0), new Vector4(0.45f, 0.85f, 0.35f, 0.9f * opacity));
+        _depthLines.Add(Vector3.Zero, new Vector3(0, 0, 20f), new Vector4(0.35f, 0.55f, 0.95f, 0.9f * opacity));
     }
 
     private void PruneMeshCache(RenderFrame frame)
@@ -423,8 +503,11 @@ public sealed partial class SceneRenderer : IDisposable
         _plate?.Dispose();
         _depthLines.Dispose();
         _overlayLines.Dispose();
+        _modelShadowMap?.Dispose();
+        _reflection?.Dispose();
         _meshShader.Dispose();
         _lineShader.Dispose();
+        _wideLineShader.Dispose();
         _wireShader.Dispose();
     }
 }

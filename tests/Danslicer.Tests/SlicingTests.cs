@@ -198,7 +198,7 @@ public class SlicingTests
             Transform = Transform.Identity with { Translation = new Vector3(-3, 1, 0) },
         };
         var printer = new PrinterDefinition(
-            "custom-mirror", false, "Custom mirror", "Custom mirror", "pwmx",
+            "custom-mirror", false, "Custom mirror", "Custom mirror", "pmx2",
             8, 6, 10, 8, 6, MirrorX: false, MirrorY: false, FormatVersion: 517);
         var settings = PrintSettings.Default with { LayerHeight = 0.5f, AntiAliasing = false };
 

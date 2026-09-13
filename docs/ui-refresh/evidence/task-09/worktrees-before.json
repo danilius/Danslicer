@@ -1,0 +1,266 @@
+[
+  {
+    "path": "F:/Git Repos/Danslicer",
+    "head": "7d95cebfe7f289d1e3230fb789a4526d1f3b518d",
+    "branch": "main",
+    "status": [
+      "?? .claude/",
+      "?? CODEX-UI-COORDINATION.md",
+      "?? ref/",
+      "?? \"test project files/\""
+    ],
+    "ignored": [
+      ".claude/settings.local.json",
+      "Danslicer.App.exe - Shortcut.lnk",
+      "Weekend/",
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "test files/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/271f/Danslicer-chatgpt",
+    "head": "93844c4fd2cb2518b5594bf6ce0ef5935754185a",
+    "branch": "codex/ui-refresh-06",
+    "status": [],
+    "ignored": [
+      "artifacts/",
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt",
+    "head": "8a0fac4f52515f18f1560a54b938dbb2b8f17a60",
+    "branch": "codex/ui-refresh-03",
+    "status": [],
+    "ignored": [
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt",
+    "head": "a0fed8b933f3358e875e4650bbe8915d5a57c574",
+    "branch": "codex/ui-refresh-02",
+    "status": [],
+    "ignored": [
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/9947/Danslicer-chatgpt",
+    "head": "a5d2bd2f4e197b66544ae806b3f8b8822a0a54b4",
+    "branch": "codex/ui-refresh-09",
+    "status": [],
+    "ignored": [],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/a19b/Danslicer-chatgpt",
+    "head": "ede24be229782e6574817631ad90b9d36cd355a3",
+    "branch": "codex/native-printer-writers",
+    "status": [
+      "?? docs/ui-refresh/task-08-queued.md",
+      "?? docs/ui-refresh/task-09-queued.md",
+      "?? docs/ui-refresh/task-10-queued.md"
+    ],
+    "ignored": [
+      "artifacts/",
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.FormatAudit/bin/",
+      "tests/Danslicer.FormatAudit/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/da71/Danslicer-chatgpt",
+    "head": "c829020492020c333f1c0937b7275732927a6a4f",
+    "branch": "codex/ui-refresh-04b",
+    "status": [],
+    "ignored": [
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/e262/Danslicer-chatgpt",
+    "head": "0df54ff6014dce8f143def47c3fe4831101cd450",
+    "branch": "codex/ui-refresh-04",
+    "status": [],
+    "ignored": [
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/e7d1/Danslicer-chatgpt",
+    "head": "a5d2bd2f4e197b66544ae806b3f8b8822a0a54b4",
+    "branch": "codex/dedicated-preset-editors",
+    "status": [],
+    "ignored": [
+      "artifacts/extract-editor.ps1",
+      "artifacts/task08-build.log",
+      "artifacts/task08-native-2/",
+      "artifacts/task08-native-3/",
+      "artifacts/task08-native-final/",
+      "artifacts/task08-native/",
+      "artifacts/task08-restore.log",
+      "artifacts/task08-tests.log",
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/TestResults/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/ed62/Danslicer-chatgpt",
+    "head": "dc4664cd7321030cfe04b866815427b6b4f8a531",
+    "branch": "codex/ui-refresh-05",
+    "status": [],
+    "ignored": [
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "C:/Users/plane/.codex/worktrees/f60d/Danslicer-chatgpt",
+    "head": "0fadc0e2412498513e34db6337aa3bba1ed9dc8c",
+    "branch": "codex/ui-refresh",
+    "status": [],
+    "ignored": [
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": true
+  },
+  {
+    "path": "F:/Git Repos/.danslicer-review5",
+    "head": "083915c593eb597166261fc673f771678b146f78",
+    "branch": null,
+    "status": [],
+    "ignored": [
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": false
+  },
+  {
+    "path": "F:/Git Repos/Danslicer-chatgpt",
+    "head": "24c4fa7712244968d049d103e2b46b776efb091a",
+    "branch": "grid-routing-prototype",
+    "status": [],
+    "ignored": [
+      "ChatGPT/",
+      "artifacts/",
+      "src/Danslicer.App/bin/",
+      "src/Danslicer.App/obj/",
+      "src/Danslicer.Cli/bin/",
+      "src/Danslicer.Cli/obj/",
+      "src/Danslicer.Core/bin/",
+      "src/Danslicer.Core/obj/",
+      "src/Danslicer.Render/bin/",
+      "src/Danslicer.Render/obj/",
+      "tests/Danslicer.Tests/bin/",
+      "tests/Danslicer.Tests/obj/"
+    ],
+    "mergedIntoTask08": false
+  }
+]

@@ -17,6 +17,14 @@ public class IslandDetectionTests
         0, 0.1f, 0.01f, 0, includeOverhangs:false);
 
     [Fact]
+    public void SubThresholdStartIsReportedWhenItGrowsLargeEnough()
+    {
+        var islands = Detect(new Paths64(), new Paths64 { Rect(0, 0, 0.05, 0.1) },
+            new Paths64 { Rect(0, 0, 1, 1) }, new Paths64 { Rect(0, 0, 2, 2) });
+        Assert.Equal(2, Assert.Single(islands).LayerIndex);
+    }
+
+    [Fact]
     public void ExpandingConnectedLayerDoesNotGenerateIslandMarkers()
     {
         Assert.Empty(Detect(new Paths64 { Rect(0,0,1,1) }, new Paths64 { Rect(0,0,5,5) }));

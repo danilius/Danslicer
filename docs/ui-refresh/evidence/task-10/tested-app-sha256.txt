@@ -1,0 +1,5 @@
+
+Algorithm : SHA256
+Hash      : 2552E59B5EE48E3EDCDFCFD76BAE1B89FEE2DD36E354567004C05DBB2F55780C
+Path      : C:\Users\plane\.codex\worktrees\b4fb\Danslicer-chatgpt\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.dll
+

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Danslicer.App.Configuration;
+using Danslicer.App.Themes;
 using Danslicer.App.ViewModels;
 using Danslicer.App.Views;
 
@@ -12,11 +13,49 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
-        ThemeManager.Apply(AppConfig.Current.AppearanceTheme, this);
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Renderer evidence never constructs configuration or the user's document.
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime glDesktop
+            && Array.IndexOf(glDesktop.Args ?? [], "--renderer-capture") is var glIndex && glIndex >= 0)
+        {
+            glDesktop.MainWindow = new RendererCaptureWindow(glDesktop.Args![glIndex + 1]);
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+        // Isolated native gallery: do not construct the main VM, renderer or load user settings.
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime previewDesktop
+            && (previewDesktop.Args ?? []).Contains("--ui-preview"))
+        {
+            var args = previewDesktop.Args ?? [];
+            var captureIndex = Array.IndexOf(args, "--capture-directory");
+            var capture = captureIndex >= 0 && captureIndex + 1 < args.Length ? args[captureIndex + 1] : null;
+            previewDesktop.MainWindow = new UiPreviewWindow(capture);
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
+        // Main-window smoke tests must never load or save the user's real preferences.
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime captureDesktop
+            && (captureDesktop.Args ?? []).Contains("--workspace-capture"))
+        {
+            var isolated = Path.Combine(Path.GetTempPath(), "Danslicer-workspace-" + Guid.NewGuid().ToString("N"));
+            var captureArgs = captureDesktop.Args ?? [];
+            var probeIndex = Array.IndexOf(captureArgs, "--toolbar-preference-probe");
+            if (probeIndex >= 0 && probeIndex + 1 < captureArgs.Length)
+            {
+                Directory.CreateDirectory(isolated);
+                File.Copy(captureArgs[probeIndex + 1], Path.Combine(isolated, "workspace-ui.json"));
+            }
+            AppConfig.UseIsolatedDirectory(isolated);
+            captureDesktop.Exit += (_, _) => { if (Directory.Exists(isolated)) Directory.Delete(isolated, true); };
+        }
+
+        // Applied before any window is constructed so the very first frame is already themed.
+        ThemeCatalog.Apply(AppConfig.Current.Theme);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var vm = new MainViewModel();

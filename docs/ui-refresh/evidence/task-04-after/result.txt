@@ -1,0 +1,75 @@
+GL: OpenGL ES 3.0 (ANGLE 2.1.1 git hash: 1c89805903c1)
+GPU: ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11-32.0.15.9186)
+Framebuffer 1000x760; synthetic closed box model and 15 support-like aux pillars; no user config loaded.
+Deferred-above: median 0.29, p95 0.55, max 0.57 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Below-plate GPU pick reaches model.
+Deferred-below: median 0.18, p95 0.24, max 0.50 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-grazing: median 0.27, p95 0.42, max 0.44 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-contact: median 0.28, p95 0.50, max 0.53 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-effects-off: median 0.19, p95 0.31, max 3.33 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-ao-off: median 0.22, p95 0.25, max 0.27 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-cavity-off: median 0.21, p95 0.40, max 0.41 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-reflections: median 0.21, p95 0.36, max 0.46 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-reflections-off: median 0.16, p95 0.45, max 0.47 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-below-reflections-off: median 0.14, p95 0.18, max 0.41 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-isolation: median 0.38, p95 0.46, max 0.47 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-transparent: median 0.18, p95 0.23, max 0.23 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-ortho: median 0.20, p95 0.22, max 0.22 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-selected: median 0.20, p95 0.21, max 0.23 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-transition-0: median 0.13, p95 0.15, max 0.15 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-transition-3: median 0.18, p95 0.21, max 0.21 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-transition-9: median 0.18, p95 0.20, max 0.44 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-transition-12: median 0.19, p95 0.47, max 0.52 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-supports-below: median 0.12, p95 0.13, max 0.14 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-supports-contact: median 0.17, p95 0.46, max 0.55 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-supports-ao-off: median 0.16, p95 0.22, max 0.51 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-supports-isolation: median 0.29, p95 0.56, max 2.01 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-supports-cap-off: median 0.16, p95 0.19, max 0.20 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-supports-isolation-below: median 0.22, p95 0.29, max 0.29 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-supports-cap-off-below: median 0.11, p95 0.21, max 0.43 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-transparent-grazing: median 0.15, p95 0.17, max 0.17 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-matcap: median 0.20, p95 0.25, max 0.28 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-dense: median 0.22, p95 0.25, max 0.45 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Deferred-dense-effects-off: median 0.16, p95 0.18, max 0.20 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-above: median 0.12, p95 0.13, max 0.14 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-below: median 0.08, p95 0.10, max 0.43 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-grazing: median 0.13, p95 0.15, max 0.17 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-contact: median 0.13, p95 0.14, max 0.14 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-effects-off: median 0.09, p95 0.13, max 0.18 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-ao-off: median 0.13, p95 0.16, max 0.18 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-cavity-off: median 0.13, p95 0.15, max 0.16 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-reflections: median 0.13, p95 0.17, max 0.21 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-reflections-off: median 0.09, p95 0.14, max 0.18 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-below-reflections-off: median 0.10, p95 0.18, max 0.39 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-isolation: median 0.22, p95 0.24, max 0.24 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-transparent: median 0.15, p95 0.39, max 0.41 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-ortho: median 0.16, p95 0.17, max 0.21 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-selected: median 0.20, p95 0.27, max 0.50 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-transition-0: median 0.10, p95 0.31, max 0.42 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-transition-3: median 0.17, p95 0.20, max 0.22 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-transition-9: median 0.15, p95 0.20, max 0.28 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-transition-12: median 0.15, p95 0.16, max 0.17 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-supports-below: median 0.08, p95 0.10, max 0.10 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-supports-contact: median 0.12, p95 0.16, max 0.17 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-supports-ao-off: median 0.14, p95 0.17, max 0.17 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-supports-isolation: median 0.13, p95 0.20, max 0.26 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-supports-cap-off: median 0.12, p95 0.20, max 0.23 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-supports-isolation-below: median 0.08, p95 0.10, max 0.10 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-supports-cap-off-below: median 0.07, p95 0.09, max 0.09 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-transparent-grazing: median 0.13, p95 0.16, max 0.32 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-matcap: median 0.16, p95 0.20, max 0.40 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-dense: median 0.22, p95 0.27, max 0.55 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic-dense-effects-off: median 0.15, p95 0.36, max 0.39 ms/frame (CPU submission + glFinish, 30 frames after 12 warmups).
+Classic below/below-reflections-off: 0 changed channels; mean 0.0000/255; max 0/255; expected identical.
+Classic reflections/reflections-off: 267293 changed channels; mean 0.4805/255; max 11/255; expected different.
+Classic contact/ao-off: 0 changed channels; mean 0.0000/255; max 0/255; expected identical.
+Classic contact/cavity-off: 0 changed channels; mean 0.0000/255; max 0/255; expected identical.
+Classic supports-isolation/supports-cap-off: 30504 changed channels; mean 0.3164/255; max 99/255; expected different.
+Classic supports-isolation-below/supports-cap-off-below: 4335 changed channels; mean 0.0861/255; max 134/255; expected different.
+Deferred below/below-reflections-off: 0 changed channels; mean 0.0000/255; max 0/255; expected identical.
+Deferred reflections/reflections-off: 266063 changed channels; mean 0.4767/255; max 28/255; expected different.
+Deferred contact/ao-off: 33896 changed channels; mean 0.0276/255; max 35/255; expected different.
+Deferred contact/cavity-off: 32673 changed channels; mean 0.2494/255; max 107/255; expected different.
+Deferred supports-isolation/supports-cap-off: 17326 changed channels; mean 0.3290/255; max 204/255; expected different.
+Deferred supports-isolation-below/supports-cap-off-below: 7648 changed channels; mean 0.0588/255; max 136/255; expected different.
+Cap isolation leak regression passed. Real fixture: 15 supports; dense fixture: 600 supports / 422400 aux triangles.

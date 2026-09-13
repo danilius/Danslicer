@@ -1,0 +1,31 @@
+View AO strength: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+View AO radius: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+View border width: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+View shadow strength: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+View shadow softness: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences OverhangAngleDegrees: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences WorkingShadowStrength: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences WorkingShadowSoftnessMm: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences PresentationShadowStrength: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences PresentationShadowSoftnessMm: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences AmbientOcclusionStrength: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences AmbientOcclusionRadiusMm: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences PlateReflectionStrength: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences OutlineWidthPixels: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences CavityRidgeStrength: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences CavityValleyStrength: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences CavityRadiusPixels: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences PlateOpacityFromBelow: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences OverhangCheckerSizeMm: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences ViewCubeSizePixels: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences SupportGizmoSizePixels: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences SupportGizmoLineWidth: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences SpaceMouseOrbitSensitivity: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences SpaceMousePanSensitivity: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences SpaceMouseZoomSensitivity: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Preferences SpaceMouseDeadzone: native pointer preview before release, no config writes/undo, Escape/capture restoration, one release save passed.
+Shadow mode switch and Preferences close cancel active preview.
+Selected raft: coalesced native scene preview, zero pre-release writes/undo, one commit, undo/redo and pending/applied cancellation passed.
+Selection/workspace-mode changes restore the original transform and release capture; unrelated config save excludes preview.
+Control detach restores original scene and releases capture.
+Native slice-navigation thumb: live value, Escape/capture restoration, release retains final session value.

@@ -1,0 +1,1 @@
+Filled slider midpoint follows pointer, preview does not save, release commits once, expression rounds to two decimals, unchanged float-backed edit does not save again.

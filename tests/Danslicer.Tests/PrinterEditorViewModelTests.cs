@@ -7,6 +7,37 @@ namespace Danslicer.Tests;
 public sealed class PrinterEditorViewModelTests
 {
     [Fact]
+    public void CreationRenameValidationAndReopenPreserveNativeIdentity()
+    {
+        var config = new UserConfig();
+        var saves = 0;
+        var editor = new PrinterEditorViewModel(config, () => saves++);
+        editor.NameDraft = editor.SelectedPrinter!.Name;
+        editor.RenameCommand.Execute(null);
+        editor.PrintWidth.CommitValue(-1);
+        Assert.Equal(0, saves);
+        Assert.True(editor.SelectedPrinter.IsBuiltIn);
+        editor.AddCommand.Execute(null);
+        var id = editor.SelectedPrinter!.Id;
+        editor.NameDraft = " ";
+        editor.RenameCommand.Execute(null);
+        Assert.True(editor.HasValidationMessage);
+        editor.NameDraft = config.Printers[0].Name.ToUpperInvariant();
+        editor.RenameCommand.Execute(null);
+        Assert.True(editor.HasValidationMessage);
+        Assert.Equal(1, saves);
+        editor.NameDraft = "Task08 fixture";
+        editor.RenameCommand.Execute(null);
+        Assert.Equal(id, editor.SelectedPrinter.Id);
+        var reopened = new PrinterEditorViewModel(config, () => saves++);
+        reopened.SelectedIndex = config.Printers.FindIndex(p => p.Id == id);
+        Assert.Equal("Task08 fixture", reopened.NameDraft);
+        Assert.Equal(editor.SelectedPrinter, reopened.SelectedPrinter);
+        reopened.DeleteCommand.Execute(null);
+        Assert.Null(config.FindPrinter(id));
+    }
+
+    [Fact]
     public void EditingBuiltInCreatesAndContinuesEditingAUserCopy()
     {
         var config = new UserConfig();
@@ -15,7 +46,7 @@ public sealed class PrinterEditorViewModelTests
 
         editor.MirrorY = true;
 
-        Assert.Equal(2, config.Printers.Count);
+        Assert.Equal(PrinterCatalog.BuiltIn.Count + 1, config.Printers.Count);
         Assert.Equal(PrinterDefinition.PhotonMonoX, config.Printers[0]);
         Assert.False(editor.SelectedPrinter!.IsBuiltIn);
         Assert.True(editor.SelectedPrinter.MirrorY);
@@ -25,7 +56,7 @@ public sealed class PrinterEditorViewModelTests
         editor.NameDraft = "My printer";
         editor.RenameCommand.Execute(null);
 
-        Assert.Equal(2, config.Printers.Count);
+        Assert.Equal(PrinterCatalog.BuiltIn.Count + 1, config.Printers.Count);
         Assert.Equal(copyId, editor.SelectedPrinter.Id);
         Assert.Equal("Edited machine", editor.SelectedPrinter.MachineName);
         Assert.Equal("My printer", editor.SelectedPrinter.Name);
@@ -40,14 +71,14 @@ public sealed class PrinterEditorViewModelTests
 
         Assert.False(editor.DeleteCommand.CanExecute(null));
         editor.DuplicateCommand.Execute(null);
-        Assert.Equal(2, config.Printers.Count);
+        Assert.Equal(PrinterCatalog.BuiltIn.Count + 1, config.Printers.Count);
         Assert.NotEqual(config.Printers[0].Id, config.Printers[1].Id);
         Assert.True(editor.DeleteCommand.CanExecute(null));
 
         editor.DeleteCommand.Execute(null);
 
-        Assert.Single(config.Printers);
-        Assert.Equal(PrinterDefinition.PhotonMonoXId, editor.SelectedPrinter!.Id);
+        Assert.Equal(PrinterCatalog.BuiltIn, config.Printers);
+        Assert.True(editor.SelectedPrinter!.IsBuiltIn);
         Assert.False(editor.DeleteCommand.CanExecute(null));
     }
 }

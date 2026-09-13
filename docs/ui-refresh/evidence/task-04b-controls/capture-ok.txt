@@ -1,0 +1,1 @@
+Native window opened. Routed pointer and keyboard checks passed: numeric commit/cancel/lock/expression/undo, whole-section live swap/pointer anchoring/cancel/settle, popout width resize/clamp/cancel, expansion and dismissal. Rendered at 100/150/200% pixel density, plus narrow icon toolbar, mid-drag and wide popout. This is not a monitor DPI or physical pointer test.

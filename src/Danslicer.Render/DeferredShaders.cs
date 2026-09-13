@@ -1,4 +1,4 @@
-namespace Danslicer.Render;
+﻿namespace Danslicer.Render;
 
 /// <summary>
 /// GLSL for the deferred path. The geometry fragment keeps the classic shader's tinting
@@ -15,6 +15,12 @@ internal static class DeferredShaders
         in vec3 vWorldPosition;
         in vec3 vViewPosition;
 
+        uniform float uPlateMaterial;
+        uniform float uMirror;
+        uniform float uReflectionStrength;
+        uniform highp sampler2D uReflectionTex;
+        uniform vec2 uReflectionTexel;
+        uniform vec2 uViewportSize;
         uniform vec3 uColor;
         uniform float uBackfaceTint;   // 1 = tint back faces to reveal inverted normals
         uniform float uWarnOutsideBuildVolume; // 1 = tint geometry outside printable XYZ
@@ -28,6 +34,7 @@ internal static class DeferredShaders
         uniform float uClipEnabled;
         uniform float uClipLowerZ;
         uniform float uClipUpperZ;
+        uniform float uShadow;         // 1 = this draw is a plate shadow (see the vertex stage)
 
         layout(location = 0) out vec4 gAlbedo; // rgb base colour, a = 1 marks lit geometry
         layout(location = 1) out vec4 gNormal; // view-space normal * 0.5 + 0.5
@@ -39,10 +46,33 @@ internal static class DeferredShaders
                 (vWorldPosition.z < uClipLowerZ || vWorldPosition.z > uClipUpperZ)) discard;
 
             vec3 n = normalize(vViewNormal);
-            bool back = !gl_FrontFacing;
+            // A shadow is one flat surface whatever the winding of the triangles that made it.
+            bool back = !gl_FrontFacing && uShadow < 0.5;
             if (back) n = -n;
 
             vec3 color = uColor;
+            if (uMirror > 0.5 && vWorldPosition.z < 0.0) discard;
+            if (uPlateMaterial > 0.5)
+            {
+                // Broad satin highlight with a tiny world-locked brushed variation.
+                float grain = sin(vWorldPosition.x * 38.0 + sin(vWorldPosition.y * 0.7)) * 0.004;
+                color += vec3(grain);
+                if (vWorldNormal.z > 0.9 && uReflectionStrength > 0.0)
+                {
+                    vec2 uv = gl_FragCoord.xy / uViewportSize;
+                    vec4 reflection = vec4(0.0);
+                    for (int x = -1; x <= 1; x++)
+                    for (int y = -1; y <= 1; y++)
+                    {
+                        float w = (x == 0 ? 2.0 : 1.0) * (y == 0 ? 2.0 : 1.0);
+                        vec2 tap = uv + vec2(float(x), float(y)) * uReflectionTexel * 2.0;
+                        if (all(greaterThanEqual(tap, vec2(0.0))) && all(lessThanEqual(tap, vec2(1.0))))
+                            reflection += texture(uReflectionTex, tap) * w / 16.0;
+                    }
+                    // Premultiplied clear-black samples soften silhouettes without a dark border.
+                    color = color * (1.0 - reflection.a * uReflectionStrength) + reflection.rgb * uReflectionStrength;
+                }
+            }
             if (back) color = mix(color, vec3(0.85, 0.30, 0.55), uBackfaceTint * 0.6);
 
             if (uOverhangCos < 1.5)
@@ -77,7 +107,7 @@ internal static class DeferredShaders
             }
 
             gAlbedo = vec4(color, 1.0);
-            gNormal = vec4(n * 0.5 + 0.5, 1.0);
+            gNormal = vec4(n * 0.5 + 0.5, uPlateMaterial > 0.5 ? 0.0 : 1.0);
             gId = vec4(uId, uSelected);
         }
         """;
@@ -98,7 +128,7 @@ internal static class DeferredShaders
     /// Lighting, cavity and outlines from the G-buffer. Background pixels (albedo alpha 0) pass
     /// through untouched, so the clear colour survives compositing exactly as in the classic path.
     /// </summary>
-    public const string CompositeFragment = """
+    public const string CompositeFragment = ShadowShaders.Sampling + """
         in vec2 vUv;
 
         // highp: the ES default for sampler2D is lowp, far too coarse for depth reconstruction.
@@ -113,10 +143,14 @@ internal static class DeferredShaders
         uniform float uWaterlineEnabled;
         uniform float uWaterlineZ;
         uniform int uShadingMode;      // 0 = studio lighting, 1 = MatCap lookup
+        uniform float uPlateEffectVisibility;
+        uniform float uAoStrength;
+        uniform float uAoRadiusMm;
         uniform float uCavityRidge;    // 0 disables ridges
         uniform float uCavityValley;   // 0 disables valleys
         uniform float uCavityRadius;   // sample offset, pixels
         uniform float uOutlineStrength; // 0 disables outlines
+        uniform float uOutlineWidth;
         uniform vec3 uOutlineColor;
         uniform vec3 uSelectColor;
 
@@ -145,7 +179,9 @@ internal static class DeferredShaders
                 vec3 n = normalize(sampleNormal(vUv));
                 vec3 p = viewPos(vUv, depth);
 
-                if (uShadingMode == 0)
+                bool plateMaterial = texture(uNormalTex, vUv).a < 0.5;
+                float plateEffect = plateMaterial ? uPlateEffectVisibility : 1.0;
+                if (uShadingMode == 0 || plateMaterial)
                 {
                     // The classic studio rig, reproduced from the G-buffer.
                     vec3 v = normalize(-p);
@@ -159,7 +195,8 @@ internal static class DeferredShaders
                         max(dot(n, rim), 0.0) * 0.20;
 
                     vec3 h = normalize(key + v);
-                    float spec = pow(max(dot(n, h), 0.0), 48.0) * 0.18;
+                    bool plate = plateMaterial;
+                    float spec = pow(max(dot(n, h), 0.0), plate ? 10.0 : 48.0) * (plate ? 0.06 : 0.18);
                     float edgeLift = pow(1.0 - max(dot(n, v), 0.0), 3.0) * 0.12;
 
                     color = color * (diffuse + 0.08) + vec3(spec) + vec3(edgeLift);
@@ -168,6 +205,35 @@ internal static class DeferredShaders
                 {
                     // MatCaps are authored around mid-grey; the 2x restores full range.
                     color = color * texture(uMatCap, n.xy * 0.5 + 0.5).rgb * 2.0;
+                }
+
+                if (!plateMaterial)
+                    color *= modelShadow((uInvView * vec4(p, 1.0)).xyz, normalize(mat3(uInvView) * n));
+
+                if (uAoStrength > 0.0)
+                {
+                    // View-space radius is in millimetres, stable under zoom and either projection.
+                    float pixelMm = max(length(viewPos(vUv + vec2(uTexel.x, 0.0), depth) - p), 0.0001);
+                    float radiusPx = clamp(uAoRadiusMm / pixelMm, 1.0, 96.0);
+                    float occlusion = 0.0;
+                    for (int i = 0; i < 16; i++)
+                    {
+                        float angle = float(i) * 2.39996323;
+                        float radius = sqrt((float(i) + 0.5) / 16.0);
+                        vec2 uv = vUv + vec2(cos(angle), sin(angle)) * radius * radiusPx * uTexel;
+                        if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) continue;
+                        float sd = texture(uDepthTex, uv).r;
+                        if (sd >= 0.999999) continue;
+                        vec3 delta = viewPos(uv, sd) - p;
+                        float distanceMm = length(delta);
+                        if (distanceMm < 0.01 || distanceMm > uAoRadiusMm) continue;
+                        // Reject coplanar neighbours; no ID rejection, so neighbouring supports
+                        // can shade a model/contact. Background and distant layers never occlude.
+                        float horizon = max(dot(n, delta / distanceMm) - 0.08, 0.0);
+                        float falloff = 1.0 - smoothstep(uAoRadiusMm * 0.25, uAoRadiusMm, distanceMm);
+                        occlusion += horizon * falloff;
+                    }
+                    color *= 1.0 - min(occlusion * (3.0 / 16.0), 1.0) * uAoStrength * plateEffect;
                 }
 
                 if (uCavityRidge + uCavityValley > 0.0)
@@ -191,7 +257,7 @@ internal static class DeferredShaders
                     float curvature = (nn[0].x - nn[1].x) + (nn[2].y - nn[3].y);
                     float ridge = clamp(curvature, 0.0, 1.0) * uCavityRidge;
                     float valley = clamp(-curvature, 0.0, 1.0) * uCavityValley;
-                    color *= clamp(1.0 + ridge - valley, 0.0, 2.0);
+                    color *= clamp(1.0 + (ridge - valley) * plateEffect, 0.0, 2.0);
                 }
             }
 
@@ -202,14 +268,14 @@ internal static class DeferredShaders
                 float edge = 0.0;
                 float selected = 0.0;
                 vec2 offs[4];
-                offs[0] = vec2(uTexel.x, 0.0); offs[1] = -offs[0];
-                offs[2] = vec2(0.0, uTexel.y); offs[3] = -offs[2];
+                offs[0] = vec2(uTexel.x, 0.0) * uOutlineWidth; offs[1] = -offs[0];
+                offs[2] = vec2(0.0, uTexel.y) * uOutlineWidth; offs[3] = -offs[2];
                 for (int i = 0; i < 4; i++)
                 {
                     vec2 uv = vUv + offs[i];
                     vec4 idN = texture(uIdTex, uv);
                     float zN = viewPos(uv, texture(uDepthTex, uv).r).z;
-                    // The line lands on the nearer surface only, keeping outlines one pixel wide.
+                    // The line lands inside the nearer surface at the configured pixel width.
                     bool inFront = zC >= zN - 0.001;
                     bool idEdge = distance(idN.rgb, idC.rgb) > 0.001;
                     bool depthEdge = (zC - zN) > max(1.0, abs(zC) * 0.04);
@@ -219,7 +285,7 @@ internal static class DeferredShaders
                         selected = max(selected, max(idC.a, idN.a));
                     }
                 }
-                if (edge > 0.0 && albedo.a > 0.5)
+                if (edge > 0.0 && albedo.a > 0.5 && texture(uNormalTex, vUv).a > 0.5)
                     color = mix(color, selected > 0.5 ? uSelectColor : uOutlineColor, uOutlineStrength);
             }
 

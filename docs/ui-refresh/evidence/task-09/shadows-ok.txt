@@ -1,0 +1,1 @@
+Off/Working/Presentation switching, independent saved strengths/softness, expressions, cm conversion, disabled Off controls and AO/cap independence passed. Original settings restored in isolated config.

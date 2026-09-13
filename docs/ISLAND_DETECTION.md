@@ -9,7 +9,11 @@
 - Existing supports clear a marker only when their printable section has positive-area intersection with the actual island footprint. An equivalent-area circle could incorrectly clear nearby islands or miss a support near the end of a long island.
 - Plate exemption requires actual mesh contact with the plate rather than allowing a full layer of clearance.
 
-## Horse-bust measurements
+## Integration update — 13 September 2026
+
+The integration preserves main's strict disconnected-component policy for support generation as well as standalone detection. Broad print checks still use overhang strips. Starts below the minimum area are reconsidered on later layers until they meet the threshold. These decisions supersede the original generation and minimum-area notes below. Main's contour recovery is retained alongside the nearest-endpoint fix. Marker caching includes islands supported before detection, so removing those supports restores the markers.
+
+## Historical pre-integration horse-bust measurements
 
 Input: `F:/Git Repos/Danslicer/test files/horse-bust-2.stl`, 997,864 triangles. Original bounds span Z=-50 to +50 mm. Validation translates the minimum Z to the plate, without scaling. Minimum island area 0.1 mm²; no supports; angle argument 45 degrees.
 
@@ -43,4 +47,3 @@ Validation: all 654 tests passed, including seven new regression tests covering 
 - A positive-area overlap establishes connectivity, not sufficient mechanical strength. Support checks do not prove an entire support graph is rooted, printable, or strong enough.
 - The contour fix improves the measured mesh and regression cases; it is not a general repair of non-manifold/open STL files.
 - Validation was computational; no physical resin print or interactive viewport review was performed.
-

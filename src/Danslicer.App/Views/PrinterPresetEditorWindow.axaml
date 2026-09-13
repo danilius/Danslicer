@@ -1,0 +1,143 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Danslicer.App.ViewModels"
+        xmlns:controls="using:Danslicer.App.Controls"
+        xmlns:refresh="using:Danslicer.App.Controls.Refresh"
+        xmlns:printers="using:Danslicer.Core.Printers"
+        x:Class="Danslicer.App.Views.PrinterPresetEditorWindow"
+        x:DataType="vm:PrinterEditorViewModel"
+        Width="900" Height="700" MinWidth="700" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource AppPanel}"
+        Title="Printer preset editor">
+
+    <Window.Resources>
+        <DataTemplate x:Key="PrinterFieldTemplate" x:DataType="vm:NumericField">
+            <Grid ColumnDefinitions="130,*" Margin="0,2">
+                <TextBlock Text="{Binding Label}" Classes="label" />
+                <refresh:ModelScrubField Grid.Column="1" Field="{Binding}" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Window.Styles>
+        <Style Selector="TextBlock.label">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="Foreground" Value="{DynamicResource AppTextFaint}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="MaxWidth" Value="620" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="Foreground" Value="{DynamicResource AppTextMuted}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,14,0,6" />
+        </Style>
+        <Style Selector="TextBlock.value">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextMuted}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <Style Selector="Slider">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="8,0" />
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="24" />
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="controls|ExpressionBox">
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalContentAlignment" Value="Right" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="14" Background="{DynamicResource AppPanel}">
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <TextBlock Classes="hint" Text="Edits save immediately. Name changes apply with Rename; unsubmitted names are discarded on close. Selecting a preset here does not change the project until Use printer is pressed." />
+            <Button Content="Use printer in project" IsEnabled="{Binding HasSelectedPrinter}" Click="OnUsePrinterClick" HorizontalAlignment="Right" />
+        </StackPanel>
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="PrintersSection">
+                    <TextBlock Text="Printers" Classes="section" />
+                    <Grid Tag="printers machines definitions add duplicate rename delete resolution display size mirror format"
+                          ColumnDefinitions="250,*" ColumnSpacing="14">
+                        <StackPanel>
+                            <ListBox ItemsSource="{Binding Items}"
+                                     SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                                     MinHeight="180" MaxHeight="300">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="printers:PrinterDefinition">
+                                        <StackPanel Margin="2">
+                                            <TextBlock Text="{Binding Name}" FontSize="12" />
+                                            <TextBlock Text="Built-in" Classes="label" FontSize="10"
+                                                       IsVisible="{Binding IsBuiltIn}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Content="Add" Command="{Binding AddCommand}" Margin="0,0,4,4" />
+                                <Button Content="Duplicate" Command="{Binding DuplicateCommand}" Margin="0,0,4,4" />
+                                <Button Content="Delete" Command="{Binding DeleteCommand}" Margin="0,0,4,4" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" IsEnabled="{Binding HasSelectedPrinter}">
+                            <TextBlock Text="{Binding CompatibilityNote}" Classes="label"
+                                       TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <TextBlock Text="{Binding FormatStatus}" Classes="label"
+                                       TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       IsVisible="{Binding IsBuiltInSelected}"
+                                       Text="Built-in definitions are read-only. The first edit creates a user copy." />
+                            <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="6" Margin="0,2">
+                                <TextBlock Text="Name" Classes="label" />
+                                <TextBox Grid.Column="1" Text="{Binding NameDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="2" Content="Rename" Command="{Binding RenameCommand}" />
+                            </Grid>
+                    <TextBlock Classes="hint" Text="How the printer is listed in Danslicer and saved with the project." />
+                            <Grid ColumnDefinitions="130,*" Margin="0,2">
+                                <TextBlock Text="Machine name" Classes="label" />
+                                <TextBox Grid.Column="1" Text="{Binding MachineName, Mode=TwoWay}" />
+                            </Grid>
+                    <TextBlock Classes="hint" Text="The name written into the print file's header. Some printers refuse a file whose machine name is not their own." />
+                            <Grid ColumnDefinitions="130,*" Margin="0,2">
+                                <TextBlock Text="File extension" Classes="label" />
+                                <TextBox Grid.Column="1" Text="{Binding FileExtension, Mode=TwoWay}" />
+                            </Grid>
+                    <TextBlock Classes="hint" Text="Native export checks the extension and format version together. Unsupported combinations cannot be exported." />
+                            <ItemsControl ItemsSource="{Binding Fields}"
+                                          ItemTemplate="{StaticResource PrinterFieldTemplate}" />
+                            <TextBlock Classes="hint" Text="Display dimensions set pixel scale. Print width and depth limit the usable area at the centre of that display." />
+                            <WrapPanel Margin="0,4,0,0">
+                                <TextBlock Text="Mirror layer image" Classes="label" Width="130" />
+                                <CheckBox Content="X" IsChecked="{Binding MirrorX}" Margin="0,0,12,0" />
+                                <CheckBox Content="Y" IsChecked="{Binding MirrorY}" />
+                            </WrapPanel>
+                            <TextBlock Classes="hint" Text="Flip every layer image on that axis before writing, for printers whose screen is mirrored relative to the plate. Wrong here prints a mirrored model." />
+                            <TextBlock Text="{Binding ValidationMessage}"
+                                       IsVisible="{Binding HasValidationMessage}"
+                                       Foreground="{DynamicResource AppAccent}" FontSize="12" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+
+
+        </ScrollViewer>
+    </DockPanel>
+</Window>

@@ -35,8 +35,11 @@ public sealed class IslandMarkerUpdateTests
         Assert.Equal(original.Where(i => i.X > 5), vm.DetectedIslands);
         vm.Document.NotifyTransientChange();
         Assert.Single(vm.DetectedIslands);
+        await vm.DetectIslandsCommand.ExecuteAsync(null);
+        Assert.Single(vm.DetectedIslands);
         graph.RemoveSegment(member.Id);
-        Assert.Equal(original, vm.DetectedIslands);
+        Assert.Equal(original.Select(i => (i.Position, i.AreaMm2, i.LayerIndex)),
+            vm.DetectedIslands.Select(i => (i.Position, i.AreaMm2, i.LayerIndex)));
 
         vm.ClearIslandDetectionCommand.Execute(null);
         graph.AddSegment(member);

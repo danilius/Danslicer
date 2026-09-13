@@ -25,40 +25,12 @@ public sealed record TipPlacementParameters
     public float MinSpacingMm { get; init; } = 2.5f;
 
     /// <summary>
-    /// Islands smaller than this are ignored when mini supports are disabled. When they are
-    /// enabled, <see cref="MiniIslandMaxAreaMm2"/> becomes the mini/regular boundary instead.
+    /// Islands smaller than this are ignored.
     /// 0.1 mm² is ~40 Mono X pixels — small spikes such as teeth are real printable features
     /// and must be supported (user screen test 2026-09-03: the old 0.5 default silently dropped
     /// tooth apexes).
     /// </summary>
     public float MinIslandAreaMm2 { get; init; } = 0.1f;
-
-    /// <summary>When enabled, below-threshold islands are retained as mini-support-only contacts.</summary>
-    public bool EnableMiniSupports { get; init; }
-    /// <summary>
-    /// Upper area bound for mini-island classification. At use it is constrained between the
-    /// mini contact footprint and <see cref="MinIslandAreaMm2"/>.
-    /// </summary>
-    public float MiniIslandMaxAreaMm2 { get; init; } = 0.1f;
-    public float MiniSupportTipDiameterMm { get; init; } = 0.25f;
-    /// <summary>Contact geometry for mini-support rods. Cone preserves existing output.</summary>
-    public SupportTipShape MiniTipShape { get; init; } = SupportTipShape.Cone;
-    /// <summary>Mini cone length in millimetres. Unused when <see cref="MiniTipShape"/> is Capsule.</summary>
-    public float MiniSupportConeLengthMm { get; init; } = 1f;
-    /// <summary>Enables density-based conversion of crowded regular contacts.</summary>
-    public bool EnableMiniTipClusters { get; init; }
-    /// <summary>
-    /// Regular contacts linked by distances below this threshold form density-based mini-tip
-    /// clusters. The default is half the default placement spacing.
-    /// </summary>
-    public float MiniSupportClusterDistanceMm { get; init; } = 1.25f;
-    /// <summary>Maximum members in one detected cluster; larger groups split deterministically.</summary>
-    public int MiniSupportMaxTipsPerCluster { get; init; } = 4;
-    /// <summary>
-    /// Maximum local feature cross-section which turns an isolated island or local-minimum
-    /// contact into a one-member mini cluster. Zero disables the fineness pass.
-    /// </summary>
-    public float FineFeatureMaxAreaMm2 { get; init; } = 1f;
 
     /// <summary>
     /// Dedup radius between island tips. Every island physically needs its own support — two
@@ -113,6 +85,22 @@ public sealed record TipPlacementParameters
     /// Reuses the routing option shape so tips line up with the bases the grid router chooses.
     /// </summary>
     public GridRoutingOptions? Grid { get; init; }
+
+    /// <summary>
+    /// Set only when the object carries a PAINTED support region. It replaces overhang sampling
+    /// (and <see cref="Grid"/> projection) with <see cref="RegionGridSampler"/>: an even grid
+    /// over the painted surface, ignoring <see cref="OverhangAngleDegrees"/>, because painting a
+    /// face is an explicit instruction to support it. Islands and local minima still run, but
+    /// they dedup against the grid so they cannot break up its rows.
+    /// <para>Null for an unpainted object, which therefore generates exactly as before.</para>
+    /// </summary>
+    public RegionGridOptions? RegionGrid { get; init; }
+
+    /// <summary>
+    /// Guided placement only: how close a guided tip may come to a tip already in the document
+    /// when the gesture is existing-aware. Null falls back to <see cref="MinSpacingMm"/>.
+    /// </summary>
+    public float? ExistingTipClearanceMm { get; init; }
 
     /// <summary>
     /// Minimum Euclidean distance to any keep-clean face. Zero (default) is membership only:

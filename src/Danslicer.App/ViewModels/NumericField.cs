@@ -30,6 +30,27 @@ public sealed partial class NumericField : ObservableObject
         };
     }
 
+    public double Value => _value;
+    public UnitKind Kind => _kind;
+    public string Format => _format;
+    public Func<NumericPreview?>? BeginPreview { get; set; }
+
+    /// <summary>Opt in only for cheap, session-only callbacks with no saving/undo/jobs.</summary>
+    public void EnableSessionPreview()
+    {
+        BeginPreview = () =>
+        {
+            var original = _value;
+            return new NumericPreview(_apply, () => _apply(original), CommitValue);
+        };
+    }
+    public void CommitValue(double value)
+    {
+        if (!double.IsFinite(value) || value == _value) return;
+        _apply(value);
+        SetValue(_value);
+    }
+
     public string Label { get; }
     public string Suffix { get; }
 

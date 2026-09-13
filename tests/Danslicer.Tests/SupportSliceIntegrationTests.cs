@@ -14,22 +14,20 @@ public sealed class SupportSliceIntegrationTests
     private const float LayerHeight = 0.05f;
     private const float TrunkDiameter = 1.6f;
     private const float BranchDiameter = 0.9f;
-    private const float MiniDiameter = 0.5f;
-    private const float MiniConeLength = 0.2f;
 
     private static readonly PrinterDefinition TestPrinter = new(
         "support-slice-test", false, "Support slice test", "Support slice test", "test",
         48, 30, 30, 480, 300, MirrorX: false, MirrorY: false, FormatVersion: 516);
 
     [Theory]
+    // Free mode routes every support alone (no shared trunk), so only grid mode produces
+    // this complete anatomy.
     [InlineData(true)]
-    [InlineData(false)]
     public void RoutedSupportAnatomyProducesContinuousSimpleSliceGeometry(bool useBaseGrid)
     {
         var graph = RouteCompleteAnatomy(useBaseGrid);
 
         Assert.Equal(3, graph.Segments.Count(segment => segment.Type == SupportSegmentType.Tip));
-        Assert.Equal(2, graph.Segments.Count(segment => segment.Type == SupportSegmentType.MiniSupport));
         Assert.Contains(graph.Segments,
             segment => segment.Type == SupportSegmentType.Branch);
         Assert.Contains(graph.Segments,
@@ -41,7 +39,6 @@ public sealed class SupportSliceIntegrationTests
         Assert.Contains(baseNodes, node => Math.Abs(node.Position.X + 10f) < 1e-3f);
         Assert.Contains(graph.Segments, segment => segment.Diameter == TrunkDiameter);
         Assert.Contains(graph.Segments, segment => segment.Diameter == BranchDiameter);
-        Assert.Contains(graph.Segments, segment => segment.Diameter == MiniDiameter);
 
         var maxZ = TallestGraphCap(graph);
         var layerCount = (int)Math.Ceiling(maxZ / LayerHeight - 1e-6);
@@ -65,7 +62,6 @@ public sealed class SupportSliceIntegrationTests
         }
 
         AssertRegularTipJunctionMatchesParent(graph);
-        AssertMiniRodMatchesConfiguredDiameter(graph);
 
         var sliced = Slice(graph);
         Assert.Equal(layerCount, sliced.LayerCount);
@@ -73,16 +69,22 @@ public sealed class SupportSliceIntegrationTests
     }
 
     [Theory]
+    // Free mode routes every support alone (no shared trunk), so only grid mode produces
+    // this complete anatomy.
     [InlineData(true)]
-    [InlineData(false)]
     public void RoutedHiddenMembersStillSliceWhileDisabledMembersDoNot(bool useBaseGrid)
     {
         var graph = RouteCompleteAnatomy(useBaseGrid);
-        var mini = graph.Segments.First(segment => segment.Type == SupportSegmentType.MiniSupport);
+        // The lowest tip member: hiding it must not change the print height, which the
+        // tallest one would.
+        var member = graph.Segments.Where(segment => segment.Type == SupportSegmentType.Tip)
+            .OrderBy(segment => Math.Max(graph.GetNode(segment.NodeA).Position.Z,
+                graph.GetNode(segment.NodeB).Position.Z))
+            .First();
         var baseline = Slice(graph);
 
         var hiddenGraph = Clone(graph);
-        hiddenGraph.GetSegment(mini.Id).Hidden = true;
+        hiddenGraph.GetSegment(member.Id).Hidden = true;
         var hidden = Slice(hiddenGraph);
         Assert.Equal(baseline.LayerCount, hidden.LayerCount);
         Assert.Equal(baseline.VolumeMl, hidden.VolumeMl);
@@ -90,7 +92,7 @@ public sealed class SupportSliceIntegrationTests
             hidden.Layers.Select(layer => layer.AreaMm2));
 
         var disabledGraph = Clone(graph);
-        disabledGraph.GetSegment(mini.Id).Disabled = true;
+        disabledGraph.GetSegment(member.Id).Disabled = true;
         var disabled = Slice(disabledGraph);
         Assert.Equal(baseline.LayerCount, disabled.LayerCount);
         Assert.True(disabled.VolumeMl < baseline.VolumeMl);
@@ -109,13 +111,6 @@ public sealed class SupportSliceIntegrationTests
             new RoutingTip(new Vector3(3, 0, 10), Vector3.UnitZ, 0.3f,
                 TipShape: SupportTipShape.Cone, ConeLength: 0.5f),
         };
-        var miniTips = new[]
-        {
-            new RoutingTip(new Vector3(3, 1.5f, 9.5f), Vector3.UnitZ, 0.2f,
-                MiniSupportOnly: true),
-            new RoutingTip(new Vector3(3, -1.2f, 9.7f), Vector3.UnitZ, 0.2f,
-                MiniSupportOnly: true),
-        };
         var options = new TreeRoutingOptions
         {
             Seed = 23,
@@ -126,12 +121,6 @@ public sealed class SupportSliceIntegrationTests
             BranchDiameter = BranchDiameter,
             MaxBranchLength = 8,
             ExistingTrunkBranchRange = 8,
-            MiniSupportDiameter = MiniDiameter,
-            MiniSupportTipDiameter = 0.2f,
-            MiniSupportConeLength = MiniConeLength,
-            MiniSupportMaxLength = 4,
-            MiniSupportMaxAngleDegrees = 75,
-            MiniSupportMaxFanPerBranchEnd = 4,
             BaseShape = SupportBaseShape.DiscCone,
             BaseDiameter = 3,
             BaseHeight = 0.6f,
@@ -139,7 +128,7 @@ public sealed class SupportSliceIntegrationTests
         };
 
         var result = new TreeSupportRouter(new LinearCollisionScene(), GrowthRuleSet.Default)
-            .Route(regularTips.Concat(miniTips), options);
+            .Route(regularTips, options);
 
         Assert.Empty(result.Failures);
         return result.Graph;
@@ -165,28 +154,6 @@ public sealed class SupportSliceIntegrationTests
         var polygons = MeshSlicer.Finish(SupportSliceGeometry.SectionsAt(graph, z), 0);
         var junctionPath = Assert.Single(polygons, path => Contains(path, junction.Position));
         var actualArea = Math.Abs(Clipper.Area(junctionPath)) /
-                         (MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm);
-
-        Assert.InRange(actualArea, expectedArea * 0.995, expectedArea * 1.005);
-    }
-
-    private static void AssertMiniRodMatchesConfiguredDiameter(SupportGraph graph)
-    {
-        var mini = graph.Segments
-            .Where(segment => segment.Type == SupportSegmentType.MiniSupport)
-            .Select(segment => (Segment: segment,
-                A: graph.GetNode(segment.NodeA), B: graph.GetNode(segment.NodeB)))
-            .OrderBy(item => Math.Max(item.A.Position.Y, item.B.Position.Y))
-            .Last();
-        var tip = mini.A.Type == SupportNodeType.Tip ? mini.A : mini.B;
-        var junction = mini.A.Type == SupportNodeType.Tip ? mini.B : mini.A;
-        var axis = Vector3.Normalize(junction.Position - tip.Position);
-        var coneBase = tip.Position + axis * MiniConeLength;
-        var expectedArea = Math.PI * Math.Pow(MiniDiameter * 0.5, 2) / Math.Abs(axis.Z);
-        var polygons = MeshSlicer.Finish(
-            SupportSliceGeometry.SectionsAt(graph, coneBase.Z), 0);
-        var miniPath = Assert.Single(polygons, path => Contains(path, coneBase));
-        var actualArea = Math.Abs(Clipper.Area(miniPath)) /
                          (MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm);
 
         Assert.InRange(actualArea, expectedArea * 0.995, expectedArea * 1.005);

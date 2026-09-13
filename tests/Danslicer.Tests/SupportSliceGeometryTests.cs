@@ -8,25 +8,6 @@ namespace Danslicer.Tests;
 public class SupportSliceGeometryTests
 {
     [Fact]
-    public void MiniSupportSlicesLikeAnOrdinaryMember()
-    {
-        var graph = new SupportGraph();
-        var tip = new SupportNode { Type = SupportNodeType.Tip, Position = new Vector3(0, 0, 2) };
-        var end = new SupportNode { Type = SupportNodeType.Junction, Position = Vector3.Zero };
-        graph.AddNode(tip);
-        graph.AddNode(end);
-        graph.AddSegment(new SupportSegment
-        {
-            Type = SupportSegmentType.MiniSupport,
-            NodeA = tip.Id,
-            NodeB = end.Id,
-            Diameter = 0.6f,
-        });
-
-        AssertAreaNear(Math.PI * 0.3 * 0.3, SupportSliceGeometry.SectionsAt(graph, 1));
-    }
-
-    [Fact]
     public void FilteredSectionsIncludeOnlyTheRequestedViewportCategory()
     {
         var graph = new SupportGraph();
@@ -258,27 +239,42 @@ public class SupportSliceGeometryTests
     }
 
     [Fact]
-    public void ConeTipGraphHasKnownRadiiAlongTheNeck()
+    public void ConeTipGraphTapersToTheBallOverTheWholeMember()
     {
         var g = ConeNeckGraph(ball: false);
-        // Mid-cone: only the frustum, r = 0.4.
-        AssertAreaNear(Math.PI * 0.4 * 0.4, SupportSliceGeometry.SectionsAt(g, 9));
-        // Below the cone the neck is a cylinder of r = 0.6.
-        AssertAreaNear(Math.PI * 0.6 * 0.6, SupportSliceGeometry.SectionsAt(g, 5));
+        // The cone is the whole 10 mm member, r = 0.2 at the contact to r = 0.6 at the junction.
+        AssertAreaNear(Math.PI * 0.24 * 0.24, SupportSliceGeometry.SectionsAt(g, 9));
+        AssertAreaNear(Math.PI * 0.4 * 0.4, SupportSliceGeometry.SectionsAt(g, 5));
     }
+
+    // The base ring is drawn in a few percent over a short run buried in the ball
+    // (TipBodyGeometry.JunctionInset over JunctionInsetRun of the junction radius); the taper
+    // above that run is the plain contact-to-junction line.
+    private const double ConeNeckInsetStart = 10 - 0.6 * 0.25;
+    private static readonly double ConeNeckRadiusAtInsetStart = 0.2 + (0.6 - 0.2) * (ConeNeckInsetStart / 10);
 
     [Theory]
     [InlineData(SupportSegmentType.Trunk, 0.8f)]
     [InlineData(SupportSegmentType.Branch, 1.6f)]
-    public void ConeTipSectionApproachesItsParentDiameterAtTheJunction(
-        SupportSegmentType parentType, float parentDiameter)
+    public void ConeTipBaseMatchesTheBallItSitsOn(SupportSegmentType parentType,
+        float parentDiameter)
     {
         var graph = ConeTipWithParent(parentType, parentDiameter);
+        // The parent's cap is a ball of its own diameter centred on the junction, and the tip's
+        // base ring sits at that centre. It carries all but the few percent that keep its rim
+        // from standing proud of the ball; the ball itself fills the difference.
+        var expected = parentDiameter * 0.5 * 0.94;
 
-        // The first emitted contour is the tip body's section 0.001 mm above the junction.
-        // Its radius is within 0.05% of the exact parent radius; the old constant neck was 50%.
-        var sections = SupportSliceGeometry.SectionsAt(graph, 5.001);
-        AssertAreaNear(Math.PI * Math.Pow(parentDiameter * 0.5, 2), [sections[0]]);
+        var tipOnly = SupportSliceGeometry.SectionsAt(graph, 5.001,
+            segment => segment.Type == SupportSegmentType.Tip, includeNode: null);
+
+        AssertAreaNear(Math.PI * expected * expected, tipOnly);
+        // Nothing of the tip may reach the ball's tessellated surface, whose facets lie a
+        // cosine inside the analytic one.
+        var parentRadius = parentDiameter * 0.5;
+        var clearance = parentRadius * Math.Cos(Math.PI / SupportRenderMesh.RadialSegments);
+        Assert.True(AreaMm2(tipOnly) < Math.PI * clearance * clearance,
+            "the tip's base ring stands proud of the ball it sits on");
     }
 
     [Fact]
@@ -289,7 +285,10 @@ public class SupportSliceGeometryTests
         tip.PenetrationDepth = 0.5f;
 
         Assert.NotEmpty(SupportSliceGeometry.SectionsAt(g, 10.25));
-        var surfaceRadius = 0.2 + (0.6 - 0.2) * (0.5 / 2.5);
+        // The taper is stretched over its length plus the embedding, so the contact plane cuts
+        // it slightly wider than the contact radius.
+        var surfaceRadius = 0.2 + (ConeNeckRadiusAtInsetStart - 0.2) *
+            (0.5 / (ConeNeckInsetStart + 0.5));
         AssertAreaNear(Math.PI * surfaceRadius * surfaceRadius,
             SupportSliceGeometry.SectionsAt(g, 10));
     }
@@ -301,11 +300,13 @@ public class SupportSliceGeometryTests
         var tip = Assert.Single(g.Nodes, n => n.Type == SupportNodeType.Tip);
         tip.PenetrationDepth = 0;
 
+        var junction = Assert.Single(g.Nodes, n => n.Type == SupportNodeType.Junction);
+        var taper = TipBodyGeometry.Sections(tip, junction, 0.6f, embedContact: false)[0];
         foreach (var z in new[] { 9.0, 9.5, 10.0 })
         {
             var expected = new Paths64();
-            SupportSliceGeometry.ConeSection(new Vector3(0, 0, 10),
-                new Vector3(0, 0, 8), 0.2, 0.6, z, expected);
+            SupportSliceGeometry.ConeSection(taper.Start, taper.End,
+                taper.StartRadius, taper.EndRadius, z, expected);
             if (z == 10)
                 SupportSliceGeometry.SphereSection(new Vector3(0, 0, 10), 0.2, z, expected);
             AssertPathsEqual(expected, SupportSliceGeometry.SectionsAt(g, z));
@@ -328,7 +329,8 @@ public class SupportSliceGeometryTests
         // Ball centre is at z=10.2 (penetration 0.2 along inward +Z). At the centre, r=0.5.
         AssertAreaNear(Math.PI * 0.25, SupportSliceGeometry.SectionsAt(g, 10.2));
         // The same penetration also extends the cone, slightly increasing its radius at z=9.
-        var embeddedRadius = 0.2 + (0.6 - 0.2) * (1.2 / 2.2);
+        var embeddedRadius = 0.2 + (ConeNeckRadiusAtInsetStart - 0.2) *
+            (1.2 / (ConeNeckInsetStart + 0.2));
         AssertAreaNear(Math.PI * embeddedRadius * embeddedRadius, SupportSliceGeometry.SectionsAt(g, 9));
     }
 

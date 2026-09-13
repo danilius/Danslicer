@@ -1,4 +1,4 @@
-using Avalonia.Input;
+﻿using Avalonia.Input;
 using Danslicer.Core.Config;
 
 namespace Danslicer.App.Configuration;
@@ -31,6 +31,11 @@ public static class WindowKeymap
     public const string ImportMesh = "file.import-mesh";
     public const string ExportPrint = "file.export-print";
     public const string Preferences = "edit.preferences";
+    public const string RegionFacingDown = "region.select-facing-down";
+    public const string RegionInvert = "region.invert";
+    public const string RegionGrow = "region.grow";
+    public const string RegionShrink = "region.shrink";
+    public const string RegionConnected = "region.connected";
 
     public static IReadOnlyList<WindowKeymapAction> Actions { get; } =
     [
@@ -53,6 +58,11 @@ public static class WindowKeymap
         new(ImportMesh, "Import Mesh", "Ctrl+I"),
         new(ExportPrint, "Export Print File", "Ctrl+E"),
         new(Preferences, "Preferences", "Ctrl+OemComma"),
+        new(RegionFacingDown, "Region: Select Faces Pointing Down", "Ctrl+Shift+F"),
+        new(RegionInvert, "Region: Invert", "Ctrl+Shift+I"),
+        new(RegionGrow, "Region: Grow", "Ctrl+OemPlus"),
+        new(RegionShrink, "Region: Shrink", "Ctrl+OemMinus"),
+        new(RegionConnected, "Region: Select Connected", "Ctrl+Shift+K"),
     ];
 
     public static WindowKeymapAction GetAction(string actionId) =>

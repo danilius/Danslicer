@@ -1,0 +1,1 @@
+Status-bar subtree identical to task-04 base after newline normalization. No changes to WorkspacePreferences, ToolShells, reorder easing/order persistence, routing/core slicing/support generation or renderer shader source.

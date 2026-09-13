@@ -29,9 +29,7 @@ internal static class RouteCommand
             var useBaseGrid = true;
             var reinforce = false;
             var islandFirst = true;
-            var fineFeatureFallback = true;
             var minMemberSeparation = 0f;
-            var miniTipShape = SupportTipShape.Cone;
             for (var i = 1; i < args.Length; i++)
             {
                 options = args[i] switch
@@ -51,11 +49,8 @@ internal static class RouteCommand
                     "--base-grid" => SetUseBaseGrid(options, args[++i], out useBaseGrid),
                     "--reinforce" => SetReinforce(options, args[++i], out reinforce),
                     "--island-first" => SetIslandFirst(options, args[++i], out islandFirst),
-                    "--fine-feature-fallback" => SetFineFeatureFallback(options, args[++i],
-                        out fineFeatureFallback),
                     "--min-member-separation" => SetMinMemberSeparation(options, args[++i],
                         out minMemberSeparation),
-                    "--mini-tip-shape" => SetMiniTipShape(options, args[++i], out miniTipShape),
                     _ => throw new ArgumentException($"unknown option '{args[i]}'"),
                 };
             }
@@ -94,9 +89,7 @@ internal static class RouteCommand
                         TrunkDiameter = options.PillarDiameter,
                         BranchDiameter = options.PillarDiameter,
                         UseBaseGrid = useBaseGrid,
-                        FineFeatureMinisFallBackToRegular = fineFeatureFallback,
                         MinMemberSeparationMm = minMemberSeparation,
-                        MiniTipShape = miniTipShape,
                         PlateZ = options.PlateZ,
                         Seed = options.Seed,
                         Origin = options.Origin,
@@ -183,36 +176,12 @@ internal static class RouteCommand
         return options;
     }
 
-    private static GridRoutingOptions SetFineFeatureFallback(GridRoutingOptions options,
-        string value, out bool fineFeatureFallback)
-    {
-        fineFeatureFallback = value.ToLowerInvariant() switch
-        {
-            "on" or "true" => true,
-            "off" or "false" => false,
-            _ => throw new ArgumentException("fine-feature-fallback must be 'on' or 'off'"),
-        };
-        return options;
-    }
-
     private static GridRoutingOptions SetMinMemberSeparation(GridRoutingOptions options,
         string value, out float minMemberSeparation)
     {
         minMemberSeparation = Parse(value);
         if (!float.IsFinite(minMemberSeparation) || minMemberSeparation < 0)
             throw new ArgumentException("min-member-separation must be a non-negative number");
-        return options;
-    }
-
-    private static GridRoutingOptions SetMiniTipShape(GridRoutingOptions options, string value,
-        out SupportTipShape miniTipShape)
-    {
-        miniTipShape = value.ToLowerInvariant() switch
-        {
-            "cone" => SupportTipShape.Cone,
-            "capsule" => SupportTipShape.Capsule,
-            _ => throw new ArgumentException("mini-tip-shape must be 'cone' or 'capsule'"),
-        };
         return options;
     }
 
@@ -253,34 +222,20 @@ internal static class RouteCommand
                 throw new JsonException($"tip {index}: inwardSurfaceNormal/inwardNormal must contain three numbers");
             if (diameter <= 0)
                 throw new JsonException($"tip {index}: tipDiameter/diameter must be positive");
-            var islandOrigin = IsIsland(tip.Strategy) || IsIsland(tip.MiniClusterSourceStrategy);
+            var islandOrigin = IsIsland(tip.Strategy);
             return new RoutingTip(ToVector(point), ToVector(normal), diameter, tip.ContactObjectId,
                 TipShape: ParseShape(tip.TipShape),
                 ConeLength: tip.ConeLength > 0 ? tip.ConeLength : 2f,
                 BallDiameter: tip.BallDiameter,
                 PenetrationDepth: Math.Max(tip.PenetrationDepth, 0f),
-                MiniSupportOnly: string.Equals(tip.Strategy, nameof(TipStrategy.MiniIsland),
-                                     StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(tip.Strategy, nameof(TipStrategy.MiniCluster),
-                                     StringComparison.OrdinalIgnoreCase),
-                MiniClusterId: tip.MiniClusterId,
-                MiniClusterCenter: tip.MiniClusterCenter is { Length: 3 }
-                    ? ToVector(tip.MiniClusterCenter)
-                    : null,
                 IsIslandOrigin: islandOrigin,
                 IsIslandPriority: islandFirst && islandOrigin,
-                IsFineFeatureMini: tip.IsFineFeatureMini,
-                FallbackTipDiameter: tip.FallbackTipDiameter,
-                FallbackTipShape: ParseOptionalShape(tip.FallbackTipShape),
-                FallbackConeLength: tip.FallbackConeLength,
-                FallbackBallDiameter: tip.FallbackBallDiameter,
                 TipNormalLeadIn: Math.Max(tip.TipNormalLeadIn, 0f));
         }).ToList();
     }
 
     private static bool IsIsland(string? strategy) =>
-        string.Equals(strategy, nameof(TipStrategy.Island), StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(strategy, nameof(TipStrategy.MiniIsland), StringComparison.OrdinalIgnoreCase);
+        string.Equals(strategy, nameof(TipStrategy.Island), StringComparison.OrdinalIgnoreCase);
 
     private static bool IsCollisionFree(SupportGraph graph, ICollisionScene obstacles)
     {
@@ -289,7 +244,7 @@ internal static class RouteCommand
             var start = graph.GetNode(segment.NodeA).Position;
             var end = graph.GetNode(segment.NodeB).Position;
             var radius = segment.Diameter * 0.5f;
-            if (segment.Type is SupportSegmentType.Tip or SupportSegmentType.MiniSupport)
+            if (segment.Type is SupportSegmentType.Tip)
             {
                 var nodeA = graph.GetNode(segment.NodeA);
                 var nodeB = graph.GetNode(segment.NodeB);
@@ -405,9 +360,6 @@ internal static class RouteCommand
         };
     }
 
-    private static SupportTipShape? ParseOptionalShape(string? value) =>
-        string.IsNullOrEmpty(value) ? null : ParseShape(value);
-
     private static BaseLatticeType ParseLattice(string value) => value.ToLowerInvariant() switch
     {
         "square" => BaseLatticeType.Square,
@@ -422,7 +374,7 @@ internal static class RouteCommand
     private static int UsageError(string message)
     {
         Console.Error.WriteLine($"error: {message}");
-        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--fine-feature-fallback on|off] [--mini-tip-shape cone|capsule] [--min-member-separation <mm>] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
+        Console.Error.WriteLine("usage: danslicer route <mesh.stl|mesh.obj> --tips <tips.json> [--seat] [--strategy grid|topdown|tree] [--base-grid on|off] [--island-first on|off] [--min-member-separation <mm>] [--reinforce on|off] [--step-height 2] [--spacing 5] [--lattice square|hex] [--offset-x 0] [--offset-y 0] [--rotation 0] [--snap 0.25] [--seed 1] [--json]");
         return 1;
     }
 
@@ -446,13 +398,5 @@ internal static class RouteCommand
         public float PenetrationDepth { get; set; }
         public float TipNormalLeadIn { get; set; }
         public string? Strategy { get; set; }
-        public string? MiniClusterSourceStrategy { get; set; }
-        public int? MiniClusterId { get; set; }
-        public float[]? MiniClusterCenter { get; set; }
-        public bool IsFineFeatureMini { get; set; }
-        public float? FallbackTipDiameter { get; set; }
-        public string? FallbackTipShape { get; set; }
-        public float? FallbackConeLength { get; set; }
-        public float? FallbackBallDiameter { get; set; }
     }
 }

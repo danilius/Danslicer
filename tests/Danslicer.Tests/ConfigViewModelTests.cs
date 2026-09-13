@@ -6,18 +6,40 @@ namespace Danslicer.Tests;
 public sealed class ConfigViewModelTests
 {
     [Fact]
-    public void AppearanceThemePersistsImmediately()
+    public void ViewportPreferencesSaveWithoutApplyingSupportSettingsAndOffRetainsTuning()
     {
         var config = new UserConfig();
-        var saves = 0;
-        var viewModel = new ConfigViewModel(config, () => saves++);
-
-        viewModel.AppearanceTheme = AppTheme.Forge;
-
-        Assert.Equal(AppTheme.Forge, config.AppearanceTheme);
-        Assert.Equal(1, saves);
-        Assert.Contains(AppTheme.Classic, viewModel.AppearanceThemes);
-        Assert.Contains(AppTheme.Forge, viewModel.AppearanceThemes);
+        var saves = 0; var supportEvents = 0; var viewEvents = 0;
+        var vm = new ConfigViewModel(config, () => saves++);
+        vm.Saved += () => supportEvents++;
+        vm.ViewportSaved += () => viewEvents++;
+        vm.WorkingShadowStrength = 0.3f;
+        vm.WorkingShadowSoftnessMm = 0.8f;
+        vm.PresentationShadowStrength = 0.6f;
+        vm.PresentationShadowSoftnessMm = 2;
+        vm.ModelShadowModeIndex = 0;
+        vm.AmbientOcclusionEnabled = false;
+        vm.CavityEnabled = false;
+        vm.PlateShadowsEnabled = false;
+        vm.PlateReflectionsEnabled = false;
+        vm.ViewCubeEnabled = false;
+        vm.AmbientOcclusionStrength = 0.2f;
+        vm.PlateReflectionStrength = 0.1f;
+        Assert.Equal(12, saves);
+        Assert.Equal(saves, viewEvents);
+        Assert.Equal(0, supportEvents);
+        Assert.Equal(ModelShadowMode.Off, config.Viewport.ModelShadows);
+        Assert.False(config.Viewport.AmbientOcclusionEnabled);
+        Assert.False(config.Viewport.CavityEnabled);
+        Assert.False(config.Viewport.PlateShadowsEnabled);
+        Assert.False(config.Viewport.PlateReflectionsEnabled);
+        Assert.False(config.Viewport.ViewCubeEnabled);
+        vm.ModelShadowModeIndex = 2;
+        Assert.Equal(0.6f, config.Viewport.PresentationShadowStrength);
+        Assert.Equal(2, config.Viewport.PresentationShadowSoftnessMm);
+        vm.ModelShadowModeIndex = 1;
+        Assert.Equal(0.3f, config.Viewport.WorkingShadowStrength);
+        Assert.Equal(0.8f, config.Viewport.WorkingShadowSoftnessMm);
     }
 
     [Fact]

@@ -11,9 +11,18 @@ namespace Danslicer.App.Configuration;
 /// </summary>
 public static class AppConfig
 {
-    public static UserConfig Current { get; } = UserConfig.Load(UserConfig.DefaultPath);
+    private static string _path = UserConfig.DefaultPath;
+    private static readonly Lazy<UserConfig> _current = new(() => UserConfig.Load(_path));
+    public static UserConfig Current => _current.Value;
+    public static string WorkspacePath => Path.Combine(Path.GetDirectoryName(_path)!, "workspace-ui.json");
+    public static void UseIsolatedDirectory(string directory)
+    {
+        if (_current.IsValueCreated) throw new InvalidOperationException("Configuration already loaded");
+        _path = Path.Combine(directory, "config.json");
+    }
 
-    public static void Save() => Current.Save(UserConfig.DefaultPath);
+    internal static int SaveCount { get; private set; }
+    public static void Save() => PreviewPersistence.Save(() => { Current.Save(_path); SaveCount++; });
 
     /// <summary>Parses "#RRGGBB" (leading '#' optional) into linear-ish RGB; fallback on junk.</summary>
     public static Vector3 ParseColor(string? hex, Vector3 fallback)

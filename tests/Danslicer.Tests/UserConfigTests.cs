@@ -1,4 +1,4 @@
-using Danslicer.Core;
+﻿using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
@@ -49,7 +49,6 @@ public sealed class UserConfigTests : IDisposable
                     Mode = SupportDisplayMode.Transparent,
                     ShowContactPointsInTransparent = false,
                     ShowTips = false,
-                    ShowMiniSupports = false,
                     ShowBranches = false,
                     ShowTrunks = false,
                     ShowBases = false,
@@ -62,7 +61,6 @@ public sealed class UserConfigTests : IDisposable
                 HeightMm = 8.5f,
             },
             UvtoolsExecutablePath = @"C:\Program Files\UVtools\UVtools.exe",
-            AppearanceTheme = AppTheme.Forge,
         };
         var path = PathFor("config.json");
 
@@ -79,7 +77,6 @@ public sealed class UserConfigTests : IDisposable
         Assert.True(loaded.SpaceMouse.InvertZoom);
         Assert.Equal(0.02f, loaded.SpaceMouse.Deadzone);
         Assert.Equal(@"C:\Program Files\UVtools\UVtools.exe", loaded.UvtoolsExecutablePath);
-        Assert.Equal(AppTheme.Forge, loaded.AppearanceTheme);
         Assert.Equal(30f, loaded.Viewport.OverhangAngleDegrees);
         Assert.Equal(0.6f, loaded.Viewport.PlateOpacityFromBelow);
         Assert.Equal("#112233", loaded.Viewport.OverhangColorA);
@@ -90,7 +87,6 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(SupportDisplayMode.Transparent, loaded.Viewport.SupportDisplay.Mode);
         Assert.False(loaded.Viewport.SupportDisplay.ShowContactPointsInTransparent);
         Assert.False(loaded.Viewport.SupportDisplay.ShowTips);
-        Assert.False(loaded.Viewport.SupportDisplay.ShowMiniSupports);
         Assert.False(loaded.Viewport.SupportDisplay.ShowBranches);
         Assert.False(loaded.Viewport.SupportDisplay.ShowTrunks);
         Assert.False(loaded.Viewport.SupportDisplay.ShowBases);
@@ -133,15 +129,13 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0f, loaded.Placement.HeightMm);
         Assert.Equal(SupportDisplayMode.Full, loaded.Viewport.SupportDisplay.Mode);
         Assert.True(loaded.Viewport.CapInterior);
-        Assert.Equal(ClipCapStyle.Sliced, loaded.Viewport.CapStyle);
+        Assert.Equal(ClipCapStyle.Painted, loaded.Viewport.CapStyle); // painted caps are the standard
         Assert.True(loaded.Viewport.SupportDisplay.ShowTips);
-        Assert.True(loaded.Viewport.SupportDisplay.ShowMiniSupports);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBranches);
         Assert.True(loaded.Viewport.SupportDisplay.ShowTrunks);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBases);
         Assert.True(loaded.Viewport.SupportDisplay.ShowBracing);
         Assert.False(loaded.Supports.IndependentManualSupports);
-        Assert.Equal(AppTheme.Classic, loaded.AppearanceTheme);
     }
 
     [Fact]
@@ -289,13 +283,6 @@ public sealed class UserConfigTests : IDisposable
                 PreferExistingTrunks = false, ExistingTrunkBranchRange = 9f,
                 IndependentManualSupports = true,
                 MinMemberSeparationMm = 0.75f,
-                MiniSupportDiameter = 0.7f, MiniSupportTipDiameter = 0.3f,
-                MiniTipShape = SupportTipShape.Capsule,
-                MiniSupportConeLength = 1.2f, MiniSupportMaxLength = 6f,
-                MiniSupportMaxAngleDegrees = 72f, MiniSupportMaxFanPerBranchEnd = 5,
-                MiniSupportClusterDistance = 1.4f, FineFeatureMaxAreaMm2 = 1.8f,
-                FineFeatureMinisFallBackToRegular = false,
-                RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.2f,
                 UseBaseGrid = false, BaseGridPitch = 18f,
                 ReinforceEnabled = true,
                 ReinforceSeedSelector = ReinforceSeedSelector.CriticalTips,
@@ -325,19 +312,7 @@ public sealed class UserConfigTests : IDisposable
         Assert.False(supports.PreferExistingTrunks);
         Assert.Equal(9f, supports.ExistingTrunkBranchRange);
         Assert.True(supports.IndependentManualSupports);
-        Assert.Equal(0.7f, supports.MiniSupportDiameter);
-        Assert.Equal(0.3f, supports.MiniSupportTipDiameter);
-        Assert.Equal(SupportTipShape.Capsule, supports.MiniTipShape);
-        Assert.Equal(1.2f, supports.MiniSupportConeLength);
-        Assert.Equal(6f, supports.MiniSupportMaxLength);
-        Assert.Equal(72f, supports.MiniSupportMaxAngleDegrees);
-        Assert.Equal(5, supports.MiniSupportMaxFanPerBranchEnd);
-        Assert.Equal(1.4f, supports.MiniSupportClusterDistance);
-        Assert.Equal(1.8f, supports.FineFeatureMaxAreaMm2);
         Assert.Equal(0.75f, supports.MinMemberSeparationMm);
-        Assert.False(supports.FineFeatureMinisFallBackToRegular);
-        Assert.True(supports.RefusedTipsFallBackToMini);
-        Assert.Equal(0.2f, supports.MiniIslandMaxAreaMm2);
         Assert.False(supports.UseBaseGrid);
         Assert.Equal(18f, supports.BaseGridPitch);
         Assert.True(supports.ReinforceEnabled);
@@ -355,29 +330,6 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.9f, supports.MinIslandAreaMm2);
         Assert.Equal(33f, supports.MaxContactFaceAngleDegrees);
         Assert.True(supports.RequireContactSeesPlate);
-    }
-
-    [Fact]
-    public void UnknownMiniTipShapeStringNormalizesToCone()
-    {
-        var path = PathFor("unknown-mini-tip-shape.json");
-        Directory.CreateDirectory(_dir);
-        File.WriteAllText(path, """
-            {
-              "Supports": { "MiniTipShape": "futureRodShape" },
-              "SupportPresets": [
-                { "Version": 1, "Name": "Future", "Settings": {
-                    "MiniTipShape": "futureRodShape"
-                } }
-              ]
-            }
-            """);
-
-        var loaded = UserConfig.Load(path);
-
-        Assert.Equal(SupportTipShape.Cone, loaded.Supports.MiniTipShape);
-        Assert.Equal(SupportTipShape.Cone,
-            loaded.FindSupportPreset("Future")!.Settings.MiniTipShape);
     }
 
     [Fact]
@@ -410,10 +362,6 @@ public sealed class UserConfigTests : IDisposable
         config.Supports.TipDiameter = 0.23f;
         config.Supports.TipNormalLeadInMm = 0.55f;
         config.Supports.UseBaseGrid = false;
-        config.Supports.MiniSupportMaxFanPerBranchEnd = 7;
-        config.Supports.MiniTipShape = SupportTipShape.Capsule;
-        config.Supports.FineFeatureMaxAreaMm2 = 1.7f;
-        config.Supports.FineFeatureMinisFallBackToRegular = false;
         config.Supports.MinMemberSeparationMm = 0.8f;
         config.Supports.IndependentManualSupports = true;
         Assert.True(config.SaveSupportPresetAs("Delicate teeth"));
@@ -428,10 +376,6 @@ public sealed class UserConfigTests : IDisposable
         Assert.Equal(0.23f, preset.Settings.TipDiameter);
         Assert.Equal(0.55f, preset.Settings.TipNormalLeadInMm);
         Assert.False(preset.Settings.UseBaseGrid);
-        Assert.Equal(7, preset.Settings.MiniSupportMaxFanPerBranchEnd);
-        Assert.Equal(SupportTipShape.Capsule, preset.Settings.MiniTipShape);
-        Assert.Equal(1.7f, preset.Settings.FineFeatureMaxAreaMm2);
-        Assert.False(preset.Settings.FineFeatureMinisFallBackToRegular);
         Assert.Equal(0.8f, preset.Settings.MinMemberSeparationMm);
         Assert.True(preset.Settings.IndependentManualSupports);
         Assert.Equal("Delicate teeth", loaded.ActiveSupportPresetName);
@@ -446,7 +390,6 @@ public sealed class UserConfigTests : IDisposable
         {
             TipDiameter = 0.72f, ConeLength = 3.4f, TrunkDiameter = 2.1f,
             PreferExistingTrunks = false, UseBaseGrid = false, BaseGridPitch = 13f,
-            RefusedTipsFallBackToMini = true, MiniIslandMaxAreaMm2 = 0.08f,
             BaseShape = SupportBaseShape.DiscCone, Spacing = 1.7f,
         };
         Assert.True(config.SaveSupportPresetAs("Heavy"));
@@ -523,17 +466,6 @@ public sealed class UserConfigTests : IDisposable
         Assert.True(supports.PreferExistingTrunks);
         Assert.Equal(8f, supports.ExistingTrunkBranchRange);
         Assert.Equal(0f, supports.MinMemberSeparationMm);
-        Assert.Equal(0.6f, supports.MiniSupportDiameter);
-        Assert.Equal(0.25f, supports.MiniSupportTipDiameter);
-        Assert.Equal(SupportTipShape.Cone, supports.MiniTipShape);
-        Assert.Equal(1f, supports.MiniSupportConeLength);
-        Assert.Equal(5f, supports.MiniSupportMaxLength);
-        Assert.Equal(75f, supports.MiniSupportMaxAngleDegrees);
-        Assert.Equal(4, supports.MiniSupportMaxFanPerBranchEnd);
-        Assert.Equal(1f, supports.FineFeatureMaxAreaMm2);
-        Assert.True(supports.FineFeatureMinisFallBackToRegular);
-        Assert.False(supports.RefusedTipsFallBackToMini);
-        Assert.Equal(0.1f, supports.MiniIslandMaxAreaMm2);
         Assert.True(supports.UseBaseGrid);
         Assert.Equal(6f, supports.BaseGridPitch);
         Assert.False(supports.ReinforceEnabled);

@@ -3,8 +3,10 @@ using Danslicer.Core.Commands;
 using Danslicer.Core.Config;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Supports.Routing;
 using Danslicer.Core.Supports.Generation;
+using Danslicer.Core.Supports.Guided;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
@@ -24,7 +26,13 @@ public readonly record struct SupportPositionSnapshot(Vector3 Position, Vector3 
 public sealed record SceneMeshSnapshot(Mesh Mesh, Matrix4x4 Transform);
 public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot Target,
     IReadOnlyList<SceneMeshSnapshot> SceneMeshes, SupportGraph ExistingSupports, int Seed,
-    SupportConfig Settings, SupportGenerationScope Scope = SupportGenerationScope.Full);
+    SupportConfig Settings, SupportGenerationScope Scope = SupportGenerationScope.Full)
+{
+    /// <summary>The object's painted region, captured with the rest of the mutable state so a
+    /// background generation is not affected by painting that happens while it runs. Empty means
+    /// every face, which is what an unpainted object has always done.</summary>
+    public ObjectSupportRegions Regions { get; init; } = ObjectSupportRegions.Empty;
+}
 
 public sealed record IslandDetectionRequest(SceneMeshSnapshot Target,
     SupportGraph ExistingSupports, float LayerHeightMm, SupportConfig Settings);
@@ -63,6 +71,13 @@ public sealed class Document
 
     /// <summary>Raised after any command, undo or redo, and after selection changes.</summary>
     public event Action? Changed;
+
+    /// <summary>
+    /// Raises <see cref="Changed"/> for a settings edit that draws differently without touching
+    /// the document's data — the base lattice markers follow the grid toggle and pitch (user
+    /// report 2026-09-08: they only appeared after the next click).
+    /// </summary>
+    public void NotifySettingsChanged() => Changed?.Invoke();
     public event Action? SelectionChanged;
     public event Action? SupportSelectionChanged;
 
@@ -112,6 +127,9 @@ public sealed class Document
         {
             Transform = obj.Transform,
             RenderState = obj.RenderState,
+            Regions = obj.Regions,
+            SourcePath = obj.SourcePath,
+            Raft = obj.Raft,
         }));
         Supports.ReplaceWith(source.Supports.Nodes.Select(node => node.Clone()),
             source.Supports.Segments.Select(segment => segment.Clone()));
@@ -119,6 +137,25 @@ public sealed class Document
         _meshObstacleSignature = null;
         History.Clear();
     }
+
+    /// <summary>
+    /// Empties the document for a new project: no objects, no supports, no history. The machine
+    /// setup — printer, resin and print settings — is deliberately kept, because that describes
+    /// the user's rig rather than the model they were working on.
+    /// </summary>
+    public void Clear() => ReplaceWith(new Document
+    {
+        Printer = Printer,
+        PrintSettings = PrintSettings,
+        ResinPreset = ResinPreset,
+        ResinSettings = ResinSettings,
+    });
+
+    /// <summary>
+    /// Whether starting a new project would throw work away. Nothing to lose means no dialog:
+    /// a confirmation nobody needs is a confirmation people learn to click through.
+    /// </summary>
+    public bool HasContent => Scene.Objects.Count > 0 || Supports.NodeCount > 0;
 
     /// <summary>Raise Changed for transient edits (e.g. live drag) that bypass the command stack.</summary>
     public void NotifyTransientChange() => Changed?.Invoke();
@@ -162,11 +199,19 @@ public sealed class Document
 
     public bool IsSelected(SceneObject obj) => _selection.Contains(obj);
 
+    /// <summary>
+    /// The model support work acts on: the single selected object, or null when the selection
+    /// is empty or holds more than one. Support mode keeps exactly one object selected, so this
+    /// is that object; in Layout it is simply "the one selected model", which is the same thing
+    /// the user would mean. See <see cref="SupportTargetPolicy"/> for what the target governs.
+    /// </summary>
+    public SceneObject? SupportTarget => _selection.Count == 1 ? _selection.First() : null;
+
     public bool IsSupportSelected(Guid id) => _supportSelection.Contains(id);
 
     public void SelectSupportElement(Guid id, bool additive = false)
     {
-        var selectable = IsSupportElementVisible(id);
+        var selectable = IsSupportElementSelectable(id);
         if (additive)
         {
             if (!_supportSelection.Remove(id) && selectable) _supportSelection.Add(id);
@@ -193,9 +238,9 @@ public sealed class Document
         var (nodes, segments) = Supports.Component(seed);
         if (!additive) _supportSelection.Clear();
         foreach (var id in nodes)
-            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
+            if (IsSupportElementSelectable(id)) _supportSelection.Add(id);
         foreach (var id in segments)
-            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
+            if (IsSupportElementSelectable(id)) _supportSelection.Add(id);
         SupportSelectionChanged?.Invoke();
     }
 
@@ -215,13 +260,23 @@ public sealed class Document
     public void DeleteSupportSelection()
     {
         if (_supportSelection.Count == 0) return;
-        var nodes = _supportSelection.Where(id => Supports.TryGetNode(id, out _)).ToHashSet();
-        var segments = _supportSelection.Where(id => Supports.TryGetSegment(id, out _)).ToHashSet();
+        var ids = _supportSelection.ToList();
         _supportSelection.Clear();
         SupportSelectionChanged?.Invoke();
+        DeleteSupportElements(ids);
+    }
+
+    /// <summary>
+    /// Removes the given elements with the same pruning as a selection delete, as one undo step
+    /// under <paramref name="undoName"/>. Ids that are not elements are ignored.
+    /// </summary>
+    public void DeleteSupportElements(IEnumerable<Guid> ids, string undoName = "Delete supports")
+    {
+        var nodes = ids.Where(id => Supports.TryGetNode(id, out _)).ToHashSet();
+        var segments = ids.Where(id => Supports.TryGetSegment(id, out _)).ToHashSet();
         if (nodes.Count == 0 && segments.Count == 0) return;
         AddOrphanedFragments(nodes, segments);
-        Execute(new RemoveSupportElementsCommand(Supports, nodes, segments));
+        Execute(new RemoveSupportElementsCommand(Supports, nodes, segments, undoName));
     }
 
     /// <summary>
@@ -259,10 +314,31 @@ public sealed class Document
             }
         }
 
+        // A brace end goes when its carrier member goes or its brace goes (SUPPORT-GEOMETRY-SPEC
+        // "Bracing"): it is no support of its own, so the fragment walk below must not judge it.
+        // One end going takes the brace, which orphans the other end: repeat until nothing changes.
+        for (var changed = true; changed;)
+        {
+            changed = false;
+            foreach (var braceEnd in Supports.Nodes)
+            {
+                if (braceEnd.Type != SupportNodeType.BraceEnd || nodes.Contains(braceEnd.Id)) continue;
+                var carried = SupportBracing.CarrierOf(Supports, braceEnd, id =>
+                    !removedSegments.Contains(id) &&
+                    !nodes.Contains(Supports.GetSegment(id).NodeA) && !nodes.Contains(Supports.GetSegment(id).NodeB)) is not null;
+                var braced = Supports.SegmentsAt(braceEnd.Id).Any(brace =>
+                    !removedSegments.Contains(brace.Id) && !nodes.Contains(brace.NodeA) && !nodes.Contains(brace.NodeB));
+                if (carried && braced) continue;
+                nodes.Add(braceEnd.Id);
+                foreach (var attached in Supports.SegmentsAt(braceEnd.Id)) removedSegments.Add(attached.Id);
+                changed = true;
+            }
+        }
+
         var visited = new HashSet<Guid>();
         foreach (var start in Supports.Nodes)
         {
-            if (nodes.Contains(start.Id) || !visited.Add(start.Id)) continue;
+            if (nodes.Contains(start.Id) || start.Type == SupportNodeType.BraceEnd || !visited.Add(start.Id)) continue;
             var fragment = new List<SupportNode> { start };
             var queue = new Queue<Guid>();
             queue.Enqueue(start.Id);
@@ -297,7 +373,155 @@ public sealed class Document
     {
         if (_selection.Count == 0) return;
         var commands = _selection.Select(o => (IDocumentCommand)new RemoveObjectCommand(Scene, o)).ToList();
-        Execute(new CompositeCommand(commands.Count == 1 ? commands[0].Name : $"Delete {commands.Count} objects", commands));
+        var name = commands.Count == 1 ? commands[0].Name : $"Delete {commands.Count} objects";
+
+        // Supports are object-owned, so a deleted model must take its supports with it — otherwise
+        // they are left standing in mid-air, owned by an object that no longer exists. Both go into
+        // one composite so a single undo brings the model and its supports back together.
+        var orphaned = new HashSet<Guid>();
+        foreach (var obj in _selection) orphaned.UnionWith(AssociatedSupportNodeIds(obj));
+        if (orphaned.Count > 0) commands.Add(DiscardSupportsCommand(orphaned, name));
+
+        Execute(new CompositeCommand(name, commands));
+    }
+
+    /// <summary>
+    /// Replaces an object's painted support region as one undo step (DESIGN 8.3 stage 1). The
+    /// selection tools of stages 2 and 3 are expected to compute a whole new face set and hand
+    /// it here, so a brush stroke or a grow is one undo, not one per face.
+    /// </summary>
+    public void SetSupportRegions(SceneObject obj, ObjectSupportRegions regions,
+        string name = "Edit support region")
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+        ArgumentNullException.ThrowIfNull(regions);
+        if (regions.Equals(obj.Regions)) return;
+        Execute(new SetSupportRegionsCommand(obj, regions, name));
+    }
+
+    /// <summary>Clears an object's region, returning it to "every face" — today's behaviour.</summary>
+    /// <summary>
+    /// Swaps in geometry freshly read from the object's source file, keeping its name, id,
+    /// transform and place in the scene — the "the model changed in CAD, pick it up" button in
+    /// the object list. Placement is re-applied, so an auto-dropped object re-seats if the new
+    /// geometry has a different lowest point.
+    ///
+    /// <para>The new mesh is different geometry, so anything indexed against the old one goes
+    /// with it in the SAME undo step: the painted region (face indices) and this object's
+    /// supports (contacts on faces that may no longer exist). One undo puts the old mesh, its
+    /// region and its supports all back.</para>
+    ///
+    /// <para>Reading the file is the caller's job, so that file errors are reported where the
+    /// user clicked rather than thrown out of the document.</para>
+    /// </summary>
+    public void ReloadObject(SceneObject obj, Mesh mesh, Transform? transform = null)
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+        ArgumentNullException.ThrowIfNull(mesh);
+        var name = $"Update {obj.Name} from file";
+        var commands = new List<IDocumentCommand>
+        {
+            new SetMeshTransformCommand(obj, obj.Mesh, obj.Transform, mesh,
+                ApplyPlacement(mesh, transform ?? obj.Transform), name),
+        };
+        if (!obj.Regions.IsEmpty)
+            commands.Add(new SetSupportRegionsCommand(obj, ObjectSupportRegions.Empty, name));
+        var supportNodes = AssociatedSupportNodeIds(obj).ToHashSet();
+        if (supportNodes.Count > 0) commands.Add(DiscardSupportsCommand(supportNodes, name));
+        Execute(new CompositeCommand(name, commands));
+    }
+
+    public void ClearSupportRegions(SceneObject obj) =>
+        SetSupportRegions(obj, ObjectSupportRegions.Empty, "Clear support region");
+
+    /// <summary>
+    /// The support elements of <paramref name="original"/>, copied onto <paramref name="copy"/>
+    /// and shifted by the offset between them, as one command to fold into the duplicate's undo
+    /// step. Null when the original has no supports.
+    ///
+    /// <para>Only segments with BOTH ends owned by the original are copied. A support that shares
+    /// a trunk with another model is half-owned by a model that was not duplicated, and there is
+    /// no honest place to put the other half — so that fragment is left behind rather than
+    /// invented.</para>
+    /// </summary>
+    private IDocumentCommand? CopySupportsForDuplicate(SceneObject original, SceneObject copy)
+    {
+        var offset = copy.Transform.Translation - original.Transform.Translation;
+        var owned = Supports.Nodes.Where(node => node.Origin.ObjectId == original.Id).ToList();
+        if (owned.Count == 0) return null;
+
+        var newIds = owned.ToDictionary(node => node.Id, _ => Guid.NewGuid());
+        var nodes = owned.Select(node =>
+        {
+            var clone = node.Clone(newIds[node.Id], node.Origin with { ObjectId = copy.Id });
+            clone.Position = node.Position + offset;
+            if (clone.ContactObjectId == original.Id) clone.ContactObjectId = copy.Id;
+            return clone;
+        }).ToList();
+
+        var segments = Supports.Segments
+            .Where(segment => newIds.ContainsKey(segment.NodeA) && newIds.ContainsKey(segment.NodeB))
+            .Select(segment => segment.Clone(Guid.NewGuid(), newIds[segment.NodeA],
+                newIds[segment.NodeB], segment.Origin with { ObjectId = copy.Id }))
+            .ToList();
+
+        return new ApplySupportGraphEditCommand(Supports,
+            new SupportGraphEdit(nodes, segments, []), $"Duplicate {original.Name}");
+    }
+
+    /// <summary>Ids of every support node owned by <paramref name="obj"/>. Segments are not listed:
+    /// <see cref="RemoveSupportElementsCommand"/> pulls in each node's attached segments itself.</summary>
+    private IEnumerable<Guid> AssociatedSupportNodeIds(SceneObject obj) => Supports.Nodes
+        .Where(node => node.Origin.ObjectId == obj.Id)
+        .Select(node => node.Id);
+
+    /// <summary>
+    /// Removal command for a set of owned support nodes, extended with any fragment the removal
+    /// would strand — the same orphan sweep a manual support deletion does, so discarding one
+    /// object's supports cannot leave a tipless twig hanging off a trunk shared with another
+    /// object. Clears the ids from the support selection first: selection is transient and must
+    /// not keep pointing at elements that are about to leave the graph.
+    /// </summary>
+    private IDocumentCommand DiscardSupportsCommand(HashSet<Guid> nodeIds, string name)
+    {
+        var segments = new HashSet<Guid>();
+
+        // AddOrphanedFragments sweeps the WHOLE graph and takes any fragment that lacks a tip or
+        // a base. That is right for a manual support deletion, but here it would also collect a
+        // different object's half-built supports, which this removal has nothing to do with. So
+        // run the sweep and then keep only the extras that are actually connected to what we are
+        // removing — the shared-trunk case the sweep exists for.
+        var swept = new HashSet<Guid>(nodeIds);
+        AddOrphanedFragments(swept, segments);
+        var extras = swept.Except(nodeIds).ToHashSet();
+        if (extras.Count > 0)
+        {
+            var connected = ConnectedToAny(nodeIds);
+            nodeIds.UnionWith(extras.Where(connected.Contains));
+        }
+
+        if (_supportSelection.RemoveWhere(id => nodeIds.Contains(id) || segments.Contains(id)) > 0)
+            SupportSelectionChanged?.Invoke();
+        return new RemoveSupportElementsCommand(Supports, nodeIds, segments, name);
+    }
+
+    /// <summary>Every node reachable from <paramref name="seeds"/> across segments, seeds excluded.
+    /// Used to tell "this fragment was stranded by the removal" from "this fragment was already
+    /// standing on its own somewhere else in the graph".</summary>
+    private HashSet<Guid> ConnectedToAny(IReadOnlySet<Guid> seeds)
+    {
+        var reached = new HashSet<Guid>();
+        var queue = new Queue<Guid>(seeds);
+        var visited = new HashSet<Guid>(seeds);
+        while (queue.Count > 0)
+            foreach (var segment in Supports.SegmentsAt(queue.Dequeue()))
+                foreach (var endId in new[] { segment.NodeA, segment.NodeB })
+                {
+                    if (!visited.Add(endId)) continue;
+                    reached.Add(endId);
+                    queue.Enqueue(endId);
+                }
+        return reached;
     }
 
     /// <summary>
@@ -318,6 +542,13 @@ public sealed class Document
             var copy = new SceneObject(NextCopyName(original.Name, usedNames), original.Mesh)
             {
                 RenderState = original.RenderState,
+                // The painted region indexes faces of the mesh, which the copy shares, so it
+                // stays meaningful. Regions are immutable, so the instance can be shared.
+                Regions = original.Regions,
+                // Same mesh, same file: the copy's update button reloads what the original's does.
+                SourcePath = original.SourcePath,
+                // The copy's supports are the original's moved, so the raft under them is too.
+                Raft = original.Raft,
             };
             var requested = original.Transform with
             {
@@ -326,6 +557,11 @@ public sealed class Document
             copy.Transform = ApplyPlacement(copy.Mesh, requested);
             copies.Add(copy);
             commands.Add(new AddObjectCommand(Scene, copy));
+            // Duplicating a supported model duplicates its supports: the copy is the same model
+            // in the same orientation, just moved, so its supports are valid by the same argument
+            // that lets a translation keep them (see SupportTransformRule).
+            var supportCopy = CopySupportsForDuplicate(original, copy);
+            if (supportCopy is not null) commands.Add(supportCopy);
         }
 
         var name = copies.Count == 1 ? $"Duplicate {originals[0].Name}" : $"Duplicate {copies.Count} objects";
@@ -421,6 +657,25 @@ public sealed class Document
         if (transforms.Count > 0) CommitTransforms(transforms, "Drop to plate", applyPlacement: false);
     }
 
+    /// <summary>
+    /// Re-seats each selected object per the placement mode, as switching Auto Drop on should
+    /// (user, 2026-09-09). The seat is committed as the REQUESTED move, so the Z rule applies:
+    /// a model that actually moves loses its supports; one already seated is left alone.
+    /// </summary>
+    public void PlaceSelection()
+    {
+        if (PlacementMode == PlacementMode.Off) return;
+        var transforms = new List<(SceneObject Object, Transform Before, Transform Requested)>();
+        foreach (var o in _selection)
+        {
+            var before = o.Transform;
+            var placed = ApplyPlacement(o, before);
+            if (MathF.Abs(placed.Translation.Z - before.Translation.Z) < 1e-6f) continue;
+            transforms.Add((o, before, placed));
+        }
+        if (transforms.Count > 0) CommitTransforms(transforms, "Auto drop", applyPlacement: false);
+    }
+
     /// <summary>Re-seats an input transform according to the configured placement mode.</summary>
     public Transform ApplyPlacement(SceneObject obj, Transform requested) =>
         ApplyPlacement(obj.Mesh, requested);
@@ -456,16 +711,32 @@ public sealed class Document
         supportBefore ??= CaptureAssociatedSupportPositions(itemList.Select(item => item.Object));
         var commands = new List<IDocumentCommand>();
         var supportEntries = new List<SetSupportPositionsCommand.Entry>();
+        var discardedSupportNodes = new HashSet<Guid>();
         foreach (var (obj, before, requested) in itemList)
         {
             var after = applyPlacement ? ApplyPlacement(obj, requested) : requested;
             obj.Transform = after;
-            if (after == before) continue;
+            // See SupportTransformRule: a transform keeps this object's supports only if it maps
+            // every contact exactly. The rule is asked about the move the user REQUESTED, not
+            // the re-seated result: auto-drop puts a lifted model straight back on the plate,
+            // and the user still moved it in Z (user, 2026-09-09), so its supports go even
+            // though the transform ends where it started.
+            var mapsExactly = SupportTransformRule.MapsContactsExactly(before, requested);
+            if (after == before)
+            {
+                if (!mapsExactly) discardedSupportNodes.UnionWith(AssociatedSupportNodeIds(obj));
+                continue;
+            }
             commands.Add(new SetTransformCommand(obj, before, after, name));
-            AppendAssociatedSupportTransform(obj, before, after, supportBefore, supportEntries);
+            if (mapsExactly)
+                AppendAssociatedSupportTransform(obj, before, after, supportBefore, supportEntries);
+            else
+                discardedSupportNodes.UnionWith(AssociatedSupportNodeIds(obj));
         }
         if (supportEntries.Count > 0)
             commands.Add(new SetSupportPositionsCommand(Supports, supportEntries, name));
+        if (discardedSupportNodes.Count > 0)
+            commands.Add(DiscardSupportsCommand(discardedSupportNodes, name));
         if (commands.Count > 0) Execute(new CompositeCommand(name, commands));
         else NotifyTransientChange();
     }
@@ -582,18 +853,534 @@ public sealed class Document
 
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
         out RoutingFailureReason? failureReason)
+        => AddManualSupport(obj, contact, surfaceNormal, out failureReason, out _);
+
+    /// <summary>
+    /// <see cref="AddManualSupport(SceneObject, Vector3, Vector3, out RoutingFailureReason?)"/>,
+    /// reporting what auto-parenting then did (null when it did nothing or is off).
+    /// </summary>
+    public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason, out AutoParentingOutcome? parenting)
     {
-        var settings = SupportSettings with { };
-        var independent = settings.IndependentManualSupports;
-        ICollisionScene obstacles = independent
+        failureReason = null;
+        parenting = null;
+        if (PreviewManualSupport(obj, contact, surfaceNormal, out failureReason) is not { } edit) return false;
+        var command = new ApplySupportGraphEditCommand(Supports, edit);
+        Execute(command);
+        parenting = AutoParentAfterPlacement(obj, edit, command.Name);
+        return true;
+    }
+
+    /// <summary>
+    /// Applies the current support settings to the selected elements (user, 2026-09-09: editing
+    /// a setting with supports selected changes those supports at once). Only what an element
+    /// carries as its own parameter changes: a tip's diameter, cone, ball and embedding; a
+    /// base's shape and sizes; a trunk's, branch's or brace's diameter. Nothing is re-routed.
+    /// Returns the number of elements changed; one undo step, none when nothing differs.
+    /// </summary>
+    public int ApplySupportSettingsToSelection()
+    {
+        var settings = SupportSettings;
+        var entries = new List<SetSupportParametersCommand.Entry>();
+        var changed = 0;
+
+        // Selected rafted objects re-take the raft settings (spec "Rafts": settings edits land
+        // on the selection). The raft is derived from its parameters, so this is the whole edit.
+        var raft = settings.ToRaftParameters();
+        foreach (var obj in _selection)
+        {
+            if (obj.Raft is null || obj.Raft == raft) continue;
+            var (before, o) = (obj.Raft, obj);
+            entries.Add(new SetSupportParametersCommand.Entry(() => o.Raft = raft, () => o.Raft = before));
+            changed++;
+        }
+
+        void Field<T>(T current, T target, Action<T> set) where T : IEquatable<T>
+        {
+            if (current.Equals(target)) return;
+            entries.Add(new SetSupportParametersCommand.Entry(() => set(target), () => set(current)));
+        }
+
+        foreach (var id in _supportSelection)
+        {
+            var before = entries.Count;
+            if (Supports.TryGetNode(id, out var node))
+            {
+                if (node.Type == SupportNodeType.Tip)
+                {
+                    Field(node.TipDiameter, settings.TipDiameter, v => node.TipDiameter = v);
+                    Field(node.ConeLength, settings.ConeLength, v => node.ConeLength = v);
+                    Field(node.BallDiameter, settings.BallDiameter, v => node.BallDiameter = v);
+                    Field(node.PenetrationDepth, settings.PenetrationDepth, v => node.PenetrationDepth = v);
+                }
+                else if (node.Type == SupportNodeType.Base && !StandsOnRaft(node))
+                {
+                    Field((int)node.BaseShape, (int)settings.BaseShape, v => node.BaseShape = (SupportBaseShape)v);
+                    Field(node.BaseDiameter, settings.BaseDiameter, v => node.BaseDiameter = v);
+                    Field(node.BaseHeight, settings.BaseHeight, v => node.BaseHeight = v);
+                    Field(node.BaseConeHeight, settings.BaseConeHeight, v => node.BaseConeHeight = v);
+                }
+            }
+            else if (Supports.TryGetSegment(id, out var segment))
+            {
+                var diameter = segment.Type switch
+                {
+                    SupportSegmentType.Trunk => settings.TrunkDiameter,
+                    SupportSegmentType.Branch => settings.BranchDiameter,
+                    SupportSegmentType.Bracing => settings.BracingDiameter > 0 ? settings.BracingDiameter : settings.BranchDiameter,
+                    _ => (float?)null, // a tip segment takes its section from the cone, not its own diameter
+                };
+                if (diameter is { } d) Field(segment.Diameter, d, v => segment.Diameter = v);
+            }
+            if (entries.Count > before) changed++;
+        }
+
+        if (entries.Count == 0) return 0;
+        Execute(new SetSupportParametersCommand(Supports, entries));
+        return changed;
+    }
+
+    // ----- Rafts (SUPPORT-GEOMETRY-SPEC "Rafts", user 2026-09-09) -----
+
+    /// <summary>
+    /// The settings an operation on <paramref name="obj"/> works with: the current ones, with
+    /// no base shape when the object has a raft, so every foot it makes is born baseless.
+    /// </summary>
+    private SupportConfig SettingsFor(SceneObject obj) => obj.Raft is null
+        ? SupportSettings with { }
+        : SupportSettings with { BaseShape = SupportBaseShape.None };
+
+    /// <summary>True when the foot belongs to an object that has a raft.</summary>
+    private bool StandsOnRaft(SupportNode node) =>
+        node.Origin.ObjectId is { } owner && Scene.Objects.FirstOrDefault(o => o.Id == owner)?.Raft is not null;
+
+    /// <summary>Every foot of <paramref name="obj"/>: its enabled base nodes.</summary>
+    public IReadOnlyList<SupportNode> FeetOf(SceneObject obj) =>
+        Supports.Nodes.Where(n => n.Type == SupportNodeType.Base && !n.Disabled && n.Origin.ObjectId == obj.Id).ToList();
+
+    /// <summary>
+    /// Gives every selected object a raft with the current raft settings and strips the bases
+    /// of its feet; an object that already has one re-takes the settings. One undo step named
+    /// "Add raft". The model does not move (user, 2026-09-09). Returns the objects rafted.
+    /// </summary>
+    public int AddRaftToSelection()
+    {
+        var parameters = SupportSettings.ToRaftParameters();
+        var objects = Scene.Objects.Where(_selection.Contains).ToList();
+        if (objects.Count == 0) return 0;
+        var commands = new List<IDocumentCommand>();
+        var entries = new List<SetSupportParametersCommand.Entry>();
+        foreach (var obj in objects)
+        {
+            commands.Add(new SetObjectRaftCommand(obj, parameters, "Add raft"));
+            foreach (var foot in FeetOf(obj))
+            {
+                var (node, before) = (foot, foot.BaseShape);
+                if (before == SupportBaseShape.None) continue;
+                entries.Add(new SetSupportParametersCommand.Entry(
+                    () => node.BaseShape = SupportBaseShape.None, () => node.BaseShape = before));
+            }
+        }
+        if (entries.Count > 0) commands.Add(new SetSupportParametersCommand(Supports, entries, "Add raft"));
+        var name = objects.Count == 1 ? "Add raft" : $"Add raft to {objects.Count} objects";
+        Execute(new CompositeCommand(name, commands));
+        return objects.Count;
+    }
+
+    /// <summary>
+    /// Takes the raft away from every selected rafted object and gives each of its feet the base
+    /// the current settings say. One undo step named "Remove raft". Returns the objects changed.
+    /// </summary>
+    public int RemoveRaftFromSelection()
+    {
+        var settings = SupportSettings;
+        var objects = Scene.Objects.Where(o => _selection.Contains(o) && o.Raft is not null).ToList();
+        if (objects.Count == 0) return 0;
+        var commands = new List<IDocumentCommand>();
+        var entries = new List<SetSupportParametersCommand.Entry>();
+        foreach (var obj in objects)
+        {
+            commands.Add(new SetObjectRaftCommand(obj, null, "Remove raft"));
+            foreach (var foot in FeetOf(obj))
+            {
+                var node = foot;
+                var before = (node.BaseShape, node.BaseDiameter, node.BaseHeight, node.BaseConeHeight);
+                entries.Add(new SetSupportParametersCommand.Entry(
+                    () =>
+                    {
+                        node.BaseShape = settings.BaseShape;
+                        node.BaseDiameter = settings.BaseDiameter;
+                        node.BaseHeight = settings.BaseHeight;
+                        node.BaseConeHeight = settings.BaseConeHeight;
+                    },
+                    () => (node.BaseShape, node.BaseDiameter, node.BaseHeight, node.BaseConeHeight) = before));
+            }
+        }
+        if (entries.Count > 0) commands.Add(new SetSupportParametersCommand(Supports, entries, "Remove raft"));
+        var name = objects.Count == 1 ? "Remove raft" : $"Remove raft from {objects.Count} objects";
+        Execute(new CompositeCommand(name, commands));
+        return objects.Count;
+    }
+
+    private readonly Dictionary<Guid, (RaftParameters Parameters, int FeetHash, Clipper2Lib.Paths64 Outline)> _raftOutlines = new();
+
+    /// <summary>
+    /// The raft's top outline under <paramref name="obj"/> in Clipper units (see
+    /// <see cref="RaftBuilder.TopOutline"/>), recomputed when its parameters or feet change;
+    /// null when the object has no raft. Cheap to call from the render and slice loops.
+    /// </summary>
+    public Clipper2Lib.Paths64? RaftTopOutline(SceneObject obj)
+    {
+        if (obj.Raft is not { } parameters) return null;
+        var feet = FeetOf(obj).Select(n => new Vector2(n.Position.X, n.Position.Y)).ToList();
+        var hash = new HashCode();
+        foreach (var foot in feet) hash.Add(foot);
+        var feetHash = hash.ToHashCode();
+        if (_raftOutlines.TryGetValue(obj.Id, out var cached) && cached.Parameters == parameters && cached.FeetHash == feetHash)
+            return cached.Outline;
+        var outline = RaftBuilder.TopOutline(feet, parameters);
+        _raftOutlines[obj.Id] = (parameters, feetHash, outline);
+        return outline;
+    }
+
+    /// <summary>
+    /// Routes the support a T placement at this contact would add, without adding it: the ghost
+    /// the placement mode shows under the cursor (user note 2026-09-08). Null when the model is
+    /// not the support target or no route exists; the same call, applied, is exactly what
+    /// <see cref="AddManualSupport(SceneObject, Vector3, Vector3)"/> places.
+    /// </summary>
+    public SupportGraphEdit? PreviewManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
+        out RoutingFailureReason? failureReason)
+    {
+        failureReason = null;
+        // A click on a model that is not the support target is refused before any routing work:
+        // this is not a routing failure, so it carries no routing reason. The caller turns it
+        // into the status line from SupportTargetPolicy.
+        if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return null;
+        var settings = SettingsFor(obj);
+        var (router, options) = ManualRouting(obj, settings,
+            HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount));
+        var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
+            TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
+            BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth,
+            // A cone is straight (user decision 2026-09-07): no normal lead-in bend.
+            TipNormalLeadIn: 0f);
+        var result = router.Route(new[] { tip }, options, Supports);
+        if (result.UnroutedTips.Count > 0)
+        {
+            failureReason = result.Failures.Single().Reason;
+            return null;
+        }
+        return result.Edit;
+    }
+
+    /// <summary>
+    /// Places every candidate of a guided gesture (SUPPORT-GEOMETRY-SPEC "Guided tip placement")
+    /// as manual supports in one undo step, routed exactly as a T-placed support is. Candidates
+    /// the router refuses are skipped and counted, never silently dropped: the caller reports
+    /// "n of m placed". Returns the number placed.
+    /// </summary>
+    public int PlaceGuidedTips(SceneObject obj, IReadOnlyList<TipCandidate> candidates,
+        string undoName, out int refused)
+        => PlaceGuidedTips(obj, candidates, undoName, out refused, out _);
+
+    /// <summary>
+    /// <see cref="PlaceGuidedTips(SceneObject, IReadOnlyList{TipCandidate}, string, out int)"/>,
+    /// reporting what auto-parenting then did (null when it did nothing or is off).
+    /// </summary>
+    public int PlaceGuidedTips(SceneObject obj, IReadOnlyList<TipCandidate> candidates,
+        string undoName, out int refused, out AutoParentingOutcome? parenting)
+    {
+        refused = 0;
+        parenting = null;
+        if (candidates.Count == 0 || !SupportTargetPolicy.CanSupport(SupportTarget, obj)) return 0;
+        var settings = SettingsFor(obj);
+        var first = candidates[0].Point;
+        // Ignoring existing supports is the user's explicit choice (2026-09-07): by default a
+        // guided gesture routes as if alone, so a second edge beside a supported one is not
+        // refused for colliding with the first.
+        var (router, options) = ManualRouting(obj, settings,
+            HashCode.Combine(first.X, first.Y, first.Z, candidates.Count, Supports.NodeCount),
+            ignoreExisting: settings.GuidedIgnoreExistingSupports);
+        var tips = candidates.Select(c => new RoutingTip(c.Point, c.InwardNormal, c.TipDiameter, obj.Id,
+            TipShape: c.TipShape, ConeLength: c.ConeLength, BallDiameter: c.BallDiameter,
+            PenetrationDepth: c.PenetrationDepth, TipNormalLeadIn: c.TipNormalLeadIn)).ToList();
+        var result = router.Route(tips, options, Supports);
+        refused = result.UnroutedTips.Count;
+        var placed = tips.Count - refused;
+        if (placed > 0)
+        {
+            Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, undoName));
+            parenting = AutoParentAfterPlacement(obj, result.Edit, undoName);
+        }
+        return placed;
+    }
+
+    /// <summary>
+    /// Auto-parenting (SUPPORT-GEOMETRY-SPEC "Auto-parenting", user directive 2026-09-08): the
+    /// tips a placement just added, plus the tips of the target's existing supports within the
+    /// trunk search range of any of them, are parented at once. The parenting runs as its own
+    /// command and is then folded into the placement's undo step, so one gesture is one step.
+    /// Null when the setting is off, there is nothing to parent, or the plan changed nothing.
+    /// </summary>
+    private AutoParentingOutcome? AutoParentAfterPlacement(SceneObject obj, SupportGraphEdit placement, string undoName)
+    {
+        var settings = SupportSettings;
+        var placedTips = placement.AddedNodes.Where(n => n.Type == SupportNodeType.Tip).ToList();
+        if (!settings.AutoParenting || placedTips.Count == 0) return null;
+        var range = settings.ParentingTrunkRange > 0 ? settings.ParentingTrunkRange : settings.ExistingTrunkBranchRange;
+        var placedIds = placedTips.Select(t => t.Id).ToHashSet();
+        var operands = new List<Guid>(placedIds);
+        foreach (var node in Supports.Nodes)
+        {
+            if (node.Type != SupportNodeType.Tip || node.Hidden || placedIds.Contains(node.Id)) continue;
+            if ((node.ContactObjectId ?? node.Origin.ObjectId) != obj.Id) continue;
+            if (placedTips.Any(p => Vector3.Distance(p.Position, node.Position) <= range)) operands.Add(node.Id);
+        }
+        if (operands.Count < 2) return null;
+        if (SupportParenting.Plan(Supports, obj.Id, operands, SettingsFor(obj), MeshObstacles()) is not { } planned) return null;
+        var commands = SupportParenting.Commands(Supports, planned.Plans, undoName);
+        if (commands.Count == 0) return null;
+        Execute(new CompositeCommand(undoName, commands));
+        History.MergeLastTwo(undoName);
+        AutoBraceAfter(obj, ParentedElements(planned.Plans, operands), undoName);
+        var positions = placedTips.Select(t => t.Position).ToList();
+        return new AutoParentingOutcome(positions.Count, TrunksUnder(positions), planned.Outcome.Refused);
+    }
+
+    /// <summary>How many distinct bases stand under the tips at <paramref name="tipPositions"/>.</summary>
+    private int TrunksUnder(IReadOnlyList<Vector3> tipPositions)
+    {
+        var bases = new HashSet<Guid>();
+        foreach (var node in Supports.Nodes)
+        {
+            if (node.Type != SupportNodeType.Tip) continue;
+            if (!tipPositions.Any(p => Vector3.DistanceSquared(p, node.Position) < 1e-6f)) continue;
+            foreach (var id in Supports.Component(node.Id).Nodes)
+                if (Supports.GetNode(id).Type == SupportNodeType.Base) bases.Add(id);
+        }
+        return bases.Count;
+    }
+
+    /// <summary>
+    /// The placement parameters a guided gesture samples with: the manual-support anatomy from
+    /// the current settings, cone-shaped and straight, at the profile's spacing.
+    /// </summary>
+    public TipPlacementParameters GuidedPlacementParameters() => TipPlacementParameters.Default with
+    {
+        TipDiameterMm = SupportSettings.TipDiameter,
+        TipShape = SupportTipShape.Cone,
+        ConeLengthMm = SupportSettings.ConeLength,
+        BallDiameterMm = SupportSettings.BallDiameter,
+        PenetrationDepthMm = SupportSettings.PenetrationDepth,
+        TipNormalLeadInMm = 0f,
+        SpacingMm = SupportSettings.Spacing,
+        MinSpacingMm = SupportSettings.Spacing,
+        ExistingTipClearanceMm = SupportSettings.GuidedExistingClearanceMm,
+    };
+
+    /// <summary>
+    /// The supports a guided gesture should keep clear of: none by default, the document's when
+    /// the user has made guided placement existing-aware.
+    /// </summary>
+    public SupportGraph? GuidedExistingSupports() =>
+        SupportSettings.GuidedIgnoreExistingSupports ? null : Supports;
+
+    /// <summary>
+    /// The tips densify and thin work on: the selected tips of the support target, or every tip
+    /// of the target when nothing is selected (user decision 2026-09-08).
+    /// </summary>
+    public IReadOnlyList<SupportNode> GuidedOperandTips()
+    {
+        if (SupportTarget is not { } target) return [];
+        var tips = Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip && !n.Hidden &&
+            (n.ContactObjectId ?? n.Origin.ObjectId) == target.Id);
+        if (_supportSelection.Count > 0) tips = tips.Where(n => _supportSelection.Contains(n.Id));
+        return tips.ToList();
+    }
+
+    /// <summary>
+    /// Densify (D): inserts <see cref="SupportConfig.GuidedDensifyInsertions"/> tips along the
+    /// surface between each pair of neighbouring operand tips, placed as guided tips in one
+    /// undo step. Returns the number placed; <paramref name="refused"/> counts those the router
+    /// could not route.
+    /// </summary>
+    public int DensifyTips(out int refused) => DensifyTips(out refused, out _);
+
+    /// <summary><see cref="DensifyTips(out int)"/>, reporting what auto-parenting then did.</summary>
+    public int DensifyTips(out int refused, out AutoParentingOutcome? parenting)
+    {
+        refused = 0;
+        parenting = null;
+        if (SupportTarget is not { } target) return 0;
+        var tips = GuidedOperandTips();
+        if (tips.Count < 2) return 0;
+        var mesh = WorldMesh(target);
+        var bvh = MeshAnalysis.For(mesh).Bvh;
+        var operands = tips.Select(t =>
+        {
+            bvh.ClosestPoint(t.Position, out var onMesh, out var face);
+            return (onMesh, face);
+        }).ToList();
+        var samples = TipRuns.Densify(mesh, operands, SupportSettings.GuidedDensifyInsertions);
+        // Never a second tip on an operand: the operands are the existing tips to keep clear of,
+        // whatever the ignore-existing setting says about the rest of the document.
+        var candidates = GuidedTipPlacement.Candidates(mesh, samples, GuidedPlacementParameters(),
+            GuidedExistingSupports(), keepClearOf: operands.Select(o => o.onMesh).ToList());
+        return PlaceGuidedTips(target, candidates, "Densify", out refused, out parenting);
+    }
+
+    /// <summary>
+    /// Thin (Shift+D): keeps one tip in <see cref="SupportConfig.GuidedThinKeepEvery"/> along
+    /// each run of operand tips and removes the rest with their supports, as one undo step.
+    /// Returns the number removed.
+    /// </summary>
+    public int ThinTips()
+    {
+        var tips = GuidedOperandTips();
+        if (tips.Count < 2) return 0;
+        var remove = TipRuns.Thin(tips.Select(t => t.Position).ToList(), SupportSettings.GuidedThinKeepEvery)
+            .Select(i => tips[i].Id).ToList();
+        if (remove.Count == 0) return 0;
+        foreach (var id in remove) _supportSelection.Remove(id);
+        SupportSelectionChanged?.Invoke();
+        DeleteSupportElements(remove, "Thin");
+        return remove.Count;
+    }
+
+    /// <summary>
+    /// Parenting (J): the supports containing the selected elements — every support of the
+    /// target when nothing is selected — are taken down and their tips routed again together
+    /// with trunk sharing on, so fewer trunks stand (SUPPORT-GEOMETRY-SPEC "Parenting"). One
+    /// undo step. Null when there is nothing to parent.
+    /// </summary>
+    public ParentingOutcome? ParentSupports()
+    {
+        if (SupportTarget is not { } target) return null;
+        var tips = _supportSelection.Count > 0
+            ? _supportSelection.SelectMany(id => Supports.TryGetNode(id, out _) || Supports.TryGetSegment(id, out _)
+                    ? Supports.Component(Supports.TryGetNode(id, out _) ? id : Supports.GetSegment(id).NodeA).Nodes
+                    : [])
+                .Distinct()
+                .Where(id => Supports.GetNode(id).Type == SupportNodeType.Tip)
+                .ToList()
+            : GuidedOperandTips().Select(t => t.Id).ToList();
+        tips = tips.Where(id => (Supports.GetNode(id).ContactObjectId ?? Supports.GetNode(id).Origin.ObjectId) == target.Id).ToList();
+        if (tips.Count < 2) return null;
+
+        var planned = SupportParenting.Plan(Supports, target.Id, tips, SettingsFor(target), MeshObstacles());
+        if (planned is not { } result) return null;
+        var (plans, outcome) = result;
+        var commands = SupportParenting.Commands(Supports, plans, "Parent supports");
+        if (commands.Count == 0) return outcome;
+        _supportSelection.Clear();
+        SupportSelectionChanged?.Invoke();
+        Execute(new CompositeCommand("Parent supports", commands));
+        AutoBraceAfter(target, ParentedElements(plans, tips), "Parent supports");
+        return outcome;
+    }
+
+    /// <summary>What a parenting left standing under its operands: the elements it added plus the operand tips it kept.</summary>
+    private List<Guid> ParentedElements(IReadOnlyList<SupportParenting.ParentingPlan> plans, IEnumerable<Guid> operandTips) =>
+        plans.SelectMany(p => p.Edit.AddedNodes.Select(n => n.Id)).Concat(operandTips)
+            .Where(id => Supports.TryGetNode(id, out _)).Distinct().ToList();
+
+    /// <summary>
+    /// Bracing (K): the supports containing the selected elements — every support of the target
+    /// when nothing is selected — get braces to their neighbours (SUPPORT-GEOMETRY-SPEC
+    /// "Bracing"). One undo step. Null when there is nothing to brace; an outcome with zero
+    /// braces when every pair was refused or already braced.
+    /// </summary>
+    public BracingOutcome? BraceSupports(string name = "Brace supports")
+    {
+        if (SupportTarget is not { } target) return null;
+        var planned = SupportBracing.Plan(Supports, target.Id, BracingOperands(target), SupportSettings with { }, MeshObstacles(),
+            chosen: _supportSelection.Count > 0);
+        if (planned is not { } result) return null;
+        if (result.Edit.AddedSegments.Count > 0)
+            Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, name));
+        return result.Outcome;
+    }
+
+    /// <summary>Unbrace (Shift+K): removes every brace touching an operand support. One undo step.</summary>
+    public int UnbraceSupports()
+    {
+        if (SupportTarget is not { } target) return 0;
+        var (nodes, segments) = SupportBracing.BracesOf(Supports, target.Id, BracingOperands(target));
+        if (segments.Count == 0) return 0;
+        var removed = nodes.Concat(segments).ToHashSet();
+        if (_supportSelection.RemoveWhere(removed.Contains) > 0) SupportSelectionChanged?.Invoke();
+        Execute(new RemoveSupportElementsCommand(Supports, nodes, segments, "Unbrace supports"));
+        return segments.Count;
+    }
+
+    /// <summary>
+    /// Select braces (user request 2026-09-09): adds every visible brace of the target to the
+    /// selection, whatever is selected already (user, 2026-09-09: irrespective of the selection
+    /// and in addition to it), so Delete, H and Shift+H can act on braces. Returns how many
+    /// braces are then selected.
+    /// </summary>
+    public int SelectBraces()
+    {
+        if (SupportTarget is not { } target) return 0;
+        var allOfTarget = Supports.Nodes.Where(n => n.Type == SupportNodeType.Base && Supports.OwningObjectId(n.Id) == target.Id)
+            .Select(n => n.Id).ToList();
+        var (_, segments) = SupportBracing.BracesOf(Supports, target.Id, allOfTarget);
+        var selected = 0;
+        foreach (var id in segments)
+        {
+            if (Supports.GetSegment(id).Hidden) continue;
+            _supportSelection.Add(id);
+            selected++;
+        }
+        SupportSelectionChanged?.Invoke();
+        return selected;
+    }
+
+    /// <summary>
+    /// Auto-bracing (SUPPORT-GEOMETRY-SPEC "Bracing"): braces the supports containing
+    /// <paramref name="elementIds"/> and folds the result into the last undo step, so a
+    /// generation or parenting and its bracing are one step. Null when off or nothing was added.
+    /// </summary>
+    private BracingOutcome? AutoBraceAfter(SceneObject target, IReadOnlyList<Guid> elementIds, string undoName)
+    {
+        if (!SupportSettings.AutoBracing || elementIds.Count == 0) return null;
+        var planned = SupportBracing.Plan(Supports, target.Id, elementIds, SupportSettings with { }, MeshObstacles());
+        if (planned is not { } result || result.Edit.AddedSegments.Count == 0) return null;
+        Execute(new ApplySupportGraphEditCommand(Supports, result.Edit, undoName));
+        History.MergeLastTwo(undoName);
+        return result.Outcome;
+    }
+
+    /// <summary>The selected elements, or one element of every support of the target.</summary>
+    private List<Guid> BracingOperands(SceneObject target) => _supportSelection.Count > 0
+        ? _supportSelection.ToList()
+        : Supports.Nodes.Where(n => n.Type == SupportNodeType.Base && Supports.OwningObjectId(n.Id) == target.Id)
+            .Select(n => n.Id).ToList();
+
+    private static Mesh WorldMesh(SceneObject obj)
+    {
+        var world = obj.Transform.ToMatrix();
+        return new Mesh(obj.Mesh.Positions.Select(p => Vector3.Transform(p, world)).ToArray(),
+            (int[])obj.Mesh.Indices.Clone());
+    }
+
+    /// <summary>
+    /// The router and options a manual placement uses, shared by T and the guided tools.
+    /// <paramref name="ignoreExisting"/> routes as if no other support existed, as the
+    /// independent-manual setting does for T.
+    /// </summary>
+    private (TreeSupportRouter Router, TreeRoutingOptions Options) ManualRouting(SceneObject obj,
+        SupportConfig settings, int seed, bool ignoreExisting = false)
+    {
+        var independent = settings.IndependentManualSupports || ignoreExisting;
+        // With the base grid off every support is routed as if alone (user decision
+        // 2026-09-07), so other supports are not obstacles either.
+        ICollisionScene obstacles = independent || !settings.UseBaseGrid
             ? MeshObstacles()
             : new CompositeCollisionScene(MeshObstacles(), SupportObstacles());
         var rules = GrowthRuleSet.FromConfig(settings);
         var router = new TreeSupportRouter(obstacles, rules);
-        var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
-            TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
-            BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth,
-            TipNormalLeadIn: settings.TipNormalLeadInMm);
         // The seed also drives the router's deterministic ids; vary it per placement or two
         // supports in one document would collide on identical Guid sequences.
         var options = new TreeRoutingOptions
@@ -607,34 +1394,17 @@ public sealed class Document
             ExistingTrunkBranchRange = settings.ExistingTrunkBranchRange,
             IgnoreExistingSupports = independent,
             MinMemberSeparationMm = independent ? 0 : settings.MinMemberSeparationMm,
-            MiniSupportDiameter = settings.MiniSupportDiameter,
-            MiniSupportTipDiameter = settings.MiniSupportTipDiameter,
-            MiniTipShape = settings.MiniTipShape,
-            MiniSupportConeLength = settings.MiniSupportConeLength,
-            MiniSupportMaxLength = settings.MiniSupportMaxLength,
-            MiniSupportMaxAngleDegrees = settings.MiniSupportMaxAngleDegrees,
-            MiniSupportMaxFanPerBranchEnd = settings.MiniSupportMaxFanPerBranchEnd,
-            FineFeatureMinisFallBackToRegular = settings.FineFeatureMinisFallBackToRegular,
-            RefusedTipsFallBackToMini = settings.RefusedTipsFallBackToMini,
+            MinBranchAttachHeightMm = settings.MinBranchAttachHeightMm,
             UseBaseGrid = settings.UseBaseGrid,
             BaseGridPitch = settings.BaseGridPitch,
             BaseShape = settings.BaseShape,
             BaseDiameter = settings.BaseDiameter,
             BaseHeight = settings.BaseHeight,
             BaseConeHeight = settings.BaseConeHeight,
-            Seed = HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
+            Seed = seed,
             Origin = SupportOrigin.ManualFor(obj.Id),
         };
-        var result = router.Route(new[] { tip }, options, Supports);
-        if (result.UnroutedTips.Count > 0)
-        {
-            failureReason = result.Failures.Single().Reason;
-            return false;
-        }
-
-        failureReason = null;
-        Execute(new ApplySupportGraphEditCommand(Supports, result.Edit));
-        return true;
+        return (router, options);
     }
 
     private LinearCollisionScene SupportObstacles()
@@ -654,17 +1424,36 @@ public sealed class Document
         var batch = new SupportGenerationBatch(Supports, History, prepared, int.MaxValue);
         batch.CommitNextBatch();
         batch.Complete();
+        AutoBraceAfterGeneration(obj, prepared);
         return prepared.Summary;
     }
 
+    /// <summary>
+    /// Auto-bracing after a completed generation (DESIGN 8.4 stage 3): braces the supports the
+    /// generation placed, inside the generation's undo step. Null when off or nothing was added.
+    /// </summary>
+    public BracingOutcome? AutoBraceAfterGeneration(SceneObject obj, PreparedSupportGeneration prepared) =>
+        AutoBraceAfter(obj, prepared.Nodes.Select(n => n.Id).Where(id => Supports.TryGetNode(id, out _)).ToList(),
+            prepared.UndoName);
+
+    /// <summary>
+    /// Selects every visible support element of the support target — the model being worked on —
+    /// or of the whole scene when there is no target. Select-all in Support mode means "all of
+    /// this model's supports": on a crowded plate, selecting another model's supports as well is
+    /// how a delete goes wrong.
+    /// </summary>
     public void SelectAllSupportElements()
     {
         _supportSelection.Clear();
+        var target = SupportTarget?.Id;
         foreach (var node in Supports.Nodes)
-            if (!node.Hidden) _supportSelection.Add(node.Id);
+            if (!node.Hidden && (target is null || node.Origin.ObjectId == target))
+                _supportSelection.Add(node.Id);
         foreach (var segment in Supports.Segments)
             if (!segment.Hidden && !Supports.GetNode(segment.NodeA).Hidden &&
-                !Supports.GetNode(segment.NodeB).Hidden) _supportSelection.Add(segment.Id);
+                !Supports.GetNode(segment.NodeB).Hidden &&
+                (target is null || Supports.OwningObjectId(segment.Id) == target))
+                _supportSelection.Add(segment.Id);
         SupportSelectionChanged?.Invoke();
     }
 
@@ -672,8 +1461,22 @@ public sealed class Document
     {
         if (!additive) _supportSelection.Clear();
         foreach (var id in ids)
-            if (IsSupportElementVisible(id)) _supportSelection.Add(id);
+            if (IsSupportElementSelectable(id)) _supportSelection.Add(id);
         SupportSelectionChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// What a click, a marquee or a whole-support pick may take: a visible element that belongs
+    /// to the support target. Another model's supports are inert while it is not the target, for
+    /// the same reason its surface is — Support mode works on one model, and reaching a
+    /// neighbour's supports is how a delete goes wrong. With no target chosen, or for an element
+    /// that belongs to no object, everything stays selectable as before.
+    /// </summary>
+    private bool IsSupportElementSelectable(Guid id)
+    {
+        if (!IsSupportElementVisible(id)) return false;
+        if (SupportTarget is not { } target) return true;
+        return Supports.OwningObjectId(id) is not { } owner || owner == target.Id;
     }
 
     private bool IsSupportElementVisible(Guid id)
@@ -690,7 +1493,10 @@ public sealed class Document
         var scene = Scene.Objects.Select(o => new SceneMeshSnapshot(o.Mesh, o.Transform.ToMatrix())).ToList();
         return new SupportGenerationRequest(obj.Id,
             new SceneMeshSnapshot(obj.Mesh, obj.Transform.ToMatrix()), scene, CloneGraph(Supports), seed,
-            SupportSettings with { }, scope);
+            SettingsFor(obj), scope)
+        {
+            Regions = obj.Regions,
+        };
     }
 
     public IslandDetectionRequest CaptureIslandDetection(SceneObject obj) => new(
@@ -716,7 +1522,10 @@ public sealed class Document
     {
         cancellationToken.ThrowIfCancellationRequested();
         var worldMesh = TransformMesh(request.Target);
-        var region = Enumerable.Range(0, worldMesh.TriangleCount).ToHashSet();
+        // No painted region is the same set this line has always produced — every face — so an
+        // unpainted object generates bit-identically to before regions existed. Keep-clean is
+        // subtracted here AND passed to the tip placer, which also enforces its distance rule.
+        var region = request.Regions.EffectiveFaces(worldMesh.TriangleCount);
         var origin = new SupportOrigin(request.ObjectId, 1, request.ObjectId);
         var meshes = new BvhCollisionScene();
         foreach (var snapshot in request.SceneMeshes)
@@ -724,8 +1533,10 @@ public sealed class Document
             cancellationToken.ThrowIfCancellationRequested();
             meshes.AddMesh(snapshot.Mesh, snapshot.Transform);
         }
+        // With the base grid off every support is routed as if alone (user decision
+        // 2026-09-07), so existing supports are not obstacles either.
         var supportObstacles = new LinearCollisionScene();
-        supportObstacles.AddSupportGraph(request.ExistingSupports);
+        if (request.Settings.UseBaseGrid) supportObstacles.AddSupportGraph(request.ExistingSupports);
         var obstacles = new CompositeCollisionScene(meshes, supportObstacles);
         var rules = GrowthRuleSet.FromConfig(request.Settings);
         // Spec-shaped generation: cone tips on trunk/branch trees with disc bases. The capsule
@@ -738,7 +1549,8 @@ public sealed class Document
                 ConeLengthMm = request.Settings.ConeLength,
                 BallDiameterMm = request.Settings.BallDiameter,
                 PenetrationDepthMm = request.Settings.PenetrationDepth,
-                TipNormalLeadInMm = request.Settings.TipNormalLeadInMm,
+                // A cone is straight (user decision 2026-09-07): no normal lead-in bend.
+                TipNormalLeadInMm = 0f,
                 SpacingMm = request.Settings.Spacing,
                 MinSpacingMm = request.Settings.Spacing,
                 IslandSpacingMm = request.Settings.IslandSpacingMm,
@@ -746,13 +1558,15 @@ public sealed class Document
                 MinIslandAreaMm2 = request.Settings.MinIslandAreaMm2,
                 MaxContactFaceAngleDegrees = request.Settings.MaxContactFaceAngleDegrees,
                 RequireContactSeesPlate = request.Settings.RequireContactSeesPlate,
-                EnableMiniSupports = true,
-                MiniIslandMaxAreaMm2 = request.Settings.MiniIslandMaxAreaMm2,
-                MiniSupportTipDiameterMm = request.Settings.MiniSupportTipDiameter,
-                MiniTipShape = request.Settings.MiniTipShape,
-                MiniSupportConeLengthMm = request.Settings.MiniSupportConeLength,
-                MiniSupportClusterDistanceMm = request.Settings.MiniSupportClusterDistance,
-                FineFeatureMaxAreaMm2 = request.Settings.FineFeatureMaxAreaMm2,
+                // Only a PAINTED region switches to the even surface grid; with nothing painted
+                // this stays null and generation is unchanged.
+                RegionGrid = request.Regions.Faces.Count > 0
+                    ? new RegionGridOptions
+                    {
+                        VerticalPitchMm = request.Settings.RegionGridVerticalPitchMm,
+                        HorizontalPitchMm = request.Settings.RegionGridHorizontalPitchMm,
+                    }
+                    : null,
             },
             new TreeRoutingOptions
             {
@@ -764,16 +1578,7 @@ public sealed class Document
                 PreferExistingTrunks = request.Settings.PreferExistingTrunks,
                 ExistingTrunkBranchRange = request.Settings.ExistingTrunkBranchRange,
                 MinMemberSeparationMm = request.Settings.MinMemberSeparationMm,
-                MiniSupportDiameter = request.Settings.MiniSupportDiameter,
-                MiniSupportTipDiameter = request.Settings.MiniSupportTipDiameter,
-                MiniTipShape = request.Settings.MiniTipShape,
-                MiniSupportConeLength = request.Settings.MiniSupportConeLength,
-                MiniSupportMaxLength = request.Settings.MiniSupportMaxLength,
-                MiniSupportMaxAngleDegrees = request.Settings.MiniSupportMaxAngleDegrees,
-                MiniSupportMaxFanPerBranchEnd = request.Settings.MiniSupportMaxFanPerBranchEnd,
-                FineFeatureMinisFallBackToRegular =
-                    request.Settings.FineFeatureMinisFallBackToRegular,
-                RefusedTipsFallBackToMini = request.Settings.RefusedTipsFallBackToMini,
+                MinBranchAttachHeightMm = request.Settings.MinBranchAttachHeightMm,
                 UseBaseGrid = request.Settings.UseBaseGrid,
                 BaseGridPitch = request.Settings.BaseGridPitch,
                 BaseShape = request.Settings.BaseShape,
@@ -783,7 +1588,11 @@ public sealed class Document
                 Seed = request.Seed,
                 Origin = origin,
             }, rules,
-            obstacles, request.ExistingSupports, seed: request.Seed, progress: progress,
+            obstacles, request.ExistingSupports,
+            keepCleanFaces: request.Regions.KeepCleanFaces.Count > 0
+                ? request.Regions.KeepCleanFaces
+                : null,
+            seed: request.Seed, progress: progress,
             scope: request.Scope);
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -923,6 +1732,22 @@ public sealed class Document
             entries.Add(new SetSupportHiddenCommand.Entry(value => segment.Hidden = value, segment.Hidden, true));
         if (entries.Count > 0)
             Execute(new SetSupportHiddenCommand(Supports, entries, "Hide unselected supports"));
+    }
+
+    /// <summary>
+    /// Shows or hides one object, with its supports following it (they are filtered by ownership
+    /// at draw and slice time — see <see cref="SupportOwnerVisibility"/> — so nothing about them
+    /// is stored here and the user's own element-level hiding survives untouched). One undo step.
+    /// </summary>
+    public void SetObjectHidden(SceneObject obj, bool hidden)
+    {
+        ArgumentNullException.ThrowIfNull(obj);
+        var target = hidden ? RenderState.Hidden : RenderState.Normal;
+        if (obj.RenderState == target) return;
+        // A hidden object cannot stay selected: it is not on screen to act on.
+        if (hidden && _selection.Remove(obj)) SelectionChanged?.Invoke();
+        Execute(new SetRenderStateCommand(obj, target,
+            hidden ? $"Hide {obj.Name}" : $"Show {obj.Name}"));
     }
 
     /// <summary>Returns every hidden object to normal. One undo step.</summary>

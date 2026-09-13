@@ -27,7 +27,7 @@ public readonly record struct DetectedIsland(Vector3 Position, float AreaMm2, in
 public static class IslandDetection
 {
     /// <summary>Finds components with no positive-area overlap with the preceding model layer.
-    /// The minimum area applies at birth. The angle parameter is retained for API compatibility;
+    /// Sub-threshold starts are reconsidered later. The angle parameter is retained for API compatibility;
     /// disconnected islands must not be hidden by an overhang allowance.</summary>
     public static IReadOnlyList<DetectedIsland> FindUnsupported(
         Mesh worldMesh, SupportGraph? supports, float layerHeightMm,

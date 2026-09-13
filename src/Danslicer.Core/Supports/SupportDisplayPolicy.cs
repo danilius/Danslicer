@@ -1,4 +1,4 @@
-using Danslicer.Core.Config;
+﻿using Danslicer.Core.Config;
 
 namespace Danslicer.Core.Supports;
 
@@ -8,6 +8,45 @@ namespace Danslicer.Core.Supports;
 /// </summary>
 public static class SupportDisplayPolicy
 {
+    /// <summary>
+    /// The display config as a given workspace should actually see it. In Layout a model and its
+    /// supports are one object being arranged, so supports are ALWAYS drawn in full there: every
+    /// reduced mode (hidden, tips only, contact points, lines, transparent) is a Support-mode
+    /// working aid and is demoted to Full, and the per-part toggles come back on with it.
+    /// Switching to Layout must never leave a supported model looking bare, whatever the user
+    /// last set while working on its supports.
+    ///
+    /// <para>Both render paths and the picking code must be handed the SAME value from this
+    /// method rather than each deciding for itself — that is the whole point of routing it
+    /// through here, and it is why transparency-driven draw ordering and hit testing cannot
+    /// disagree about what the user is looking at.</para>
+    /// </summary>
+    public static SupportDisplayConfig ForWorkspace(SupportDisplayConfig display, bool isLayoutView) =>
+        !isLayoutView
+            ? display
+            : display with
+            {
+                Mode = SupportDisplayMode.Full,
+                ShowHiddenElements = true,
+                ShowTips = true,
+                ShowBranches = true,
+                ShowTrunks = true,
+                ShowBases = true,
+                ShowBracing = true,
+                ShowRafts = true,
+            };
+
+    /// <summary>
+    /// Whether an element's own Hidden flag currently hides it. Layout answers no to everything
+    /// (see <see cref="ForWorkspace"/>); Support mode answers with the flag itself.
+    /// </summary>
+    public static bool IsHiddenBy(bool hidden, SupportDisplayConfig display) =>
+        hidden && !display.ShowHiddenElements;
+
+    /// <summary>Rafts draw with the meshes of the Full and Transparent modes, under their own switch.</summary>
+    public static bool ShowsRafts(SupportDisplayConfig display) =>
+        display.ShowRafts && display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent;
+
     public static bool ShowsMeshes(SupportDisplayConfig display) =>
         display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Tips or
             SupportDisplayMode.Transparent;
@@ -28,11 +67,10 @@ public static class SupportDisplayPolicy
         {
             SupportDisplayMode.ContactPoints => false,
             SupportDisplayMode.Lines => true,
-            SupportDisplayMode.Tips => type is SupportSegmentType.Tip or SupportSegmentType.MiniSupport,
+            SupportDisplayMode.Tips => type is SupportSegmentType.Tip,
             SupportDisplayMode.Full or SupportDisplayMode.Transparent => type switch
             {
                 SupportSegmentType.Tip => display.ShowTips,
-                SupportSegmentType.MiniSupport => display.ShowMiniSupports,
                 SupportSegmentType.Branch => display.ShowBranches,
                 SupportSegmentType.Trunk => display.ShowTrunks,
                 SupportSegmentType.Bracing => display.ShowBracing,
@@ -49,8 +87,10 @@ public static class SupportDisplayPolicy
             SupportNodeType.Base => display.ShowBases &&
                 (display.Mode is SupportDisplayMode.Full or SupportDisplayMode.Transparent),
             SupportNodeType.Junction => graph.SegmentsAt(node.Id)
-                .Any(segment => !segment.Hidden && IsSegmentDisplayed(segment.Type, display) &&
-                    !graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA).Hidden),
+                .Any(segment => !IsHiddenBy(segment.Hidden, display) &&
+                    IsSegmentDisplayed(segment.Type, display) &&
+                    !IsHiddenBy(graph.GetNode(segment.NodeA == node.Id ? segment.NodeB : segment.NodeA)
+                        .Hidden, display)),
             _ => false,
         };
 
@@ -67,7 +107,7 @@ public static class SupportDisplayPolicy
         if (display.Mode is not (SupportDisplayMode.Full or SupportDisplayMode.Transparent))
             return true;
         var incident = graph.SegmentsAt(node.Id);
-        // A bare tip predates the mini taxonomy and retains regular-tip visibility.
+        // A bare tip retains regular-tip visibility.
         return incident.Count == 0 ? display.ShowTips :
             incident.Any(segment => IsSegmentDisplayed(segment.Type, display));
     }
@@ -76,10 +116,11 @@ public static class SupportDisplayPolicy
         SupportDisplayConfig display, ViewportClipRange clip = default)
     {
         if (graph.TryGetNode(id, out var node))
-            return !node.Hidden && IsNodeDisplayed(graph, node, display, clip);
-        if (!graph.TryGetSegment(id, out var segment) || segment.Hidden ||
+            return !IsHiddenBy(node.Hidden, display) && IsNodeDisplayed(graph, node, display, clip);
+        if (!graph.TryGetSegment(id, out var segment) || IsHiddenBy(segment.Hidden, display) ||
             !IsSegmentDisplayed(graph, segment, display, clip)) return false;
-        return !graph.GetNode(segment.NodeA).Hidden && !graph.GetNode(segment.NodeB).Hidden;
+        return !IsHiddenBy(graph.GetNode(segment.NodeA).Hidden, display) &&
+               !IsHiddenBy(graph.GetNode(segment.NodeB).Hidden, display);
     }
 
     public static IEnumerable<Guid> DisplayedElementIds(SupportGraph graph,

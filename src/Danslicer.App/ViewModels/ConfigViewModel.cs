@@ -4,6 +4,7 @@ using Danslicer.App.Configuration;
 using Danslicer.Core;
 using Danslicer.Core.Config;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 
@@ -20,6 +21,9 @@ public sealed class ConfigViewModel : ViewModelBase
 
     private readonly UserConfig _config;
     private readonly Action _saveConfig;
+    private bool _previewing;
+    private bool _serializingPreview;
+    private readonly Document? _document;
     private readonly SupportConfig? _supportOverride;
     private readonly bool _persistChanges;
     private readonly Action? _supportChanged;
@@ -63,7 +67,8 @@ public sealed class ConfigViewModel : ViewModelBase
         Action? supportChanged, Document? document)
     {
         _config = config;
-        _saveConfig = saveConfig;
+        _document = document;
+        _saveConfig = () => PreviewPersistence.Save(saveConfig);
         _supportOverride = supportOverride;
         _persistChanges = persistChanges;
         _supportChanged = supportChanged;
@@ -94,28 +99,13 @@ public sealed class ConfigViewModel : ViewModelBase
     public IReadOnlyList<string> SupportDisplayModes { get; } =
         ["Full", "Contact points", "Lines", "Tips", "Transparent"];
 
-    public IReadOnlyList<AppTheme> AppearanceThemes { get; } = Enum.GetValues<AppTheme>();
-
-    public AppTheme AppearanceTheme
-    {
-        get => _config.AppearanceTheme;
-        set
-        {
-            var normalized = ThemeManager.Normalize(value);
-            if (normalized == _config.AppearanceTheme) return;
-            _config.AppearanceTheme = normalized;
-            _saveConfig();
-            ThemeManager.Apply(normalized);
-            OnPropertyChanged();
-            Saved?.Invoke();
-        }
-    }
-
     public IReadOnlyList<SupportBaseShape> SupportBaseShapes { get; } =
         Enum.GetValues<SupportBaseShape>();
 
-    public IReadOnlyList<SupportTipShape> SupportTipShapes { get; } =
-        Enum.GetValues<SupportTipShape>();
+    public IReadOnlyList<BracingPattern> BracingPatterns { get; } =
+        Enum.GetValues<BracingPattern>();
+
+    public IReadOnlyList<RaftType> RaftTypes { get; } = Enum.GetValues<RaftType>();
 
     public IReadOnlyList<ReinforceSeedSelector> ReinforceSeedSelectors { get; } =
         Enum.GetValues<ReinforceSeedSelector>();
@@ -203,6 +193,11 @@ public sealed class ConfigViewModel : ViewModelBase
         [CallerMemberName] string? property = null)
     {
         apply();
+        if (_previewing)
+        {
+            if (!_serializingPreview) OnPropertyChanged(property);
+            return; // Future-operation settings: never mutate generated supports during a drag.
+        }
         if (_persistChanges)
         {
             if (saveGridToPreset) _config.SaveActiveSupportPresetGrid();
@@ -347,16 +342,129 @@ public sealed class ConfigViewModel : ViewModelBase
 
     // Viewport
 
+    // Display-only saves must not invoke Saved: that event also applies support geometry.
+    public event Action? ViewportSaved;
+    private void UpdateViewport(Action apply, [CallerMemberName] string? property = null)
+    {
+        apply();
+        if (_serializingPreview) return;
+        if (_previewing)
+        {
+            OnPropertyChanged(property);
+            ViewportPreviewed?.Invoke();
+            return;
+        }
+        if (_persistChanges) _saveConfig();
+        OnPropertyChanged(property);
+        ViewportSaved?.Invoke();
+    }
+
+    public event Action? ViewportPreviewed;
+
+    /// <summary>Explicit numeric property selected by the host; existing setter validation is
+    /// retained, but preview bypasses persistence and support-application events.</summary>
+    public NumericPreview BeginNumericPreview(string property)
+    {
+        var member = GetType().GetProperty(property) ?? throw new ArgumentException(property);
+        if (member.PropertyType != typeof(float) && member.PropertyType != typeof(double) && member.PropertyType != typeof(int))
+            throw new ArgumentException("Preview requires a numeric property", nameof(property));
+        var original = member.GetValue(this)!;
+        var latest = original;
+        // New rafts remain an explicit Add action. Existing selected rafts can preview their
+        // parameters; outline+mesh rebuilding measured up to 83 ms for 600 feet, so coalesce.
+        var raftObjects = property.StartsWith("SupportRaft", StringComparison.Ordinal) && _supportOverride is null
+            ? _document?.Selection.Where(o => o.Raft is not null).Select(o => (Object: o, Original: o.Raft)).ToArray()
+            : null;
+        var raftTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        RaftParameters? pendingRaft = null;
+        var raftApplied = false;
+        raftTimer.Tick += (_, _) =>
+        {
+            raftTimer.Stop();
+            if (pendingRaft is null || raftObjects is null) return;
+            foreach (var item in raftObjects) item.Object.Raft = pendingRaft;
+            pendingRaft = null; raftApplied = true;
+            _document!.NotifyTransientChange();
+        };
+        void Set(object value, bool silent = false)
+        {
+            _previewing = true; _serializingPreview = silent;
+            try { member.SetValue(this, value); }
+            finally { _previewing = false; _serializingPreview = false; }
+        }
+        var unregister = PreviewPersistence.Register(() => Set(original, true), () => Set(latest, true));
+        return new NumericPreview(value =>
+        {
+            latest = Convert.ChangeType(value, member.PropertyType);
+            Set(latest);
+            if (raftObjects is { Length: > 0 })
+            {
+                pendingRaft = Supports.ToRaftParameters();
+                if (!raftTimer.IsEnabled) raftTimer.Start();
+            }
+        }, () =>
+        {
+            raftTimer.Stop(); pendingRaft = null;
+            unregister(); Set(original);
+            if (raftApplied && raftObjects is not null)
+            {
+                foreach (var item in raftObjects) item.Object.Raft = item.Original;
+                _document!.NotifyTransientChange();
+            }
+        }, value =>
+        {
+            var final = Convert.ChangeType(value, member.PropertyType);
+            if (!final.Equals(original)) member.SetValue(this, final);
+        });
+    }
+
+    public IReadOnlyList<string> ModelShadowModes { get; } = new[] { "Off", "Working", "Presentation" };
+    public int ModelShadowModeIndex
+    {
+        get => (int)Viewport.ModelShadows;
+        set { if (value is >= 0 and <= 2) UpdateViewport(() => Viewport.ModelShadows = (ModelShadowMode)value); }
+    }
+    public bool AmbientOcclusionEnabled { get => Viewport.AmbientOcclusionEnabled; set => UpdateViewport(() => Viewport.AmbientOcclusionEnabled = value); }
+    public bool PlateReflectionsEnabled { get => Viewport.PlateReflectionsEnabled; set => UpdateViewport(() => Viewport.PlateReflectionsEnabled = value); }
+    public bool PlateShadowsEnabled { get => Viewport.PlateShadowsEnabled; set => UpdateViewport(() => Viewport.PlateShadowsEnabled = value); }
+    public bool CavityEnabled { get => Viewport.CavityEnabled; set => UpdateViewport(() => Viewport.CavityEnabled = value); }
+    public float OutlineWidthPixels { get => Viewport.OutlineWidthPixels; set => UpdateViewport(() => Viewport.OutlineWidthPixels = Math.Clamp(value, 1f, 5f)); }
+    public bool ViewCubeEnabled { get => Viewport.ViewCubeEnabled; set => UpdateViewport(() => Viewport.ViewCubeEnabled = value); }
+    public float WorkingShadowStrength { get => Viewport.WorkingShadowStrength; set => UpdateViewport(() => Viewport.WorkingShadowStrength = Math.Clamp(value, 0f, 0.7f)); }
+    public float PresentationShadowStrength { get => Viewport.PresentationShadowStrength; set => UpdateViewport(() => Viewport.PresentationShadowStrength = Math.Clamp(value, 0f, 0.7f)); }
+    public float WorkingShadowSoftnessMm { get => Viewport.WorkingShadowSoftnessMm; set => UpdateViewport(() => Viewport.WorkingShadowSoftnessMm = Math.Clamp(value, 0f, 4f)); }
+    public float PresentationShadowSoftnessMm { get => Viewport.PresentationShadowSoftnessMm; set => UpdateViewport(() => Viewport.PresentationShadowSoftnessMm = Math.Clamp(value, 0f, 4f)); }
+    public float CavityRidgeStrength { get => Viewport.CavityRidgeStrength; set => UpdateViewport(() => Viewport.CavityRidgeStrength = Math.Clamp(value, 0f, 4f)); }
+    public float CavityValleyStrength { get => Viewport.CavityValleyStrength; set => UpdateViewport(() => Viewport.CavityValleyStrength = Math.Clamp(value, 0f, 4f)); }
+    public float CavityRadiusPixels { get => Viewport.CavityRadiusPixels; set => UpdateViewport(() => Viewport.CavityRadiusPixels = Math.Clamp(value, 0.5f, 8f)); }
+
+
     public float OverhangAngleDegrees
     {
         get => Viewport.OverhangAngleDegrees;
-        set => Update(() => Viewport.OverhangAngleDegrees = Math.Clamp(value, 10f, 89f));
+        set => UpdateViewport(() => Viewport.OverhangAngleDegrees = Math.Clamp(value, 10f, 89f));
+    }
+
+    public float AmbientOcclusionStrength
+    {
+        get => Viewport.AmbientOcclusionStrength;
+        set => UpdateViewport(() => Viewport.AmbientOcclusionStrength = Math.Clamp(value, 0, 0.6f));
+    }
+    public float AmbientOcclusionRadiusMm
+    {
+        get => Viewport.AmbientOcclusionRadiusMm;
+        set => UpdateViewport(() => Viewport.AmbientOcclusionRadiusMm = Math.Clamp(value, 0.1f, 10));
+    }
+    public float PlateReflectionStrength
+    {
+        get => Viewport.PlateReflectionStrength;
+        set => UpdateViewport(() => Viewport.PlateReflectionStrength = Math.Clamp(value, 0, 0.3f));
     }
 
     public float PlateOpacityFromBelow
     {
         get => Viewport.PlateOpacityFromBelow;
-        set => Update(() => Viewport.PlateOpacityFromBelow = Math.Clamp(value, 0f, 1f));
+        set => UpdateViewport(() => Viewport.PlateOpacityFromBelow = Math.Clamp(value, 0f, 1f));
     }
 
     /// <summary>On-screen size of the corner view cube, in DIP pixels. Bounds match
@@ -364,19 +472,31 @@ public sealed class ConfigViewModel : ViewModelBase
     public int ViewCubeSizePixels
     {
         get => Viewport.ViewCubeSizePixels;
-        set => Update(() => Viewport.ViewCubeSizePixels = Math.Clamp(value, 48, 192));
+        set => UpdateViewport(() => Viewport.ViewCubeSizePixels = Math.Clamp(value, 48, 192));
+    }
+
+    public int SupportGizmoSizePixels
+    {
+        get => Viewport.SupportGizmoSizePixels;
+        set => UpdateViewport(() => Viewport.SupportGizmoSizePixels = Math.Clamp(value, 24, 400));
+    }
+
+    public float SupportGizmoLineWidth
+    {
+        get => Viewport.SupportGizmoLineWidth;
+        set => UpdateViewport(() => Viewport.SupportGizmoLineWidth = Math.Clamp(value, 1f, 12f));
     }
 
     public Avalonia.Media.Color OverhangColorA
     {
         get => ToColor(Viewport.OverhangColorA, Avalonia.Media.Color.FromRgb(0xFA, 0xCC, 0x26));
-        set => Update(() => Viewport.OverhangColorA = ToHex(value));
+        set => UpdateViewport(() => Viewport.OverhangColorA = ToHex(value));
     }
 
     public Avalonia.Media.Color OverhangColorB
     {
         get => ToColor(Viewport.OverhangColorB, Avalonia.Media.Color.FromRgb(0xE6, 0x1F, 0x1A));
-        set => Update(() => Viewport.OverhangColorB = ToHex(value));
+        set => UpdateViewport(() => Viewport.OverhangColorB = ToHex(value));
     }
 
     private static Avalonia.Media.Color ToColor(string? hex, Avalonia.Media.Color fallback)
@@ -390,7 +510,7 @@ public sealed class ConfigViewModel : ViewModelBase
     public float OverhangCheckerSizeMm
     {
         get => Viewport.OverhangCheckerSizeMm;
-        set => Update(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
+        set => UpdateViewport(() => Viewport.OverhangCheckerSizeMm = Math.Clamp(value, 0.5f, 20f));
     }
 
     // External tools
@@ -417,6 +537,31 @@ public sealed class ConfigViewModel : ViewModelBase
             : IsUvtoolsExecutablePathValid
                 ? "Executable found."
                 : "File not found.";
+
+    // Appearance
+
+    /// <summary>Theme names for the Preferences selector, in display order.</summary>
+    public IReadOnlyList<string> ThemeNames { get; } = Danslicer.App.Themes.ThemeCatalog.Names;
+
+    public int SelectedThemeIndex
+    {
+        get
+        {
+            var index = ThemeNames.ToList().IndexOf(_config.Theme);
+            return index >= 0 ? index : 0;
+        }
+        set
+        {
+            if (value < 0 || value >= ThemeNames.Count) return;
+            var name = ThemeNames[value];
+            if (string.Equals(_config.Theme, name, StringComparison.OrdinalIgnoreCase)) return;
+            Update(() =>
+            {
+                _config.Theme = name;
+                Danslicer.App.Themes.ThemeCatalog.Apply(name);
+            });
+        }
+    }
 
     public int SupportDisplayModeIndex
     {
@@ -448,12 +593,6 @@ public sealed class ConfigViewModel : ViewModelBase
         set => UpdateSupportDisplay(display => display with { ShowTips = value });
     }
 
-    public bool ShowMiniSupports
-    {
-        get => SupportDisplay.ShowMiniSupports;
-        set => UpdateSupportDisplay(display => display with { ShowMiniSupports = value });
-    }
-
     public bool ShowSupportBranches
     {
         get => SupportDisplay.ShowBranches;
@@ -476,6 +615,62 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => SupportDisplay.ShowBracing;
         set => UpdateSupportDisplay(display => display with { ShowBracing = value });
+    }
+
+    public bool ShowSupportRafts
+    {
+        get => SupportDisplay.ShowRafts;
+        set => UpdateSupportDisplay(display => display with { ShowRafts = value });
+    }
+
+    // Rafts (SUPPORT-GEOMETRY-SPEC "Rafts"): what Add raft snapshots onto the object.
+
+    public RaftType SupportRaftType
+    {
+        get => Supports.RaftType;
+        set => Update(() => Supports.RaftType = Enum.IsDefined(value) ? value : RaftType.Plate);
+    }
+
+    public float SupportRaftThickness
+    {
+        get => Supports.RaftThickness;
+        set => Update(() => Supports.RaftThickness = Clamp(value, 0.05f, 20f, 1f));
+    }
+
+    public float SupportRaftEdgeAngleDegrees
+    {
+        get => Supports.RaftEdgeAngleDegrees;
+        set => Update(() => Supports.RaftEdgeAngleDegrees = Clamp(value, 5f, 90f, 45f));
+    }
+
+    public float SupportRaftDiscDiameter
+    {
+        get => Supports.RaftDiscDiameter;
+        set => Update(() => Supports.RaftDiscDiameter = Clamp(value, 0.1f, 100f, 5f));
+    }
+
+    public float SupportRaftBarWidth
+    {
+        get => Supports.RaftBarWidth;
+        set => Update(() => Supports.RaftBarWidth = Clamp(value, 0.1f, 100f, 4f));
+    }
+
+    public float SupportRaftMaxBarLength
+    {
+        get => Supports.RaftMaxBarLength;
+        set => Update(() => Supports.RaftMaxBarLength = Clamp(value, 0f, 500f, 15f));
+    }
+
+    public float SupportRaftMargin
+    {
+        get => Supports.RaftMargin;
+        set => Update(() => Supports.RaftMargin = Clamp(value, 0f, 100f, 2f));
+    }
+
+    public float SupportRaftBridgingDistance
+    {
+        get => Supports.RaftBridgingDistance;
+        set => Update(() => Supports.RaftBridgingDistance = Clamp(value, 0f, 500f, 8f));
     }
 
     // Supports
@@ -552,6 +747,157 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.IndependentManualSupports = value);
     }
 
+    public bool SupportGuidedIgnoreExistingSupports
+    {
+        get => Supports.GuidedIgnoreExistingSupports;
+        set => Update(() => Supports.GuidedIgnoreExistingSupports = value);
+    }
+
+    public float SupportGuidedExistingClearanceMm
+    {
+        get => Supports.GuidedExistingClearanceMm;
+        set => Update(() => Supports.GuidedExistingClearanceMm = Clamp(value, 0.1f, 100f, 2.5f));
+    }
+
+    public int SupportGuidedDensifyInsertions
+    {
+        get => Supports.GuidedDensifyInsertions;
+        set => Update(() => Supports.GuidedDensifyInsertions = Math.Clamp(value, 1, 10));
+    }
+
+    public int SupportGuidedThinKeepEvery
+    {
+        get => Supports.GuidedThinKeepEvery;
+        set => Update(() => Supports.GuidedThinKeepEvery = Math.Clamp(value, 2, 10));
+    }
+
+    public float SupportParentingMaxBranchLength
+    {
+        get => Supports.ParentingMaxBranchLength;
+        set => Update(() => Supports.ParentingMaxBranchLength = Clamp(value, 0f, 1000f, 0f));
+    }
+
+    public float SupportParentingMaxBranchAngle
+    {
+        get => Supports.ParentingMaxBranchAngle;
+        set => Update(() => Supports.ParentingMaxBranchAngle = Clamp(value, 0f, 89f, 0f));
+    }
+
+    public float SupportParentingTrunkRange
+    {
+        get => Supports.ParentingTrunkRange;
+        set => Update(() => Supports.ParentingTrunkRange = Clamp(value, 0f, 1000f, 0f));
+    }
+
+    public int SupportParentingMinTipsPerTrunk
+    {
+        get => Supports.ParentingMinTipsPerTrunk;
+        set => Update(() => Supports.ParentingMinTipsPerTrunk = Math.Clamp(value, 1, 20));
+    }
+
+    public int SupportParentingRounds
+    {
+        get => Supports.ParentingRounds;
+        set => Update(() => Supports.ParentingRounds = Math.Clamp(value, 1, 10));
+    }
+
+    public float SupportParentingMaxConeBend
+    {
+        get => Supports.ParentingMaxConeBend;
+        set => Update(() => Supports.ParentingMaxConeBend = Clamp(value, 0f, 180f, 0f));
+    }
+
+    public int SupportParentingMaxBranchesPerTrunk
+    {
+        get => Supports.ParentingMaxBranchesPerTrunk;
+        set => Update(() => Supports.ParentingMaxBranchesPerTrunk = Math.Clamp(value, 0, 200));
+    }
+
+    public bool SupportParentingHierarchical
+    {
+        get => Supports.ParentingHierarchical;
+        set => Update(() => Supports.ParentingHierarchical = value);
+    }
+
+    public bool SupportAutoParenting
+    {
+        get => Supports.AutoParenting;
+        set => Update(() => Supports.AutoParenting = value);
+    }
+
+    // Bracing (K): SUPPORT-GEOMETRY-SPEC "Bracing".
+    public bool SupportAutoBracing
+    {
+        get => Supports.AutoBracing;
+        set => Update(() => Supports.AutoBracing = value);
+    }
+
+    public BracingPattern SupportBracingPattern
+    {
+        get => Supports.BracingPattern;
+        set => Update(() => Supports.BracingPattern = Enum.IsDefined(value) ? value : BracingPattern.Zigzag);
+    }
+
+    public float SupportBracingDiameter
+    {
+        get => Supports.BracingDiameter;
+        set => Update(() => Supports.BracingDiameter = Clamp(value, 0f, 20f, 0f));
+    }
+
+    public float SupportBracingAngleDegrees
+    {
+        get => Supports.BracingAngleDegrees;
+        set => Update(() => Supports.BracingAngleDegrees = Clamp(value, 1f, 89f, 45f));
+    }
+
+    public float SupportBracingSpacingMm
+    {
+        get => Supports.BracingSpacingMm;
+        set => Update(() => Supports.BracingSpacingMm = Clamp(value, 0f, 500f, 0f));
+    }
+
+    public float SupportBracingLowestHeightMm
+    {
+        get => Supports.BracingLowestHeightMm;
+        set => Update(() => Supports.BracingLowestHeightMm = Clamp(value, 0f, 500f, 0f));
+    }
+
+    public float SupportBracingMinSupportHeightMm
+    {
+        get => Supports.BracingMinSupportHeightMm;
+        set => Update(() => Supports.BracingMinSupportHeightMm = Clamp(value, 0f, 500f, 20f));
+    }
+
+    public float SupportBracingNeighbourDistanceMm
+    {
+        get => Supports.BracingNeighbourDistanceMm;
+        set => Update(() => Supports.BracingNeighbourDistanceMm = Clamp(value, 0.5f, 500f, 10f));
+    }
+
+    public int SupportBracingMaxPartners
+    {
+        get => Supports.BracingMaxPartners;
+        set => Update(() => Supports.BracingMaxPartners = Math.Clamp(value, 1, 20));
+    }
+
+    public float SupportBracingMaxStemLeanDegrees
+    {
+        get => Supports.BracingMaxStemLeanDegrees;
+        set => Update(() => Supports.BracingMaxStemLeanDegrees = Clamp(value, 0f, 89f, 30f));
+    }
+
+    public float SupportBracingClusterGapMm
+    {
+        get => Supports.BracingClusterGapMm;
+        set => Update(() => Supports.BracingClusterGapMm = Clamp(value, 0f, 100f, 1f));
+    }
+
+    public float SupportMinBranchAttachHeightMm
+    {
+        get => Supports.MinBranchAttachHeightMm;
+        set => Update(() => Supports.MinBranchAttachHeightMm = Clamp(value, 0f, 500f, 10f));
+    }
+
     public float SupportExistingTrunkBranchRange
     {
         get => Supports.ExistingTrunkBranchRange;
@@ -562,81 +908,6 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.MinMemberSeparationMm;
         set => Update(() => Supports.MinMemberSeparationMm = Clamp(value, 0f, 100f, 0f));
-    }
-
-    public float SupportMiniSupportDiameter
-    {
-        get => Supports.MiniSupportDiameter;
-        set => Update(() => Supports.MiniSupportDiameter = Clamp(value, 0.01f, 100f, 0.6f));
-    }
-
-    public float SupportMiniSupportTipDiameter
-    {
-        get => Supports.MiniSupportTipDiameter;
-        set => Update(() => Supports.MiniSupportTipDiameter = Clamp(value, 0.01f, 100f, 0.25f));
-    }
-
-    public SupportTipShape SupportMiniTipShape
-    {
-        get => Supports.MiniTipShape;
-        set => Update(() => Supports.MiniTipShape = Enum.IsDefined(value)
-            ? value : SupportTipShape.Cone);
-    }
-
-    public float SupportMiniSupportConeLength
-    {
-        get => Supports.MiniSupportConeLength;
-        set => Update(() => Supports.MiniSupportConeLength = Clamp(value, 0.01f, 100f, 1f));
-    }
-
-    public float SupportMiniSupportMaxLength
-    {
-        get => Supports.MiniSupportMaxLength;
-        set => Update(() => Supports.MiniSupportMaxLength = Clamp(value, 0.01f, 1000f, 5f));
-    }
-
-    public float SupportMiniSupportMaxAngleDegrees
-    {
-        get => Supports.MiniSupportMaxAngleDegrees;
-        set => Update(() => Supports.MiniSupportMaxAngleDegrees = Clamp(value, 1f, 89f, 75f));
-    }
-
-    public int SupportMiniSupportMaxFanPerBranchEnd
-    {
-        get => Supports.MiniSupportMaxFanPerBranchEnd;
-        set => Update(() => Supports.MiniSupportMaxFanPerBranchEnd = Math.Clamp(value, 1, 100));
-    }
-
-    public float SupportMiniSupportClusterDistance
-    {
-        get => Supports.MiniSupportClusterDistance;
-        set => Update(() => Supports.MiniSupportClusterDistance = Clamp(value, 0.01f, 1000f, 1.25f));
-    }
-
-    public float SupportFineFeatureMaxAreaMm2
-    {
-        get => Supports.FineFeatureMaxAreaMm2;
-        set => Update(() => Supports.FineFeatureMaxAreaMm2 =
-            Clamp(value, 0f, 1_000_000f, 1f));
-    }
-
-    public bool SupportFineFeatureMinisFallBackToRegular
-    {
-        get => Supports.FineFeatureMinisFallBackToRegular;
-        set => Update(() => Supports.FineFeatureMinisFallBackToRegular = value);
-    }
-
-    public bool SupportRefusedTipsFallBackToMini
-    {
-        get => Supports.RefusedTipsFallBackToMini;
-        set => Update(() => Supports.RefusedTipsFallBackToMini = value);
-    }
-
-    public float SupportMiniIslandMaxAreaMm2
-    {
-        get => Supports.MiniIslandMaxAreaMm2;
-        set => Update(() => Supports.MiniIslandMaxAreaMm2 =
-            Clamp(value, 0f, 1_000_000f, 0.1f));
     }
 
     public float SupportBaseGridPitch
@@ -726,6 +997,21 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.IslandSpacingMm;
         set => Update(() => Supports.IslandSpacingMm = Clamp(value, 0.01f, 1000f, 0.5f));
+    }
+
+    /// <summary>Row pitch of the painted-region grid, in Z — the axis that matters most on a
+    /// painted wall, so it is its own setting rather than sharing <see cref="SupportSpacing"/>.</summary>
+    public float SupportRegionGridVerticalPitchMm
+    {
+        get => Supports.RegionGridVerticalPitchMm;
+        set => Update(() => Supports.RegionGridVerticalPitchMm = Clamp(value, 0.01f, 1000f, 2.5f));
+    }
+
+    /// <summary>Spacing along each painted-region row, measured along the surface.</summary>
+    public float SupportRegionGridHorizontalPitchMm
+    {
+        get => Supports.RegionGridHorizontalPitchMm;
+        set => Update(() => Supports.RegionGridHorizontalPitchMm = Clamp(value, 0.01f, 1000f, 2.5f));
     }
 
     public float SupportOverhangAngleDegrees

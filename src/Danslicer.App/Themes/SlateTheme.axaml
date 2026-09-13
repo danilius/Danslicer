@@ -1,0 +1,125 @@
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Slate: a cheap third option once the token plumbing existed — same flat, Blender-leaning
+         structure as Carbide but a cooler blue-grey neutral and a desaturated blue accent instead
+         of warm orange, for a calmer, more "CAD tool" feel. Same key set as the other themes. -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://Danslicer.App/Themes/IconSet.axaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- App tokens (every theme defines exactly this key set; see ThemeTokenParityTests). -->
+    <Color x:Key="AppSurfaceColor">#1A1D21</Color>
+    <SolidColorBrush x:Key="AppSurface" Color="{StaticResource AppSurfaceColor}" />
+    <SolidColorBrush x:Key="AppSurfaceAlt" Color="#20242A" />
+    <SolidColorBrush x:Key="AppPanel" Color="#262B32" />
+    <SolidColorBrush x:Key="AppHeader" Color="#1C2126" />
+    <SolidColorBrush x:Key="AppBorder" Color="#0F1114" />
+    <SolidColorBrush x:Key="AppTextPrimary" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="AppTextMuted" Color="#AEB8C2" />
+    <SolidColorBrush x:Key="AppTextFaint" Color="#7C8791" />
+    <Color x:Key="AppAccentColor">#5B9BD5</Color>
+    <SolidColorBrush x:Key="AppAccent" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="AppPopupBackground" Color="#F0161A1F" />
+    <!-- Pop-outs float over the viewport, so they need an edge that reads against a
+         light model as well as a dark one. Pure black is the only colour that does. -->
+    <SolidColorBrush x:Key="AppPopupBorder" Color="#000000" />
+
+    <!-- FluentTheme overrides. Application.Resources is checked ahead of Application.Styles
+         (where FluentTheme lives), so plain keys here win over the theme's own Dark-variant
+         resources without needing ThemeDictionaries — see PLAN.md. App is Dark-only. -->
+
+    <Color x:Key="SystemAccentColor">#5B9BD5</Color>
+    <Color x:Key="SystemAccentColorLight1">#7FB2E0</Color>
+    <Color x:Key="SystemAccentColorLight2">#A3C9EA</Color>
+    <Color x:Key="SystemAccentColorLight3">#C7E0F4</Color>
+    <Color x:Key="SystemAccentColorDark1">#4A82B8</Color>
+    <Color x:Key="SystemAccentColorDark2">#3A699B</Color>
+    <Color x:Key="SystemAccentColorDark3">#2A507E</Color>
+
+    <SolidColorBrush x:Key="SystemRegionBrush" Color="#1A1D21" />
+    <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="#262B32" />
+    <SolidColorBrush x:Key="SystemControlBackgroundBaseLowBrush" Color="#323942" />
+    <SolidColorBrush x:Key="SystemControlBackgroundBaseMediumLowBrush" Color="#1C2126" />
+    <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumBrush" Color="#262B32" />
+    <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="#AEB8C2" />
+    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumLowBrush" Color="#7C8791" />
+    <SolidColorBrush x:Key="SystemControlHighlightBaseHighBrush" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="SystemControlDisabledBaseMediumLowBrush" Color="#525A63" />
+    <SolidColorBrush x:Key="SystemControlPageBackgroundAltHighBrush" Color="#1A1D21" />
+
+    <SolidColorBrush x:Key="ButtonBackground" Color="#323942" />
+    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#3D4650" />
+    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#1C2126" />
+    <SolidColorBrush x:Key="ButtonForeground" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#0F1114" />
+
+    <SolidColorBrush x:Key="ToggleButtonBackground" Color="#323942" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#3D4650" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#7FB2E0" />
+    <SolidColorBrush x:Key="ToggleButtonForeground" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#1A1D21" />
+    <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="#0F1114" />
+
+    <SolidColorBrush x:Key="ComboBoxBackground" Color="#20242A" />
+    <SolidColorBrush x:Key="ComboBoxForeground" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#0F1114" />
+    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#262B32" />
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#1A1D21" />
+    <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="#323942" />
+
+    <SolidColorBrush x:Key="CheckBoxBackgroundUnchecked" Color="#20242A" />
+    <SolidColorBrush x:Key="CheckBoxBorderBrushUnchecked" Color="#5C6670" />
+    <!-- The ACCENT belongs to the tick box (CheckBoxCheckBackgroundFill*), not to the
+         control, whose background covers the label too. Painting it accent when checked
+         put a coloured slab behind every ticked option. Same background either way. -->
+    <SolidColorBrush x:Key="CheckBoxBackgroundChecked" Color="#20242A" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundCheckedPointerOver" Color="#20242A" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundCheckedPressed" Color="#20242A" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundIndeterminate" Color="#20242A" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundIndeterminatePointerOver" Color="#20242A" />
+    <SolidColorBrush x:Key="CheckBoxBackgroundIndeterminatePressed" Color="#20242A" />
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#1A1D21" />
+    <SolidColorBrush x:Key="CheckBoxForegroundUnchecked" Color="#E4E8EC" />
+    <!-- A ticked box is shown by the tick, not by recolouring its label: label colour
+         is for state the label itself carries (disabled), and using it for checked made
+         every enabled option shout. Same text colour checked or not. -->
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPointerOver" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPressed" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundChecked" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPointerOver" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundCheckedPressed" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminate" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePointerOver" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePressed" Color="#E4E8EC" />
+
+    <SolidColorBrush x:Key="TextControlBackground" Color="#20242A" />
+    <SolidColorBrush x:Key="TextControlForeground" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="TextControlBorderBrush" Color="#0F1114" />
+    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#7C8791" />
+
+    <SolidColorBrush x:Key="ScrollBarBackground" Color="Transparent" />
+    <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver" Color="#7C8791" />
+
+    <SolidColorBrush x:Key="SliderTrackFill" Color="#323942" />
+    <SolidColorBrush x:Key="SliderTrackValueFill" Color="{StaticResource AppAccentColor}" />
+    <SolidColorBrush x:Key="SliderThumbBackground" Color="{StaticResource AppAccentColor}" />
+
+    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#262B32" />
+    <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#323942" />
+
+    <SolidColorBrush x:Key="TabItemHeaderBackgroundSelected" Color="#262B32" />
+    <SolidColorBrush x:Key="TabItemHeaderForegroundSelected" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="TabItemHeaderForegroundUnselected" Color="#7C8791" />
+    <SolidColorBrush x:Key="TabItemHeaderSelectedPipeFill" Color="{StaticResource AppAccentColor}" />
+
+    <SolidColorBrush x:Key="ToolTipBackground" Color="#262B32" />
+    <SolidColorBrush x:Key="ToolTipForeground" Color="#E4E8EC" />
+    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#0F1114" />
+</ResourceDictionary>

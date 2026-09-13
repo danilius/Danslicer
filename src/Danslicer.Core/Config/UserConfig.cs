@@ -1,8 +1,9 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Danslicer.Core.Printers;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core.Supports.Routing;
 
@@ -51,6 +52,9 @@ public enum ClipCapStyle
     Painted,
 }
 
+/// <summary>Model and support cast/self-shadow presets.</summary>
+public enum ModelShadowMode { Off, Working, Presentation }
+
 /// <summary>Viewport display tuning.</summary>
 public sealed class ViewportConfig
 {
@@ -68,6 +72,20 @@ public sealed class ViewportConfig
     /// <summary>Screen-space ridge/valley shading (deferred path only).</summary>
     public bool CavityEnabled { get; set; } = true;
 
+    /// <summary>Soft directional model/support shadows, both render paths.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ModelShadowMode ModelShadows { get; set; } = ModelShadowMode.Working;
+    public float WorkingShadowStrength { get; set; } = 0.22f;
+    public float PresentationShadowStrength { get; set; } = 0.5f;
+    public float WorkingShadowSoftnessMm { get; set; } = 0.6f;
+    public float PresentationShadowSoftnessMm { get; set; } = 1.2f;
+    /// <summary>Local screen-space proximity shading on opaque geometry, deferred only.</summary>
+    public bool AmbientOcclusionEnabled { get; set; } = true;
+    public float AmbientOcclusionStrength { get; set; } = 0.35f;
+    public float AmbientOcclusionRadiusMm { get; set; } = 2f;
+    public bool PlateReflectionsEnabled { get; set; } = true;
+    public float PlateReflectionStrength { get; set; } = 0.12f;
+
     /// <summary>Brightening applied to ridges, 0 disables.</summary>
     public float CavityRidgeStrength { get; set; } = 0.35f;
 
@@ -82,6 +100,7 @@ public sealed class ViewportConfig
 
     /// <summary>Outline blend strength, 0 to 1.</summary>
     public float OutlineStrength { get; set; } = 0.75f;
+    public float OutlineWidthPixels { get; set; } = 1f;
 
     /// <summary>Anti-aliasing on the final deferred image.</summary>
     public bool FxaaEnabled { get; set; } = true;
@@ -99,19 +118,32 @@ public sealed class ViewportConfig
     /// (see <see cref="ClipCapPolicy"/>) rather than leaving the model uncapped.
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public ClipCapStyle CapStyle { get; set; } = ClipCapStyle.Sliced;
+    public ClipCapStyle CapStyle { get; set; } = ClipCapStyle.Painted;
 
     /// <summary>The corner view cube (design 6.2).</summary>
     public bool ViewCubeEnabled { get; set; } = true;
 
+    /// <summary>Each object's shadow on the build plate (user, 2026-09-09); both render paths.</summary>
+    public bool PlateShadowsEnabled { get; set; } = true;
+
+    /// <summary>Arrow length of the support edit-mode gizmos, pixels (user, 2026-09-09: three times the first cut).</summary>
+    public int SupportGizmoSizePixels { get; set; } = 144;
+
+    /// <summary>Stroke width of the support edit-mode gizmos, pixels.</summary>
+    public float SupportGizmoLineWidth { get; set; } = 3f;
+
     /// <summary>
     /// On-screen size of the view cube, in DIP pixels before DPI scaling. Bounds mirror
-    /// <c>ViewCube.MinSizePixels</c>/<c>MaxSizePixels</c> in Danslicer.Render, which Core cannot
+    /// <c>ViewCube.MinSizePixels</c>/<c>MaxSizePixels</c> in Danslicer.Render, and this default
+    /// mirrors its <c>DefaultSizePixels</c> (120), which Core cannot
     /// reference directly — keep the two in sync if either changes.
     /// </summary>
-    public int ViewCubeSizePixels { get; set; } = 96;
+    public int ViewCubeSizePixels { get; set; } = 120;
 
-    /// <summary>Build-plate opacity when the camera is below it: 0 invisible, 1 fully opaque.</summary>
+    /// <summary>
+    /// Legacy JSON name retained: perimeter visibility below, 0 hidden to 1 normal border.
+    /// The surface, grid and reflections always fade completely below (task 04).
+    /// </summary>
     public float PlateOpacityFromBelow { get; set; } = 0.3f;
 
     /// <summary>First overhang checker colour, "#RRGGBB".</summary>
@@ -133,12 +165,24 @@ public sealed class ViewportConfig
     {
         if (!Enum.IsDefined(RenderPath)) RenderPath = RenderPathMode.Deferred;
         if (!Enum.IsDefined(Shading)) Shading = ViewportShadingMode.Studio;
-        if (!Enum.IsDefined(CapStyle)) CapStyle = ClipCapStyle.Sliced;
+        if (!Enum.IsDefined(CapStyle)) CapStyle = ClipCapStyle.Painted;
         CavityRidgeStrength = Clamp(CavityRidgeStrength, 0f, 4f, 0.35f);
         CavityValleyStrength = Clamp(CavityValleyStrength, 0f, 4f, 0.7f);
+        if (!Enum.IsDefined(ModelShadows)) ModelShadows = ModelShadowMode.Working;
+        WorkingShadowStrength = Clamp(WorkingShadowStrength, 0, 0.7f, 0.22f);
+        PresentationShadowStrength = Clamp(PresentationShadowStrength, 0, 0.7f, 0.5f);
+        WorkingShadowSoftnessMm = Clamp(WorkingShadowSoftnessMm, 0, 4, 0.6f);
+        PresentationShadowSoftnessMm = Clamp(PresentationShadowSoftnessMm, 0, 4, 1.2f);
+        AmbientOcclusionStrength = Clamp(AmbientOcclusionStrength, 0f, 0.6f, 0.35f);
+        AmbientOcclusionRadiusMm = Clamp(AmbientOcclusionRadiusMm, 0.1f, 10f, 2f);
+        PlateReflectionStrength = Clamp(PlateReflectionStrength, 0f, 0.3f, 0.12f);
+        PlateOpacityFromBelow = Clamp(PlateOpacityFromBelow, 0f, 1f, 0.3f);
         CavityRadiusPixels = Clamp(CavityRadiusPixels, 0.5f, 8f, 1.5f);
         OutlineStrength = Clamp(OutlineStrength, 0f, 1f, 0.75f);
+        OutlineWidthPixels = Clamp(OutlineWidthPixels, 1f, 5f, 1f);
         ViewCubeSizePixels = Math.Clamp(ViewCubeSizePixels, 48, 192);
+        SupportGizmoSizePixels = Math.Clamp(SupportGizmoSizePixels, 24, 400);
+        SupportGizmoLineWidth = Clamp(SupportGizmoLineWidth, 1f, 12f, 3f);
     }
 
     private static float Clamp(float value, float min, float max, float fallback) =>
@@ -164,11 +208,22 @@ public sealed record SupportDisplayConfig
     public SupportDisplayMode Mode { get; init; } = SupportDisplayMode.Full;
     public bool ShowContactPointsInTransparent { get; init; } = true;
     public bool ShowTips { get; init; } = true;
-    public bool ShowMiniSupports { get; init; } = true;
     public bool ShowBranches { get; init; } = true;
     public bool ShowTrunks { get; init; } = true;
     public bool ShowBases { get; init; } = true;
     public bool ShowBracing { get; init; } = true;
+    /// <summary>Rafts under rafted objects (spec "Rafts"); a raft replaces the bases, so it sits beside Show bases.</summary>
+    public bool ShowRafts { get; init; } = true;
+
+    /// <summary>
+    /// Draw elements the user hid individually (Support mode's H) as if they were visible. Not a
+    /// setting and never persisted: <see cref="Danslicer.Core.Supports.SupportDisplayPolicy.ForWorkspace"/>
+    /// turns it on for Layout, where a model and its supports are one object being arranged and
+    /// a Support-mode working aid must not leave the arrangement looking wrong. The graph's own
+    /// Hidden flags are untouched, so returning to Support mode restores exactly what was hidden.
+    /// </summary>
+    [JsonIgnore]
+    public bool ShowHiddenElements { get; init; }
 
     internal SupportDisplayConfig Normalize() => Enum.IsDefined(Mode)
         ? this
@@ -188,6 +243,15 @@ public sealed class PlacementConfig
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public PlacementMode Mode { get; set; } = PlacementMode.AutoDrop;
     public float HeightMm { get; set; }
+}
+
+/// <summary>How the braces between one pair of trunks climb (SUPPORT-GEOMETRY-SPEC "Bracing").</summary>
+public enum BracingPattern
+{
+    /// <summary>Each brace leaves the trunk the previous one arrived at, so the pair reads as a zigzag.</summary>
+    Zigzag = 0,
+    /// <summary>Every brace leaves the same trunk and leans the same way.</summary>
+    Diagonal = 1,
 }
 
 /// <summary>Basic support generation geometry and placement settings, in millimetres/degrees.</summary>
@@ -211,26 +275,94 @@ public sealed record SupportConfig
     /// existing supports. Automatic generation is unaffected.
     /// </summary>
     public bool IndependentManualSupports { get; set; }
+    /// <summary>
+    /// Guided placement (line, polygon, edge) ignores the supports already in the document: it
+    /// neither skips a tip near an existing one nor routes around existing members (user
+    /// decision 2026-09-07: a second edge next to a supported one placed two tips). Off makes
+    /// guided placement existing-aware, keeping <see cref="GuidedExistingClearanceMm"/> from
+    /// existing tips and routing around existing supports.
+    /// </summary>
+    public bool GuidedIgnoreExistingSupports { get; set; } = true;
+    /// <summary>Existing-aware guided placement: no guided tip lands closer than this to an existing tip.</summary>
+    public float GuidedExistingClearanceMm { get; set; } = 2.5f;
+    /// <summary>Densify (D): tips inserted between each pair of neighbouring selected tips.</summary>
+    public int GuidedDensifyInsertions { get; set; } = 1;
+    /// <summary>Thin (Shift+D): keep one tip in this many along each run of selected tips.</summary>
+    public int GuidedThinKeepEvery { get; set; } = 2;
+
+    // Parenting (J): SUPPORT-GEOMETRY-SPEC "Parenting". Zero means "use the Members value".
+    /// <summary>How far a tip may reach to join a trunk when parented; 0 = <see cref="MaxBranchLength"/>.</summary>
+    public float ParentingMaxBranchLength { get; set; }
+    /// <summary>Steepest branch allowed when parented; 0 = <see cref="MemberAngleDegrees"/>.</summary>
+    public float ParentingMaxBranchAngle { get; set; }
+    /// <summary>How far around a tip the router looks for a trunk to join; 0 = <see cref="ExistingTrunkBranchRange"/>.</summary>
+    public float ParentingTrunkRange { get; set; }
+    /// <summary>A trunk left carrying fewer tips than this is re-routed once more with double range.</summary>
+    public int ParentingMinTipsPerTrunk { get; set; } = 1;
+    /// <summary>Re-route rounds with different seeds; the round with the fewest trunks wins.</summary>
+    public int ParentingRounds { get; set; } = 3;
+    /// <summary>
+    /// How far the member leaving a cone may bend from the cone's axis when parented, degrees;
+    /// 0 = <see cref="MemberAngleDegrees"/>. A cone on a leaning wall points outward, so a join
+    /// sideways along the edge needs more than the member angle (user screen test 2026-09-08).
+    /// </summary>
+    public float ParentingMaxConeBend { get; set; }
+    /// <summary>Branches one trunk may carry when parented; 0 = the growth rule's default (6).</summary>
+    public int ParentingMaxBranchesPerTrunk { get; set; }
+    /// <summary>
+    /// Parenting builds a hierarchical tree — tips pair into junctions, junctions pair again,
+    /// one trunk carries the lot (user direction 2026-09-08 from a reference image). Off, it
+    /// joins each tip straight onto a trunk with the tree router instead.
+    /// </summary>
+    public bool ParentingHierarchical { get; set; } = true;
+    /// <summary>
+    /// Auto-parenting (user directive 2026-09-08): after any placement — T, a guided commit,
+    /// densify — the new tips and the tips of existing supports within the trunk search range
+    /// of a new tip are parented at once, as part of the placement's undo step. Off, supports
+    /// stay single until J.
+    /// </summary>
+    public bool AutoParenting { get; set; } = true;
+    // Bracing (K): SUPPORT-GEOMETRY-SPEC "Bracing" (user-approved 2026-09-09). Zero means "use
+    // the Members value" where one exists.
+    /// <summary>Brace after generation and after every parenting, inside that command's undo step.</summary>
+    public bool AutoBracing { get; set; } = true;
+    /// <summary>How the braces of one pair of trunks climb: alternating sides, or all one way.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public BracingPattern BracingPattern { get; set; } = BracingPattern.Zigzag;
+    /// <summary>Member diameter of every brace; 0 = <see cref="BranchDiameter"/>.</summary>
+    public float BracingDiameter { get; set; }
+    /// <summary>The most a brace may lean from vertical, degrees; every rung is laid at exactly this lean.</summary>
+    public float BracingAngleDegrees { get; set; } = 45f;
+    /// <summary>Vertical pitch between the braces of one pair of trunks; 0 = continuous, each brace starts where the last ended.</summary>
+    public float BracingSpacingMm { get; set; }
+    /// <summary>No brace foot below this height above the plate; 0 = <see cref="MinBranchAttachHeightMm"/>.</summary>
+    public float BracingLowestHeightMm { get; set; }
+    /// <summary>Only trunks rising at least this far above the plate are braced.</summary>
+    public float BracingMinSupportHeightMm { get; set; } = 20f;
+    /// <summary>Largest horizontal gap between two trunk axes that a brace may span.</summary>
+    public float BracingNeighbourDistanceMm { get; set; } = 10f;
+    /// <summary>How many other trunks one trunk may be braced to.</summary>
+    public int BracingMaxPartners { get; set; } = 3;
+    /// <summary>
+    /// A branch continuing a trunk upward within this lean from vertical counts as part of the
+    /// trunk for bracing (user drawing 2026-09-09: braces climb the near-vertical members
+    /// parenting leaves above a short trunk).
+    /// </summary>
+    public float BracingMaxStemLeanDegrees { get; set; } = 30f;
+    /// <summary>
+    /// Stems whose trunk surfaces are closer than this are one bundle for bracing: no braces
+    /// inside it, and the row ties to its outer member (user decision 2026-09-09, from a cluster
+    /// of five trunks). A gap between surfaces, so a field at the tip spacing is not a cluster.
+    /// </summary>
+    public float BracingClusterGapMm { get; set; } = 1f;
     /// <summary>Minimum gap between non-incident member surfaces; zero disables the constraint.</summary>
     public float MinMemberSeparationMm { get; set; }
-    public float MiniSupportDiameter { get; set; } = 0.6f;
-    public float MiniSupportTipDiameter { get; set; } = 0.25f;
-    [JsonConverter(typeof(SupportTipShapeJsonConverter))]
-    public SupportTipShape MiniTipShape { get; set; } = SupportTipShape.Cone;
-    public float MiniSupportConeLength { get; set; } = 1f;
-    public float MiniSupportMaxLength { get; set; } = 5f;
-    public float MiniSupportMaxAngleDegrees { get; set; } = 75f;
-    public int MiniSupportMaxFanPerBranchEnd { get; set; } = 4;
     /// <summary>
-    /// Maximum distance between regular contacts for density-based mini-tip clustering.
-    /// The 1.25 mm default is half the default 2.5 mm placement spacing.
+    /// No branch joins a trunk, and no junction is made, below this height above the plate
+    /// (user decision 2026-09-08: branches may connect at almost any height, but not near the
+    /// bottom; 10 mm for now).
     /// </summary>
-    public float MiniSupportClusterDistance { get; set; } = 1.25f;
-    /// <summary>Maximum local cross-section for an isolated one-member mini cluster.</summary>
-    public float FineFeatureMaxAreaMm2 { get; set; } = 1f;
-    public bool FineFeatureMinisFallBackToRegular { get; set; } = true;
-    public bool RefusedTipsFallBackToMini { get; set; }
-    public float MiniIslandMaxAreaMm2 { get; set; } = 0.1f;
+    public float MinBranchAttachHeightMm { get; set; } = 10f;
     public bool UseBaseGrid { get; set; } = true;
     public float BaseGridPitch { get; set; } = 6f;
 
@@ -248,8 +380,43 @@ public sealed record SupportConfig
     public float BaseHeight { get; set; } = 0.8f;
     public float BaseConeHeight { get; set; } = 2f;
 
+    // Rafts (SUPPORT-GEOMETRY-SPEC "Rafts", user 2026-09-09): the settings an object takes when
+    // Add raft runs on it. Prefixed so the expander and the presets carry them like the rest.
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public RaftType RaftType { get; set; } = RaftType.Plate;
+    public float RaftThickness { get; set; } = 1f;
+    public float RaftEdgeAngleDegrees { get; set; } = 45f;
+    public float RaftDiscDiameter { get; set; } = 5f;
+    public float RaftBarWidth { get; set; } = 4f;
+    public float RaftMaxBarLength { get; set; } = 15f;
+    public float RaftMargin { get; set; } = 2f;
+    public float RaftBridgingDistance { get; set; } = 8f;
+
+    /// <summary>The raft snapshot an object takes from these settings.</summary>
+    public RaftParameters ToRaftParameters() => new RaftParameters
+    {
+        Type = RaftType,
+        Thickness = RaftThickness,
+        EdgeAngleDegrees = RaftEdgeAngleDegrees,
+        DiscDiameter = RaftDiscDiameter,
+        BarWidth = RaftBarWidth,
+        MaxBarLength = RaftMaxBarLength,
+        Margin = RaftMargin,
+        BridgingDistance = RaftBridgingDistance,
+    }.Normalize();
+
     public float Spacing { get; set; } = 2.5f;
     public float IslandSpacingMm { get; set; } = 0.5f;
+
+    /// <summary>
+    /// Row pitch of the painted-region grid, in Z. Rows are the axis the user cares about most,
+    /// so this is separate from <see cref="Spacing"/> and from the horizontal pitch. Only used
+    /// where a support region has been painted.
+    /// </summary>
+    public float RegionGridVerticalPitchMm { get; set; } = 2.5f;
+
+    /// <summary>Spacing along each painted-region row, measured along the surface.</summary>
+    public float RegionGridHorizontalPitchMm { get; set; } = 2.5f;
     public float OverhangAngleDegrees { get; set; } = 45f;
     public float MinIslandAreaMm2 { get; set; } = 0.1f;
 
@@ -281,16 +448,29 @@ public sealed record SupportConfig
         MaxBranchLength = Positive(MaxBranchLength, 8f);
         ExistingTrunkBranchRange = Positive(ExistingTrunkBranchRange, 8f);
         MinMemberSeparationMm = NonNegative(MinMemberSeparationMm);
-        MiniSupportDiameter = Positive(MiniSupportDiameter, 0.6f);
-        MiniSupportTipDiameter = Positive(MiniSupportTipDiameter, 0.25f);
-        if (!Enum.IsDefined(MiniTipShape)) MiniTipShape = SupportTipShape.Cone;
-        MiniSupportConeLength = Positive(MiniSupportConeLength, 1f);
-        MiniSupportMaxLength = Positive(MiniSupportMaxLength, 5f);
-        MiniSupportMaxAngleDegrees = float.IsFinite(MiniSupportMaxAngleDegrees)
-            ? Math.Clamp(MiniSupportMaxAngleDegrees, 1f, 89f) : 75f;
-        MiniSupportMaxFanPerBranchEnd = Math.Max(1, MiniSupportMaxFanPerBranchEnd);
-        MiniSupportClusterDistance = Positive(MiniSupportClusterDistance, 1.25f);
-        FineFeatureMaxAreaMm2 = NonNegative(FineFeatureMaxAreaMm2);
+        MinBranchAttachHeightMm = float.IsFinite(MinBranchAttachHeightMm) ? Math.Clamp(MinBranchAttachHeightMm, 0f, 500f) : 10f;
+        GuidedExistingClearanceMm = Positive(GuidedExistingClearanceMm, 2.5f);
+        GuidedDensifyInsertions = Math.Clamp(GuidedDensifyInsertions, 1, 10);
+        GuidedThinKeepEvery = Math.Clamp(GuidedThinKeepEvery, 2, 10);
+        ParentingMaxBranchLength = NonNegative(ParentingMaxBranchLength);
+        ParentingMaxBranchAngle = float.IsFinite(ParentingMaxBranchAngle)
+            ? Math.Clamp(ParentingMaxBranchAngle, 0f, 89f) : 0f;
+        ParentingTrunkRange = NonNegative(ParentingTrunkRange);
+        ParentingMinTipsPerTrunk = Math.Clamp(ParentingMinTipsPerTrunk, 1, 20);
+        ParentingRounds = Math.Clamp(ParentingRounds, 1, 10);
+        ParentingMaxConeBend = float.IsFinite(ParentingMaxConeBend)
+            ? Math.Clamp(ParentingMaxConeBend, 0f, 180f) : 0f;
+        ParentingMaxBranchesPerTrunk = Math.Clamp(ParentingMaxBranchesPerTrunk, 0, 200);
+        if (!Enum.IsDefined(BracingPattern)) BracingPattern = BracingPattern.Zigzag;
+        BracingDiameter = NonNegative(BracingDiameter);
+        BracingAngleDegrees = float.IsFinite(BracingAngleDegrees) ? Math.Clamp(BracingAngleDegrees, 1f, 89f) : 45f;
+        BracingSpacingMm = NonNegative(BracingSpacingMm);
+        BracingLowestHeightMm = NonNegative(BracingLowestHeightMm);
+        BracingMinSupportHeightMm = NonNegative(BracingMinSupportHeightMm);
+        BracingNeighbourDistanceMm = Positive(BracingNeighbourDistanceMm, 10f);
+        BracingMaxPartners = Math.Clamp(BracingMaxPartners, 1, 20);
+        BracingMaxStemLeanDegrees = float.IsFinite(BracingMaxStemLeanDegrees) ? Math.Clamp(BracingMaxStemLeanDegrees, 0f, 89f) : 30f;
+        BracingClusterGapMm = NonNegative(BracingClusterGapMm);
         BaseGridPitch = Positive(BaseGridPitch, 6f);
         if (!Enum.IsDefined(ReinforceSeedSelector))
             ReinforceSeedSelector = ReinforceSeedSelector.LowestPointOfObject;
@@ -303,15 +483,13 @@ public sealed record SupportConfig
         BaseConeHeight = NonNegative(BaseConeHeight);
         Spacing = Positive(Spacing, 2.5f);
         IslandSpacingMm = Positive(IslandSpacingMm, 0.5f);
+        RegionGridVerticalPitchMm = Positive(RegionGridVerticalPitchMm, 2.5f);
+        RegionGridHorizontalPitchMm = Positive(RegionGridHorizontalPitchMm, 2.5f);
         OverhangAngleDegrees = float.IsFinite(OverhangAngleDegrees)
             ? Math.Clamp(OverhangAngleDegrees, 0f, 90f) : 45f;
         MinIslandAreaMm2 = NonNegative(MinIslandAreaMm2);
         MaxContactFaceAngleDegrees = float.IsFinite(MaxContactFaceAngleDegrees)
             ? Math.Clamp(MaxContactFaceAngleDegrees, 0f, 90f) : 90f;
-        var miniContactRadius = MiniSupportTipDiameter * 0.5f;
-        var miniContactArea = MathF.PI * miniContactRadius * miniContactRadius;
-        MiniIslandMaxAreaMm2 = MathF.Min(MinIslandAreaMm2,
-            MathF.Max(miniContactArea, NonNegative(MiniIslandMaxAreaMm2)));
     }
 
     private static float Positive(float value, float fallback) =>
@@ -322,33 +500,6 @@ public sealed record SupportConfig
 
     private static float NonNegativeOrFallback(float value, float fallback) =>
         float.IsFinite(value) ? MathF.Max(0, value) : fallback;
-}
-
-/// <summary>
-/// String enum persistence matching <see cref="JsonStringEnumConverter"/>, with forward-compatible
-/// reads: a future shape name becomes an undefined value which <see cref="SupportConfig.Normalize"/>
-/// restores to Cone instead of invalidating the entire user-config file.
-/// </summary>
-internal sealed class SupportTipShapeJsonConverter : JsonConverter<SupportTipShape>
-{
-    public override SupportTipShape Read(ref Utf8JsonReader reader, Type typeToConvert,
-        JsonSerializerOptions options)
-    {
-        if (reader.TokenType == JsonTokenType.String)
-        {
-            var text = reader.GetString();
-            return Enum.TryParse<SupportTipShape>(text, ignoreCase: true, out var shape) &&
-                   Enum.IsDefined(shape)
-                ? shape
-                : (SupportTipShape)(-1);
-        }
-        if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out var number))
-            return (SupportTipShape)number;
-        throw new JsonException("mini tip shape must be a string or integer");
-    }
-
-    public override void Write(Utf8JsonWriter writer, SupportTipShape value,
-        JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
 }
 
 /// <summary>
@@ -377,13 +528,6 @@ public sealed class WindowStateConfig
     public double RightPanelWidth { get; set; }
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum AppTheme
-{
-    Classic,
-    Forge,
-}
-
 /// <summary>
 /// User configuration persisted as JSON in the user profile. Unknown properties in the file are
 /// ignored and missing ones keep their defaults, so the file survives version changes in both
@@ -395,6 +539,10 @@ public sealed class UserConfig
     public const string CadCleanSupportPresetName = "CAD clean";
     public const string OrganicDenseSupportPresetName = "Organic dense";
 
+    /// <summary>Chrome palette name, one of Danslicer.App.Themes.ThemeCatalog.Names. Unknown or
+    /// missing values fall back to the Classic default (see Normalize/ThemeCatalog.Apply).</summary>
+    public string Theme { get; set; } = "Classic";
+
     public SpaceMouseConfig SpaceMouse { get; set; } = new();
     public ViewportConfig Viewport { get; set; } = new();
     public PlacementConfig Placement { get; set; } = new();
@@ -403,9 +551,6 @@ public sealed class UserConfig
     public List<ResinPreset> ResinPresets { get; set; } = CreateBuiltInResinPresets();
     public List<SupportPreset> SupportPresets { get; set; } = CreateBuiltInSupportPresets();
     public string ActiveSupportPresetName { get; set; } = CadCleanSupportPresetName;
-
-    /// <summary>Application chrome theme. Classic preserves the original Danslicer styling.</summary>
-    public AppTheme AppearanceTheme { get; set; } = AppTheme.Classic;
 
     /// <summary>
     /// User-selected UVtools executable. Danslicer launches it as a separate process and never
@@ -442,6 +587,9 @@ public sealed class UserConfig
             var config = JsonSerializer.Deserialize<UserConfig>(File.ReadAllText(path), JsonOptions)
                          ?? new UserConfig();
             // Explicit nulls from hand-edited or older files are treated like missing sections.
+            // An unrecognised name is left as-is here (Core has no theme catalog to validate
+            // against); Danslicer.App.Themes.ThemeCatalog.Apply falls back to Classic for it.
+            if (string.IsNullOrWhiteSpace(config.Theme)) config.Theme = "Classic";
             config.SpaceMouse ??= new SpaceMouseConfig();
             config.Viewport ??= new ViewportConfig();
             config.Viewport.SupportDisplay =
@@ -453,7 +601,6 @@ public sealed class UserConfig
             config.NormalizePrinters();
             config.NormalizeResinPresets();
             config.NormalizeSupportPresets();
-            if (!Enum.IsDefined(config.AppearanceTheme)) config.AppearanceTheme = AppTheme.Classic;
             config.UvtoolsExecutablePath ??= "";
             config.Placement.HeightMm = float.IsFinite(config.Placement.HeightMm)
                 ? MathF.Max(0, config.Placement.HeightMm)
@@ -667,7 +814,7 @@ public sealed class UserConfig
         new() { Name = OrganicDenseSupportPresetName, Settings = new SupportConfig() },
     ];
 
-    private static List<PrinterDefinition> CreateBuiltInPrinters() => [PrinterDefinition.PhotonMonoX];
+    private static List<PrinterDefinition> CreateBuiltInPrinters() => [.. PrinterCatalog.BuiltIn];
 
     private static List<ResinPreset> CreateBuiltInResinPresets() => [ResinPreset.Default];
 
@@ -680,10 +827,12 @@ public sealed class UserConfig
         {
             if (printer is null) continue;
             var item = printer.Normalize();
-            if (item.Id == PrinterDefinition.PhotonMonoXId || !ids.Add(item.Id)) continue;
+            if (item.Id == PrinterDefinition.PhotonMonoXId
+                || (printer.IsBuiltIn && PrinterCatalog.IsBuiltInId(item.Id)) || !ids.Add(item.Id)) continue;
             normalized.Add(item with { IsBuiltIn = false });
         }
-        normalized.Insert(0, PrinterDefinition.PhotonMonoX);
+        // A newly introduced catalog ID must not replace a pre-existing custom definition.
+        normalized.InsertRange(0, PrinterCatalog.BuiltIn.Where(p => !ids.Contains(p.Id)));
         Printers = normalized;
     }
 

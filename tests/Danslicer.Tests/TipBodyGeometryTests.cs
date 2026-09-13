@@ -113,16 +113,16 @@ public sealed class TipBodyGeometryTests
     }
 
     [Fact]
-    public void SharedMiniCarrierKeepsContactConesSeparateThroughTheirLeadIns()
+    public void SharedCarrierKeepsFineContactConesSeparateThroughTheirLeadIns()
     {
         var junction = new SupportNode
             { Type = SupportNodeType.Junction, Position = new Vector3(0, 0, 9.4f) };
-        var left = MiniTip(new Vector3(-0.25f, 0, 10));
-        var right = MiniTip(new Vector3(0.25f, 0, 10));
+        var left = FineConeTip(new Vector3(-0.25f, 0, 10));
+        var right = FineConeTip(new Vector3(0.25f, 0, 10));
 
-        var leftLead = TipBodyGeometry.Sections(left, junction, 0.3f, 0.3f,
+        var leftLead = TipBodyGeometry.Sections(left, junction, 0.3f,
             embedContact: false)[0];
-        var rightLead = TipBodyGeometry.Sections(right, junction, 0.3f, 0.3f,
+        var rightLead = TipBodyGeometry.Sections(right, junction, 0.3f,
             embedContact: false)[0];
 
         Assert.Equal(-Vector3.UnitZ, Vector3.Normalize(leftLead.End - leftLead.Start));
@@ -131,7 +131,7 @@ public sealed class TipBodyGeometryTests
                     leftLead.EndRadius + rightLead.EndRadius);
     }
 
-    private static SupportNode MiniTip(Vector3 position) => new()
+    private static SupportNode FineConeTip(Vector3 position) => new()
     {
         Type = SupportNodeType.Tip,
         Position = position,

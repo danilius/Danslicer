@@ -1,8 +1,9 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Numerics;
 using Danslicer.Core.IO;
 using Danslicer.Core.Geometry;
 using Danslicer.Core.Printers;
+using Danslicer.Core.Supports.Rafts;
 using Danslicer.Core.Scene;
 
 namespace Danslicer.Core.Slicing;
@@ -26,8 +27,16 @@ public sealed class SliceResult
     public required ResinSettings ResinSettings { get; init; }
     public required IReadOnlyList<SlicedLayer> Layers { get; init; }
     public required float VolumeMl { get; init; }
-    /// <summary>224 x 168 RGB565 thumbnail for the printer's file browser.</summary>
+    /// <summary>RGB565 thumbnail for the printer's file browser, at the printer's preview size.</summary>
     public required byte[] Preview { get; init; }
+
+    /// <summary>
+    /// The size the preview was rendered at, taken from the printer. Carried on the result rather
+    /// than read from a constant by the writer, so the header can only ever describe the pixels
+    /// actually embedded beside it.
+    /// </summary>
+    public int PreviewWidth { get; init; } = PrinterDefinition.DefaultPreviewWidth;
+    public int PreviewHeight { get; init; } = PrinterDefinition.DefaultPreviewHeight;
     public required float MinX { get; init; }
     public required float MinY { get; init; }
     public required float MaxX { get; init; }
@@ -45,8 +54,24 @@ public sealed class SliceResult
 
 public static class Slicer
 {
-    public const int PreviewWidth = 224;
-    public const int PreviewHeight = 168;
+    /// <summary>
+    /// The embedded preview is cosmetic. Slicing must never fail because a thumbnail could not be
+    /// drawn, so any failure here degrades to a blank preview rather than aborting the slice.
+    /// </summary>
+    private static byte[] RenderPreviewSafely(
+        IReadOnlyList<PreviewRenderer.RenderObject> objects, Supports.SupportGraph? supports,
+        int width, int height)
+    {
+        try
+        {
+            return PreviewRenderer.Render(objects, supports, width, height);
+        }
+        catch (Exception ex) when (ex is ArithmeticException or ArgumentException
+                                   or IndexOutOfRangeException or InvalidOperationException)
+        {
+            return PreviewRenderer.Blank(width, height);
+        }
+    }
 
     /// <summary>
     /// Slices all visible objects into layers, plus the support graph's analytic sections when one
@@ -64,9 +89,15 @@ public static class Slicer
         ResinSettings? resinSettings = null,
         bool allowOutOfBounds = false)
     {
+        if (printer.ResolutionX <= 0 || printer.ResolutionY <= 0
+            || (long)printer.ResolutionX * printer.ResolutionY > int.MaxValue)
+            throw new InvalidOperationException("Printer resolution exceeds the slicer's pixel-buffer limits.");
         resinSettings = (resinSettings ?? ResinSettings.Default).Normalize();
         var prepared = new List<MeshSlicer.PreparedMesh>();
         var previewObjects = new List<PreviewRenderer.RenderObject>();
+        // A hidden model is not printed, and neither are its supports: resin holding up something
+        // that is not there would be worse than nothing. See SupportOwnerVisibility.
+        var hiddenObjectIds = Supports.SupportOwnerVisibility.HiddenObjectIds(objects);
         foreach (var obj in objects)
         {
             if (obj.RenderState == RenderState.Hidden) continue;
@@ -75,9 +106,12 @@ public static class Slicer
             previewObjects.Add(new PreviewRenderer.RenderObject(obj.Mesh, matrix));
         }
         if (prepared.Count == 0) throw new InvalidOperationException("Nothing to slice.");
+        // A visible rafted object prints its raft under its feet (spec "Rafts"); a hidden one
+        // takes it away with its supports.
+        var rafts = RaftGeometry.Printable(objects, supports);
 
         var minZ = prepared.Min(m => m.MinZ);
-        var maxZ = prepared.Max(m => m.MaxZ);
+        var maxZ = Math.Max(prepared.Max(m => m.MaxZ), RaftGeometry.MaxTop(rafts));
 
         // Supports extend the print height up to their cap tops; sections below the plate are
         // simply never sliced (layers start at zero), matching how bases rest on the plate.
@@ -86,6 +120,8 @@ public static class Slicer
             foreach (var segment in supports.Segments)
             {
                 if (segment.Disabled) continue;
+                if (Supports.SupportOwnerVisibility.IsOwnedByHidden(supports, segment.Id, hiddenObjectIds))
+                    continue;
                 var top = Math.Max(supports.GetNode(segment.NodeA).Position.Z, supports.GetNode(segment.NodeB).Position.Z)
                           + segment.Diameter * 0.5;
                 if (top > maxZ) maxZ = top;
@@ -93,11 +129,23 @@ public static class Slicer
         }
         var halfX = printer.BuildVolume.X / 2.0;
         var halfY = printer.BuildVolume.Y / 2.0;
-        var overX = Math.Max(prepared.Max(m => m.MaxX) - halfX, -halfX - prepared.Min(m => m.MinX));
-        var overY = Math.Max(prepared.Max(m => m.MaxY) - halfY, -halfY - prepared.Min(m => m.MinY));
+        var sceneMinX = prepared.Min(m => m.MinX);
+        var sceneMinY = prepared.Min(m => m.MinY);
+        var sceneMaxX = prepared.Max(m => m.MaxX);
+        var sceneMaxY = prepared.Max(m => m.MaxY);
+        if (RaftGeometry.PlateBounds(rafts) is { } raftBounds)
+        {
+            // The raft is content like any other: it is widest at the plate, and it must fit.
+            sceneMinX = Math.Min(sceneMinX, raftBounds.MinX);
+            sceneMinY = Math.Min(sceneMinY, raftBounds.MinY);
+            sceneMaxX = Math.Max(sceneMaxX, raftBounds.MaxX);
+            sceneMaxY = Math.Max(sceneMaxY, raftBounds.MaxY);
+        }
+        var overX = Math.Max(sceneMaxX - halfX, -halfX - sceneMinX);
+        var overY = Math.Max(sceneMaxY - halfY, -halfY - sceneMinY);
         var sceneBounds = new Aabb(
-            new Vector3((float)prepared.Min(m => m.MinX), (float)prepared.Min(m => m.MinY), (float)minZ),
-            new Vector3((float)prepared.Max(m => m.MaxX), (float)prepared.Max(m => m.MaxY), (float)maxZ));
+            new Vector3((float)sceneMinX, (float)sceneMinY, (float)minZ),
+            new Vector3((float)sceneMaxX, (float)sceneMaxY, (float)maxZ));
         var croppedAxes = BuildVolumeBounds.Check(sceneBounds, printer.BuildVolume);
         if (!allowOutOfBounds && croppedAxes != BuildVolumeViolationAxes.None)
         {
@@ -133,7 +181,10 @@ public static class Slicer
         var done = 0;
 
         Parallel.For(0, layerCount,
-            new ParallelOptions { CancellationToken = cancellation },
+            // Bound raster-buffer memory on high-resolution displays (e.g. 14K).
+            new ParallelOptions { CancellationToken = cancellation,
+                MaxDegreeOfParallelism = (int)Math.Max(1, Math.Min(Environment.ProcessorCount,
+                    256L * 1024 * 1024 / (2L * pixelCount))) },
             () => new Worker(printer, settings),
             (i, _, worker) =>
             {
@@ -144,7 +195,12 @@ public static class Slicer
 
                 var loops = MeshSlicer.ChainSegments(worker.Segments);
                 if (supports is not null)
-                    loops.AddRange(Supports.SupportSliceGeometry.SectionsAt(supports, z));
+                    loops.AddRange(Supports.SupportSliceGeometry.SectionsAt(supports, z,
+                        includeSegment: segment => !Supports.SupportOwnerVisibility.IsOwnedByHidden(
+                            supports, segment.Id, hiddenObjectIds),
+                        includeNode: node => !Supports.SupportOwnerVisibility.IsOwnedByHidden(
+                            node, hiddenObjectIds)));
+                RaftGeometry.AppendSections(rafts, z, loops);
                 var polygons = MeshSlicer.Finish(loops, settings.XyCompensation);
                 var lit = worker.Rasterizer.Rasterize(polygons, worker.Pixels);
 
@@ -152,7 +208,14 @@ public static class Slicer
                 {
                     Rle = PhotonRle.Encode(worker.Pixels.AsSpan(0, pixelCount)),
                     LitPixels = lit,
-                    AreaMm2 = (float)MeshSlicer.AreaMm2(polygons),
+                    // Material is the printed union inside the LCD, including supports/rafts.
+                    // Keep rasterization unchanged; AA grey levels are not cured-volume fractions.
+                    AreaMm2 = (float)MeshSlicer.AreaMm2(Clipper2Lib.Clipper.RectClip(
+                        new Clipper2Lib.Rect64(
+                            (long)Math.Round(-halfX * MeshSlicer.UnitsPerMm),
+                            (long)Math.Round(-halfY * MeshSlicer.UnitsPerMm),
+                            (long)Math.Round(halfX * MeshSlicer.UnitsPerMm),
+                            (long)Math.Round(halfY * MeshSlicer.UnitsPerMm)), polygons)),
                     Z = (float)((i + 1) * h),
                 };
 
@@ -184,7 +247,10 @@ public static class Slicer
             ResinSettings = resinSettings,
             Layers = layers,
             VolumeMl = (float)(volumeMm3 / 1000.0),
-            Preview = PreviewRenderer.Render(previewObjects, supports, PreviewWidth, PreviewHeight),
+            Preview = RenderPreviewSafely(previewObjects, supports,
+                printer.PreviewWidth, printer.PreviewHeight),
+            PreviewWidth = printer.PreviewWidth,
+            PreviewHeight = printer.PreviewHeight,
             MinX = (float)(double.IsInfinity(minX) ? 0 : minX),
             MinY = (float)(double.IsInfinity(minY) ? 0 : minY),
             MaxX = (float)(double.IsInfinity(maxX) ? 0 : maxX),

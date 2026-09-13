@@ -39,6 +39,7 @@ public sealed class RenderPathConfigTests : IDisposable
                 CavityRadiusPixels = 3f,
                 OutlinesEnabled = false,
                 OutlineStrength = 0.4f,
+                OutlineWidthPixels = 3.5f,
                 FxaaEnabled = false,
             },
         };
@@ -55,6 +56,8 @@ public sealed class RenderPathConfigTests : IDisposable
         Assert.Equal(3f, loaded.CavityRadiusPixels);
         Assert.False(loaded.OutlinesEnabled);
         Assert.Equal(0.4f, loaded.OutlineStrength);
+        Assert.Equal(3.5f, loaded.OutlineWidthPixels);
+        Assert.Equal(3.5f, DeferredEffects.FromConfig(loaded).OutlineWidthPixels);
         Assert.False(loaded.FxaaEnabled);
     }
 

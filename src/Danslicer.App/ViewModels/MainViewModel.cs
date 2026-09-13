@@ -37,6 +37,7 @@ public partial class MainViewModel : ViewModelBase
     private IReadOnlyList<PrinterDefinition> _printerOptions = [];
     private IReadOnlyList<string> _printerDisplayNames = [];
     private int _selectedPrinterIndex = -1;
+    private bool _refreshingPrinters;
 
     public IReadOnlyList<string> PrinterDisplayNames => _printerDisplayNames;
 
@@ -45,7 +46,7 @@ public partial class MainViewModel : ViewModelBase
         get => _selectedPrinterIndex;
         set
         {
-            if (value == _selectedPrinterIndex || value < 0 || value >= _printerOptions.Count) return;
+            if (_refreshingPrinters || value == _selectedPrinterIndex || value < 0 || value >= _printerOptions.Count) return;
             _selectedPrinterIndex = value;
             Document.Printer = _printerOptions[value];
             OnPropertyChanged();
@@ -62,7 +63,6 @@ public partial class MainViewModel : ViewModelBase
     public LayerRangeClipViewModel SupportClip { get; } = new();
     public HoverWaterlineViewModel SupportWaterline { get; } = new();
     public ViewportClipRange ViewportClipRange => SupportClip.Range;
-    public IReadOnlyList<ClipCapStyle> ClipCapStyles { get; } = Enum.GetValues<ClipCapStyle>();
 
     public bool CapInterior
     {
@@ -88,7 +88,20 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// The support display config the viewport actually draws with: the user's chosen display
+    /// mode in Support mode, and full visibility while Layout is active — Layout arranges models
+    /// with their supports, so a Support-mode working aid (hidden, tips only, transparent, …)
+    /// must not follow the user across. Every consumer binds THIS
+    /// rather than the raw config, so the two render paths and picking cannot disagree — see
+    /// <see cref="SupportDisplayPolicy.ForWorkspace"/>.
+    /// </summary>
+    public SupportDisplayConfig EffectiveSupportDisplay => SupportDisplayPolicy.ForWorkspace(
+        AppConfig.Current.Viewport.SupportDisplay, ViewMode == WorkspaceMode.Layout);
+
     public ModeScopedCommand DropToPlateScopedCommand { get; }
+    public ModeScopedCommand AddRaftScopedCommand { get; }
+    public ModeScopedCommand RemoveRaftScopedCommand { get; }
     public ModeScopedCommand DuplicateScopedCommand { get; }
     public ModeScopedCommand MirrorXScopedCommand { get; }
     public ModeScopedCommand MirrorYScopedCommand { get; }
@@ -141,7 +154,9 @@ public partial class MainViewModel : ViewModelBase
         nameof(ViewportTools), nameof(IsObjectListSelectionEnabled), nameof(IsObjectsToolVisible),
         nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
         nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible),
-        nameof(IsUvtoolsCheckToolVisible))]
+        nameof(IsUvtoolsCheckToolVisible), nameof(IsTransformToolVisible), nameof(IsGuidedToolVisible),
+        nameof(IsGenerateToolVisible), nameof(IsStructureToolVisible), nameof(IsRegionToolVisible),
+        nameof(IsAddObjectToolVisible), nameof(EffectiveSupportDisplay))]
     public partial WorkspaceMode ViewMode { get; set; } = WorkspaceMode.Layout;
 
     public IReadOnlyList<ViewportTool> ViewportTools => ViewportToolbarPolicy.ToolsFor(ViewMode);
@@ -154,10 +169,16 @@ public partial class MainViewModel : ViewModelBase
     public bool IsRaftsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Rafts, ViewMode);
     public bool IsUvtoolsCheckToolVisible =>
         ViewportToolbarPolicy.IsAvailable(ViewportTool.UvtoolsCheck, ViewMode);
+    public bool IsTransformToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Transform, ViewMode);
+    public bool IsGuidedToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Guided, ViewMode);
+    public bool IsGenerateToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Generate, ViewMode);
+    public bool IsStructureToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Structure, ViewMode);
+    public bool IsRegionToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Region, ViewMode);
+    public bool IsAddObjectToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.AddObject, ViewMode);
 
     /// <summary>
-    /// Object rows remain useful context in Support and Slicing, but only Layout owns object
-    /// selection. Disabling the list prevents it from fighting those modes' selection models.
+    /// Object rows are live wherever an object selection means something: Layout arranges the
+    /// selected model, Support supports it. Slicing has no object-level operations.
     /// </summary>
     public bool IsObjectListSelectionEnabled => ViewportToolbarPolicy.CanSelectObjects(ViewMode);
 
@@ -184,6 +205,271 @@ public partial class MainViewModel : ViewModelBase
         set { if (value) ViewMode = WorkspaceMode.Slicing; }
     }
 
+    /// <summary>
+    /// Shows or hides one model from the Objects list, in Layout and in Support mode alike. The
+    /// list is the only way to hide a model in Support mode, where H means "hide support
+    /// elements"; Layout's H on the selection is unaffected.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleObjectVisibility(SceneObject? obj)
+    {
+        if (obj is null) return;
+        Document.SetObjectHidden(obj, obj.RenderState != RenderState.Hidden);
+    }
+
+    /// <summary>
+    /// Re-reads one model's file from disk and swaps the new geometry in — the update button
+    /// beside each entry in the Objects list, for when the model has been changed in CAD. The
+    /// object keeps its name, transform and place in the scene; its painted region and its
+    /// supports are indexed against the old mesh, so they go, and one undo brings all three
+    /// back together.
+    /// </summary>
+    [RelayCommand]
+    private void ReloadObject(SceneObject? obj)
+    {
+        if (obj?.SourcePath is not { Length: > 0 } path) return;
+        try
+        {
+            // Seated like an import, with the translation compensated so the model stays where
+            // it is in the world — an object imported before seating existed keeps its place too.
+            var raw = MeshFile.Read(path);
+            var seat = raw.SeatTranslation;
+            var t = obj.Transform;
+            var shift = Vector3.Transform(seat * t.Scale, t.Rotation);
+            Document.ReloadObject(obj, raw.Translated(seat), t with { Translation = t.Translation - shift });
+            ViewportStatus = $"Updated {obj.Name} from {System.IO.Path.GetFileName(path)}.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                       InvalidDataException or NotSupportedException)
+        {
+            ViewportStatus = $"Could not update {obj.Name}: {ex.Message}";
+        }
+    }
+
+    // ----- Support regions (DESIGN 8.3 stage 2) -----
+
+    /// <summary>Dihedral limit for click-to-grow, in degrees. Live: changing it re-computes the
+    /// highlight under the cursor, since the operation keeps no state between clicks.</summary>
+    [ObservableProperty]
+    public partial double RegionDihedralDegrees { get; set; } = 30;
+
+    // The three region numbers are edited through NumericField like every other number in the
+    // app — expressions and units included. Binding an ExpressionBox straight at a double looked
+    // like it worked and silently kept the old value, which is how a 0° patch angle still grew
+    // across a 90° edge.
+    public NumericField RegionDihedralField { get; }
+    public NumericField RegionOverhangField { get; }
+    public NumericField RegionBrushRadiusField { get; }
+
+    partial void OnRegionDihedralDegreesChanged(double value)
+    {
+        RegionDihedralField.SetValue(value);
+        RefreshRegionHover();
+    }
+
+    partial void OnRegionOverhangDegreesChanged(double value) => RegionOverhangField.SetValue(value);
+    partial void OnRegionBrushRadiusPixelsChanged(double value) => RegionBrushRadiusField.SetValue(value);
+
+    /// <summary>Threshold for "select what faces down", in generation's convention: measured from
+    /// vertical, strict greater-than. Defaults to the support settings' own overhang angle so the
+    /// two agree unless the user deliberately parts them.</summary>
+    [ObservableProperty]
+    public partial double RegionOverhangDegrees { get; set; } = 45;
+
+    /// <summary>Which of the two face sets the operations edit: the support region, or the
+    /// keep-clean region that overrides it.</summary>
+    [ObservableProperty]
+    public partial bool EditingKeepCleanRegion { get; set; }
+
+    /// <summary>While set, a viewport click paints faces instead of selecting supports.</summary>
+    [ObservableProperty]
+    public partial bool RegionPickMode { get; set; }
+
+    public string RegionSetName => EditingKeepCleanRegion ? "keep-clean region" : "support region";
+
+    /// <summary>
+    /// Applies a set operation to the region being edited, as one undoable step.
+    ///
+    /// <para><b>Empty means two different things, deliberately.</b> To GENERATION an empty support
+    /// region means "every face" — the compatibility guard from stage 1. To these EDITING
+    /// operations it means the literal empty set, because a user who inverts an unpainted object
+    /// expects to end up with every face painted, not with a no-op. The two readings agree on
+    /// what actually gets supported, which is what matters: painting every face explicitly and
+    /// painting nothing at all generate the same supports.</para>
+    /// </summary>
+    private void EditRegion(Func<Mesh, IReadOnlySet<int>, IReadOnlySet<int>> operation, string name)
+    {
+        if (SelectedObject is not { } obj) return;
+        var regions = obj.Regions;
+        var current = EditingKeepCleanRegion ? regions.KeepCleanFaces : regions.Faces;
+        var next = operation(obj.Mesh, current);
+        Document.SetSupportRegions(obj, EditingKeepCleanRegion
+            ? ObjectSupportRegions.From(regions.Faces, next)
+            : ObjectSupportRegions.From(next, regions.KeepCleanFaces), name);
+        ViewportStatus = $"{name}: {next.Count} of {obj.Mesh.TriangleCount} faces in the {RegionSetName}.";
+    }
+
+    private SceneObject? _hoverObject;
+    private int _hoverTriangle = -1;
+
+    /// <summary>
+    /// The patch the cursor is over, as object plus faces, or null when it is over nothing. The
+    /// viewport draws it as a highlight so the user can see what a click would take before
+    /// committing to it — the same set the click then paints, computed by the same call.
+    /// </summary>
+    [ObservableProperty]
+    public partial RegionHoverPreview? RegionHover { get; set; }
+
+    /// <summary>The cursor moved over a face (or off the model, with a null object).</summary>
+    public void HoverRegionFace(SceneObject? obj, int triangle)
+    {
+        if (ReferenceEquals(obj, _hoverObject) && triangle == _hoverTriangle) return;
+        _hoverObject = obj;
+        _hoverTriangle = triangle;
+        RefreshRegionHover();
+    }
+
+    /// <summary>Recomputes the highlight: after a move, or after the angle that shapes it changed.</summary>
+    private void RefreshRegionHover()
+    {
+        if (!RegionPickMode || RegionBrushMode || _hoverObject is not { } obj || _hoverTriangle < 0 ||
+            !SupportTargetPolicy.CanSupport(Document.SupportTarget, obj))
+        {
+            RegionHover = null;
+            return;
+        }
+        RegionHover = new RegionHoverPreview(obj,
+            SupportRegionSelection.GrowByDihedral(obj.Mesh, [_hoverTriangle], (float)RegionDihedralDegrees));
+    }
+
+    partial void OnRegionPickModeChanged(bool value) => RefreshRegionHover();
+    partial void OnRegionBrushModeChanged(bool value) => RefreshRegionHover();
+
+    /// <summary>
+    /// Selects <paramref name="obj"/> for painting, or refuses it. Support mode works on one
+    /// model (<see cref="SupportTargetPolicy"/>), and painting is no exception: with a target
+    /// already chosen, a stroke that strays onto a neighbour must not paint it and must not take
+    /// the target away by selecting it. With no target chosen, this is the click that picks one.
+    /// </summary>
+    private bool TakePaintTarget(SceneObject obj)
+    {
+        if (SupportTargetPolicy.RefusalMessage(Document.SupportTarget, obj) is { } refusal)
+        {
+            ViewportStatus = refusal;
+            return false;
+        }
+        if (!ReferenceEquals(obj, SelectedObject)) SelectedObject = obj;
+        return true;
+    }
+
+    /// <summary>Click-to-grow: the picked face plus everything reachable across edges that turn
+    /// by no more than <see cref="RegionDihedralDegrees"/>. Shift-click erases the same patch.</summary>
+    public void PaintRegionFromFace(SceneObject obj, int triangle, bool erase)
+    {
+        if (!TakePaintTarget(obj)) return;
+        var patch = SupportRegionSelection.GrowByDihedral(obj.Mesh, [triangle], (float)RegionDihedralDegrees);
+        EditRegion((_, current) =>
+        {
+            var next = new HashSet<int>(current);
+            if (erase) next.ExceptWith(patch);
+            else next.UnionWith(patch);
+            return next;
+        }, erase ? "Erase region patch" : "Paint region patch");
+    }
+
+    /// <summary>While set, a painting drag lays a brush stroke instead of growing a patch from
+    /// one click.</summary>
+    [ObservableProperty]
+    public partial bool RegionBrushMode { get; set; }
+
+    /// <summary>
+    /// Brush radius in SCREEN pixels, adjustable while painting. A brush is aimed with the eye,
+    /// so it keeps the size it looks: a millimetre radius would grow and shrink as the user
+    /// zooms. The viewport converts to world units at the point being painted.
+    /// </summary>
+    [ObservableProperty]
+    public partial double RegionBrushRadiusPixels { get; set; } = 24;
+
+    private SupportRegionStroke? _stroke;
+    private SceneObject? _strokeObject;
+
+    /// <summary>
+    /// Starts a brush stroke on <paramref name="obj"/>. Every dab until <see cref="EndStroke"/>
+    /// belongs to this one stroke, and the whole stroke is one undo step: the dabs update the
+    /// object's region directly so the paint appears under the cursor, and the undoable edit is
+    /// committed once, at the end, from where the region stood when the stroke began.
+    /// </summary>
+    public void BeginStroke(SceneObject obj, bool erase)
+    {
+        if (!TakePaintTarget(obj)) return;
+        _strokeObject = obj;
+        _stroke = new SupportRegionStroke(obj.Regions, EditingKeepCleanRegion, erase);
+    }
+
+    /// <summary>
+    /// One dab of the brush, centred on a surface point on a picked face.
+    /// <paramref name="worldRadius"/> is the on-screen radius converted to world units by the
+    /// viewport, which is the only part of the app that knows the camera.
+    /// </summary>
+    public void BrushStroke(Vector3 surfacePoint, int triangle, float worldRadius)
+    {
+        if (_stroke is null || _strokeObject is not { } obj) return;
+        // The stroke works in the object's own space, because that is where its faces live.
+        if (!Matrix4x4.Invert(obj.Transform.ToMatrix(), out var worldToLocal)) return;
+        var local = Vector3.Transform(surfacePoint, worldToLocal);
+        var scale = obj.Transform.Scale;
+        var localRadius = worldRadius /
+            MathF.Max(MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y)), MathF.Abs(scale.Z));
+        if (!_stroke.Add(SupportRegionBrush.FacesWithin(obj.Mesh, local, localRadius, triangle))) return;
+        // Live feedback only — not an undoable edit. EndStroke commits the whole stroke.
+        obj.Regions = _stroke.Apply();
+        Document.NotifyTransientChange();
+    }
+
+    /// <summary>Commits the stroke as a single undoable edit, or drops it if it painted nothing.</summary>
+    public void EndStroke()
+    {
+        var stroke = _stroke;
+        var obj = _strokeObject;
+        _stroke = null;
+        _strokeObject = null;
+        if (stroke is null || obj is null) return;
+        var painted = stroke.Apply();
+        // Rewind to the pre-stroke region first: SetSupportRegions is what records the undo, and
+        // it can only record a change it actually performs.
+        obj.Regions = stroke.Before;
+        Document.SetSupportRegions(obj, painted,
+            stroke.Erasing ? "Erase support region" : "Paint support region");
+        ViewportStatus = stroke.Touched.Count == 0
+            ? "Brush: nothing painted."
+            : $"Brush: {stroke.Touched.Count} faces {(stroke.Erasing ? "erased from" : "added to")} the {RegionSetName}.";
+    }
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void SelectFacingDownRegion() => EditRegion(
+        (mesh, _) => SupportRegionSelection.FacingDown(mesh,
+            SelectedObject?.Transform.ToMatrix() ?? Matrix4x4.Identity,
+            (float)RegionOverhangDegrees),
+        "Select faces pointing down");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void InvertRegion() => EditRegion(SupportRegionSelection.Invert, "Invert region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void GrowRegion() => EditRegion(SupportRegionSelection.Grow, "Grow region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ShrinkRegion() => EditRegion(SupportRegionSelection.Shrink, "Shrink region");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ConnectedRegion() => EditRegion(
+        (mesh, current) => SupportRegionSelection.Connected(mesh, current), "Select connected");
+
+    [RelayCommand(CanExecute = nameof(HasRegionTarget))]
+    private void ClearRegion() => EditRegion((_, _) => new HashSet<int>(), "Clear region");
+
+    private bool HasRegionTarget() => SelectedObject is not null;
+
     partial void OnViewModeChanged(WorkspaceMode value)
     {
         SupportClip.Active = value == WorkspaceMode.Support;
@@ -196,10 +482,19 @@ public partial class MainViewModel : ViewModelBase
                 Document.ClearSupportSelection();
                 if (SelectedObject is { } target) Document.Select(target);
             }
+            else if (value == WorkspaceMode.Support)
+            {
+                // Support mode keeps exactly one object selected: the support target. It is the
+                // same object the user had in Layout, it draws in the selection colour there and
+                // here, and Document.SupportTarget reads it back for generation and manual
+                // placement. A multi-selection collapses to the active object.
+                if (SelectedObject is { } target) Document.Select(target);
+                else Document.ClearSelection();
+            }
             else
             {
                 Document.ClearSelection();
-                if (value == WorkspaceMode.Slicing) Document.ClearSupportSelection();
+                Document.ClearSupportSelection();
             }
         }
         finally
@@ -258,9 +553,18 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSlice))]
+    [NotifyPropertyChangedFor(nameof(ResinVolumeText))]
+    [NotifyPropertyChangedFor(nameof(PrintDurationText))]
     public partial SliceResult? LastSlice { get; set; }
 
     public bool HasSlice => LastSlice is not null;
+    public string ResinVolumeText => SliceEstimate.Volume(LastSlice);
+    public string PrintDurationText => SliceEstimate.Duration(LastSlice);
+    public string EstimateAssumptions => SliceEstimate.Assumptions;
+    private long _sliceInputRevision;
+
+    [ObservableProperty]
+    public partial string EstimateState { get; set; } = "Slice to calculate material and time.";
 
     private string? _lastExportPath;
     private UvtoolsLaunchAvailability _uvtoolsLaunchAvailability =
@@ -300,11 +604,23 @@ public partial class MainViewModel : ViewModelBase
         PrintSettings = new PrintSettingsViewModel(Document);
         SupportSettings = new ConfigViewModel(Document);
         SupportClip.Changed += () => OnPropertyChanged(nameof(ViewportClipRange));
+        // The display mode lives in the shared settings view-model, so the effective value the
+        // viewport binds has to be re-read whenever that changes, not only on a mode switch.
+        SupportSettings.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ConfigViewModel.SupportDisplay) or null)
+                OnPropertyChanged(nameof(EffectiveSupportDisplay));
+        };
         SupportSettings.Saved += () =>
         {
             Document.SupportSettings = AppConfig.Current.Supports;
             RefreshPrinterOptions();
             SupportSettings.Resins.Refresh();
+            // With supports selected, the edit lands on them at once (user, 2026-09-09).
+            var applied = Document.ApplySupportSettingsToSelection();
+            if (applied > 0) ViewportStatus = applied == 1 ? "Settings applied to 1 selected element" : $"Settings applied to {applied} selected elements";
+            // The viewport draws from these settings too (base lattice markers): repaint now.
+            Document.NotifySettingsChanged();
         };
         DuplicateScopedCommand = new ModeScopedCommand(
             DuplicateCommand, () => ViewMode, WorkspaceMode.Layout);
@@ -316,6 +632,10 @@ public partial class MainViewModel : ViewModelBase
             MirrorZCommand, () => ViewMode, WorkspaceMode.Layout);
         DropToPlateScopedCommand = new ModeScopedCommand(
             DropToPlateCommand, () => ViewMode, WorkspaceMode.Layout);
+        AddRaftScopedCommand = new ModeScopedCommand(
+            AddRaftCommand, () => ViewMode, WorkspaceMode.Support);
+        RemoveRaftScopedCommand = new ModeScopedCommand(
+            RemoveRaftCommand, () => ViewMode, WorkspaceMode.Support);
         HideScopedCommand = new ModeScopedCommand(
             HideCommand, () => ViewMode, WorkspaceMode.Layout, WorkspaceMode.Support);
         UnhideAllScopedCommand = new ModeScopedCommand(
@@ -337,6 +657,8 @@ public partial class MainViewModel : ViewModelBase
             MirrorYScopedCommand,
             MirrorZScopedCommand,
             DropToPlateScopedCommand,
+            AddRaftScopedCommand,
+            RemoveRaftScopedCommand,
             HideScopedCommand,
             UnhideAllScopedCommand,
             HideUnselectedSupportsScopedCommand,
@@ -345,9 +667,15 @@ public partial class MainViewModel : ViewModelBase
             DetectIslandsScopedCommand,
             SliceScopedCommand,
         ];
-        Position = MakeAxisFields(UnitKind.Length, "0.###", (t, axis, v) => t with { Translation = SetAxis(t.Translation, axis, (float)v) });
-        Rotation = MakeAxisFields(UnitKind.Angle, "0.##", (t, axis, v) => t with { EulerDegrees = SetAxis(t.EulerDegrees, axis, (float)v) });
-        Scale = MakeAxisFields(UnitKind.Scalar, "0.####", (t, axis, v) => t with { Scale = SetAxis(t.Scale, axis, (float)v) });
+        // Position is the object's anchor: the centre-bottom of its world bounding box (user,
+        // 2026-09-09), recomputed after every rotation and scale, so an edit moves that point.
+        Position = MakeAxisFields(UnitKind.Length, "0.###", (obj, t, axis, v) =>
+        {
+            var delta = (float)v - Component(Anchor(obj), axis);
+            return t with { Translation = t.Translation + SetAxis(Vector3.Zero, axis, delta) };
+        });
+        Rotation = MakeAxisFields(UnitKind.Angle, "0.##", (_, t, axis, v) => t with { EulerDegrees = SetAxis(t.EulerDegrees, axis, (float)v) });
+        Scale = MakeAxisFields(UnitKind.Scalar, "0.####", (_, t, axis, v) => t with { Scale = SetAxis(t.Scale, axis, (float)v) });
         var placement = AppConfig.Current.Placement;
         placement.HeightMm = MathF.Max(0, placement.HeightMm);
         Document.PlacementHeightMm = placement.HeightMm;
@@ -368,11 +696,25 @@ public partial class MainViewModel : ViewModelBase
         PlacementHeight = placementHeight;
         PlacementHeight.SetValue(Document.PlacementHeightMm);
 
+        RegionDihedralField = new NumericField("Patch angle", UnitKind.Angle, "0.##",
+            value => RegionDihedralDegrees = Math.Clamp(value, 0, 180));
+        RegionOverhangField = new NumericField("Down angle", UnitKind.Angle, "0.##",
+            value => RegionOverhangDegrees = Math.Clamp(value, 0, 90));
+        RegionBrushRadiusField = new NumericField("Brush radius", UnitKind.Scalar, "0",
+            value => RegionBrushRadiusPixels = Math.Clamp(value, 2, 400), suffix: "px");
+        RegionDihedralField.EnableSessionPreview();
+        RegionOverhangField.EnableSessionPreview();
+        RegionBrushRadiusField.EnableSessionPreview();
+        RegionDihedralField.SetValue(RegionDihedralDegrees);
+        RegionOverhangField.SetValue(RegionOverhangDegrees);
+        RegionBrushRadiusField.SetValue(RegionBrushRadiusPixels);
+
         Document.Scene.ObjectAdded += o => Objects.Add(o);
         Document.Scene.ObjectRemoved += o => Objects.Remove(o);
         Document.SelectionChanged += OnDocumentSelectionChanged;
         Document.SupportSelectionChanged += () =>
         {
+            Controls.Refresh.ScrubField.CancelActive();
             HideUnselectedSupportsCommand.NotifyCanExecuteChanged();
             DeleteCommand.NotifyCanExecuteChanged();
             HideCommand.NotifyCanExecuteChanged();
@@ -382,7 +724,18 @@ public partial class MainViewModel : ViewModelBase
         OnDocumentChanged();
     }
 
-    private NumericField[] MakeAxisFields(UnitKind kind, string format, Func<Transform, int, double, Transform> edit)
+    /// <summary>
+    /// The point the position fields describe: the centre of the object's world bounding box in
+    /// X and Y and its lowest point in Z, so X/Y read as where the model stands on the plate
+    /// and Z as its height above it, whatever its rotation (user, 2026-09-09).
+    /// </summary>
+    public static Vector3 Anchor(SceneObject obj)
+    {
+        var bounds = obj.WorldBounds;
+        return new Vector3(bounds.Center.X, bounds.Center.Y, bounds.Min.Z);
+    }
+
+    private NumericField[] MakeAxisFields(UnitKind kind, string format, Func<SceneObject, Transform, int, double, Transform> edit)
     {
         var labels = new[] { "X", "Y", "Z" };
         var fields = new NumericField[3];
@@ -394,10 +747,32 @@ public partial class MainViewModel : ViewModelBase
                 var obj = SelectedObject;
                 if (obj is null) return;
                 var before = obj.Transform;
-                var requested = edit(before, a, value);
+                var requested = edit(obj, before, a, value);
                 if (requested == before) return;
                 Document.CommitTransform(obj, before, requested, "Edit transform");
             });
+            fields[axis].BeginPreview = () =>
+            {
+                var obj = SelectedObject;
+                if (obj is null) return null;
+                var before = obj.Transform;
+                var supportBefore = Document.CaptureAssociatedSupportPositions([obj]);
+                var requested = before;
+                return new NumericPreview(value =>
+                {
+                    // Position uses the original anchor, rotation/scale the original transform.
+                    obj.Transform = before;
+                    requested = edit(obj, before, a, value);
+                    obj.Transform = Document.ApplyPlacement(obj, requested);
+                    Document.ApplyAssociatedSupportTransformsTransient([(obj, before)], supportBefore);
+                    Document.NotifyTransientChange();
+                }, () =>
+                {
+                    obj.Transform = before;
+                    Document.RestoreSupportPositions(supportBefore);
+                    Document.NotifyTransientChange();
+                }, _ => Document.CommitTransforms([(obj, before, requested)], "Edit transform", supportBefore));
+            };
         }
         return fields;
     }
@@ -411,11 +786,12 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnDocumentSelectionChanged()
     {
+        Controls.Refresh.ScrubField.CancelActive();
         if (_syncingSelection) return;
         _syncingSelection = true;
         try
         {
-            if (!_changingViewMode && ViewMode == WorkspaceMode.Layout)
+            if (!_changingViewMode && ViewMode is WorkspaceMode.Layout or WorkspaceMode.Support)
                 SelectedObject = Document.Selection.FirstOrDefault();
         }
         finally
@@ -429,6 +805,9 @@ public partial class MainViewModel : ViewModelBase
         MirrorYCommand.NotifyCanExecuteChanged();
         MirrorZCommand.NotifyCanExecuteChanged();
         DropToPlateCommand.NotifyCanExecuteChanged();
+        AddRaftCommand.NotifyCanExecuteChanged();
+        RemoveRaftCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(RaftSelectionText));
         HideCommand.NotifyCanExecuteChanged();
         GenerateSupportsCommand.NotifyCanExecuteChanged();
         GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
@@ -441,7 +820,7 @@ public partial class MainViewModel : ViewModelBase
         _syncingSelection = true;
         try
         {
-            if (ViewMode == WorkspaceMode.Layout)
+            if (ViewMode is WorkspaceMode.Layout or WorkspaceMode.Support)
             {
                 if (value is null) Document.ClearSelection();
                 else Document.Select(value);
@@ -455,11 +834,28 @@ public partial class MainViewModel : ViewModelBase
         GenerateSupportsCommand.NotifyCanExecuteChanged();
         GenerateIslandSupportsCommand.NotifyCanExecuteChanged();
         DetectIslandsCommand.NotifyCanExecuteChanged();
+        NotifyRegionCommands();
     }
+
+    private void NotifyRegionCommands()
+    {
+        SelectFacingDownRegionCommand.NotifyCanExecuteChanged();
+        InvertRegionCommand.NotifyCanExecuteChanged();
+        GrowRegionCommand.NotifyCanExecuteChanged();
+        ShrinkRegionCommand.NotifyCanExecuteChanged();
+        ConnectedRegionCommand.NotifyCanExecuteChanged();
+        ClearRegionCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnEditingKeepCleanRegionChanged(bool value) => OnPropertyChanged(nameof(RegionSetName));
 
     partial void OnAutoDropEnabledChanged(bool value)
     {
-        if (!_loadingPlacement) ApplyAutoPlacementMode(save: true);
+        if (_loadingPlacement) return;
+        ApplyAutoPlacementMode(save: true);
+        // Switching it on seats the selection at once (user, 2026-09-09); imports already land
+        // where the mode says (ImportMesh).
+        if (value) Document.PlaceSelection();
     }
 
     private void ApplyAutoPlacementMode(bool save)
@@ -485,6 +881,9 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnDocumentChanged()
     {
+        _sliceInputRevision++;
+        if (IsSlicing) _sliceCancellation?.Cancel();
+        OnPropertyChanged(nameof(RaftSelectionText));
         if (IsGeneratingSupports && !_applyingGenerationBatch)
             _generationCancellation?.Cancel();
         if (IslandDetectionTargetIsCurrent())
@@ -501,10 +900,13 @@ public partial class MainViewModel : ViewModelBase
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         SliceCommand.NotifyCanExecuteChanged();
+        // Layer height first: the clip boxes read in layer numbers, so a print-settings change
+        // has to reach them before the bounds do.
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z);
 
         // Geometry changed: the slice no longer matches the scene.
-        if (LastSlice is not null && !IsSlicing) InvalidateSlice();
+        if (LastSlice is not null || IsSlicing) InvalidateSlice();
     }
 
     private void RefreshFields()
@@ -520,9 +922,10 @@ public partial class MainViewModel : ViewModelBase
 
         var t = obj.Transform;
         var euler = t.EulerDegrees;
+        var anchor = Anchor(obj);
         for (int i = 0; i < 3; i++)
         {
-            Position[i].SetValue(Component(t.Translation, i));
+            Position[i].SetValue(Component(anchor, i));
             Rotation[i].SetValue(Component(euler, i));
             Scale[i].SetValue(Component(t.Scale, i));
         }
@@ -535,25 +938,57 @@ public partial class MainViewModel : ViewModelBase
 
     public void ImportMesh(string path)
     {
-        var mesh = MeshFile.Read(path);
-        var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), mesh);
-        var b = mesh.Bounds;
-        obj.Transform = Transform.Identity with { Translation = new Vector3(-b.Center.X, -b.Center.Y, -b.Min.Z) };
+        // The file's own offset is baked into the mesh (XY centred on the origin, lowest point at
+        // Z = 0), so the object's origin is the centre-bottom of its bounding box and the
+        // transform's translation is its place on the plate (user, 2026-09-08 and 2026-09-09).
+        // An import always lands on the plate: with Auto Drop off it is dropped there once
+        // (user, 2026-09-09); with it on, the raise-above-plate offset applies as usual.
+        var raw = MeshFile.Read(path);
+        var obj = new SceneObject(System.IO.Path.GetFileNameWithoutExtension(path), raw.Seated())
+        {
+            SourcePath = System.IO.Path.GetFullPath(path),
+        };
+        obj.Transform = Document.ApplyPlacement(obj, Transform.Identity);
         Document.AddObject(obj);
     }
 
     public void SaveProject(string path, ProjectViewState viewState)
     {
+        Controls.Refresh.ScrubField.CancelActive();
         ProjectFile.Save(path, Document, viewState);
         ProjectPath = System.IO.Path.GetFullPath(path);
         Title = $"{System.IO.Path.GetFileNameWithoutExtension(ProjectPath)} — Danslicer";
         ViewportStatus = $"Saved {System.IO.Path.GetFileName(ProjectPath)}.";
     }
 
+    /// <summary>
+    /// Starts an empty project on the same machine setup. The caller confirms first when
+    /// <see cref="Document"/>.HasContent — this method does not ask, so that the confirmation
+    /// lives in one place (the window) rather than being duplicated per entry point.
+    /// </summary>
+    public void NewProject()
+    {
+        Document.Clear();
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
+        SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z, reset: true);
+        SelectedObject = null;
+        LastSlice = null;
+        SliceWarning = null;
+        PreviewImage = null;
+        PreviewLayerText = "";
+        SliceSummary = "Not sliced yet.";
+        EstimateState = "Slice to calculate material and time.";
+        ViewMode = WorkspaceMode.Layout;
+        ProjectPath = null;
+        Title = "Danslicer";
+        ViewportStatus = "New project.";
+    }
+
     public ProjectViewState OpenProject(string path)
     {
         var loaded = ProjectFile.Load(path);
         Document.ReplaceWith(loaded.Document);
+        SupportClip.LayerHeightMm = Document.PrintSettings.LayerHeight;
         SupportClip.RefreshBounds(VisiblePrintBounds(), Document.Printer.BuildVolume.Z,
             reset: true);
         PrintSettings.Refresh();
@@ -565,6 +1000,7 @@ public partial class MainViewModel : ViewModelBase
         PreviewImage = null;
         PreviewLayerText = "";
         SliceSummary = "Not sliced yet.";
+        EstimateState = "Slice to calculate material and time.";
         ViewMode = loaded.ViewState.WorkspaceMode;
         ProjectPath = System.IO.Path.GetFullPath(path);
         Title = $"{System.IO.Path.GetFileNameWithoutExtension(ProjectPath)} — Danslicer";
@@ -572,8 +1008,19 @@ public partial class MainViewModel : ViewModelBase
         return loaded.ViewState;
     }
 
-    private Aabb VisiblePrintBounds() => Document.Scene.WorldBounds.Union(
-        SupportRenderMesh.VisibleBounds(Document.Supports));
+    /// <summary>
+    /// The Z range the clip slider spans: the combined bounding box of the models on the plate,
+    /// hidden ones excluded, recomputed from the live transforms every time the document changes,
+    /// so moving a model in Layout moves the numbers with it.
+    ///
+    /// <para>Supports are deliberately NOT included. They reach down to the plate and out beyond
+    /// the models, so unioning them stretched the range past anything the user could point at and
+    /// made the layer numbers unrelatable to the models they were reading. Nothing disappears as
+    /// a result: a range sitting at both extremes does not clip at all
+    /// (<see cref="ViewportClipRange.IsClipping"/>), so supports outside the model range are
+    /// hidden only once the user actually drags a handle — which is what the tool is for.</para>
+    /// </summary>
+    private Aabb VisiblePrintBounds() => Document.Scene.WorldBounds;
 
     /// <summary>
     /// Rebuilds the slicing choices after Preferences changes. A project-embedded definition is
@@ -599,9 +1046,16 @@ public partial class MainViewModel : ViewModelBase
         _printerDisplayNames = options.Select(printer =>
             printer.Name + (AppConfig.Current.FindPrinter(printer.Id) is null ? " (project)" : "")).ToArray();
         _selectedPrinterIndex = index;
-        OnPropertyChanged(nameof(PrinterDisplayNames));
-        OnPropertyChanged(nameof(SelectedPrinterIndex));
-        OnPropertyChanged(nameof(SelectedPrinterName));
+        // Replacing ComboBox items can synchronously write its transient selection back.
+        // Keep the project's selected machine while the list and selection synchronize.
+        _refreshingPrinters = true;
+        try
+        {
+            OnPropertyChanged(nameof(PrinterDisplayNames));
+            OnPropertyChanged(nameof(SelectedPrinterIndex));
+            OnPropertyChanged(nameof(SelectedPrinterName));
+        }
+        finally { _refreshingPrinters = false; }
         if (notifyDocument && Document.Printer != current) Document.NotifyTransientChange();
     }
 
@@ -629,6 +1083,42 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void DropToPlate() => Document.DropSelectionToPlate();
+
+    // ----- Rafts (SUPPORT-GEOMETRY-SPEC "Rafts") -----
+
+    /// <summary>The Rafts pop-out's line: how many of the selected objects stand on a raft.</summary>
+    public string RaftSelectionText
+    {
+        get
+        {
+            var selected = Document.Selection.Count;
+            if (selected == 0) return "Select an object to raft it.";
+            var rafted = Document.Selection.Count(o => o.Raft is not null);
+            return selected == 1
+                ? rafted == 1 ? "The selected object has a raft." : "The selected object has no raft."
+                : $"{rafted} of {selected} selected objects have a raft.";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void AddRaft()
+    {
+        var count = Document.AddRaftToSelection();
+        ViewportStatus = count == 0
+            ? "Nothing selected to raft."
+            : count == 1 ? "Raft added; the feet lost their bases." : $"Rafts added to {count} objects.";
+        OnPropertyChanged(nameof(RaftSelectionText));
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void RemoveRaft()
+    {
+        var count = Document.RemoveRaftFromSelection();
+        ViewportStatus = count == 0
+            ? "No selected object has a raft."
+            : count == 1 ? "Raft removed; the feet have their bases back." : $"Rafts removed from {count} objects.";
+        OnPropertyChanged(nameof(RaftSelectionText));
+    }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void Duplicate()
@@ -719,10 +1209,13 @@ public partial class MainViewModel : ViewModelBase
             _applyingGenerationBatch = true;
             try { batch.Complete(); }
             finally { _applyingGenerationBatch = false; }
+            // Stage 3, bracing (SUPPORT-GEOMETRY-SPEC "Bracing"): inside the generation's undo step.
+            var bracing = Document.AutoBraceAfterGeneration(obj, prepared);
+            var braced = bracing is null ? "" : $" {bracing.Braces} braces.";
             var result = prepared.Summary;
             ViewportStatus = result.CandidateCount == 0
                 ? $"Generate {label}: no support tips were needed."
-                : $"Generate {label}: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.";
+                : $"Generate {label}: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.{braced}";
         }
         catch (OperationCanceledException)
         {
@@ -765,7 +1258,8 @@ public partial class MainViewModel : ViewModelBase
         ViewportStatus = "Detecting islands…";
         try
         {
-            var request = Document.CaptureIslandDetection(obj);
+            // Cache every island so removing a pre-existing support can reveal its marker.
+            var request = Document.CaptureIslandDetection(obj) with { ExistingSupports = new SupportGraph() };
             _islandDetectionObject = obj;
             _islandDetectionTarget = request.Target;
             var results = await Task.Run(() => Document.ComputeIslandDetection(request));
@@ -813,9 +1307,9 @@ public partial class MainViewModel : ViewModelBase
     {
         if (ViewMode == WorkspaceMode.Support)
         {
-            Document.ClearSelection();
+            // The support target stays selected: select-all takes supports, not the model.
             Document.SelectSupportElements(SupportDisplayPolicy.DisplayedElementIds(
-                Document.Supports, AppConfig.Current.Viewport.SupportDisplay, ViewportClipRange));
+                Document.Supports, EffectiveSupportDisplay, ViewportClipRange));
             return;
         }
         WorkspaceSelection.SelectAll(Document, ViewMode);
@@ -846,11 +1340,19 @@ public partial class MainViewModel : ViewModelBase
     {
         if (IsSlicing) return null;
         IsSlicing = true;
+        InvalidateSlice();
+        EstimateState = "Slicing… estimates pending.";
         SliceProgress = 0;
         SliceCommand.NotifyCanExecuteChanged();
         _sliceCancellation = new CancellationTokenSource();
         var token = _sliceCancellation.Token;
-        var objects = Document.Scene.Objects.ToList();
+        var revision = _sliceInputRevision;
+        // Worker reads a stable snapshot, including support ownership IDs and raft parameters.
+        var objects = Document.Scene.Objects.Select(o => new SceneObject(o.Name, o.Mesh, o.Id)
+        { Transform = o.Transform, RenderState = o.RenderState, Raft = o.Raft }).ToList();
+        var supports = new Danslicer.Core.Supports.SupportGraph();
+        foreach (var node in Document.Supports.Nodes) supports.AddNode(node.Clone());
+        foreach (var segment in Document.Supports.Segments) supports.AddSegment(segment.Clone());
         var printer = Document.Printer;
         var settings = Document.PrintSettings;
         var resin = Document.ResinSettings;
@@ -863,13 +1365,21 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             var result = await Task.Run(() => Slicer.Slice(objects, printer, settings, progress, token,
-                Document.Supports, resin, allowOutOfBounds: true), token);
+                supports, resin, allowOutOfBounds: true), token);
+            token.ThrowIfCancellationRequested();
+            if (revision != _sliceInputRevision || printer != Document.Printer ||
+                settings != Document.PrintSettings || resin != Document.ResinSettings)
+            {
+                EstimateState = "Inputs changed — slice again to calculate.";
+                return null;
+            }
             LastSlice = result;
+            EstimateState = "From completed slice · theoretical resin · approximate time";
             SliceWarning = result.BuildVolumeWarning;
             SliceSummary =
                 $"{result.LayerCount} layers × {settings.LayerHeight:0.###} mm = {result.PrintHeight:0.##} mm\n" +
-                $"{result.VolumeMl:0.##} ml resin\n" +
-                $"≈ {TimeSpan.FromSeconds(result.EstimatedSeconds):h\\:mm\\:ss}\n" +
+                $"{ResinVolumeText} theoretical resin\n" +
+                $"Estimated print time: {PrintDurationText}\n" +
                 $"footprint X {result.MinX:0.#}…{result.MaxX:0.#}  Y {result.MinY:0.#}…{result.MaxY:0.#} mm";
             PreviewLayerMax = Math.Max(0, result.LayerCount - 1);
             PreviewLayer = Math.Min(PreviewLayer, PreviewLayerMax);
@@ -880,11 +1390,14 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
+            EstimateState = revision != _sliceInputRevision
+                ? "Inputs changed — slice again to calculate." : "Slicing cancelled — slice to calculate.";
             ViewportStatus = "Slicing cancelled.";
             return null;
         }
         catch (Exception ex)
         {
+            EstimateState = "Slicing failed — estimates unavailable.";
             ViewportStatus = $"Slicing failed: {ex.Message}";
             SliceSummary = ex.Message;
             return null;
@@ -903,14 +1416,14 @@ public partial class MainViewModel : ViewModelBase
     public async Task<bool> ExportAsync(string path)
     {
         var result = LastSlice;
-        if (result is null || result.Settings != Document.PrintSettings ||
+        if (result is null || result.Printer != Document.Printer || result.Settings != Document.PrintSettings ||
             result.ResinSettings != Document.ResinSettings)
             result = await Slice();
         if (result is null) return false;
 
         try
         {
-            await Task.Run(() => PhotonWorkshopWriter.Write(result, path));
+            await Task.Run(() => NativePrintWriter.Write(result, path));
             _lastExportPath = System.IO.Path.GetFullPath(path);
             RefreshUvtoolsAvailability();
             ViewportStatus = $"Exported {System.IO.Path.GetFileName(path)}: {result.LayerCount} layers, {result.VolumeMl:0.##} ml.";
@@ -935,6 +1448,7 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Drops a stale slice and returns to the model view.</summary>
     public void InvalidateSlice()
     {
+        EstimateState = "Inputs changed — slice again to calculate.";
         LastSlice = null;
         SliceWarning = null;
         PreviewImage = null;

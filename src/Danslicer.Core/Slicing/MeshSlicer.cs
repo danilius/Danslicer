@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Clipper2Lib;
 using Danslicer.Core.Geometry;
 
@@ -149,8 +149,18 @@ public static class MeshSlicer
     public readonly record struct Segment(Point64 A, Point64 B);
 
     /// <summary>
-    /// Chains segments into closed polygons. Segments that cannot be closed within
-    /// <paramref name="joinTolerance"/> units are discarded.
+    /// Segment ends further apart than the join tolerance but within this many units are still
+    /// stitched when a chain would otherwise dead-end: a fan of sliver triangles at a fillet
+    /// corner yields several near-coincident micro-segments, the greedy chain takes the wrong
+    /// one, and without recovery the whole contour vanished — an empty printed layer in the
+    /// middle of a 187 mm² slab (roof gripper, 2026-09-09). A tenth of a millimetre.
+    /// </summary>
+    private const long RecoveryTolerance = 100;
+
+    /// <summary>
+    /// Chains segments into closed polygons. A chain that dead-ends looks for any unused
+    /// start within <see cref="RecoveryTolerance"/> before giving up, and closes on its own
+    /// start within the same reach; only chains that still cannot close are discarded.
     /// </summary>
     public static Paths64 ChainSegments(List<Segment> segments, long joinTolerance = 5)
     {
@@ -188,9 +198,15 @@ public static class MeshSlicer
                     break;
                 }
                 path.Add(current);
-                if (!TryTakeNext(byStart, used, segments, current, q, out var nextIndex))
-                    break;
-                current = segments[nextIndex].B;
+                if (TryTakeNext(byStart, used, segments, current, q, out var nextIndex) ||
+                    TryTakeNearest(byStart, used, segments, current, q, RecoveryTolerance, out nextIndex))
+                {
+                    current = segments[nextIndex].B;
+                    continue;
+                }
+                // Nothing continues: a small gap back to the start still closes the loop.
+                closed = path.Count >= 3 && Near(current, startPoint, RecoveryTolerance);
+                break;
             }
 
             if (closed)
@@ -221,6 +237,33 @@ public static class MeshSlicer
                 var distance = deltaX * deltaX + deltaY * deltaY;
                 if (distance >= bestDistance) continue;
                 bestDistance = distance;
+                index = i;
+            }
+        }
+        if (index < 0) return false;
+        used[index] = true;
+        return true;
+    }
+
+    /// <summary>The nearest unused start within <paramref name="reach"/> units, searched cell by cell.</summary>
+    private static bool TryTakeNearest(Dictionary<(long, long), List<int>> byStart, bool[] used,
+        List<Segment> segments, Point64 from, long q, long reach, out int index)
+    {
+        var (kx, ky) = Key(from, q);
+        var cells = reach / q + 1;
+        index = -1;
+        long best = long.MaxValue;
+        for (long dx = -cells; dx <= cells; dx++)
+        for (long dy = -cells; dy <= cells; dy++)
+        {
+            if (!byStart.TryGetValue((kx + dx, ky + dy), out var list)) continue;
+            foreach (var i in list)
+            {
+                if (used[i]) continue;
+                var a = segments[i].A;
+                var d = Math.Max(Math.Abs(a.X - from.X), Math.Abs(a.Y - from.Y));
+                if (d > reach || d >= best) continue;
+                best = d;
                 index = i;
             }
         }

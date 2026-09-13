@@ -5,14 +5,14 @@
         x:Class="Danslicer.App.Views.SupportPresetEditorWindow"
         x:DataType="vm:SupportPresetEditorViewModel"
         Width="1200" Height="760" MinWidth="900" MinHeight="560"
-        WindowStartupLocation="CenterOwner" Background="{DynamicResource DsBackgroundBrush}" Title="{Binding Title}">
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource AppPanel}" Title="{Binding Title}">
     <Grid RowDefinitions="*,Auto" ColumnDefinitions="360,5,*" Margin="10">
-        <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource DsSurfaceBrush}" Padding="10">
+        <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource AppSurfaceAlt}" Padding="10">
             <ScrollViewer>
                 <controls:SupportSettingsView DataContext="{Binding Settings}" />
             </ScrollViewer>
         </Border>
-        <GridSplitter Grid.Row="0" Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource DsBorderBrush}" />
+        <GridSplitter Grid.Row="0" Grid.Column="1" ResizeDirection="Columns" Background="{DynamicResource AppBorder}" />
         <Grid Grid.Row="0" Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" Margin="10,0,0,0">
             <Grid ColumnDefinitions="Auto,220,20,Auto,140" Margin="0,0,0,8">
                 <TextBlock Text="Sample" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -22,17 +22,17 @@
                 <ComboBox Grid.Column="4" ItemsSource="{Binding DisplayModes}"
                           SelectedIndex="{Binding SelectedDisplayModeIndex, Mode=TwoWay}" />
             </Grid>
-            <Border Grid.Row="1" Background="{DynamicResource DsBackgroundDeepBrush}" BorderBrush="{DynamicResource DsBorderBrush}" BorderThickness="1">
+            <Border Grid.Row="1" Background="{DynamicResource AppSurfaceAlt}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1">
                 <controls:SupportPreviewSurface x:Name="PreviewSurface"
                                                 Document="{Binding PreviewDocument}"
                                                 SupportDisplay="{Binding PreviewSupportDisplay}" />
             </Border>
             <ProgressBar Grid.Row="2" Minimum="0" Maximum="1" Value="{Binding GenerationProgress}"
                          IsVisible="{Binding IsGenerating}" Height="4" Margin="0,6,0,0" />
-            <Border Grid.Row="3" Background="{DynamicResource DsSurfaceBrush}" Padding="8" Margin="0,6,0,0">
+            <Border Grid.Row="3" Background="{DynamicResource AppSurfaceAlt}" Padding="8" Margin="0,6,0,0">
                 <StackPanel>
                     <TextBlock Text="{Binding StatisticsText}" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource DsTextSecondaryBrush}" FontSize="12"
+                    <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource AppTextFaint}" FontSize="12"
                                TextWrapping="Wrap" Margin="0,3,0,0" />
                 </StackPanel>
             </Border>

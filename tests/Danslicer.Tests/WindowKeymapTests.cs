@@ -1,4 +1,4 @@
-using Danslicer.App.Configuration;
+﻿using Danslicer.App.Configuration;
 using Danslicer.Core.Config;
 
 namespace Danslicer.Tests;
@@ -53,6 +53,11 @@ public sealed class WindowKeymapTests : IDisposable
             ("file.import-mesh", "Ctrl+I"),
             ("file.export-print", "Ctrl+E"),
             ("edit.preferences", "Ctrl+OemComma"),
+            ("region.select-facing-down", "Ctrl+Shift+F"),
+            ("region.invert", "Ctrl+Shift+I"),
+            ("region.grow", "Ctrl+OemPlus"),
+            ("region.shrink", "Ctrl+OemMinus"),
+            ("region.connected", "Ctrl+Shift+K"),
         ];
 
         Assert.Equal(expected,

@@ -1,0 +1,47 @@
+# Latest status � Task10 complete on review branch
+
+Task10 at C:/Users/plane/.codex/worktrees/b4fb/Danslicer-chatgpt, codex/ui-refresh-10, from integrated main a611489. Tested source 309b6c4656421d2712ba80196aa4778b1de1a838; final handoff is its documentation/evidence descendant. Toolbar toggle replaced by accessible resize edge with hysteresis, safe cancellation and commit-only compatible persistence. Release rebuild, 1061 tests, native MAIN exit 0 and 18 success markers passed. See task-10.md/RESUME/evidence/task-10. No merge or push; main remains a611489 without Task10. Next action review; obtain separate authority before integration. No new task created.
+
+Historical status and dispatch records follow.
+
+# Latest status — Task09 complete; Task10 queued
+
+Task09 explicitly authorized and completed main integration plus verified cleanup, superseding the historical no-main-merge instructions below for Task09. See RESUME.md and task-09.md for surviving main, exact recovery map and retained items. Build, 1061 tests and actual main native capture passed. Six clean worktrees, seven local branches and 16 retired remote branches removed. Main not published. Coordinator dispatches Task10 separately from final integrated main using tracked artifacts/ui-refresh-handoff/task-10-queued.md; no Task10 work occurred here.
+
+Historical task records follow.
+# Latest dispatch authority — tasks 06 and 07
+
+User explicitly authorized BOTH tasks from clean task-05 dc4664cd7321030cfe04b866815427b6b4f8a531 in separate isolated worktrees. Task 06 is implemented on codex/ui-refresh-06 (tested source f988a327e45ec344e4ada145ae3a9b54109edf1c; 1020 tests and native workflow passed). Task 07 is an independent assessment, not a dependency or descendant. Later coordination must deliberately import its report and reconcile documentation; do not assume sequential ancestry. No main merge/push. This supersedes the historical sequential dispatch instructions below.
+# Sequential task plan
+Every task: read START, SPEC, RESUME and prior task notes; verify branch/worktree/base and git status; record plan before edits; make small coherent commits; update RESUME after each meaningful iteration and before stopping. Never claim unrun checks passed. No main merge.
+## 00 — Coordination and specification
+Coordinator owns package, approved references, Claude note and task dispatch. Current implementation starts with 01.
+## 01 — Controls and native preview [complete; see task-01.md]
+Audit existing Avalonia styles, icons, ExpressionBox, settings and tests. Implement reusable theme/icon assets, floating toolbar shell with both modes, popout shell, dark draggable expander, filled numeric slider, scrub field with optional locks. Reuse existing facilities where appropriate. Build a native preview window/harness isolated from normal startup to exercise controls before application integration. Preserve existing behavior. Test meaningful interaction/state logic and build. Supply launch command and visual evidence if available; document visual verification limits. Deliver controls, preview, tests and task-01.md; no renderer or main-layout integration.
+## 02 — Workspace layout and navigation [complete; user confirmed; see task-02.md]
+Integrate floating toolbar and anchored popouts with real existing commands; remove permanent right settings layout while keeping access to every existing setting. Implement workspace tabs, recent projects and subtle machine/resin display. Preserve status bar exactly and keymaps/mode behavior. Validate representative workflows and narrow windows. Deliver task-02.md.
+## 03 — Settings integration and persistence [complete; see task-03.md]
+Apply controls to support, visibility, transform and available raft settings. Preserve numeric expressions, unit conversion, undo; add locks only with explicit semantics. Persist toolbar mode, expander order/state compatibly; handle scroll/focus/Escape. No invented raft functionality. Validate settings round trips, keyboard and DPI; deliver task-03.md.
+## 04 — Plate rendering [complete; handoff 0df54ff]
+Audit renderer overlap with Claude before edits. Implement shallow plate, restrained reflections, correct transparency below and selection-through behavior in separate commits. AO is explicitly in scope: provide independently configurable proximity/contact shading alongside audited cavity effects. Verify clipping/depth/outline interactions and performance with actual GL framebuffer evidence; preserve print geometry. Correct only an actual inward bevel bug if confirmed against geometry spec, separately document algorithm changes. Deliver above/below evidence and task-04.md.
+## 04b — Live numeric scene updates [complete; user confirmed; see task-04b.md]
+Implement the approved live preview/commit/cancel contract in SPEC.md. Audit every numeric host; validate native interaction, no drag writes/undo, and real GL feedback. Deliver task-04b.md in the isolated da71 worktree; no task 05 or main merge.
+## 05 — Regression and integration candidate [complete; user review pending; see task-05-acceptance.md]
+Review approved specification against real app, run appropriate suite and manual checks, fix remaining UX defects, reconcile committed Claude work in isolated UI branch after confirming stable base. Resolve conflicts in UI checkout only. Produce reviewable final commits, known limitations, test/build/run instructions and task-05.md. Do not merge into main without user instruction.
+## 06 — Resin volume and estimated print time [implemented; review pending; see task-06.md]
+Display resin volume and estimated printing time on the Slicing page, preserving the existing status bar. Audit actual sliced-area/layer data and printer/resin motion/exposure settings before implementing. Include printed supports and rafts in material usage; document units (mL), calculation assumptions and when an estimate is stale or unavailable. Account for actual layer count, bottom/transition/normal exposures, lift/retract and configured delays where supported; label duration as an estimate. Avoid inventing unsupported machine timing. Recompute efficiently when relevant inputs change without automatically launching slicing. Validate against deterministic fixtures and known sliced results, distinguish pre-slice estimates from post-slice totals, and test empty/invalid/stale states. Deliver task-06.md, UI evidence, tests and recovery handoff in its own sequential chat/worktree.
+## 07 — Other printers supportable now [independent parallel assessment from task-05 dc4664c]
+Produce an evidence-based list of other printers this application's current architecture and implemented output formats can support now. Inspect printer definitions, dimensions/resolution/orientation, file writers, format restrictions and machine metadata; verify current model requirements against manufacturer/primary format documentation. Distinguish already compatible/configuration-only candidates, models requiring code or format changes, and unverified candidates. Do not claim physical print compatibility without evidence. Provide a concise table with exact models, formats, required configuration, limitations, verification status and sources. This task is an assessment/list, not authorization to implement new printer support. Deliver task-07.md and a user-facing report, with recovery notes, in a separate sequential chat/worktree.
+## Creating each next chat
+Use the prior task's exact completed commit as starting ref for a separate project worktree/chat. Copy no uncommitted source between tasks. Read committed docs/ui-refresh/RESUME.md first. Record new chat ID/path/branch in its handoff. The coordinator can dispatch after predecessor completion; a user can resume using RESUME at any time.
+
+## Accepted baseline and current review
+Task 01 was approved by the user; accepted handoff: 0fadc0e2412498513e34db6337aa3bba1ed9dc8c. Task 02 started 2026-09-10 in C:/Users/plane/.codex/worktrees/3713/Danslicer-chatgpt on codex/ui-refresh-02. Tested implementation including authorized Support isolation refinement: ba25565f7adaf7e11664af38c328fe462c7200d9; final documentation descendant at branch HEAD is the review handoff. User confirmed task 02 is done at a0fed8b933f3358e875e4650bbe8915d5a57c574. Task 03 is implemented and verified in C:/Users/plane/.codex/worktrees/3321/Danslicer-chatgpt on codex/ui-refresh-03.
+
+## Task 08 — active dedicated preset editors
+See task-08.md and queued instruction files committed at 188f166. Baseline da530dd deliberately combines Task06 estimates and all Task07 native writers. Tasks09/10 stay queued for coordinator dispatch. User authorized autonomous completion without routine visual approval stops.
+
+Task08 completed at tested source/evidence 800c20dc50c49787dfa7fded73e5ec0676004878: build, 1061 tests and 14 native markers pass. See RESUME/task-08.md. Tasks09/10 still queued; no main integration done here.
+
+## Task09 — authorized integration and cleanup active
+Task08 complete at a5d2bd2. Task09 supersedes prior no-main-merge instructions for its authorized scope. Audit and recovery: task-09.md. Isolated build and 1061 tests pass. Task10 remains queued separately in artifacts/ui-refresh-handoff/task-10-queued.md.

@@ -1,0 +1,1 @@
+MainWindow export invalidated the old printer slice and produced a native GOO file from the generated support/raft scene.

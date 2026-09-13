@@ -1,0 +1,1 @@
+Status-bar Border subtree equals task-05 baseline after newline normalization. Renderer, numeric controls, project schema and SpaceMouse source unchanged.

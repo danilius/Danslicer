@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Danslicer.App.Controls;
+using Danslicer.App.Controls.Refresh;
 using Danslicer.App.Configuration;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
@@ -22,6 +23,7 @@ public partial class MainWindow : Window
 {
     public ICommand SaveProjectCommand { get; }
     public ICommand SaveProjectAsCommand { get; }
+    public ICommand NewProjectCommand { get; }
     public ICommand OpenProjectCommand { get; }
     public ICommand ImportCommand { get; }
     public ModeScopedCommand ExportCommand { get; }
@@ -30,27 +32,40 @@ public partial class MainWindow : Window
     {
         SaveProjectCommand = new AsyncRelayCommand(SaveProjectAsync);
         SaveProjectAsCommand = new AsyncRelayCommand(SaveProjectAsAsync);
+        NewProjectCommand = new AsyncRelayCommand(NewProjectAsync);
         OpenProjectCommand = new AsyncRelayCommand(OpenProjectAsync);
         ImportCommand = new RelayCommand(() => OnImportClick(this, new RoutedEventArgs()));
         ExportCommand = new ModeScopedCommand(
             new RelayCommand(() => OnExportClick(this, new RoutedEventArgs())),
             () => ViewModel?.ViewMode ?? WorkspaceMode.Layout,
             WorkspaceMode.Slicing);
+        _viewportPopups = new ViewportPopupGroup(
+            _objectsPopupState, _supportsPopupState, _islandDetectionPopupState,
+            _visibilityPopupState, _raftsPopupState, _transformPopupState, _guidedPopupState,
+            _structurePopupState, _regionPopupState);
         InitializeComponent();
-        Configuration.WindowStatePersistence.Track(this, "main",
-            rightPanel: WorkspaceGrid.ColumnDefinitions[2],
-            rightPanelWidthProvider: PersistedRightPanelWidth);
-        _expandedRightPanelWidth = WorkspaceGrid.ColumnDefinitions[2].Width;
+        InitializeWorkspace();
+        if (!Environment.GetCommandLineArgs().Contains("--workspace-capture"))
+            Configuration.WindowStatePersistence.Track(this, "main");
+        ConfigureWorkspaceCapture();
         DataContextChanged += OnMainDataContextChanged;
         AttachPanelLayoutViewModel();
         RefreshWindowKeymap();
         SyncRenderPathMenu();
+        InitializeNumericPreviews();
         Viewport.PropertyChanged += (_, e) =>
         {
             if (e.Property == ViewportControl.StatusTextProperty && DataContext is MainViewModel vm)
                 vm.ViewportStatus = Viewport.StatusText;
         };
         Viewport.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
+        Viewport.RegionFacePicked += (obj, triangle, erase) =>
+            ViewModel?.PaintRegionFromFace(obj, triangle, erase);
+        Viewport.RegionFaceHovered += (obj, triangle) => ViewModel?.HoverRegionFace(obj, triangle);
+        Viewport.RegionStrokeStarted += (obj, erase) => ViewModel?.BeginStroke(obj, erase);
+        Viewport.RegionStrokeDab += (point, triangle, radius) =>
+            ViewModel?.BrushStroke(point, triangle, radius);
+        Viewport.RegionStrokeEnded += () => ViewModel?.EndStroke();
         LayerView.ToggleViewRequested += () => ViewModel?.ToggleViewCommand.Execute(null);
         LayerView.LayerStepRequested += delta => ViewModel?.StepLayer(delta);
         _uvtoolsAvailabilityTimer.Tick += (_, _) => ViewModel?.RefreshUvtoolsAvailability();
@@ -72,16 +87,22 @@ public partial class MainWindow : Window
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
+    private PrinterPresetEditorWindow? _printerEditorWindow;
     private ConfigWindow? _configWindow;
     private SupportPresetEditorWindow? _presetEditorWindow;
     private readonly List<KeyBinding> _windowKeyBindings = [];
     private MainViewModel? _panelLayoutViewModel;
-    private GridLength _expandedRightPanelWidth = new(320);
     private readonly ViewportPopupState _objectsPopupState = new(ViewportTool.Objects);
     private readonly ViewportPopupState _supportsPopupState = new(ViewportTool.Supports);
     private readonly ViewportPopupState _islandDetectionPopupState = new(ViewportTool.IslandDetection);
     private readonly ViewportPopupState _visibilityPopupState = new(ViewportTool.Visibility);
     private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
+    private readonly ViewportPopupState _transformPopupState = new(ViewportTool.Transform);
+    private readonly ViewportPopupState _guidedPopupState = new(ViewportTool.Guided);
+    private readonly ViewportPopupState _structurePopupState = new(ViewportTool.Structure);
+    private readonly ViewportPopupState _regionPopupState = new(ViewportTool.Region);
+    // Declared after the states it groups: field initializers run in declaration order.
+    private readonly ViewportPopupGroup _viewportPopups;
     private readonly DispatcherTimer _uvtoolsAvailabilityTimer = new()
         { Interval = TimeSpan.FromSeconds(1) };
 
@@ -101,77 +122,108 @@ public partial class MainWindow : Window
 
     private void OnPanelLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(MainViewModel.ViewMode) or nameof(MainViewModel.SelectedObject))
+        {
+            ScrubField.CancelActive();
+            IsolationSlider.CancelDrag();
+            SlicePreviewSlider.CancelDrag();
+        }
+        if (e.PropertyName == nameof(MainViewModel.Title))
+        {
+            RememberProject();
+            ProjectDropdown.Content = $"{(ViewModel?.ProjectPath is { } path ? System.IO.Path.GetFileNameWithoutExtension(path) : "Project")} ▾";
+        }
         if (e.PropertyName != nameof(MainViewModel.ViewMode)) return;
         ApplyRightPanelMode();
         ApplyViewportPopupMode();
     }
 
-    private void ApplyRightPanelMode()
-    {
-        var splitterColumn = WorkspaceGrid.ColumnDefinitions[1];
-        var rightPanelColumn = WorkspaceGrid.ColumnDefinitions[2];
-        var showRightPanel = ViewModel?.ViewMode != WorkspaceMode.Support;
-        if (!showRightPanel)
-        {
-            var currentWidth = rightPanelColumn.ActualWidth >= 220
-                ? rightPanelColumn.ActualWidth
-                : rightPanelColumn.Width.Value;
-            if (currentWidth >= 220) _expandedRightPanelWidth = new GridLength(currentWidth);
-            RightPanel.IsVisible = false;
-            RightPanelSplitter.IsVisible = false;
-            splitterColumn.Width = new GridLength(0);
-            rightPanelColumn.MinWidth = 0;
-            rightPanelColumn.Width = new GridLength(0);
-            return;
-        }
-
-        RightPanel.IsVisible = true;
-        RightPanelSplitter.IsVisible = true;
-        splitterColumn.Width = new GridLength(5);
-        rightPanelColumn.MinWidth = 220;
-        if (rightPanelColumn.Width.Value <= 0)
-            rightPanelColumn.Width = _expandedRightPanelWidth;
-    }
-
-    private double PersistedRightPanelWidth()
-    {
-        if (!RightPanel.IsVisible) return _expandedRightPanelWidth.Value;
-        var currentWidth = WorkspaceGrid.ColumnDefinitions[2].ActualWidth;
-        return currentWidth >= 220 ? currentWidth : _expandedRightPanelWidth.Value;
-    }
+    private void ApplyRightPanelMode() => ApplyWorkspaceMode();
 
     private void OnObjectsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_objectsPopupState, ObjectsToolPopup);
+        ToggleViewportPopup(_objectsPopupState);
 
     private void OnSupportsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_supportsPopupState, SupportsToolPopup);
+        ToggleViewportPopup(_supportsPopupState);
 
     private void OnIslandDetectionToolClick(object? sender, RoutedEventArgs e)
     {
-        ToggleViewportPopup(_islandDetectionPopupState, IslandDetectionToolPopup);
+        ToggleViewportPopup(_islandDetectionPopupState);
     }
 
     private void OnVisibilityToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_visibilityPopupState, VisibilityToolPopup);
+        ToggleViewportPopup(_visibilityPopupState);
 
     private void OnRaftsToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_raftsPopupState, RaftsToolPopup);
+        ToggleViewportPopup(_raftsPopupState);
+
+    private void OnParentSupportsClick(object? sender, RoutedEventArgs e) => Viewport.ParentSupports();
+    private void OnBraceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.BraceSupports();
+    private void OnUnbraceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.UnbraceSupports();
+    private void OnSelectBracesClick(object? sender, RoutedEventArgs e) => Viewport.SelectBraces();
+    private void OnEditSupportClick(object? sender, RoutedEventArgs e) => Viewport.ToggleSupportEdit();
+    private void OnPlaceSupportsClick(object? sender, RoutedEventArgs e) => Viewport.StartGuidedTool(ViewportControl.GuidedTool.Place);
+
+    private void OnTransformToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(_transformPopupState);
+
+    private void OnGuidedToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(_guidedPopupState);
+
+    private void OnStructureToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(_structurePopupState);
+
+    private void OnRegionToolClick(object? sender, RoutedEventArgs e) =>
+        ToggleViewportPopup(_regionPopupState);
+
+    /// <summary>Generate Supports straight from the toolbar; no pop-out, the settings have their own.</summary>
+    private void OnGenerateToolClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.GenerateSupportsScopedCommand.CanExecute(null) == true)
+            ViewModel.GenerateSupportsScopedCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// A guided-tool button (user rule 2026-09-08: every key has a button). The button's Tag
+    /// names the tool; the pop-out stays open so the next tool is one click away, and the
+    /// viewport takes focus so the gesture's clicks and keys land there.
+    /// </summary>
+    private void OnGuidedToolButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string name } ||
+            !Enum.TryParse<ViewportControl.GuidedTool>(name, out var tool)) return;
+        Viewport.StartGuidedTool(tool);
+    }
 
     private void OnViewSettingsClick(object? sender, RoutedEventArgs e)
     {
         SyncViewSettingsPopup();
-        ToggleViewportPopup(ViewSettingsPopup);
+        // View settings is the one pop-out with no mode-dependent state of its own, so it joins
+        // the mutual exclusion here rather than through the group.
+        var opening = !ViewSettingsPopup.IsOpen;
+        if (opening) { CloseViewportToolPopups(); CloseExtraPopouts(); }
+        ViewSettingsPopup.IsOpen = opening;
     }
 
     private void OnViewSettingsCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(ViewSettingsPopup, ViewportPopupCloseTrigger.HeaderButton);
 
-    private static void ToggleViewportPopup(Popup popup) => popup.IsOpen = !popup.IsOpen;
-
-    private void ToggleViewportPopup(ViewportPopupState state, Popup popup)
+    /// <summary>
+    /// Opens one pop-out and closes every other, including View settings: only one panel ever
+    /// floats over the viewport. Clicking the open one's own icon closes it, as before.
+    /// </summary>
+    private void ToggleViewportPopup(ViewportPopupState state)
     {
-        state.Toggle();
-        ApplyViewportPopupState(state, popup);
+        CloseExtraPopouts();
+        _viewportPopups.Toggle(state);
+        ViewSettingsPopup.IsOpen = false;
+        ApplyViewportPopupMode();
+    }
+
+    private void CloseViewportToolPopups()
+    {
+        _viewportPopups.CloseAll();
+        ApplyViewportPopupMode();
     }
 
     private void ApplyViewportPopupMode()
@@ -181,9 +233,13 @@ public partial class MainWindow : Window
         ApplyViewportPopupState(_islandDetectionPopupState, IslandDetectionToolPopup);
         ApplyViewportPopupState(_visibilityPopupState, VisibilityToolPopup);
         ApplyViewportPopupState(_raftsPopupState, RaftsToolPopup);
+        ApplyViewportPopupState(_transformPopupState, TransformToolPopup);
+        ApplyViewportPopupState(_guidedPopupState, GuidedToolPopup);
+        ApplyViewportPopupState(_structurePopupState, StructureToolPopup);
+        ApplyViewportPopupState(_regionPopupState, RegionToolPopup);
     }
 
-    private void ApplyViewportPopupState(ViewportPopupState state, Popup popup) =>
+    private void ApplyViewportPopupState(ViewportPopupState state, WorkspacePopout popup) =>
         popup.IsOpen = state.IsVisible(ViewModel?.ViewMode ?? WorkspaceMode.Layout);
 
     private void OnViewportPopupOpened(object? sender, EventArgs e)
@@ -195,13 +251,18 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(sender, IslandDetectionToolPopup) => IslandDetectionPopupContent,
             _ when ReferenceEquals(sender, VisibilityToolPopup) => VisibilityPopupContent,
             _ when ReferenceEquals(sender, RaftsToolPopup) => RaftsPopupContent,
+            _ when ReferenceEquals(sender, TransformToolPopup) => TransformPopupContent,
+            _ when ReferenceEquals(sender, GuidedToolPopup) => GuidedPopupContent,
             _ when ReferenceEquals(sender, ViewSettingsPopup) => ViewSettingsPopupContent,
             _ => null,
         };
         focusTarget?.Focus();
     }
 
-    private void OnViewportPopupClosed(object? sender, EventArgs e) => Viewport.Focus();
+    private void OnViewportPopupClosed(object? sender, EventArgs e)
+    {
+        if (sender is WorkspacePopout popup) popup.PlacementTarget?.Focus();
+    }
 
     private void OnViewportPopupKeyDown(object? sender, KeyEventArgs e)
     {
@@ -213,6 +274,8 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(sender, IslandDetectionPopupContent) => IslandDetectionToolPopup,
             _ when ReferenceEquals(sender, VisibilityPopupContent) => VisibilityToolPopup,
             _ when ReferenceEquals(sender, RaftsPopupContent) => RaftsToolPopup,
+            _ when ReferenceEquals(sender, TransformPopupContent) => TransformToolPopup,
+            _ when ReferenceEquals(sender, GuidedPopupContent) => GuidedToolPopup,
             _ when ReferenceEquals(sender, ViewSettingsPopupContent) => ViewSettingsPopup,
             _ => null,
         };
@@ -243,14 +306,26 @@ public partial class MainWindow : Window
     private void OnRaftsPopupCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(_raftsPopupState, RaftsToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
+    private void OnTransformPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_transformPopupState, TransformToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnGuidedPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_guidedPopupState, GuidedToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnStructurePopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_structurePopupState, StructureToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
+    private void OnRegionPopupCloseClick(object? sender, RoutedEventArgs e) =>
+        CloseViewportPopup(_regionPopupState, RegionToolPopup, ViewportPopupCloseTrigger.HeaderButton);
+
     private void CloseViewportPopup(
-        ViewportPopupState state, Popup popup, ViewportPopupCloseTrigger trigger)
+        ViewportPopupState state, WorkspacePopout popup, ViewportPopupCloseTrigger trigger)
     {
         state.Close(trigger);
         ApplyViewportPopupState(state, popup);
     }
 
-    private void CloseViewportPopup(Popup popup, ViewportPopupCloseTrigger trigger)
+    private void CloseViewportPopup(WorkspacePopout popup, ViewportPopupCloseTrigger trigger)
     {
         var state = popup switch
         {
@@ -259,6 +334,10 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(popup, IslandDetectionToolPopup) => _islandDetectionPopupState,
             _ when ReferenceEquals(popup, VisibilityToolPopup) => _visibilityPopupState,
             _ when ReferenceEquals(popup, RaftsToolPopup) => _raftsPopupState,
+            _ when ReferenceEquals(popup, TransformToolPopup) => _transformPopupState,
+            _ when ReferenceEquals(popup, GuidedToolPopup) => _guidedPopupState,
+            _ when ReferenceEquals(popup, StructureToolPopup) => _structurePopupState,
+            _ when ReferenceEquals(popup, RegionToolPopup) => _regionPopupState,
             _ => null,
         };
         if (state is not null)
@@ -269,6 +348,26 @@ public partial class MainWindow : Window
         if (ViewportToolbarPolicy.ShouldClosePopup(trigger)) popup.IsOpen = false;
     }
 
+    private void OnPrinterPresetsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_printerEditorWindow is { } open) { open.Activate(); return; }
+        if (ViewModel is not { } main) return;
+        var editor = main.SupportSettings.Printers;
+        editor.SelectedIndex = editor.Items.ToList().FindIndex(p => p.Id == main.Document.Printer.Id);
+        _printerEditorWindow = new PrinterPresetEditorWindow(editor, printer =>
+        {
+            if (main.Document.Printer == printer) return;
+            main.Document.Printer = printer;
+            main.Document.NotifyTransientChange();
+            main.RefreshPrinterOptions();
+        });
+        _printerEditorWindow.Closed += (_, _) =>
+        {
+            editor.NameDraft = editor.SelectedPrinter?.Name ?? "";
+            _printerEditorWindow = null;
+        };
+        _printerEditorWindow.Show(this);
+    }
     private void OpenSupportPresetEditor()
     {
         if (_presetEditorWindow is { } open)
@@ -348,6 +447,28 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Empties the scene for a new project, asking first when there is something to lose. The
+    /// question is asked here, once, so every future entry point to "new" gets the same guard.
+    /// </summary>
+    private async Task NewProjectAsync()
+    {
+        if (ViewModel is not { } vm) return;
+        if (vm.IsGeneratingSupports || vm.IsSlicing)
+        {
+            vm.ViewportStatus = "Wait for the current operation before starting a new project.";
+            return;
+        }
+        if (vm.Document.HasContent && !await ConfirmDialog.AskAsync(this, "New project",
+                "The current scene has models in it. Starting a new project discards them, " +
+                "along with their supports and the undo history.",
+                confirmText: "Discard"))
+            return;
+        vm.NewProject();
+        Viewport.FrameAll();
+        Viewport.Focus();
+    }
+
     private async Task OpenProjectAsync()
     {
         if (ViewModel is not { } vm) return;
@@ -371,7 +492,9 @@ public partial class MainWindow : Window
         if (path is null) return;
         try
         {
+            RememberProject();
             ApplyProjectViewState(vm.OpenProject(path));
+            RememberProject();
             Viewport.Focus();
         }
         catch (Exception ex)
@@ -453,6 +576,11 @@ public partial class MainWindow : Window
         AddWindowKeyBinding(WindowKeymap.ExportPrint, () => ExportCommand);
         AddWindowKeyBinding(WindowKeymap.Preferences,
             () => new RelayCommand(() => OnPreferencesClick(this, new RoutedEventArgs())));
+        AddWindowKeyBinding(WindowKeymap.RegionFacingDown, () => ViewModel?.SelectFacingDownRegionCommand);
+        AddWindowKeyBinding(WindowKeymap.RegionInvert, () => ViewModel?.InvertRegionCommand);
+        AddWindowKeyBinding(WindowKeymap.RegionGrow, () => ViewModel?.GrowRegionCommand);
+        AddWindowKeyBinding(WindowKeymap.RegionShrink, () => ViewModel?.ShrinkRegionCommand);
+        AddWindowKeyBinding(WindowKeymap.RegionConnected, () => ViewModel?.ConnectedRegionCommand);
 
         OpenProjectMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.OpenProject);
         SaveProjectMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.SaveProject);
@@ -473,6 +601,23 @@ public partial class MainWindow : Window
         GenerateSupportsMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.GenerateSupports);
         SliceMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.Slice);
         PrintExportMenuItem.InputGesture = WindowKeymap.GetGesture(AppConfig.Current, WindowKeymap.ExportPrint);
+        ApplyKeymapTooltips();
+    }
+
+    /// <summary>
+    /// Toolbar buttons whose function has a keymap binding show it in the tooltip (user,
+    /// 2026-09-09); the keys are the user's, so the text is built here rather than in XAML.
+    /// </summary>
+    private void ApplyKeymapTooltips()
+    {
+        static string Key(string actionId) => WindowKeymap.GetGestureText(AppConfig.Current, actionId);
+        ToolTip.SetTip(AddObjectToolButton, $"Add object: import an STL or OBJ mesh into the layout ({Key(WindowKeymap.ImportMesh)})");
+        ToolTip.SetTip(GenerateToolButton, $"Generate supports for the support target, with the recipe under Support settings ({Key(WindowKeymap.GenerateSupports)})");
+        ToolTip.SetTip(RegionFacingDownButton, $"Add every face that points down past the Down angle to the region ({Key(WindowKeymap.RegionFacingDown)})");
+        ToolTip.SetTip(RegionInvertButton, $"Swap painted and unpainted faces ({Key(WindowKeymap.RegionInvert)})");
+        ToolTip.SetTip(RegionGrowButton, $"Add the faces next to the region ({Key(WindowKeymap.RegionGrow)})");
+        ToolTip.SetTip(RegionShrinkButton, $"Remove the region's outermost ring of faces ({Key(WindowKeymap.RegionShrink)})");
+        ToolTip.SetTip(RegionConnectedButton, $"Extend the region to every face connected to it ({Key(WindowKeymap.RegionConnected)})");
     }
 
     private sealed class TextInputGuardCommand(Window owner, Func<ICommand?> command) : ICommand
@@ -503,13 +648,17 @@ public partial class MainWindow : Window
         var config = ViewModel?.SupportSettings ?? new ConfigViewModel();
         _configWindow = new ConfigWindow(config);
         config.Saved += OnPreferencesSaved;
-        _configWindow.Closed += (_, _) => config.Saved -= OnPreferencesSaved;
+        config.ViewportSaved += OnPreferencesSaved;
+        config.ViewportPreviewed += OnPreferencesSaved;
+        _configWindow.Closed += (_, _) => { config.Saved -= OnPreferencesSaved; config.ViewportSaved -= OnPreferencesSaved; config.ViewportPreviewed -= OnPreferencesSaved; };
         _configWindow.Closed += (_, _) => _configWindow = null;
         _configWindow.Show(this);
     }
 
     private void OnPreferencesSaved()
     {
+        SyncRenderPathMenu();
+        UpdateIsolationPlacement();
         Viewport.RequestRedraw();
         RefreshWindowKeymap();
     }
@@ -520,17 +669,22 @@ public partial class MainWindow : Window
     private void SyncRenderPathMenu()
     {
         var viewport = AppConfig.Current.Viewport;
+        // Classic is only ever reached by the automatic fallback after a GL failure, so the
+        // shading switches follow it rather than a user choice.
         var deferred = viewport.RenderPath == RenderPathMode.Deferred;
-        DeferredRenderingMenuItem.IsChecked = deferred;
-        // The shading and effect switches only affect the deferred composite pass.
         ShadingMenuItem.IsEnabled = deferred;
         ShadingStudioMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.Studio;
         ShadingClayMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapClay;
         ShadingMetalMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapMetal;
         ShadingPearlMenuItem.IsChecked = viewport.Shading == ViewportShadingMode.MatCapPearl;
+        AoMenuItem.IsChecked = viewport.AmbientOcclusionEnabled;
+        AoMenuItem.IsEnabled = deferred;
+        ReflectionsMenuItem.IsChecked = viewport.PlateReflectionsEnabled;
         CavityMenuItem.IsChecked = viewport.CavityEnabled;
         OutlinesMenuItem.IsChecked = viewport.OutlinesEnabled;
         FxaaMenuItem.IsChecked = viewport.FxaaEnabled;
+        PlateShadowsMenuItem.IsChecked = viewport.PlateShadowsEnabled;
+        UpdateIsolationPlacement();
         SyncViewSettingsPopup();
     }
 
@@ -553,22 +707,65 @@ public partial class MainWindow : Window
         try
         {
             PopShading.ItemsSource ??= new[] { "Studio", "MatCap Clay", "MatCap Metal", "MatCap Pearl" };
-            PopDeferred.IsChecked = deferred;
             PopShading.SelectedIndex = Array.IndexOf(ShadingOrder, viewport.Shading);
             PopShading.IsEnabled = deferred;
+            PopShadowMode.ItemsSource ??= new[] { "Off", "Working", "Presentation" };
+            PopShadowMode.SelectedIndex = (int)viewport.ModelShadows;
+            var shadows = Danslicer.Render.ShadowEffects.FromConfig(viewport);
+            PopShadowStrength.Value = shadows.Strength;
+            PopShadowSoftness.Value = shadows.SoftnessMm;
+            PopShadowStrength.IsEnabled = PopShadowSoftness.IsEnabled = shadows.Mode != ModelShadowMode.Off;
+            PopAo.IsChecked = viewport.AmbientOcclusionEnabled;
+            PopAo.IsEnabled = deferred;
+            PopAoStrength.Value = viewport.AmbientOcclusionStrength;
+            PopAoRadius.Value = viewport.AmbientOcclusionRadiusMm;
+            PopAoStrength.IsEnabled = PopAoRadius.IsEnabled = deferred;
+            PopReflections.IsChecked = viewport.PlateReflectionsEnabled;
             PopCavity.IsChecked = viewport.CavityEnabled;
             PopOutlines.IsChecked = viewport.OutlinesEnabled;
+            PopOutlineWidth.Value = viewport.OutlineWidthPixels;
+            PopOutlineWidth.IsEnabled = deferred;
             PopFxaa.IsChecked = viewport.FxaaEnabled;
             PopCavity.IsEnabled = deferred;
             PopOutlines.IsEnabled = deferred;
             PopFxaa.IsEnabled = deferred;
             PopWireframe.IsChecked = viewport.WireframeEnabled;
             PopViewCube.IsChecked = viewport.ViewCubeEnabled;
+            PopPlateShadows.IsChecked = viewport.PlateShadowsEnabled;
         }
         finally
         {
             _syncingViewSettings = false;
         }
+    }
+
+    private void OnPopShadowModeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingViewSettings || PopShadowMode.SelectedIndex < 0) return;
+        var requestedMode = (ModelShadowMode)PopShadowMode.SelectedIndex;
+        ScrubField.CancelActive();
+        AppConfig.Current.Viewport.ModelShadows = requestedMode;
+        ApplyRenderPathChange();
+    }
+
+    private void OnShadowStrengthCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
+    {
+        if (sender is ScrubField { CommittedPreview: true }) return;
+        if (_syncingViewSettings) return;
+        var viewport = AppConfig.Current.Viewport;
+        if (viewport.ModelShadows == ModelShadowMode.Presentation) viewport.PresentationShadowStrength = (float)e.NewValue;
+        else if (viewport.ModelShadows == ModelShadowMode.Working) viewport.WorkingShadowStrength = (float)e.NewValue;
+        ApplyRenderPathChange();
+    }
+
+    private void OnShadowSoftnessCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
+    {
+        if (sender is ScrubField { CommittedPreview: true }) return;
+        if (_syncingViewSettings) return;
+        var viewport = AppConfig.Current.Viewport;
+        if (viewport.ModelShadows == ModelShadowMode.Presentation) viewport.PresentationShadowSoftnessMm = (float)e.NewValue;
+        else if (viewport.ModelShadows == ModelShadowMode.Working) viewport.WorkingShadowSoftnessMm = (float)e.NewValue;
+        ApplyRenderPathChange();
     }
 
     private void OnPopShadingChanged(object? sender, SelectionChangedEventArgs e)
@@ -582,6 +779,13 @@ public partial class MainWindow : Window
     {
         var viewport = AppConfig.Current.Viewport;
         viewport.WireframeEnabled = !viewport.WireframeEnabled;
+        ApplyRenderPathChange();
+    }
+
+    private void OnTogglePlateShadowsClick(object? sender, RoutedEventArgs e)
+    {
+        var viewport = AppConfig.Current.Viewport;
+        viewport.PlateShadowsEnabled = !viewport.PlateShadowsEnabled;
         ApplyRenderPathChange();
     }
 
@@ -599,24 +803,37 @@ public partial class MainWindow : Window
         Viewport.RequestRedraw();
     }
 
-    private void OnToggleDeferredRenderingClick(object? sender, RoutedEventArgs e)
-    {
-        var viewport = AppConfig.Current.Viewport;
-        viewport.RenderPath = viewport.RenderPath == RenderPathMode.Deferred
-            ? RenderPathMode.Classic
-            : RenderPathMode.Deferred;
-        // A Painted clip-cap style resolves differently per render path (exact CPU caps on
-        // Classic, screen-space caps on Deferred); this toggle bypasses the ViewportControl
-        // property change notification that normally triggers that re-resolution.
-        Viewport.NotifyRenderPathChanged();
-        ApplyRenderPathChange();
-    }
-
     private void OnShadingClick(object? sender, RoutedEventArgs e)
     {
         if (sender is MenuItem { Tag: string tag } &&
             Enum.TryParse<ViewportShadingMode>(tag, out var mode))
             AppConfig.Current.Viewport.Shading = mode;
+        ApplyRenderPathChange();
+    }
+
+    private void OnAoStrengthCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
+    {
+        if (sender is ScrubField { CommittedPreview: true }) return;
+        AppConfig.Current.Viewport.AmbientOcclusionStrength = (float)e.NewValue;
+        ApplyRenderPathChange();
+    }
+
+    private void OnAoRadiusCommitted(object? sender, Danslicer.App.Controls.Refresh.NumericCommittedEventArgs e)
+    {
+        if (sender is ScrubField { CommittedPreview: true }) return;
+        AppConfig.Current.Viewport.AmbientOcclusionRadiusMm = (float)e.NewValue;
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleAoClick(object? sender, RoutedEventArgs e)
+    {
+        AppConfig.Current.Viewport.AmbientOcclusionEnabled = !AppConfig.Current.Viewport.AmbientOcclusionEnabled;
+        ApplyRenderPathChange();
+    }
+
+    private void OnToggleReflectionsClick(object? sender, RoutedEventArgs e)
+    {
+        AppConfig.Current.Viewport.PlateReflectionsEnabled = !AppConfig.Current.Viewport.PlateReflectionsEnabled;
         ApplyRenderPathChange();
     }
 
@@ -638,9 +855,13 @@ public partial class MainWindow : Window
         ApplyRenderPathChange();
     }
 
+    private void OnNewProjectClick(object? sender, RoutedEventArgs e) => NewProjectCommand.Execute(null);
     private void OnOpenProjectClick(object? sender, RoutedEventArgs e) => OpenProjectCommand.Execute(null);
     private void OnSaveProjectClick(object? sender, RoutedEventArgs e) => SaveProjectCommand.Execute(null);
     private void OnSaveProjectAsClick(object? sender, RoutedEventArgs e) => SaveProjectAsCommand.Execute(null);
+
+    /// <summary>Save-as from the crash dialog: the same picker the menu item opens.</summary>
+    public void RequestSaveProjectAs() => SaveProjectAsCommand.Execute(null);
 
     private async void OnImportClick(object? sender, RoutedEventArgs e)
     {

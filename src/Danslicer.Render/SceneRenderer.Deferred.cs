@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Numerics;
 using Danslicer.Core;
 using Danslicer.Core.Config;
@@ -93,11 +93,12 @@ public sealed partial class SceneRenderer
         _buildVolume = frame.Printer.BuildVolume;
 
         PruneMeshCache(frame);
-        var plateFaded = frame.Camera.Eye.Z < 0f && frame.PlateOpacityFromBelow < 1f;
+        var plateOpacity = PlateFade.SurfaceOpacityFor(frame.Camera);
+        var plateFaded = plateOpacity < 1f;
 
         DrawGeometryPass(frame, view, projection, plateFaded);
         DrawCompositePass(frame, view, projection);
-        DrawForwardPasses(frame, view, projection, plateFaded);
+        DrawForwardPasses(frame, view, projection, plateFaded, plateOpacity);
         ResolveToHost(frame);
 
         gl.BindVertexArray(0);
@@ -132,7 +133,28 @@ public sealed partial class SceneRenderer
             var model = Matrix4x4.CreateTranslation(0, 0, -0.05f);
             BindGBufferShader(model, view, projection, PlateColor, backfaceTint: 0f,
                 warnOutsideBuildVolume: false, overhangCos: 2f, plateId, selected: false, clip: default);
+            BindPlateMaterial(_deferred!.GBufferShader, true);
             _plate!.Draw();
+            // Shadows carry the plate id: no outline between shadow and plate, and picking one
+            // picks the plate, i.e. nothing. See the classic DrawPlateShadows for the rest.
+            if (frame.ShowPlateShadows)
+            {
+                foreach (var obj in frame.Scene.Objects)
+                {
+                    if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+                    if (!_meshes.TryGetValue(obj.Mesh, out var gpu))
+                    {
+                        gpu = new GpuMesh(gl, obj.Mesh);
+                        _meshes[obj.Mesh] = gpu;
+                    }
+                    BindGBufferShader(obj.Transform.ToMatrix(), view, projection, Vector3.Lerp(PlateColor, PlateShadowColor, PlateFade.ShadowStrengthFor(frame.Camera)),
+                        backfaceTint: 0f, warnOutsideBuildVolume: false, overhangCos: 2f, plateId,
+                        selected: false, clip: default);
+                    BindPlateMaterial(pipeline.GBufferShader, true);
+                    BindShadow(pipeline.GBufferShader, true);
+                    gpu.Draw();
+                }
+            }
         }
 
         foreach (var obj in frame.Scene.Objects)
@@ -227,11 +249,11 @@ public sealed partial class SceneRenderer
 
             gl.CullFace(TriangleFace.Front);
             gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.IncrWrap);
-            DrawCappableGeometry(frame, view, projection, singleBoundClip);
+            DrawCappableGeometry(frame, view, projection, singleBoundClip, z);
 
             gl.CullFace(TriangleFace.Back);
             gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.DecrWrap);
-            DrawCappableGeometry(frame, view, projection, singleBoundClip);
+            DrawCappableGeometry(frame, view, projection, singleBoundClip, z);
 
             // Paint the cap through the ordinary shader wherever the stencil says a solid crosses.
             gl.Disable(EnableCap.CullFace);
@@ -250,7 +272,12 @@ public sealed partial class SceneRenderer
             var id = RegisterPick(null);
             BindGBufferShader(Matrix4x4.Identity, view, projection, ObjectColor, backfaceTint: 0f,
                 warnOutsideBuildVolume: false, overhangCos: 2f, id, selected: false, frame.ClipRange);
+            // A horizontal cut closes the retained solid only on its outward side. Rendering
+            // the reverse face exposes stencil footprints through multi-part support geometry.
+            gl.Enable(EnableCap.CullFace);
+            gl.CullFace(TriangleFace.Back);
             quad.Draw();
+            gl.Disable(EnableCap.CullFace);
         }
 
         gl.Disable(EnableCap.StencilTest);
@@ -264,12 +291,15 @@ public sealed partial class SceneRenderer
     /// support geometry), colour- and depth-write-free, for one side of the stencil mask.
     /// </summary>
     private void DrawCappableGeometry(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection,
-        ViewportClipRange clip)
+        ViewportClipRange clip, float planeZ)
     {
         var gl = _gl;
         foreach (var obj in frame.Scene.Objects)
         {
             if (obj.RenderState is RenderState.Hidden or RenderState.Ghosted) continue;
+            // A solid wholly on either side cannot contribute a cross-section. In particular,
+            // overlapping support parts below an upper model cut must not leave stencil residue.
+            if (obj.WorldBounds.Min.Z >= planeZ || obj.WorldBounds.Max.Z <= planeZ) continue;
             if (!_meshes.TryGetValue(obj.Mesh, out var gpu))
             {
                 gpu = new GpuMesh(gl, obj.Mesh);
@@ -283,6 +313,7 @@ public sealed partial class SceneRenderer
         foreach (var draw in frame.AuxMeshes)
         {
             if (draw.Opacity < 1f) continue;
+            if (draw.Mesh.Bounds.Min.Z >= planeZ || draw.Mesh.Bounds.Max.Z <= planeZ) continue;
             if (!_meshes.TryGetValue(draw.Mesh, out var gpu))
             {
                 gpu = new GpuMesh(gl, draw.Mesh);
@@ -337,6 +368,7 @@ public sealed partial class SceneRenderer
 
         var shader = _deferred!.GBufferShader;
         shader.Use();
+        BindPlateMaterial(shader, false);
         shader.Set("uModel", model);
         shader.Set("uView", view);
         shader.Set("uProjection", projection);
@@ -352,6 +384,7 @@ public sealed partial class SceneRenderer
         shader.Set("uOverhangCell", _overhangCell);
         shader.Set("uId", DeferredIds.Pack(id));
         shader.Set("uSelected", selected ? 1f : 0f);
+        BindShadow(shader, false);
         BindClip(shader, clip);
     }
 
@@ -380,16 +413,21 @@ public sealed partial class SceneRenderer
         Matrix4x4.Invert(view, out var invView);
         var shader = pipeline.CompositeShader;
         shader.Use();
+        BindModelShadows(shader, true);
         shader.Set("uInvProjection", invProjection);
         shader.Set("uInvView", invView);
         shader.Set("uWaterlineEnabled", frame.WaterlineZ.HasValue ? 1f : 0f);
         shader.Set("uWaterlineZ", frame.WaterlineZ.GetValueOrDefault());
         shader.Set("uTexel", TexelSize(frame));
         shader.Set("uShadingMode", effects.Shading == ViewportShadingMode.Studio ? 0 : 1);
+        shader.Set("uPlateEffectVisibility", PlateFade.ShadowStrengthFor(frame.Camera));
+        shader.Set("uAoStrength", effects.AmbientOcclusionEnabled ? effects.AmbientOcclusionStrength : 0f);
+        shader.Set("uAoRadiusMm", effects.AmbientOcclusionRadiusMm);
         shader.Set("uCavityRidge", effects.CavityEnabled ? effects.CavityRidgeStrength : 0f);
         shader.Set("uCavityValley", effects.CavityEnabled ? effects.CavityValleyStrength : 0f);
         shader.Set("uCavityRadius", effects.CavityRadiusPixels);
         shader.Set("uOutlineStrength", effects.OutlinesEnabled ? effects.OutlineStrength : 0f);
+        shader.Set("uOutlineWidth", effects.OutlineWidthPixels);
         shader.Set("uOutlineColor", OutlineColor);
         shader.Set("uSelectColor", SelectionOutlineColor);
         pipeline.DrawFullscreen();
@@ -405,16 +443,16 @@ public sealed partial class SceneRenderer
     /// the classic order.
     /// </summary>
     private void DrawForwardPasses(RenderFrame frame, in Matrix4x4 view, in Matrix4x4 projection,
-        bool plateFaded)
+        bool plateFaded, float plateOpacity)
     {
         var gl = _gl;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, _deferred!.ForwardFbo);
         gl.DepthFunc(DepthFunction.Lequal);
 
         DrawWireframe(frame, view, projection);
+        if (plateFaded && plateOpacity > 0.001f)
+            DrawPlate(frame.Printer, view, projection, plateOpacity);
         DrawTransparentAuxMeshes(frame, view, projection);
-        if (plateFaded && frame.PlateOpacityFromBelow > 0.001f)
-            DrawPlate(frame.Printer, view, projection, frame.PlateOpacityFromBelow);
         DrawObjects(frame, view, projection, ghosted: true);
         DrawLines(frame, view * projection);
     }

@@ -240,7 +240,7 @@ public sealed class SupportPresetEditorViewModel : ViewModelBase, IDisposable
             : string.Join(", ", summary.RefusalReasons.OrderBy(pair => pair.Key)
                 .Select(pair => $"{FriendlyReason(pair.Key)} {pair.Value}"));
         return $"Candidates {summary.CandidateCount}  •  Routed {summary.GeneratedTipCount}  •  " +
-               $"Refused {summary.UnroutedTipCount} ({refusals})  •  Minis {measurements.MiniCount}  •  " +
+               $"Refused {summary.UnroutedTipCount} ({refusals})  •  " +
                $"Bases {measurements.BaseCount}  •  Max lean {measurements.MaxLeanDegrees:0.0}°  •  " +
                $"Estimated volume {measurements.EstimatedVolumeMm3:0.0} mm³";
     }
@@ -248,7 +248,6 @@ public sealed class SupportPresetEditorViewModel : ViewModelBase, IDisposable
     private static string FriendlyReason(RoutingFailureReason reason) => reason switch
     {
         RoutingFailureReason.NoReachableGridPoint => "no grid point",
-        RoutingFailureReason.NoBranchEndInRange => "no branch in range",
         RoutingFailureReason.MemberCrossing => "member crossing",
         RoutingFailureReason.NoClearStep => "no clear step",
         RoutingFailureReason.ContactBlocked => "contact blocked",

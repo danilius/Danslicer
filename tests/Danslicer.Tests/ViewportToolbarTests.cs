@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Danslicer.App.ViewModels;
 using Danslicer.Core;
 using Danslicer.Core.Geometry;
@@ -10,9 +10,11 @@ namespace Danslicer.Tests;
 public sealed class ViewportToolbarTests
 {
     [Fact]
-    public void LayoutModeShowsOnlyObjects()
+    public void LayoutModeShowsObjectsAndTransform()
     {
-        Assert.Equal([ViewportTool.Objects],
+        // Transform replaced the right-hand panel in Layout (user decision 2026-09-08).
+        // Add object joined it as a toolbar button (user, 2026-09-09).
+        Assert.Equal([ViewportTool.Objects, ViewportTool.AddObject, ViewportTool.Transform],
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Layout));
     }
 
@@ -27,16 +29,19 @@ public sealed class ViewportToolbarTests
     public void SupportModeShowsTheCompleteContextualToolSet()
     {
         Assert.Equal(
-            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.IslandSupport,
+            [ViewportTool.Objects, ViewportTool.Supports, ViewportTool.Generate, ViewportTool.Guided,
+             ViewportTool.Structure, ViewportTool.Region, ViewportTool.IslandSupport,
                 ViewportTool.IslandDetection, ViewportTool.Visibility, ViewportTool.Rafts],
             ViewportToolbarPolicy.ToolsFor(WorkspaceMode.Support));
     }
 
+    // Support mode gained object selection: the selected model is the support target, so the
+    // list must be live there too. Slicing still has nothing to do with an object selection.
     [Theory]
     [InlineData(WorkspaceMode.Layout, true)]
-    [InlineData(WorkspaceMode.Support, false)]
+    [InlineData(WorkspaceMode.Support, true)]
     [InlineData(WorkspaceMode.Slicing, false)]
-    public void ObjectSelectionIsOwnedByLayout(WorkspaceMode mode, bool expected) =>
+    public void ObjectSelectionIsForTheModesWithObjectWork(WorkspaceMode mode, bool expected) =>
         Assert.Equal(expected, ViewportToolbarPolicy.CanSelectObjects(mode));
 
     [Theory]
@@ -122,4 +127,42 @@ public sealed class ViewportToolbarTests
 
     private static Mesh Triangle() => new(
         [Vector3.Zero, Vector3.UnitX, Vector3.UnitY], [0, 1, 2]);
+
+    [Fact]
+    public void OpeningAPopupClosesTheOneAlreadyOpen()
+    {
+        // The pop-outs float over the same viewport with no light dismiss, so two open at once
+        // would overlap. A toolbar click means "show me this one".
+        var objects = new ViewportPopupState(ViewportTool.Objects);
+        var supports = new ViewportPopupState(ViewportTool.Supports);
+        var rafts = new ViewportPopupState(ViewportTool.Rafts);
+        var group = new ViewportPopupGroup(objects, supports, rafts);
+
+        group.Toggle(objects);
+        Assert.True(objects.IsOpen);
+
+        group.Toggle(supports);
+        Assert.True(supports.IsOpen);
+        Assert.False(objects.IsOpen);
+
+        // The open one's own icon still closes it, leaving nothing open.
+        group.Toggle(supports);
+        Assert.False(supports.IsOpen);
+        Assert.False(objects.IsOpen);
+        Assert.False(rafts.IsOpen);
+    }
+
+    [Fact]
+    public void CloseAllClosesEveryPopup()
+    {
+        var objects = new ViewportPopupState(ViewportTool.Objects);
+        var supports = new ViewportPopupState(ViewportTool.Supports);
+        var group = new ViewportPopupGroup(objects, supports);
+        group.Toggle(objects);
+
+        group.CloseAll();
+
+        Assert.False(objects.IsOpen);
+        Assert.False(supports.IsOpen);
+    }
 }

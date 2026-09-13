@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 
 namespace Danslicer.Core.Supports;
 
@@ -10,6 +10,13 @@ public enum SupportNodeType
     Junction,
     /// <summary>Contact with the plate, or with the model when landing on the model is allowed.</summary>
     Base,
+    /// <summary>
+    /// The end of a brace, sitting on the axis of the trunk that carries it (SUPPORT-GEOMETRY-SPEC
+    /// "Bracing", user decision 2026-09-09: braces are added on, they never split a trunk). Its
+    /// carrier is found geometrically, so a split or replaced trunk still carries it. Never a
+    /// junction: it joins no member of its own support.
+    /// </summary>
+    BraceEnd,
 }
 
 /// <summary>
@@ -48,8 +55,6 @@ public enum SupportSegmentType
 {
     /// <summary>Contact member from the tip node to the first junction. Thin, tapered, carries the cone.</summary>
     Tip,
-    /// <summary>Fine contact rod fanning directly from a branch end.</summary>
-    MiniSupport,
     /// <summary>Angled member spanning from a trunk or junction toward a tip.</summary>
     Branch,
     /// <summary>Vertical (or merged main) member rising from the base.</summary>
@@ -212,6 +217,22 @@ public sealed class SupportGraph
     public bool TryGetNode(Guid id, out SupportNode node) => _nodes.TryGetValue(id, out node!);
     public bool TryGetSegment(Guid id, out SupportSegment segment) => _segments.TryGetValue(id, out segment!);
 
+    /// <summary>
+    /// The scene object a support element belongs to, node or segment, or null for one that
+    /// belongs to no object. A segment carries its own origin, but a segment built by joining
+    /// onto an existing tree can be tagged before its owner is known, so its endpoints are the
+    /// fallback: a member between two of an object's nodes is that object's member.
+    /// </summary>
+    public Guid? OwningObjectId(Guid elementId)
+    {
+        if (TryGetNode(elementId, out var node)) return node.Origin.ObjectId;
+        if (!TryGetSegment(elementId, out var segment)) return null;
+        if (segment.Origin.ObjectId is { } owner) return owner;
+        return TryGetNode(segment.NodeA, out var a) && a.Origin.ObjectId is { } fromA
+            ? fromA
+            : TryGetNode(segment.NodeB, out var b) ? b.Origin.ObjectId : null;
+    }
+
     public void AddNode(SupportNode node)
     {
         if (!_nodes.TryAdd(node.Id, node))
@@ -320,6 +341,8 @@ public sealed class SupportGraph
         foreach (var id in _nodes.Keys)
         {
             if (visited.Contains(id)) continue;
+            // A brace end joins only a brace, so on its own it is no support at all.
+            if (_nodes[id].Type == SupportNodeType.BraceEnd) { visited.Add(id); continue; }
             var component = Component(id);
             visited.UnionWith(component.Nodes);
             yield return component;

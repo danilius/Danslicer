@@ -1,0 +1,3 @@
+Status-bar XAML subtree byte-identical to accepted task-01 baseline.
+Original commands and settings remain accessible. User-approved isolation refinement moves lower/upper layer editors into MainWindow.Isolation.cs with paired mm fields and preserves the range model; CapInterior is explicitly two-way/two-state.
+Main VM, existing window keymaps, core/renderer and NumericField/ExpressionBox source unchanged. LayerRangeSlider adds local keyboard and hover interactions.

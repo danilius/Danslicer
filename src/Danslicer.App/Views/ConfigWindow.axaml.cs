@@ -23,6 +23,10 @@ public partial class ConfigWindow : Window
     {
         InitializeComponent();
         DataContext = config;
+        Resources.MergedDictionaries.Add(Controls.Refresh.RefreshPalette.CreateResources());
+        MainWindow.AdaptSupportSections(Content as Control);
+        Closing += (_, _) => Controls.Refresh.ScrubField.CancelActive();
+        Deactivated += (_, _) => Controls.Refresh.ScrubField.CancelActive();
         Configuration.WindowStatePersistence.Track(this, "preferences");
     }
 
@@ -55,7 +59,7 @@ public partial class ConfigWindow : Window
     {
         var index = SectionList.SelectedIndex;
         if (index >= 0 && index < Sections.Children.Count)
-            Sections.Children[index].BringIntoView();
+            Scroll.Offset = new Avalonia.Vector(Scroll.Offset.X, Sections.Children[index].Bounds.Y);
     }
 
     private async void OnBrowseUvtoolsClick(object? sender, RoutedEventArgs e)

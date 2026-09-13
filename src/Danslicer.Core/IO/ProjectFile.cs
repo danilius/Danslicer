@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -7,6 +7,7 @@ using Danslicer.Core.Printers;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Slicing;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Rafts;
 
 namespace Danslicer.Core.IO;
 
@@ -33,7 +34,7 @@ public static class ProjectFile
 {
     public const string Extension = "danslicer";
     public const int CurrentMajorVersion = 1;
-    public const int CurrentMinorVersion = 0;
+    public const int CurrentMinorVersion = 1; // 1.1: per-object raft (2026-09-09)
 
     private const uint MeshMagic = 0x48534D44; // DMSH, little endian
     private const int MeshVersion = 1;
@@ -106,6 +107,47 @@ public static class ProjectFile
         }
     }
 
+    /// <summary>
+    /// Mini supports were removed (user decision 2026-09-07), but old project files may still
+    /// carry them. Their segments are never added to the graph; this drops what they leave
+    /// behind: a tip node with no member, a branch end that fed only minis (a bare ball on a
+    /// stalk) with its branch, and then a trunk top left holding nothing, with its trunk and
+    /// an orphaned base, so no support stands with no tip on it.
+    /// </summary>
+    private static void DropMiniSupportRemnants(SupportGraph graph, IEnumerable<SegmentDto> minis)
+    {
+        foreach (var mini in minis)
+        {
+            if (!graph.TryGetNode(mini.NodeA, out var a) || !graph.TryGetNode(mini.NodeB, out var b))
+                continue;
+            var (tip, carrier) = a.Type == SupportNodeType.Tip ? (a, b) : (b, a);
+            if (graph.SegmentsAt(tip.Id).Count == 0) graph.RemoveNode(tip.Id);
+            DropBareStalk(graph, carrier.Id, SupportSegmentType.Branch);
+        }
+    }
+
+    /// <summary>
+    /// Removes <paramref name="nodeId"/> when its only remaining member is one
+    /// <paramref name="stalkType"/> segment, then repeats down that member: a branch end feeding
+    /// nothing takes its branch; a trunk top then left with only its trunk takes the trunk; a
+    /// base left with no member goes too.
+    /// </summary>
+    private static void DropBareStalk(SupportGraph graph, Guid nodeId, SupportSegmentType stalkType)
+    {
+        if (!graph.TryGetNode(nodeId, out var node)) return;
+        var members = graph.SegmentsAt(nodeId);
+        if (node.Type == SupportNodeType.Base)
+        {
+            if (members.Count == 0) graph.RemoveNode(nodeId);
+            return;
+        }
+        if (members.Count != 1 || members[0].Type != stalkType) return;
+        var stalk = members[0];
+        var farId = stalk.NodeA == nodeId ? stalk.NodeB : stalk.NodeA;
+        graph.RemoveNode(nodeId);
+        DropBareStalk(graph, farId, SupportSegmentType.Trunk);
+    }
+
     public static ProjectLoadResult Load(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -157,8 +199,11 @@ public static class ProjectFile
             document.Scene.Add(dto.ToObject(meshes[dto.Mesh]));
         foreach (var node in manifest.SupportGraph.Nodes)
             document.Supports.AddNode(node.ToNode());
-        foreach (var segment in manifest.SupportGraph.Segments)
+        // Old files may carry mini supports (removed 2026-09-07); those segments are dropped.
+        foreach (var segment in manifest.SupportGraph.Segments.Where(segment => !segment.IsMiniSupport))
             document.Supports.AddSegment(segment.ToSegment());
+        DropMiniSupportRemnants(document.Supports,
+            manifest.SupportGraph.Segments.Where(segment => segment.IsMiniSupport));
         document.History.Clear();
 
         return new ProjectLoadResult(document, (manifest.ViewState ?? new ViewStateDto()).ToViewState());
@@ -312,6 +357,25 @@ public static class ProjectFile
         public Vector3Dto Scale { get; set; } = new() { X = 1, Y = 1, Z = 1 };
         public RenderState RenderState { get; set; }
 
+        /// <summary>Painted support region, face indices into this object's mesh (DESIGN 8.3).
+        /// Omitted when empty, so a project saved before regions existed loads as "every face"
+        /// and generates exactly as it always did.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<int>? RegionFaces { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<int>? KeepCleanFaces { get; set; }
+
+        /// <summary>File the object was imported from, for the object list's update button.
+        /// Omitted when there is none, so older projects load unchanged.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? SourcePath { get; set; }
+
+        /// <summary>The raft under the object's supports (format 1.1). Omitted when there is
+        /// none, so a 1.0 project loads unchanged.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public RaftParameters? Raft { get; set; }
+
         public static ObjectDto From(SceneObject obj, string mesh) => new()
         {
             Id = obj.Id,
@@ -321,12 +385,22 @@ public static class ProjectFile
             Rotation = QuaternionDto.From(obj.Transform.Rotation),
             Scale = Vector3Dto.From(obj.Transform.Scale),
             RenderState = obj.RenderState,
+            // Sorted so a saved project is stable byte-for-byte: a HashSet's order is not.
+            RegionFaces = obj.Regions.Faces.Count == 0 ? null : [.. obj.Regions.Faces.Order()],
+            KeepCleanFaces = obj.Regions.KeepCleanFaces.Count == 0
+                ? null
+                : [.. obj.Regions.KeepCleanFaces.Order()],
+            SourcePath = obj.SourcePath,
+            Raft = obj.Raft,
         };
 
         public SceneObject ToObject(Mesh mesh) => new(Name, mesh, Id)
         {
             Transform = new Transform(Translation.ToVector3(), Rotation.ToQuaternion(), Scale.ToVector3()),
             RenderState = RenderState,
+            Regions = ObjectSupportRegions.From(RegionFaces, KeepCleanFaces),
+            SourcePath = SourcePath,
+            Raft = Raft?.Normalize(),
         };
     }
 
@@ -392,8 +466,16 @@ public static class ProjectFile
 
     private sealed class SegmentDto
     {
+        /// <summary>Segment type written by the removed mini-support feature; still found in old files.</summary>
+        private const string MiniSupportTypeName = "miniSupport";
+
         public Guid Id { get; set; }
-        public SupportSegmentType Type { get; set; }
+        /// <summary>
+        /// The segment type as its camel-case name, kept as a string so a type this version no
+        /// longer has (<see cref="MiniSupportTypeName"/>) can be recognised and skipped instead of
+        /// failing the whole load.
+        /// </summary>
+        public string Type { get; set; } = "";
         public Guid NodeA { get; set; }
         public Guid NodeB { get; set; }
         public float Diameter { get; set; }
@@ -402,18 +484,30 @@ public static class ProjectFile
         public bool Hidden { get; set; }
         public bool Disabled { get; set; }
 
+        [JsonIgnore]
+        public bool IsMiniSupport =>
+            string.Equals(Type, MiniSupportTypeName, StringComparison.OrdinalIgnoreCase);
+
         public static SegmentDto From(SupportSegment segment) => new()
         {
-            Id = segment.Id, Type = segment.Type, NodeA = segment.NodeA, NodeB = segment.NodeB,
+            Id = segment.Id, Type = JsonNamingPolicy.CamelCase.ConvertName(segment.Type.ToString()),
+            NodeA = segment.NodeA, NodeB = segment.NodeB,
             Diameter = segment.Diameter, Origin = OriginDto.From(segment.Origin),
             Pinned = segment.Pinned, Hidden = segment.Hidden, Disabled = segment.Disabled,
         };
 
         public SupportSegment ToSegment() => new()
         {
-            Id = Id, Type = Type, NodeA = NodeA, NodeB = NodeB, Diameter = Diameter,
+            Id = Id, Type = ParseType(), NodeA = NodeA, NodeB = NodeB, Diameter = Diameter,
             Origin = Origin.ToOrigin(), Pinned = Pinned, Hidden = Hidden, Disabled = Disabled,
         };
+
+        private SupportSegmentType ParseType() =>
+            !string.IsNullOrEmpty(Type) && !char.IsDigit(Type[0]) &&
+            Enum.TryParse<SupportSegmentType>(Type, ignoreCase: true, out var type) &&
+            Enum.IsDefined(type)
+                ? type
+                : throw new InvalidDataException($"Unknown support segment type '{Type}'.");
     }
 
     private sealed class OriginDto

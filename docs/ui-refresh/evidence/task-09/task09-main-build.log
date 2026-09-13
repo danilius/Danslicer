@@ -1,0 +1,25 @@
+  Determining projects to restore...
+  Restored F:\Git Repos\Danslicer\src\Danslicer.App\Danslicer.App.csproj (in 258 ms).
+  4 of 5 projects are up-to-date for restore.
+F:\Git Repos\Danslicer\src\Danslicer.Core\Supports\Guided\SurfaceContour.cs(29,34): warning CA2014: Potential stack overflow. Move the stackalloc out of the loop. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2014) [F:\Git Repos\Danslicer\src\Danslicer.Core\Danslicer.Core.csproj]
+  Danslicer.Core -> F:\Git Repos\Danslicer\src\Danslicer.Core\bin\Release\net10.0\Danslicer.Core.dll
+  Danslicer.Render -> F:\Git Repos\Danslicer\src\Danslicer.Render\bin\Release\net10.0\Danslicer.Render.dll
+  Danslicer.Cli -> F:\Git Repos\Danslicer\src\Danslicer.Cli\bin\Release\net10.0\Danslicer.Cli.dll
+F:\Git Repos\Danslicer\src\Danslicer.App\Controls\ViewportControl.cs(644,9): warning CS8602: Dereference of a possibly null reference. [F:\Git Repos\Danslicer\src\Danslicer.App\Danslicer.App.csproj]
+F:\Git Repos\Danslicer\src\Danslicer.App\Controls\ViewportControl.cs(650,21): warning CS8602: Dereference of a possibly null reference. [F:\Git Repos\Danslicer\src\Danslicer.App\Danslicer.App.csproj]
+  Danslicer.App -> F:\Git Repos\Danslicer\src\Danslicer.App\bin\Release\net10.0\Danslicer.App.dll
+F:\Git Repos\Danslicer\tests\Danslicer.Tests\RaftBuilderTests.cs(149,20): warning xUnit2031: Do not use a Where clause to filter before calling Assert.Single. Use the overload of Assert.Single that accepts a filtering function. (https://xunit.net/xunit.analyzers/rules/xUnit2031) [F:\Git Repos\Danslicer\tests\Danslicer.Tests\Danslicer.Tests.csproj]
+F:\Git Repos\Danslicer\tests\Danslicer.Tests\RaftBuilderTests.cs(153,23): warning xUnit2031: Do not use a Where clause to filter before calling Assert.Single. Use the overload of Assert.Single that accepts a filtering function. (https://xunit.net/xunit.analyzers/rules/xUnit2031) [F:\Git Repos\Danslicer\tests\Danslicer.Tests\Danslicer.Tests.csproj]
+  Danslicer.Tests -> F:\Git Repos\Danslicer\tests\Danslicer.Tests\bin\Release\net10.0\Danslicer.Tests.dll
+
+Build succeeded.
+
+F:\Git Repos\Danslicer\src\Danslicer.Core\Supports\Guided\SurfaceContour.cs(29,34): warning CA2014: Potential stack overflow. Move the stackalloc out of the loop. (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2014) [F:\Git Repos\Danslicer\src\Danslicer.Core\Danslicer.Core.csproj]
+F:\Git Repos\Danslicer\src\Danslicer.App\Controls\ViewportControl.cs(644,9): warning CS8602: Dereference of a possibly null reference. [F:\Git Repos\Danslicer\src\Danslicer.App\Danslicer.App.csproj]
+F:\Git Repos\Danslicer\src\Danslicer.App\Controls\ViewportControl.cs(650,21): warning CS8602: Dereference of a possibly null reference. [F:\Git Repos\Danslicer\src\Danslicer.App\Danslicer.App.csproj]
+F:\Git Repos\Danslicer\tests\Danslicer.Tests\RaftBuilderTests.cs(149,20): warning xUnit2031: Do not use a Where clause to filter before calling Assert.Single. Use the overload of Assert.Single that accepts a filtering function. (https://xunit.net/xunit.analyzers/rules/xUnit2031) [F:\Git Repos\Danslicer\tests\Danslicer.Tests\Danslicer.Tests.csproj]
+F:\Git Repos\Danslicer\tests\Danslicer.Tests\RaftBuilderTests.cs(153,23): warning xUnit2031: Do not use a Where clause to filter before calling Assert.Single. Use the overload of Assert.Single that accepts a filtering function. (https://xunit.net/xunit.analyzers/rules/xUnit2031) [F:\Git Repos\Danslicer\tests\Danslicer.Tests\Danslicer.Tests.csproj]
+    5 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:06.17

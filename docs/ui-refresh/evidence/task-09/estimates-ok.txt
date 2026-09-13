@@ -1,0 +1,2 @@
+Completed slice: 110 layers; theoretical union volume 0.24170238 mL; time 1368.3333333333333 seconds; UI 0.24 mL, ≈ 23 min.
+Theoretical resin: sliced model, support and raft union inside the build area; excludes tank fill, waste and shrinkage. AA grey levels are coverage, not measured cure volume. Time: bottom/normal exposures + lift/retract at configured speeds + light-off delay as an additional wait per layer. No transition schedule is supported. Firmware delay interpretation, acceleration, homing and finishing overhead are unknown.

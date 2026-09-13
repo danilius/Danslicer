@@ -1,0 +1,3 @@
+Status bar Border subtree byte-identical after newline normalization to main 7d95cebfe7f289d1e3230fb789a4526d1f3b518d.
+Core diff versus main is viewport UserConfig additions and the task-05 two-field Document.ReplaceWith copy correction only. Slicing, support generation, raft geometry and ProjectFile schemas unchanged.
+Main is merge-base and git log HEAD..main is empty: no reconciliation merge needed.

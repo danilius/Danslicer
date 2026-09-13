@@ -1,3 +1,4 @@
+using Danslicer.Core.Supports;
 using Danslicer.Core.Supports.Generation;
 using Danslicer.Core;
 using Danslicer.Core.Config;
@@ -71,7 +72,13 @@ public sealed class SupportPreviewShapesTests
         var disabled = GeneratePreview(sampleName, reinforce: false);
         var enabled = GeneratePreview(sampleName, reinforce: true);
 
-        Assert.True(enabled.Segments.Count > disabled.Segments.Count,
+        // The ring's contacts are new tips the disabled preview never had. (They may displace
+        // neighbouring regular contacts, so the segment count alone is not a measure.)
+        var disabledContacts = disabled.Nodes.Where(n => n.Type == SupportNodeType.Tip)
+            .Select(n => n.Position).ToHashSet();
+        var ringContacts = enabled.Nodes.Where(n => n.Type == SupportNodeType.Tip)
+            .Select(n => n.Position).Where(p => !disabledContacts.Contains(p)).ToList();
+        Assert.True(ringContacts.Count > 0,
             $"The live-preview sample should visibly gain routed reinforcement geometry; " +
             $"disabled={disabled.Segments.Count}/{disabled.Summary.UnroutedTipCount}, " +
             $"enabled={enabled.Segments.Count}/{enabled.Summary.UnroutedTipCount}.");
