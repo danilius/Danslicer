@@ -474,11 +474,26 @@ public partial class MainViewModel : ViewModelBase
         if (save) AppConfig.Save();
     }
 
+    private SceneObject? _islandDetectionObject;
+    private SceneMeshSnapshot? _islandDetectionTarget;
+    private IReadOnlyList<DetectedIsland> _islandDetectionResults = [];
+
+    private bool IslandDetectionTargetIsCurrent() =>
+        _islandDetectionObject is { } obj && _islandDetectionTarget is { } target &&
+        Document.Scene.Objects.Contains(obj) && ReferenceEquals(obj.Mesh, target.Mesh) &&
+        obj.Transform.ToMatrix() == target.Transform;
+
     private void OnDocumentChanged()
     {
         if (IsGeneratingSupports && !_applyingGenerationBatch)
             _generationCancellation?.Cancel();
-        if (DetectedIslands.Count > 0) DetectedIslands = [];
+        if (IslandDetectionTargetIsCurrent())
+            DetectedIslands = IslandDetection.FilterUnsupported(_islandDetectionResults, Document.Supports);
+        else
+        {
+            _islandDetectionResults = [];
+            if (DetectedIslands.Count > 0) DetectedIslands = [];
+        }
         RefreshFields();
         var undo = Document.History.UndoName;
         var redo = Document.History.RedoName;
@@ -751,13 +766,19 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             var request = Document.CaptureIslandDetection(obj);
-            DetectedIslands = await Task.Run(() => Document.ComputeIslandDetection(request));
+            _islandDetectionObject = obj;
+            _islandDetectionTarget = request.Target;
+            var results = await Task.Run(() => Document.ComputeIslandDetection(request));
+            if (!IslandDetectionTargetIsCurrent()) return;
+            _islandDetectionResults = results;
+            DetectedIslands = IslandDetection.FilterUnsupported(results, Document.Supports);
             ViewportStatus = DetectedIslands.Count == 0
                 ? "Island detection: no unsupported islands."
                 : $"Island detection: {DetectedIslands.Count} unsupported islands.";
         }
         catch (Exception ex)
         {
+            _islandDetectionResults = [];
             DetectedIslands = [];
             ViewportStatus = $"Island detection failed: {ex.Message}";
         }
@@ -773,6 +794,9 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ClearIslandDetection()
     {
+        _islandDetectionObject = null;
+        _islandDetectionTarget = null;
+        _islandDetectionResults = [];
         DetectedIslands = [];
         ViewportStatus = "Island markers cleared.";
     }

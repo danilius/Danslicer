@@ -149,8 +149,6 @@ public partial class MainWindow : Window
     private void OnIslandDetectionToolClick(object? sender, RoutedEventArgs e)
     {
         ToggleViewportPopup(_islandDetectionPopupState, IslandDetectionToolPopup);
-        if (_islandDetectionPopupState.IsOpen && ViewModel?.DetectIslandsCommand.CanExecute(null) == true)
-            ViewModel.DetectIslandsCommand.Execute(null);
     }
 
     private void OnVisibilityToolClick(object? sender, RoutedEventArgs e) =>

@@ -8,6 +8,8 @@ namespace Danslicer.Core.Supports.Generation;
 /// <summary>An island that remains unsupported at the time of analysis.</summary>
 public readonly record struct DetectedIsland(Vector3 Position, float AreaMm2, int LayerIndex)
 {
+    internal Paths64? Footprint { get; init; }
+    internal double SupportPlaneZ { get; init; }
     public float X => Position.X;
     public float Y => Position.Y;
     public float Z => Position.Z;
@@ -17,12 +19,16 @@ public readonly record struct DetectedIsland(Vector3 Position, float AreaMm2, in
 }
 
 /// <summary>
-/// Deterministic island analysis shared by the app and CLI. The model is freshly sliced on every
-/// call. When supports are supplied, their analytic printable sections are sliced immediately
-/// below each newborn layer; an intersecting section marks that island as supported.
+/// Deterministic disconnected-component analysis shared by the app and CLI. Connected overhang
+/// growth is handled by support generation, not reported as a new island on every layer.
+/// When supports are supplied, their analytic printable sections at the preceding layer's
+/// mid-height must overlap the actual solid island footprint, excluding holes.
 /// </summary>
 public static class IslandDetection
 {
+    /// <summary>Finds components with no positive-area overlap with the preceding model layer.
+    /// The minimum area applies at birth. The angle parameter is retained for API compatibility;
+    /// disconnected islands must not be hidden by an overhang allowance.</summary>
     public static IReadOnlyList<DetectedIsland> FindUnsupported(
         Mesh worldMesh, SupportGraph? supports, float layerHeightMm,
         float minIslandAreaMm2, float plateZ, float overhangAngleDegrees)
@@ -30,7 +36,7 @@ public static class IslandDetection
         ArgumentNullException.ThrowIfNull(worldMesh);
         var layers = LayerStack.Slice(worldMesh, layerHeightMm);
         var islands = IslandFinder.Find(layers, worldMesh.Bounds.Min.Z, layerHeightMm,
-            minIslandAreaMm2, plateZ, overhangAngleDegrees);
+            minIslandAreaMm2, plateZ, overhangAngleDegrees, includeOverhangs: false);
         var supportLayers = supports is null ? null : islands
             .Select(island => island.LayerIndex)
             .Distinct()
@@ -44,28 +50,25 @@ public static class IslandDetection
             .ThenBy(island => island.Centroid.X)
             .ThenBy(island => island.Centroid.Y)
             .Select(island => new DetectedIsland(
-                island.Centroid, island.AreaMm2, island.LayerIndex))
+                island.Centroid, island.AreaMm2, island.LayerIndex)
+            {
+                Footprint = island.Footprint,
+                SupportPlaneZ = Math.Max(0, (island.LayerIndex - 0.5) * layerHeightMm)
+            })
             .ToList();
     }
 
-    private static bool IsReachedBySupport(Island island, Paths64 supportSections)
+    /// <summary>Updates cached markers after support edits without slicing the model again.</summary>
+    public static IReadOnlyList<DetectedIsland> FilterUnsupported(
+        IReadOnlyList<DetectedIsland> islands, SupportGraph supports)
     {
-        var radius = MathF.Max(0.25f, MathF.Sqrt(island.AreaMm2 / MathF.PI));
-        var radiusSquared = radius * radius;
-        var centroid = new Point64(
-            (long)Math.Round(island.Centroid.X * MeshSlicer.UnitsPerMm),
-            (long)Math.Round(island.Centroid.Y * MeshSlicer.UnitsPerMm));
-        foreach (var section in supportSections)
-        {
-            if (Clipper.PointInPolygon(centroid, section) != PointInPolygonResult.IsOutside)
-                return true;
-            foreach (var point in section)
-            {
-                var dx = (float)(point.X / MeshSlicer.UnitsPerMm) - island.Centroid.X;
-                var dy = (float)(point.Y / MeshSlicer.UnitsPerMm) - island.Centroid.Y;
-                if (dx * dx + dy * dy <= radiusSquared) return true;
-            }
-        }
-        return false;
+        var sections = islands.Where(i => i.Footprint is not null)
+            .Select(i => i.SupportPlaneZ).Distinct()
+            .ToDictionary(z => z, z => SupportSliceGeometry.SectionsAt(supports, z));
+        return islands.Where(i => i.Footprint is null || MeshSlicer.AreaMm2(
+            Clipper.Intersect(i.Footprint, sections[i.SupportPlaneZ], FillRule.NonZero)) <= 0).ToList();
     }
+
+    internal static bool IsReachedBySupport(Island island, Paths64 supportSections) =>
+        MeshSlicer.AreaMm2(Clipper.Intersect(island.Footprint, supportSections, FillRule.NonZero)) > 0;
 }

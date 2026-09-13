@@ -5,13 +5,13 @@ using Danslicer.Core.Slicing;
 
 namespace Danslicer.Core.Supports.Generation;
 
-internal readonly record struct Island(Vector3 Centroid, float AreaMm2, float Z, int LayerIndex);
+internal readonly record struct Island(Vector3 Centroid, float AreaMm2, float Z, int LayerIndex)
+{
+    public Paths64 Footprint { get; init; } = new();
+}
 
-/// <summary>
-/// Layer islands: a region of a layer whose XY does not overlap the previous layer (the plate
-/// counts as support for layer 0 when the mesh sits on it). Contours and the newborn difference
-/// come from <see cref="MeshSlicer.LayerPolygons"/> / <see cref="MeshSlicer.NewbornIslands"/>.
-/// </summary>
+/// <summary>Layer regions requiring support. Generation includes overhang strips;
+/// standalone detection considers disconnected components only.</summary>
 internal static class IslandFinder
 {
     public static List<Island> Find(
@@ -22,112 +22,60 @@ internal static class IslandFinder
     }
 
     public static List<Island> Find(
-        IReadOnlyList<SliceLayer> layers,
-        float meshMinZ,
-        float layerHeight,
-        float minAreaMm2,
-        float plateZ,
-        float overhangAngleDegrees = 45f)
+        IReadOnlyList<SliceLayer> layers, float meshMinZ, float layerHeight,
+        float minAreaMm2, float plateZ, float overhangAngleDegrees = 45f,
+        bool includeOverhangs = true)
     {
         var result = new List<Island>();
-        if (layers.Count == 0) return result;
-
         var theta = Math.Clamp(overhangAngleDegrees, 1f, 89f) * Math.PI / 180.0;
         var inflateMm = layerHeight * Math.Tan(theta) + 0.02;
-        var sitsOnPlate = meshMinZ <= plateZ + layerHeight + 1e-4;
-
-        var polygons = new List<Paths64>(layers.Count);
-        foreach (var layer in layers) polygons.Add(layer.Polygons);
-        var newborn = MeshSlicer.NewbornIslands(polygons, inflateMm);
+        var newborn = includeOverhangs
+            ? MeshSlicer.NewbornIslands(layers.Select(l => l.Polygons).ToList(), inflateMm)
+            : null;
 
         for (int i = 0; i < layers.Count; i++)
         {
-            if (i == 0 && sitsOnPlate) continue;
-            CollectIslands(newborn[i], minAreaMm2, layers[i].Z, layers[i].Index, result);
+            // Only the layer straddling the plate can obtain support from it.
+            if (layers[i].Z - layerHeight / 2 <= plateZ + 1e-4 &&
+                meshMinZ <= plateZ + 1e-4) continue;
+            var regions = PolygonComponents.Split(newborn is null ? layers[i].Polygons : newborn[i]);
+            foreach (var region in regions)
+            {
+                if (newborn is null && i > 0 && MeshSlicer.AreaMm2(
+                    Clipper.Intersect(region, layers[i - 1].Polygons, FillRule.NonZero)) > 0)
+                    continue;
+                var area = MeshSlicer.AreaMm2(region);
+                if (area < minAreaMm2) continue;
+                var point = PointOnSolid(region);
+                result.Add(new Island(new Vector3(point, layers[i].Z), (float)area,
+                    layers[i].Z, layers[i].Index) { Footprint = region });
+            }
         }
-
         return result;
     }
 
-    /// <summary>
-    /// Difference returns outers (positive area) and holes (negative). Net area of each outer
-    /// minus its holes is the island; the centroid is rejected if it falls in a hole.
-    /// </summary>
-    private static void CollectIslands(Paths64 paths, float minAreaMm2, float z, int layerIndex, List<Island> result)
+    private static Vector2 PointOnSolid(Paths64 region)
     {
-        if (paths.Count == 0) return;
-        var scale = MeshSlicer.UnitsPerMm * MeshSlicer.UnitsPerMm;
-        var outers = new List<Path64>();
-        var holes = new List<Path64>();
-        foreach (var path in paths)
-        {
-            var a = Clipper.Area(path);
-            if (a > 0) outers.Add(path);
-            else if (a < 0) holes.Add(path);
-        }
-
-        foreach (var outer in outers)
-        {
-            var mine = new List<Path64>();
-            double net = Clipper.Area(outer);
-            foreach (var hole in holes)
-            {
-                if (hole.Count == 0) continue;
-                if (Clipper.PointInPolygon(hole[0], outer) == PointInPolygonResult.IsOutside) continue;
-                mine.Add(hole);
-                net += Clipper.Area(hole);
-            }
-            var areaMm2 = net / scale;
-            if (areaMm2 < minAreaMm2) continue;
-
-            var c = CentroidOnSolid(outer, mine);
-            result.Add(new Island(new Vector3(c.X, c.Y, z), (float)areaMm2, z, layerIndex));
-        }
-    }
-
-    private static Vector2 CentroidOnSolid(Path64 outer, List<Path64> holes)
-    {
-        var c = CentroidMm(outer);
-        var pt = new Point64(
-            (long)Math.Round(c.X * MeshSlicer.UnitsPerMm),
-            (long)Math.Round(c.Y * MeshSlicer.UnitsPerMm));
-        if (Clipper.PointInPolygon(pt, outer) != PointInPolygonResult.IsOutside &&
-            !holes.Any(h => Clipper.PointInPolygon(pt, h) != PointInPolygonResult.IsOutside))
-            return c;
-
-        foreach (var p in outer)
-        {
-            if (holes.Any(h => Clipper.PointInPolygon(p, h) != PointInPolygonResult.IsOutside)) continue;
-            return new Vector2((float)(p.X / MeshSlicer.UnitsPerMm), (float)(p.Y / MeshSlicer.UnitsPerMm));
-        }
-        return new Vector2(
-            (float)(outer[0].X / MeshSlicer.UnitsPerMm),
-            (float)(outer[0].Y / MeshSlicer.UnitsPerMm));
-    }
-
-    private static Vector2 CentroidMm(Path64 path)
-    {
-        double a = 0, cx = 0, cy = 0;
+        double crossSum = 0, x = 0, y = 0;
+        foreach (var path in region)
         for (int i = 0, j = path.Count - 1; i < path.Count; j = i++)
         {
-            double x0 = path[j].X, y0 = path[j].Y;
-            double x1 = path[i].X, y1 = path[i].Y;
-            double cr = x0 * y1 - x1 * y0;
-            a += cr;
-            cx += (x0 + x1) * cr;
-            cy += (y0 + y1) * cr;
+            double cross = (double)path[j].X * path[i].Y - (double)path[i].X * path[j].Y;
+            crossSum += cross;
+            x += (path[j].X + path[i].X) * cross;
+            y += (path[j].Y + path[i].Y) * cross;
         }
-        a *= 0.5;
-        if (Math.Abs(a) < 1.0)
-        {
-            double sx = 0, sy = 0;
-            foreach (var p in path) { sx += p.X; sy += p.Y; }
-            var inv = 1.0 / Math.Max(path.Count, 1);
-            return new Vector2((float)(sx * inv / MeshSlicer.UnitsPerMm), (float)(sy * inv / MeshSlicer.UnitsPerMm));
-        }
+        var center = new Point64(x / (3 * crossSum), y / (3 * crossSum));
+        if (Clipper.PointInPolygon(center, region[0]) == PointInPolygonResult.IsInside &&
+            region.Skip(1).All(h => Clipper.PointInPolygon(center, h) == PointInPolygonResult.IsOutside))
+            return Mm(center.X, center.Y);
 
-        cx /= 6 * a;
-        cy /= 6 * a;
-        return new Vector2((float)(cx / MeshSlicer.UnitsPerMm), (float)(cy / MeshSlicer.UnitsPerMm));
+        // A triangle interior stays on solid material even for rings and concave regions.
+        var triangles = PolygonTriangulator.Triangulate(region);
+        var triangle = triangles.MaxBy(t => Math.Abs(Clipper.Area(t)))!;
+        return Mm(triangle.Average(p => (double)p.X), triangle.Average(p => (double)p.Y));
     }
+
+    private static Vector2 Mm(double x, double y) =>
+        new((float)(x / MeshSlicer.UnitsPerMm), (float)(y / MeshSlicer.UnitsPerMm));
 }

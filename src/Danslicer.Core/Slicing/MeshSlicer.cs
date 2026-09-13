@@ -207,6 +207,8 @@ public static class MeshSlicer
     {
         // Check the cell of the point and its neighbours so tolerance spans quantisation boundaries.
         var (kx, ky) = Key(from, q);
+        index = -1;
+        double bestDistance = double.PositiveInfinity;
         for (long dx = -1; dx <= 1; dx++)
         for (long dy = -1; dy <= 1; dy++)
         {
@@ -214,13 +216,17 @@ public static class MeshSlicer
             foreach (var i in list)
             {
                 if (used[i] || !Near(segments[i].A, from, q)) continue;
-                used[i] = true;
+                var deltaX = (double)segments[i].A.X - from.X;
+                var deltaY = (double)segments[i].A.Y - from.Y;
+                var distance = deltaX * deltaX + deltaY * deltaY;
+                if (distance >= bestDistance) continue;
+                bestDistance = distance;
                 index = i;
-                return true;
             }
         }
-        index = -1;
-        return false;
+        if (index < 0) return false;
+        used[index] = true;
+        return true;
     }
 
     private static (long, long) Key(Point64 p, long q) => (p.X / q, p.Y / q);
