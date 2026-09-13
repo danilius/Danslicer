@@ -1,3 +1,12 @@
+# Current handoff — UI tasks 01–10 integrated into main
+
+2026-09-13: User authorized merging all completed work from this UI task sequence. Main fast-forwarded from a611489edfa2df429a158a4c96c15debcf7f0b12 to b6c03d591b1db39c2c4b37dce6c0d1bda7e52fce, including Task10. Earlier review-only/no-Task10-in-main statements below are historical.
+
+Actual verification on F:/Git Repos/Danslicer: Release solution build passed (five existing warnings), full suite 1061 passed/0 failed/0 skipped; isolated native workspace harness exited0 with16 top-level success markers. Evidence: artifacts/merge-main-20260913. Physical input/DPI and printing not reverified; no renderer changes and no redundant GL rerun.
+
+Main executable: F:/Git Repos/Danslicer/src/Danslicer.App/bin/Release/net10.0/Danslicer.App.exe. Existing untracked .claude, coordination note, reference and test-project folders preserved. No push performed. Older grid-routing-prototype and detached review5 lineage remain separate: they predate and are outside the approved UI sequence and were not silently merged over the redesign.
+
+---
 # Current handoff — Task10 complete, review branch
 
 Task10 worktree: C:/Users/plane/.codex/worktrees/b4fb/Danslicer-chatgpt; branch codex/ui-refresh-10.
