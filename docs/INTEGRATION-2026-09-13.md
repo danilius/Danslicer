@@ -56,3 +56,12 @@ The user subsequently authorized all five consolidation steps and a fresh build.
 ### Remaining app handoff
 
 The active task and saved Codex project still reference `F:/Git Repos/Danslicer-chatgpt`. The available handoff tool cannot move the calling task, and no available project-management tool can change the saved project's path. Therefore that one active worktree remains, with its useful files already archived in main. It is detached after consolidation so main is the sole remaining local branch. Open `F:/Git Repos/Danslicer` as the Codex project for the next task, then recheck and remove the old worktree. Do not resume old tasks against removed worktrees.
+
+### Final worktree removal
+
+The authorized continuation ran directly in `F:/Git Repos/Danslicer` on main after confirming that the source task and all other loaded tasks using the old folder were idle. This section supersedes the remaining-worktree status above.
+
+- Rechecked the old worktree: no tracked or untracked changes; its detached HEAD `6787fa9130276e1a634549a6acdc3af2ff1c093d` was contained in main.
+- Inventoried 5,111 ignored files, including 1,736 useful files outside disposable `bin`/`obj` outputs. All 1,736 matched SHA-256-verified recovery copies: 1,735 manifest entries plus `artifacts/consolidation-tools/cleanup.ps1`, preserved as `cleanup-executed.ps1`. No new preservation was needed.
+- Used non-forced `git worktree remove` on the exact verified old path. Git removed its contents and registration; only the main worktree remains. Windows retained the empty `F:/Git Repos/Danslicer-chatgpt` directory because another process holds it open. An explicit non-recursive empty-directory deletion confirmed that process lock; removing this empty directory remains pending until the handle is released.
+- Main's existing local assets and recovery archive remain in place. The published self-contained executable remains available and its SHA-256 still matches the value above. Source code is unchanged, so the successful fresh build and 1,071-test result remain applicable.
