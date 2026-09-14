@@ -19,6 +19,7 @@ public static class SurfaceContour
     {
         // One segment per downward face the plane crosses.
         var segments = new List<(Vector3 A, Vector3 B, int Face)>();
+        Span<Vector3> hits = stackalloc Vector3[3];
         for (var face = 0; face < mesh.TriangleCount; face++)
         {
             if (mesh.FaceNormals[face].Z >= -MinDownwardComponent) continue;
@@ -26,7 +27,6 @@ public static class SurfaceContour
             var lo = MathF.Min(a.Z, MathF.Min(b.Z, c.Z));
             var hi = MathF.Max(a.Z, MathF.Max(b.Z, c.Z));
             if (z <= lo || z >= hi) continue;
-            Span<Vector3> hits = stackalloc Vector3[3];
             var count = 0;
             Cross(a, b, z, hits, ref count);
             Cross(b, c, z, hits, ref count);

@@ -607,7 +607,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void RenderFrameCore(GlInterface gl, int fb)
     {
-
+        if (_renderer is null || Document is null) return;
         var scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
         var width = Math.Max(1, (int)(Bounds.Width * scaling));
         var height = Math.Max(1, (int)(Bounds.Height * scaling));

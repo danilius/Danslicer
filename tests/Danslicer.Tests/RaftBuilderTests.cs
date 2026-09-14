@@ -146,11 +146,11 @@ public class RaftBuilderTests
         Vector2[] feet = [new(0, 0), new(20, 0), new(20, 20), new(0, 20)];
         var web = Web with { MaxBarLength = 25f, BarWidth = 2f };
         var outline = Clipper.Union(RaftBuilder.TopOutline(feet, web), FillRule.NonZero);
-        var hole = Assert.Single(outline.Where(p => !Clipper.IsPositive(p)));
+        var hole = Assert.Single(outline, p => !Clipper.IsPositive(p));
 
         var top = Clipper.Union(RaftBuilder.SectionAt(outline, web, 0.999), FillRule.NonZero);
 
-        var topHole = Assert.Single(top.Where(p => !Clipper.IsPositive(p)));
+        var topHole = Assert.Single(top, p => !Clipper.IsPositive(p));
         Assert.Equal(Math.Abs(Clipper.Area(hole)), Math.Abs(Clipper.Area(topHole)), Math.Abs(Clipper.Area(hole)) * 0.01);
         Assert.True(AreaMm2(top) > AreaMm2(outline));
     }
