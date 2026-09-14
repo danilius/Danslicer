@@ -14,6 +14,27 @@ public static class TipPlacer
     private const float Oversample = 5f;
     private const int MaxSamplesPerTriangle = 800;
 
+    /// <summary>Places one contact for each supplied detection result, without re-detecting,
+    /// spacing suppression, or the automatic generator's painted-region filters.</summary>
+    public static IReadOnlyList<TipCandidate> PlaceDetectedIslands(
+        Mesh mesh, IReadOnlyList<DetectedIsland> islands, TipPlacementParameters parameters)
+    {
+        var bvh = MeshAnalysis.For(mesh).Bvh;
+        var faces = Enumerable.Range(0, mesh.TriangleCount).ToHashSet();
+        var candidates = new List<TipCandidate>();
+        var placedIslands = 0;
+        foreach (var island in islands)
+        {
+            SupportGenerationMonitor.Check();
+            SupportGenerationMonitor.Report(0.1 + 0.38 * placedIslands / Math.Max(1, islands.Count), "Placing island contacts", placedIslands++, islands.Count);
+            if (!TryProjectToRegion(mesh, bvh, faces, island.Position, parameters,
+                    out var point, out var outward, out var face)) continue;
+            candidates.Add(Candidate(point, Inward(outward), parameters.TipDiameterMm,
+                10f + MathF.Log(1f + island.AreaMm2), TipStrategy.Island, face, parameters));
+        }
+        return candidates;
+    }
+
     public static IReadOnlyList<TipCandidate> Place(
         Mesh mesh,
         IReadOnlySet<int> faces,
@@ -32,6 +53,7 @@ public static class TipPlacer
         var region = faces as HashSet<int> ?? [.. faces];
         foreach (var t in region)
         {
+            SupportGenerationMonitor.Check();
             if ((uint)t >= (uint)mesh.TriangleCount)
                 throw new ArgumentOutOfRangeException(nameof(faces), $"Face {t} is not in the mesh.");
         }
@@ -42,6 +64,7 @@ public static class TipPlacer
 
         var spacing = MathF.Max(parameters.SpacingMm, 1e-3f);
         var minSpacing = MathF.Max(parameters.MinSpacingMm, 1e-4f);
+        SupportGenerationMonitor.Report(0.02, "Analysing mesh", 0, mesh.TriangleCount);
         var features = MeshFeatures.Build(mesh, parameters.SharpEdgeDegrees);
         var bvh = features.Analysis.Bvh;
         var keepCleanBvh = keepClean is not null && parameters.KeepCleanDistanceMm > 0
@@ -54,6 +77,7 @@ public static class TipPlacer
         {
             foreach (var node in existingGraph.Nodes)
             {
+                SupportGenerationMonitor.Check();
                 if (node.Type != SupportNodeType.Tip) continue;
                 graphGrid.Add(node.Position);
             }
@@ -69,6 +93,7 @@ public static class TipPlacer
         {
             foreach (var candidate in RegionGridSampler.Sample(mesh, region, parameters))
             {
+                SupportGenerationMonitor.Check();
                 if (ViolatesKeepClean(candidate.FaceIndex, candidate.Point, keepClean, keepCleanBvh,
                         keepCleanDistance)) continue;
                 if (IsOnPlate(candidate.Point, parameters)) continue;
@@ -79,6 +104,7 @@ public static class TipPlacer
             }
         }
 
+        SupportGenerationMonitor.Report(0.1, "Slicing support layers", 0, 0);
         var layers = LayerStack.Slice(mesh, parameters.LayerHeightMm);
         // The strict definition, the same one Detect Islands reports (user, 2026-09-09): a
         // place where printing starts off the plate. Overhangs growing out of carried material
@@ -93,6 +119,7 @@ public static class TipPlacer
                      .ToList();
         foreach (var island in islands.Where(i => i.AreaMm2 >= parameters.MinIslandAreaMm2))
         {
+            SupportGenerationMonitor.Check();
             if (!TryProjectToRegion(mesh, bvh, region, island.Centroid, parameters, out var point, out var outward, out var face))
                 continue;
             var score = 10f + MathF.Log(1f + island.AreaMm2);
@@ -104,6 +131,7 @@ public static class TipPlacer
 
         foreach (var (vertex, position, outward, face) in features.LocalMinima(region, parameters.PlateZ, parameters.LayerHeightMm))
         {
+            SupportGenerationMonitor.Check();
             var score = 10f + features.Curvature[vertex];
             TryAcceptRequired(
                 keepClean, keepCleanBvh, keepCleanDistance,
@@ -127,6 +155,7 @@ public static class TipPlacer
                      .ThenBy(s => s.Point.Z)
                      .ThenBy(s => s.FaceIndex))
         {
+            SupportGenerationMonitor.Check();
             if (ViolatesKeepClean(sample.FaceIndex, sample.Point, keepClean, keepCleanBvh, keepCleanDistance))
                 continue;
             if (IsOnPlate(sample.Point, parameters)) continue;
@@ -198,8 +227,11 @@ public static class TipPlacer
         var forceEdges = parameters.ForceEdgePlacement;
         var edgePref = Math.Clamp(parameters.EdgePreference, 0f, 1f);
 
+        var sampledFaces = 0;
         foreach (var t in region.OrderBy(i => i))
         {
+            SupportGenerationMonitor.Check();
+            SupportGenerationMonitor.Report(0.4 + 0.08 * sampledFaces / Math.Max(1, region.Count), "Sampling support faces", sampledFaces++, region.Count);
             var outward = mesh.FaceNormals[t];
             if (!parameters.IsOverhang(outward)) continue;
             mesh.GetTriangle(t, out var a, out var b, out var c);
@@ -252,11 +284,13 @@ public static class TipPlacer
         var edgeEpsilon = MathF.Max(1e-3f, spacing * 0.02f);
         foreach (var (ia, ib) in features.SharpEdges.OrderBy(e => e.A).ThenBy(e => e.B))
         {
+            SupportGenerationMonitor.Check();
             if (!features.TryGetEdgeFaces(ia, ib, out var faces)) continue;
             int face = -1;
             Vector3 outward = default;
             foreach (var t in faces.OrderBy(x => x))
             {
+                SupportGenerationMonitor.Check();
                 if (!region.Contains(t)) continue;
                 if (!parameters.IsOverhang(mesh.FaceNormals[t])) continue;
                 face = t;
@@ -272,6 +306,7 @@ public static class TipPlacer
             var steps = Math.Max(1, (int)MathF.Round(len / spacing));
             for (int i = 0; i <= steps; i++)
             {
+                SupportGenerationMonitor.Check();
                 var p = Vector3.Lerp(pa, pb, i / (float)steps);
                 if (IsOnPlate(p, parameters)) continue;
                 if (graphGrid.AnyWithin(p, minSpacing)) continue;
@@ -320,6 +355,7 @@ public static class TipPlacer
         // AnyWithin is a boolean query; walk a few radii to estimate distance for scoring.
         for (int k = 1; k <= 8; k++)
         {
+            SupportGenerationMonitor.Check();
             var r = cap * (k / 8f);
             if (grid.AnyWithin(p, r)) return r;
         }
@@ -336,22 +372,18 @@ public static class TipPlacer
         out Vector3 outward,
         out int face)
     {
-        var origin = new Vector3(xyAtZ.X, xyAtZ.Y, mesh.Bounds.Min.Z - 1f);
-        var ray = new Ray(origin, Vector3.UnitZ);
-        bool DownwardRegion(int t) => region.Contains(t) && mesh.FaceNormals[t].Z < -1e-3f;
+        // The sample lies inside this island's solid slice. Its first exit downward is
+        // its own underside; projecting from below the model hits lower geometry instead.
+        // Test region membership after the hit so excluded faces cannot redirect the
+        // contact onto another component.
+        var ray = new Ray(xyAtZ, -Vector3.UnitZ);
 
-        if (bvh.RayCast(ray, out face, out var tHit, DownwardRegion) && face >= 0)
+        if (bvh.RayCast(ray, out face, out var tHit) && face >= 0 &&
+            region.Contains(face) && mesh.FaceNormals[face].Z < -1e-3f)
         {
             point = ray.At(tHit);
             outward = mesh.FaceNormals[face];
             return parameters.IsOverhang(outward) || mesh.FaceNormals[face].Z < -1e-3f;
-        }
-
-        var probe = xyAtZ;
-        if (bvh.ClosestPoint(probe, out point, out face, DownwardRegion) < float.PositiveInfinity && face >= 0)
-        {
-            outward = mesh.FaceNormals[face];
-            return true;
         }
 
         face = -1;
@@ -382,6 +414,7 @@ public static class TipPlacer
         var regionBox = Aabb.Empty;
         foreach (var t in region)
         {
+            SupportGenerationMonitor.Check();
             mesh.GetTriangle(t, out var a, out var b, out var c);
             regionBox = regionBox.Include(a).Include(b).Include(c);
         }
@@ -395,6 +428,7 @@ public static class TipPlacer
                      new Vector2(regionBox.Max.X, regionBox.Max.Y),
                      grid))
         {
+            SupportGenerationMonitor.Check();
             var ray = new Ray(new Vector3(xy.X, xy.Y, originZ), Vector3.UnitZ);
             if (!bvh.RayCast(ray, out var face, out var tHit, DownwardRegion)) continue;
             var p = ray.At(tHit);

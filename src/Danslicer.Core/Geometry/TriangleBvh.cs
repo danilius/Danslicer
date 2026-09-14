@@ -42,6 +42,7 @@ public sealed class TriangleBvh
         int n = 0;
         foreach (var t in triangles)
         {
+            SupportGenerationMonitor.Check();
             if ((uint)t >= (uint)mesh.TriangleCount)
                 throw new ArgumentOutOfRangeException(nameof(triangles), $"Face {t} is not in the mesh.");
             indices[n++] = t;
@@ -54,6 +55,7 @@ public sealed class TriangleBvh
         var bounds = new Aabb[triangles.Length];
         for (int i = 0; i < triangles.Length; i++)
         {
+            SupportGenerationMonitor.Check();
             mesh.GetTriangle(triangles[i], out var a, out var b, out var c);
             bounds[i] = TriangleQueries.TriangleBounds(a, b, c);
         }
@@ -71,6 +73,7 @@ public sealed class TriangleBvh
         var centroidMax = centroidMin;
         for (int i = start + 1; i < start + count; i++)
         {
+            SupportGenerationMonitor.Check();
             box = box.Union(bounds[i]);
             var c = bounds[i].Center;
             centroidMin = Vector3.Min(centroidMin, c);
@@ -93,6 +96,7 @@ public sealed class TriangleBvh
         var keys = new (float Key, int Triangle, Aabb Bounds)[count];
         for (int i = 0; i < count; i++)
         {
+            SupportGenerationMonitor.Check();
             var c = bounds[start + i].Center;
             var key = axis == 0 ? c.X : axis == 1 ? c.Y : c.Z;
             keys[i] = (key, triangles[start + i], bounds[start + i]);
@@ -104,6 +108,7 @@ public sealed class TriangleBvh
         });
         for (int i = 0; i < count; i++)
         {
+            SupportGenerationMonitor.Check();
             triangles[start + i] = keys[i].Triangle;
             bounds[start + i] = keys[i].Bounds;
         }
@@ -123,6 +128,7 @@ public sealed class TriangleBvh
         stack.Push(_root);
         while (stack.Count > 0)
         {
+            SupportGenerationMonitor.Check();
             var node = stack.Pop();
             if (!node.Bounds.IntersectsRay(ray, out var tEnter, out var tExit) || tExit < 0) continue;
             if (tEnter >= t) continue;
@@ -131,6 +137,7 @@ public sealed class TriangleBvh
             {
                 for (int i = node.Start; i < node.Start + node.Count; i++)
                 {
+                    SupportGenerationMonitor.Check();
                     var tri = _triangles[i];
                     if (accept is not null && !accept(tri)) continue;
                     _mesh.GetTriangle(tri, out var a, out var b, out var c);
@@ -162,12 +169,14 @@ public sealed class TriangleBvh
         stack.Push(_root);
         while (stack.Count > 0)
         {
+            SupportGenerationMonitor.Check();
             var node = stack.Pop();
             if (node.Bounds.DistanceSquared(point) >= best) continue;
             if (node.IsLeaf)
             {
                 for (int i = node.Start; i < node.Start + node.Count; i++)
                 {
+                    SupportGenerationMonitor.Check();
                     var tri = _triangles[i];
                     if (accept is not null && !accept(tri)) continue;
                     _mesh.GetTriangle(tri, out var a, out var b, out var c);
@@ -213,6 +222,7 @@ public sealed class TriangleBvh
         stack.Push(_root);
         while (stack.Count > 0)
         {
+            SupportGenerationMonitor.Check();
             var node = stack.Pop();
             var sep = node.Bounds.Separation(segBox);
             if (sep * sep >= best) continue;
@@ -220,6 +230,7 @@ public sealed class TriangleBvh
             {
                 for (int i = node.Start; i < node.Start + node.Count; i++)
                 {
+                    SupportGenerationMonitor.Check();
                     var tri = _triangles[i];
                     _mesh.GetTriangle(tri, out var a, out var b, out var c);
                     TriangleQueries.ClosestSegmentTriangle(p0, p1, a, b, c, out var s, out var m);
@@ -263,6 +274,7 @@ public sealed class TriangleBvh
         stack.Push((_root, other._root));
         while (stack.Count > 0)
         {
+            SupportGenerationMonitor.Check();
             var (na, nb) = stack.Pop();
             var sep = na.Bounds.Separation(nb.Bounds);
             if (sep * sep >= best) continue;
@@ -271,9 +283,11 @@ public sealed class TriangleBvh
             {
                 for (int i = na.Start; i < na.Start + na.Count; i++)
                 {
+                    SupportGenerationMonitor.Check();
                     _mesh.GetTriangle(_triangles[i], out var a0, out var b0, out var c0);
                     for (int j = nb.Start; j < nb.Start + nb.Count; j++)
                     {
+                        SupportGenerationMonitor.Check();
                         other._mesh.GetTriangle(other._triangles[j], out var a1, out var b1, out var c1);
                         TriangleQueries.ClosestTriangleTriangle(a0, b0, c0, a1, b1, c1, out var p, out var q);
                         var d2 = Vector3.DistanceSquared(p, q);
@@ -314,6 +328,7 @@ public sealed class TriangleBvh
         var best = float.PositiveInfinity;
         for (int i = 0; i < _triangles.Length; i++)
         {
+            SupportGenerationMonitor.Check();
             var tri = _triangles[i];
             _mesh.GetTriangle(tri, out var a, out var b, out var c);
             var q = TriangleQueries.ClosestPointOnTriangle(point, a, b, c);
@@ -335,6 +350,7 @@ public sealed class TriangleBvh
         var best = float.PositiveInfinity;
         for (int i = 0; i < _triangles.Length; i++)
         {
+            SupportGenerationMonitor.Check();
             _mesh.GetTriangle(_triangles[i], out var a, out var b, out var c);
             TriangleQueries.ClosestSegmentTriangle(p0, p1, a, b, c, out var s, out var m);
             var d2 = Vector3.DistanceSquared(s, m);
@@ -355,9 +371,11 @@ public sealed class TriangleBvh
         var best = float.PositiveInfinity;
         for (int i = 0; i < _triangles.Length; i++)
         {
+            SupportGenerationMonitor.Check();
             _mesh.GetTriangle(_triangles[i], out var a0, out var b0, out var c0);
             for (int j = 0; j < other._triangles.Length; j++)
             {
+                SupportGenerationMonitor.Check();
                 other._mesh.GetTriangle(other._triangles[j], out var a1, out var b1, out var c1);
                 TriangleQueries.ClosestTriangleTriangle(a0, b0, c0, a1, b1, c1, out var p, out var q);
                 var d2 = Vector3.DistanceSquared(p, q);
@@ -378,6 +396,7 @@ public sealed class TriangleBvh
         float? best = null;
         for (int i = 0; i < _triangles.Length; i++)
         {
+            SupportGenerationMonitor.Check();
             var tri = _triangles[i];
             if (accept is not null && !accept(tri)) continue;
             _mesh.GetTriangle(tri, out var a, out var b, out var c);

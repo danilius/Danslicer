@@ -11,3 +11,9 @@ artifacts/
 launchSettings.json
 test files/
 Weekend/
+
+# Machine-local agent settings, reference artwork and personal sample projects.
+.claude/
+CODEX-UI-COORDINATION.md
+ref/
+test project files/

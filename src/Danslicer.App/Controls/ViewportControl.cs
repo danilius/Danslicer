@@ -137,7 +137,10 @@ public sealed class ViewportControl : OpenGlControlBase
     private readonly List<SupportMeshBatch> _supportMeshes = new();
     private bool _supportMeshesDirty = true;
     private ISixAxisInput? _sixAxis;
-    private DispatcherTimer? _sixAxisTimer;
+    private bool _sixAxisFramesRunning;
+    private int _sixAxisFrameGeneration;
+    private readonly SixAxisMotionTiming _sixAxisTiming = new();
+    private readonly SixAxisMotionFilter _sixAxisFilter = new();
     private Point? _marqueeStart;
     private Point _marqueeCurrent;
     private bool _marqueeAdditive;
@@ -506,7 +509,7 @@ public sealed class ViewportControl : OpenGlControlBase
         }
 
         if (!SupportDisplayPolicy.ShowsMeshes(SupportDisplay)) return;
-        foreach (var (z, face) in planes) AddSupportCaps(document.Supports, z, face);
+        foreach (var (z, face) in planes) AddSupportCaps(_structurePreviewGraph ?? document.Supports, z, face);
     }
 
     private IEnumerable<(double Z, ClipCapFace Face)> ActiveClipPlanes() => ClipRange.ActiveCapPlanes()
@@ -591,12 +594,14 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnOpenGlRender(GlInterface gl, int fb)
     {
         if (_renderer is null || Document is null) return;
-        var renderStart = Trace ? Stopwatch.GetTimestamp() : 0;
+        var renderStart = Trace || SpaceMouseDiagnostics.Enabled ? Stopwatch.GetTimestamp() : 0;
         try { RenderFrameCore(gl, fb); }
         finally
         {
             if (Trace)
                 _traceRenderMaxMs = Math.Max(_traceRenderMaxMs, Stopwatch.GetElapsedTime(renderStart).TotalMilliseconds);
+            if (SpaceMouseDiagnostics.Enabled)
+                SpaceMouseDiagnostics.Write("RENDER", $"viewport={GetHashCode()} durationMs={Stopwatch.GetElapsedTime(renderStart).TotalMilliseconds:F3} yaw={Camera.Yaw:F6} pitch={Camera.Pitch:F6} distance={Camera.Distance:F4} target={Camera.Target} gc={GC.CollectionCount(0)},{GC.CollectionCount(1)},{GC.CollectionCount(2)}");
         }
     }
 
@@ -628,7 +633,7 @@ public sealed class ViewportControl : OpenGlControlBase
             _combinedAuxMeshes.Add(new AuxMeshDraw(markers, new Vector3(1f, 0.03f, 0.03f), 1f));
         if (_selectedSupportMesh is { } selected)
             _combinedAuxMeshes.Add(new AuxMeshDraw(selected,
-                new Vector3(SupportSelectedColor.X, SupportSelectedColor.Y, SupportSelectedColor.Z),
+                _structurePreviewGraph is null ? new Vector3(SupportSelectedColor.X, SupportSelectedColor.Y, SupportSelectedColor.Z) : new Vector3(1f, 0.45f, 0.08f),
                 1f, DepthOverlay: true));
         AppendSupportLines(_depthOverlay);
         AppendBrushCursor(_overlay);
@@ -793,6 +798,12 @@ public sealed class ViewportControl : OpenGlControlBase
             e.Pointer.Capture(this);
             e.Handled = true;
             return;
+        }
+
+        if (StructurePreviewActive)
+        {
+            if (props.IsLeftButtonPressed) InspectStructurePreviewAt(MouseVector(e));
+            e.Handled = true; return;
         }
 
         if (_lineGesture is not null)
@@ -1259,6 +1270,8 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
+        if (SpaceMouseDiagnostics.Enabled)
+            SpaceMouseDiagnostics.Write("WHEEL", $"viewport={GetHashCode()} delta={e.Delta} pointerType={e.Pointer.Type} pitch={Camera.Pitch:F6} distanceBefore={Camera.Distance:F4}");
         // During a guided gesture the wheel steps the pitch (Blender modal style), not the zoom.
         if (_lineGesture is { } gesture && e.Delta.Y != 0)
         {
@@ -1418,6 +1431,20 @@ public sealed class ViewportControl : OpenGlControlBase
     /// <summary>Which guided placement tool a toolbar button starts (user rule 2026-09-08: every key has a button).</summary>
     public enum GuidedTool { Place, Line, Polygon, Edge, Ring, Contour, Densify, Thin }
 
+    private GuidedTool? _activeLineTool;
+    public GuidedTool? ActiveGuidedTool => _placementMode ? GuidedTool.Place : _activeLineTool;
+    public event EventHandler? ActiveGuidedToolChanged;
+
+    private void ExitSupportTools()
+    {
+        if (_tipDrag is not null) CancelTipDrag();
+        if (_editSupport is not null) EndSupportEdit();
+        if (_placementMode) EndPlacementMode();
+        if (_lineGesture is not null) CancelLineGesture();
+        _borderSelectArmed = false;
+    }
+
+
     /// <summary>
     /// Starts a guided tool from the toolbar, exactly as its key would from the cursor's last
     /// position. Densify and thin run at once; the others begin their gesture and take focus so
@@ -1447,6 +1474,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private string DensifyStatus()
     {
+        ExitSupportTools();
         var placed = Document!.DensifyTips(out var refused, out var parenting);
         return placed + refused == 0
             ? "Densify: nothing to add (needs two or more tips)"
@@ -1456,6 +1484,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private string ThinStatus()
     {
+        ExitSupportTools();
         var removed = Document!.ThinTips();
         return removed == 0 ? "Thin: nothing to remove (needs two or more tips)" : $"Thin: {removed} removed";
     }
@@ -1471,9 +1500,34 @@ public sealed class ViewportControl : OpenGlControlBase
         Redraw();
     }
 
+    public event Action<bool>? StructurePreviewRequested;
+    public event Action? StructurePreviewCancelRequested;
+    public event Action<Guid>? StructurePreviewElementClicked;
+    private SupportGraph? _structurePreviewGraph;
+    private IReadOnlySet<Guid> _structurePreviewHighlights = new HashSet<Guid>();
+    public bool StructurePreviewActive { get; set; }
+    internal bool InspectStructurePreviewAt(Vector2 mouse)
+    {
+        if (!StructurePreviewActive || PickSupportElement(mouse, out _) is not { } element ||
+            !_structurePreviewHighlights.Contains(element)) return false;
+        StructurePreviewElementClicked?.Invoke(element);
+        return true;
+    }
+
+    public void SetStructurePreview(SupportGraph? graph, IReadOnlySet<Guid>? highlights = null)
+    {
+        _structurePreviewGraph = graph;
+        _structurePreviewHighlights = highlights ?? new HashSet<Guid>();
+        _supportMeshesDirty = true;
+        _selectionMeshDirty = true;
+        MarkClipCapsDirty();
+        Redraw();
+    }
+
     private string ParentStatus()
     {
         if (Document!.SupportTarget is null) return "Parent: choose the model to support first (Objects pop-out)";
+        if (StructurePreviewRequested is not null) { ExitSupportTools(); StructurePreviewRequested(false); return "Parenting preview · adjust settings, then Apply or Cancel"; }
         var outcome = Document.ParentSupports();
         if (outcome is null) return "Parent: nothing to parent (needs two or more supports)";
         var refused = outcome.Refused > 0 ? $" · {outcome.Refused} kept as they were" : "";
@@ -1504,6 +1558,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private string BraceStatus()
     {
         if (Document!.SupportTarget is null) return "Brace: choose the model to support first (Objects pop-out)";
+        if (StructurePreviewRequested is not null) { ExitSupportTools(); StructurePreviewRequested(true); return "Bracing preview · adjust settings, then Apply or Cancel"; }
         var outcome = Document.BraceSupports();
         if (outcome is null) return "Brace: nothing to brace (needs two or more supports)";
         return outcome.Braces == 0
@@ -1529,6 +1584,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private string? BeginLineGesture(Vector2 mouse, GuidedKind kind = GuidedKind.Line)
     {
+        ExitSupportTools();
         if (Document is null) return null;
         if (Document.SupportTarget is not { } target)
             return "Guided placement: choose the model to support first (Objects pop-out)";
@@ -1560,6 +1616,13 @@ public sealed class ViewportControl : OpenGlControlBase
             }
         }
         UpdateLineGestureCursor(mouse);
+        _activeLineTool = kind switch
+        {
+            GuidedKind.Polygon => GuidedTool.Polygon, GuidedKind.Edge => GuidedTool.Edge,
+            GuidedKind.Ring => GuidedTool.Ring, GuidedKind.Contour => GuidedTool.Contour,
+            _ => GuidedTool.Line
+        };
+        ActiveGuidedToolChanged?.Invoke(this, EventArgs.Empty);
         return null;
     }
 
@@ -1679,6 +1742,8 @@ public sealed class ViewportControl : OpenGlControlBase
     private void EndLineGesture()
     {
         _lineGesture = null;
+        _activeLineTool = null;
+        ActiveGuidedToolChanged?.Invoke(this, EventArgs.Empty);
         _lineTarget = null;
         _linePreview = Array.Empty<TipCandidate>();
         _linePitchInput = "";
@@ -1754,9 +1819,9 @@ public sealed class ViewportControl : OpenGlControlBase
     private void BeginPlacementMode()
     {
         if (Document is null || !SupportSelectionMode) return;
-        if (_editSupport is not null) EndSupportEdit();
-        if (_lineGesture is not null) CancelLineGesture();
+        ExitSupportTools();
         _placementMode = true;
+        ActiveGuidedToolChanged?.Invoke(this, EventArgs.Empty);
         _placementRefusal = null;
         UpdatePlacementGhost(new Vector2((float)_lastPointer.X, (float)_lastPointer.Y));
         UpdateStatus();
@@ -1766,6 +1831,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private void EndPlacementMode()
     {
         _placementMode = false;
+        ActiveGuidedToolChanged?.Invoke(this, EventArgs.Empty);
         ClearPlacementGhost();
         UpdateStatus();
         Redraw();
@@ -1916,6 +1982,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private void BeginSupportEdit(Guid element)
     {
         if (_placementMode) EndPlacementMode();
+        if (_lineGesture is not null) CancelLineGesture();
         _editSupport = element;
         _editHover = null;
         _editHoverAxis = GizmoHandle.None;
@@ -2234,7 +2301,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private Guid? PickSupportElement(Vector2 mouse, out float cameraDistance)
     {
         cameraDistance = float.PositiveInfinity;
-        var supports = Document?.Supports;
+        var supports = _structurePreviewGraph ?? Document?.Supports;
         if (Document is null || supports is null || supports.NodeCount == 0) return null;
         // What is not drawn is not pickable: a hidden model's supports are neither.
         var hiddenOwners = SupportOwnerVisibility.HiddenObjectIds(Document.Scene.Objects);
@@ -2402,7 +2469,15 @@ public sealed class ViewportControl : OpenGlControlBase
     private void RebuildSelectionMesh()
     {
         _selectionMeshDirty = false;
-        _selectedSupportMesh = Document is { } document && document.SupportSelection.Count > 0 &&
+        if (_structurePreviewGraph is { } preview)
+        {
+            _selectedSupportMesh = SupportDisplayPolicy.ShowsMeshes(SupportDisplay) && _structurePreviewHighlights.Count > 0
+                ? SupportRenderMesh.BuildSelected(preview, _structurePreviewHighlights.Contains,
+                    segment => SupportDisplayPolicy.IsSegmentDisplayed(segment.Type, SupportDisplay),
+                    node => SupportDisplayPolicy.IsNodeDisplayed(preview, node, SupportDisplay)) : null;
+            return;
+        }
+        _selectedSupportMesh = _structurePreviewGraph is null && Document is { } document && document.SupportSelection.Count > 0 &&
             SupportDisplayPolicy.ShowsMeshes(SupportDisplay)
             ? Danslicer.Core.Supports.SupportRenderMesh.BuildSelected(
                 document.Supports, document.IsSupportSelected,
@@ -2419,7 +2494,7 @@ public sealed class ViewportControl : OpenGlControlBase
     {
         _supportMeshesDirty = false;
         _supportMeshes.Clear();
-        var supports = Document?.Supports;
+        var supports = _structurePreviewGraph ?? Document?.Supports;
         if (Document is null || supports is null) return;
 
         var display = SupportDisplay;
@@ -2478,7 +2553,10 @@ public sealed class ViewportControl : OpenGlControlBase
         foreach (var obj in Document.Scene.Objects)
         {
             if (obj.RenderState == RenderState.Hidden || obj.Raft is not { } parameters) continue;
-            var outline = Document.RaftTopOutline(obj);
+            var outline = _structurePreviewGraph is null ? Document.RaftTopOutline(obj)
+                : RaftBuilder.TopOutline(_structurePreviewGraph.Nodes
+                    .Where(n => n.Type == SupportNodeType.Base && n.Origin.ObjectId == obj.Id && !n.Disabled)
+                    .Select(n => new Vector2(n.Position.X, n.Position.Y)).ToList(), parameters);
             if (outline is null || outline.Count == 0) continue;
             var mesh = RaftGeometry.BuildMesh(new RaftShape(parameters, outline));
             if (mesh is null) continue;
@@ -2513,7 +2591,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void AppendSupportLines(List<OverlayLine> lines)
     {
-        var supports = Document?.Supports;
+        var supports = _structurePreviewGraph ?? Document?.Supports;
         if (Document is null || supports is null) return;
         // Lines and contact markers are drawn here rather than as meshes, so they need the same
         // ownership filter: a hidden model must not leave its tip markers floating in the air.
@@ -2692,6 +2770,20 @@ public sealed class ViewportControl : OpenGlControlBase
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (StructurePreviewActive)
+        {
+            // The preview blocks editing shortcuts, but Undo must still reverse its operation.
+            if (Configuration.WindowKeymap.GetGesture(Configuration.AppConfig.Current,
+                    Configuration.WindowKeymap.Undo).Matches(e))
+            {
+                Document?.Undo();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Escape) StructurePreviewCancelRequested?.Invoke();
+            e.Handled = true;
+            return;
+        }
         Log($"key {e.Key} mods={e.KeyModifiers}");
         if (Document is null || _modal is null) return;
 
@@ -2705,6 +2797,25 @@ public sealed class ViewportControl : OpenGlControlBase
             ApplySnap(e.KeyModifiers | KeyModifiers.Control);
             UpdateStatus();
             return;
+        }
+
+        // Tool shortcuts must be processed before the active gesture consumes its keys.
+        if (SupportSelectionMode && !_modal.IsActive &&
+            (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Meta)) == 0)
+        {
+            GuidedTool? tool = e.Key switch
+            {
+                Key.T when !shift => GuidedTool.Place, Key.L when !shift => GuidedTool.Line,
+                Key.P when !shift => GuidedTool.Polygon, Key.E when !shift => GuidedTool.Edge,
+                Key.R when !shift => GuidedTool.Ring, Key.C when !shift => GuidedTool.Contour,
+                Key.D => shift ? GuidedTool.Thin : GuidedTool.Densify, _ => null
+            };
+            if (tool is { } requested)
+            {
+                StartGuidedTool(requested);
+                e.Handled = true;
+                return;
+            }
         }
 
         if (_lineGesture is { } lineGesture)
@@ -2794,19 +2905,6 @@ public sealed class ViewportControl : OpenGlControlBase
                 case Key.H when shift && !ctrl && SupportSelectionMode: Document.HideUnselectedSupportElements(); break;
                 case Key.H when !ctrl && SupportSelectionMode: Document.HideSelectedSupportElements(); break;
                 case Key.H when !ctrl: Document.HideSelection(); break;
-                // Manual placement mode (user note 2026-09-08): T toggles it, a ghost of the routed
-                // support follows the cursor, a click places it. (Shift+T's blind straight drop
-                // was removed 2026-09-03 at the user's request.)
-                case Key.T when !ctrl && !shift && SupportSelectionMode: TogglePlacementMode(); break;
-                // Guided line of supports (SUPPORT-GEOMETRY-SPEC "Guided tip placement").
-                case Key.L when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse); break;
-                case Key.P when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Polygon); break;
-                case Key.E when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Edge); break;
-                case Key.R when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Ring); break;
-                case Key.C when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = BeginLineGesture(mouse, GuidedKind.Contour); break;
-                // Densify / thin the selected tips (all of the target's when nothing is selected).
-                case Key.D when !ctrl && shift && SupportSelectionMode: statusAfterUpdate = ThinStatus(); break;
-                case Key.D when !ctrl && SupportSelectionMode: statusAfterUpdate = DensifyStatus(); break;
                 // Parenting (SUPPORT-GEOMETRY-SPEC "Parenting"): re-route the selected supports together.
                 case Key.J when !ctrl && !shift && SupportSelectionMode: statusAfterUpdate = ParentStatus(); break;
                 // Bracing (SUPPORT-GEOMETRY-SPEC "Bracing"): K braces the selected supports, Shift+K unbraces.
@@ -2911,7 +3009,7 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         var projection = Camera.Orthographic ? "Ortho" : "Persp";
         var snap = SnapEnabled ? "Snap on" : "Snap off";
-        var spaceMouse = _sixAxis is { IsConnected: true }
+        var spaceMouse = SpaceMouseConnected
             ? (_spaceMouseRotationLock ? " · SpaceMouse (rot locked)" : " · SpaceMouse")
             : "";
         StatusText = SupportSelectionMode
@@ -2949,16 +3047,18 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private static ViewportControl? _spaceMouseOwner;
     private static readonly SixAxisSession _spaceMouseSession = new(() => OperatingSystem.IsWindows()
-        ? new TdxSpaceMouse() : throw new PlatformNotSupportedException());
+        ? new RawInputSpaceMouse(Log, () => _spaceMouseOwner?.OnSpaceMouseInputAvailable()) : throw new PlatformNotSupportedException());
     internal static ViewportControl? SpaceMouseOwner => _spaceMouseOwner;
-    internal bool SpaceMouseConnected => _sixAxis?.IsConnected == true;
+    internal bool SpaceMouseConnected => _sixAxis?.IsConnected == true &&
+        (!OperatingSystem.IsWindows() || _sixAxis is not RawInputSpaceMouse raw || raw.DeviceCount > 0);
     internal ISixAxisInput? SpaceMouseDevice => _sixAxis;
     private Window? _spaceMouseWindow;
     private void OnSpaceMouseWindowActivated(object? sender, EventArgs e) => AcquireSpaceMouse();
 
     private void AcquireSpaceMouse()
     {
-        // Only one viewport may hold the driver's COM connection. Preferences without a
+        if (SpaceMouseDiagnostics.Enabled) SpaceMouseDiagnostics.Write("ACQUIRE", $"viewport={GetHashCode()}");
+        // Only one viewport consumes the shared receiver. Preferences without a
         // viewport leave the current camera usable for live sensitivity tuning.
         if (_spaceMouseOwner != this) _spaceMouseOwner?.ReleaseSpaceMouse();
         _spaceMouseOwner = this;
@@ -2968,48 +3068,86 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void ReleaseSpaceMouse()
     {
-        _sixAxisTimer?.Stop();
-        _sixAxisTimer = null;
+        if (SpaceMouseDiagnostics.Enabled) SpaceMouseDiagnostics.Write("RELEASE", $"viewport={GetHashCode()}");
+        _sixAxisFramesRunning = false;
+        _sixAxisFrameGeneration++;
+        _sixAxisTiming.Reset();
+        _sixAxisFilter.Reset();
         _spaceMouseSession.Release(this);
         _sixAxis = null;
         if (_spaceMouseOwner == this) _spaceMouseOwner = null;
     }
 
+    private void OnSpaceMouseInputAvailable()
+    {
+        if (SpaceMouseDiagnostics.Enabled)
+            SpaceMouseDiagnostics.Write("WAKE", $"viewport={GetHashCode()}");
+        // Wake an idle compositor without polling/applying motion inside the native callback.
+        // The existing single animation loop still combines axis reports and updates the camera.
+        Redraw();
+    }
+
     // ----- SpaceMouse -----
 
-    // Base step sizes per poll at full cap deflection, expressed in the camera's pixel/step units
+    // Base step sizes per 15 ms at one nominal HID unit, expressed in camera pixel/step units
     // so the camera's own clamping applies. Signs follow 3Dconnexion camera mode: push forward to
     // zoom in, tilt forward to pitch down, twist to yaw. Roll is locked, as designed. The user
     // scales and flips these through the SpaceMouse section of the config window; settings are
     // read every poll tick so tuning applies live. Calibrated 2026-09-03 on the user's SpaceMouse
-    // Pro so that sensitivity 1.0 is their tuned feel (the original guesses were 50x too fast).
+    // Pro. Raw Input normalizes nominal +/-350 HID units to +/-1; convert back below to retain
+    // these base rates. Driver-specific COM scaling may still require sensitivity adjustment.
     private const float SpaceMouseOrbitPixels = 0.12f;
     private const float SpaceMousePanPixels = 0.16f;
     private const float SpaceMouseZoomSteps = 0.0016f;
 
     private void ConnectSpaceMouse()
     {
-        if (!OperatingSystem.IsWindows() || _sixAxis is not null) return;
+        if (!OperatingSystem.IsWindows()) return;
+        if (!_sixAxisFramesRunning && TopLevel.GetTopLevel(this) is { } topLevel)
+        {
+            _sixAxisFramesRunning = true;
+            var generation = ++_sixAxisFrameGeneration;
+            // Reuse this callback. A released/detached viewport must not restart its old loop.
+            Action<TimeSpan> frame = null!;
+            frame = _ =>
+            {
+                if (generation != _sixAxisFrameGeneration || _spaceMouseOwner != this) return;
+                PollSpaceMouse();
+                if (generation == _sixAxisFrameGeneration && _spaceMouseOwner == this)
+                    topLevel.RequestAnimationFrame(frame);
+            };
+            topLevel.RequestAnimationFrame(frame);
+        }
+        if (_sixAxis?.IsConnected == true) return;
         var device = _spaceMouseSession.Acquire(this);
+        var wasDisconnected = _sixAxis is not null;
+        _sixAxis = device;
+        _sixAxisTiming.Reset();
+        _sixAxisFilter.Reset();
         if (device is null)
         {
-            Log("SpaceMouse: 3DxWare COM not available");
+            if (wasDisconnected)
+            {
+                Log("SpaceMouse disconnected; retrying automatically");
+                UpdateStatus();
+            }
             return;
         }
-        var tdx = (TdxSpaceMouse)device;
-        Log((tdx.ButtonsConnected
-            ? "SpaceMouse connected via 3DxWare COM, buttons hooked"
-            : "SpaceMouse connected via 3DxWare COM, button events unavailable")
-            + $"; driver period {(tdx.DriverPeriodMs is { } p ? $"{p:F2} ms" : "unknown")}");
-        _sixAxis = device;
-        _sixAxisTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(15) };
-        _sixAxisTimer.Tick += (_, _) => PollSpaceMouse();
-        _sixAxisTimer.Start();
+        UpdateStatus();
     }
 
     private void PollSpaceMouse()
     {
+        if (_spaceMouseOwner != this) return;
+        ConnectSpaceMouse();
         if (_sixAxis is null) return;
+        var connected = SpaceMouseConnected;
+        if (_spaceMouseWasConnected != connected)
+        {
+            _spaceMouseWasConnected = connected;
+            UpdateStatus();
+        }
+        var timeScale = _sixAxisTiming.NextScale();
         foreach (var press in _sixAxis.DrainButtonPresses()) HandleSpaceMouseButton(press);
         var pollStart = Trace ? Stopwatch.GetTimestamp() : 0;
         var config = Configuration.AppConfig.Current.SpaceMouse;
@@ -3019,23 +3157,30 @@ public sealed class ViewportControl : OpenGlControlBase
             _tracePollMaxMs = Math.Max(_tracePollMaxMs, Stopwatch.GetElapsedTime(pollStart).TotalMilliseconds);
             TraceSpaceMouseStaleness(m);
         }
+        var unfilteredMotion = m;
+        m = _sixAxisFilter.Apply(m, config.Deadzone, timeScale * 15);
+        if (SpaceMouseDiagnostics.Enabled)
+            SpaceMouseDiagnostics.Write("FRAME", $"viewport={GetHashCode()} elapsedMs={_sixAxisTiming.LastElapsedMs:F3} scale={timeScale:F5} rawT={unfilteredMotion.Translation} rawR={unfilteredMotion.Rotation} filteredT={m.Translation} filteredR={m.Rotation} orbitSensitivity={config.OrbitSensitivity} panSensitivity={config.PanSensitivity} zoomSensitivity={config.ZoomSensitivity} deadzone={config.Deadzone} rotationLock={_spaceMouseRotationLock} invertYaw={config.InvertOrbitYaw} invertPitch={config.InvertOrbitPitch}");
         if (m.IsZero) return;
 
-        var deadzone = config.Deadzone;
-        var orbit = SpaceMouseOrbitPixels * config.OrbitSensitivity;
-        var pan = SpaceMousePanPixels * config.PanSensitivity;
-        var zoom = SpaceMouseZoomSteps * config.ZoomSensitivity;
+        var orbit = SpaceMouseOrbitPixels * RawSpaceMouseState.NominalRange * config.OrbitSensitivity * timeScale;
+        var pan = SpaceMousePanPixels * RawSpaceMouseState.NominalRange * config.PanSensitivity * timeScale;
+        var zoom = SpaceMouseZoomSteps * RawSpaceMouseState.NominalRange * config.ZoomSensitivity * timeScale;
 
+        var beforeYaw = Camera.Yaw;
+        var beforePitch = Camera.Pitch;
+        var beforeDistance = Camera.Distance;
+        var beforeTarget = Camera.Target;
         var moved = false;
         if (!_spaceMouseRotationLock &&
-            (MathF.Abs(m.Rotation.Y) > deadzone || MathF.Abs(m.Rotation.X) > deadzone))
+            (m.Rotation.Y != 0 || m.Rotation.X != 0))
         {
             Camera.Orbit(
                 -m.Rotation.Y * orbit * (config.InvertOrbitYaw ? -1f : 1f),
                 -m.Rotation.X * orbit * (config.InvertOrbitPitch ? -1f : 1f));
             moved = true;
         }
-        if (MathF.Abs(m.Translation.X) > deadzone || MathF.Abs(m.Translation.Y) > deadzone)
+        if (m.Translation.X != 0 || m.Translation.Y != 0)
         {
             Camera.Pan(
                 -m.Translation.X * pan * (config.InvertPanX ? -1f : 1f),
@@ -3043,23 +3188,26 @@ public sealed class ViewportControl : OpenGlControlBase
                 (float)Bounds.Height);
             moved = true;
         }
-        if (MathF.Abs(m.Translation.Z) > deadzone)
+        if (m.Translation.Z != 0)
         {
             Camera.Zoom(-m.Translation.Z * zoom * (config.InvertZoom ? -1f : 1f));
             moved = true;
         }
+        if (SpaceMouseDiagnostics.Enabled)
+            SpaceMouseDiagnostics.Write("CAMERA", $"viewport={GetHashCode()} yawBefore={beforeYaw:F6} yawAfter={Camera.Yaw:F6} pitchBefore={beforePitch:F6} pitchAfter={Camera.Pitch:F6} deltaYawDegrees={(Camera.Yaw - beforeYaw) * 180 / MathF.PI:F5} deltaPitchDegrees={(Camera.Pitch - beforePitch) * 180 / MathF.PI:F5} distanceBefore={beforeDistance:F4} distanceAfter={Camera.Distance:F4} targetBefore={beforeTarget} targetAfter={Camera.Target}");
         if (moved) Redraw();
     }
 
     // Locks the device's rotation axes only (3Dconnexion convention); MMB orbit stays available.
     private bool _spaceMouseRotationLock;
+    private bool _spaceMouseWasConnected;
 
     // DANSLICER_TRACE=1 diagnostic for choppy motion. Once a second, while the cap is being used,
-    // log how many times the timer fired, how many polls saw deflection, how many of those
+    // log how many animation callbacks ran, how many polls saw deflection, how many of those
     // carried a value different from the previous poll, and the longest gap between two
-    // different readings. Healthy: ~66 polls, near-66 changes, gap under 50 ms. A poll count far
-    // below 66 blames the timer; few changes or a gap near 500 ms blames the driver.
-    // Also reported: the longest single COM poll call, the longest GL render, and how many
+    // different readings. Equal successive readings can be legitimate held deflection; actual
+    // Raw Input report counts distinguish this from missing device reports.
+    // Also reported: the longest managed poll call, the longest GL render, and how many
     // gen0/1/2 collections ran in the window, so a stall can be pinned on the driver call, the
     // frame, or the garbage collector.
     private SixAxisMotion _lastTracedMotion;
@@ -3068,6 +3216,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private long _traceMaxGapMs;
     private double _tracePollMaxMs, _traceRenderMaxMs;
     private int _traceGc0, _traceGc1, _traceGc2;
+    private long _traceMotionReports;
 
     private void TraceSpaceMouseStaleness(SixAxisMotion m)
     {
@@ -3087,11 +3236,13 @@ public sealed class ViewportControl : OpenGlControlBase
         _lastTracedMotion = m;
         if (now - _traceWindowStart < 1000) return;
         var gc0 = GC.CollectionCount(0); var gc1 = GC.CollectionCount(1); var gc2 = GC.CollectionCount(2);
+        var reports = OperatingSystem.IsWindows() && _sixAxis is RawInputSpaceMouse raw ? raw.MotionReports : 0;
         if (_traceNonZero > 0)
             Log($"SpaceMouse 1s: polls {_tracePolls}, deflected {_traceNonZero}, changed {_traceChanges}, max gap {_traceMaxGapMs} ms"
-                + $"; max poll call {_tracePollMaxMs:F1} ms, max render {_traceRenderMaxMs:F1} ms"
+                + $"; HID motion reports {reports - _traceMotionReports}; max poll call {_tracePollMaxMs:F1} ms, max render {_traceRenderMaxMs:F1} ms"
                 + $", GC {gc0 - _traceGc0}/{gc1 - _traceGc1}/{gc2 - _traceGc2}");
         _traceWindowStart = now;
+        _traceMotionReports = reports;
         _tracePolls = _traceNonZero = _traceChanges = 0;
         _traceMaxGapMs = 0;
         _tracePollMaxMs = _traceRenderMaxMs = 0;

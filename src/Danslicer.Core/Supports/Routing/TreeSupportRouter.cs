@@ -149,11 +149,14 @@ public sealed class TreeSupportRouter
             .ToList();
         var indexedTips = expandedTips.Select((tip, index) => (Tip: tip, Index: index)).ToList();
         var deferredIslandRetries = new List<(RoutingTip Tip, int Index, RoutingFailureReason Reason)>();
+        var processedTips = 0;
         foreach (var item in indexedTips
                      .OrderByDescending(item => item.Tip.IsIslandPriority)
                      .ThenByDescending(item => item.Tip.SurfacePoint.Z)
                      .ThenBy(item => item.Index))
         {
+            SupportGenerationMonitor.Check();
+            SupportGenerationMonitor.Report(0.5 + 0.45 * processedTips / Math.Max(1, indexedTips.Count), "Routing tips", processedTips++, indexedTips.Count);
             if (RouteOne(item.Tip, options, state, out var reason)) continue;
             if (item.Tip.IsIslandPriority)
             {
@@ -165,9 +168,12 @@ public sealed class TreeSupportRouter
         }
         // An island gets first use of existing capacity, then one deterministic retry after
         // ordinary structural routes have created additional trunks it may safely share.
+        var retriedTips = 0;
         foreach (var retry in deferredIslandRetries.OrderByDescending(item => item.Tip.SurfacePoint.Z)
                      .ThenBy(item => item.Index))
         {
+            SupportGenerationMonitor.Check();
+            SupportGenerationMonitor.Report(0.95 + 0.04 * retriedTips / Math.Max(1, deferredIslandRetries.Count), "Retrying island tips", retriedTips++, deferredIslandRetries.Count);
             if (RouteOne(retry.Tip, options, state, out var reason)) continue;
             unrouted.Add(retry.Tip);
             failures.Add(new RoutingFailure(retry.Tip, reason));
@@ -219,6 +225,7 @@ public sealed class TreeSupportRouter
                      branchTipDiameter, options.BranchDiameter, tipMemberLength)
                      .Take(TipDirectionAttempts))
         {
+            SupportGenerationMonitor.Check();
             // A trunk right beside where the cone would end is the cone's junction, even though
             // the cone as first aimed would run into that trunk.
             if (options.UseBaseGrid &&
@@ -247,6 +254,7 @@ public sealed class TreeSupportRouter
                      branchTipDiameter, offGrid.BranchDiameter, tipMemberLength)
                      .Take(TipDirectionAttempts))
         {
+            SupportGenerationMonitor.Check();
             if (!candidate.Clear) continue;
             if (TryRouteFromJunction(tip, candidate.End, branchTipDiameter, trunkTipDiameter,
                     tipMemberLength, offGrid, state, out _)) return true;
@@ -331,6 +339,7 @@ public sealed class TreeSupportRouter
             : [];
         foreach (var candidate in trunkTops)
         {
+            SupportGenerationMonitor.Check();
             var trunkTop = candidate.Top;
             if (Vector2.DistanceSquared(new(branchJunction.X, branchJunction.Y),
                     new(trunkTop.X, trunkTop.Y)) <= Epsilon * Epsilon) continue;
@@ -404,6 +413,7 @@ public sealed class TreeSupportRouter
                          includeBaseRelocationFan: true)
                          .Where(candidate => candidate.Clear).Select(candidate => candidate.End))
             {
+                SupportGenerationMonitor.Check();
                 if (candidate.Z > options.PlateZ + Epsilon) continue;
                 var basePosition = new Vector3(candidate.X, candidate.Y, options.PlateZ);
                 if (BaseIsClear(basePosition, options, state)) return candidate;
@@ -420,6 +430,7 @@ public sealed class TreeSupportRouter
                      new Vector2(tip.SurfacePoint.X, tip.SurfacePoint.Y),
                      options.BaseGridPitch, maxHorizontal))
         {
+            SupportGenerationMonitor.Check();
             var candidate = new Vector3(xy, options.PlateZ);
             var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) +
                                 state.Clearance.ModelDistance;
@@ -452,6 +463,7 @@ public sealed class TreeSupportRouter
             : TipDirections(tip, options, state.AngleOffset);
         foreach (var direction in directions)
         {
+            SupportGenerationMonitor.Check();
             var length = direction.Z < -Epsilon
                 ? MathF.Min(tipMemberLength, (tip.SurfacePoint.Z - options.PlateZ) / -direction.Z)
                 : tipMemberLength;
@@ -492,6 +504,7 @@ public sealed class TreeSupportRouter
         foreach (var xy in BaseLattice.NearestSquarePoints(new Vector2(j1.X, j1.Y),
                      options.BaseGridPitch, snap))
         {
+            SupportGenerationMonitor.Check();
             if (SnappedJunction(tip, xy, tipMemberLength, options) is not { } snapped) continue;
             if (!TipMemberIsClear(tip, snapped, tipMemberDiameter, options.TrunkDiameter, state,
                     null)) continue;
@@ -564,6 +577,7 @@ public sealed class TreeSupportRouter
             var angle = angleDegrees * MathF.PI / 180f;
             for (var index = 0; index < options.BranchDirections; index++)
             {
+                SupportGenerationMonitor.Check();
                 var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
                 yield return Vector3.Normalize(new Vector3(
                     MathF.Cos(theta) * MathF.Sin(angle),
@@ -602,6 +616,7 @@ public sealed class TreeSupportRouter
         // Only then swing around the vertical at the clamped angle, as a last resort.
         for (var index = 1; index < options.BranchDirections; index++)
         {
+            SupportGenerationMonitor.Check();
             var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
             var rotated = new Vector2(MathF.Cos(theta), MathF.Sin(theta));
             yield return Direction(rotated, angle);
@@ -651,6 +666,7 @@ public sealed class TreeSupportRouter
         var candidates = new List<ExistingTrunkCandidate>();
         foreach (var trunk in state.Trunks)
         {
+            SupportGenerationMonitor.Check();
             var hDist = Vector2.Distance(new(j1.X, j1.Y), trunk.Xy);
             if (hDist <= minOffset) continue;
             if (trunk.BranchCount >= maxBranches) continue;
@@ -668,6 +684,7 @@ public sealed class TreeSupportRouter
                      .ThenBy(item => item.Score).ThenBy(item => item.Length)
                      .ThenBy(item => item.Trunk.BaseNodeId))
         {
+            SupportGenerationMonitor.Check();
             var trunk = candidate.Trunk;
             var attach = candidate.Attach;
             var attachZ = attach.Z;
@@ -839,6 +856,7 @@ public sealed class TreeSupportRouter
             // alternative is even considered.
             for (var step = 1; step <= options.BranchLengthSteps; step++)
             {
+                SupportGenerationMonitor.Check();
                 var length = options.MaxBranchLength * step / options.BranchLengthSteps;
                 if (continuation is { } along)
                 {
@@ -848,9 +866,11 @@ public sealed class TreeSupportRouter
                 }
                 foreach (var angleDegrees in angles)
                 {
+                    SupportGenerationMonitor.Check();
                     var freeAngle = angleDegrees * MathF.PI / 180f;
                     for (var index = 0; index < options.BranchDirections; index++)
                     {
+                        SupportGenerationMonitor.Check();
                         var theta = angleOffset + index * MathF.Tau / options.BranchDirections;
                         var fanDirection = new Vector3(
                             MathF.Cos(theta) * MathF.Sin(freeAngle),
@@ -873,6 +893,7 @@ public sealed class TreeSupportRouter
         foreach (var xy in BaseLattice.NearestSquarePoints(new Vector2(j1.X, j1.Y),
                      options.BaseGridPitch, maxHorizontal))
         {
+            SupportGenerationMonitor.Check();
             var horizontal = Vector2.Distance(new(j1.X, j1.Y), xy);
             // A branch to a drop line this close would be shorter than its own ball.
             if (horizontal <= minOffset) continue;
@@ -1021,6 +1042,7 @@ public sealed class TreeSupportRouter
         var remainingTrim = contactAllowance;
         for (var i = 1; i < points.Count; i++)
         {
+            SupportGenerationMonitor.Check();
             var start = points[i - 1];
             var end = points[i];
             var length = Vector3.Distance(start, end);
@@ -1133,6 +1155,7 @@ public sealed class TreeSupportRouter
         {
             foreach (var id in SegmentIds)
             {
+                SupportGenerationMonitor.Check();
                 var segment = graph.GetSegment(id);
                 var a = graph.GetNode(segment.NodeA);
                 var b = graph.GetNode(segment.NodeB);
@@ -1203,6 +1226,7 @@ public sealed class TreeSupportRouter
         {
             foreach (var segment in Graph.Segments.Where(segment => !segment.Disabled))
             {
+                SupportGenerationMonitor.Check();
                 var a = Graph.GetNode(segment.NodeA);
                 var b = Graph.GetNode(segment.NodeB);
                 if (a.Disabled || b.Disabled) continue;
@@ -1226,15 +1250,18 @@ public sealed class TreeSupportRouter
                          .Where(node => node.Type == SupportNodeType.Base && !node.Disabled)
                          .OrderBy(node => node.Id))
             {
+                SupportGenerationMonitor.Check();
                 var segmentIds = new HashSet<Guid>();
                 var nodeIds = new HashSet<Guid> { baseNode.Id };
                 var queue = new Queue<Guid>();
                 queue.Enqueue(baseNode.Id);
                 while (queue.Count > 0)
                 {
+                    SupportGenerationMonitor.Check();
                     var nodeId = queue.Dequeue();
                     foreach (var segment in Graph.SegmentsAt(nodeId))
                     {
+                        SupportGenerationMonitor.Check();
                         if (segment.Disabled || segment.Type != SupportSegmentType.Trunk ||
                             !visitedTrunkSegments.Add(segment.Id)) continue;
                         var otherId = segment.NodeA == nodeId ? segment.NodeB : segment.NodeA;
@@ -1325,6 +1352,7 @@ public sealed class TreeSupportRouter
             if (!_seesOtherSupports) return false;
             foreach (var capsule in _capsules)
             {
+                SupportGenerationMonitor.Check();
                 if (excludeSegments is not null && excludeSegments.Contains(capsule.SegmentId))
                     continue;
                 var sum = radius + capsule.Radius;
@@ -1341,6 +1369,7 @@ public sealed class TreeSupportRouter
             if (_minimumMemberSeparation <= 0 || !_seesOtherSupports) return false;
             foreach (var member in _capsules.OrderBy(item => item.SegmentId))
             {
+                SupportGenerationMonitor.Check();
                 if (excludeSegments is not null && excludeSegments.Contains(member.SegmentId))
                     continue;
                 if (!MemberSeparation.AreTooClose(start, end, radius, nodeA, nodeB,
@@ -1374,6 +1403,7 @@ public sealed class TreeSupportRouter
             if (!_seesOtherSupports) return false;
             foreach (var capsule in _capsules)
             {
+                SupportGenerationMonitor.Check();
                 if (trunk.SegmentIds.Contains(capsule.SegmentId)) continue;
                 var sum = radius + capsule.Radius;
                 if (!trunk.BranchSegmentIds.Contains(capsule.SegmentId))

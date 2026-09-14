@@ -59,6 +59,7 @@ public static class RegionGridSampler
 
         foreach (var patch in Patches(mesh, eligible))
         {
+            SupportGenerationMonitor.Check();
             var before = results.Count;
             var (minZ, maxZ) = ZExtent(mesh, patch);
             if (maxZ - minZ >= vertical)
@@ -85,14 +86,17 @@ public static class RegionGridSampler
         var patches = new List<List<int>>();
         foreach (var seed in eligible.OrderBy(face => face))
         {
+            SupportGenerationMonitor.Check();
             if (!seen.Add(seed)) continue;
             var patch = new List<int> { seed };
             var stack = new Stack<int>();
             stack.Push(seed);
             while (stack.Count > 0)
             {
+                SupportGenerationMonitor.Check();
                 foreach (var next in adjacency[stack.Pop()])
                 {
+                    SupportGenerationMonitor.Check();
                     if (!eligible.Contains(next) || !seen.Add(next)) continue;
                     patch.Add(next);
                     stack.Push(next);
@@ -109,6 +113,7 @@ public static class RegionGridSampler
         float min = float.PositiveInfinity, max = float.NegativeInfinity;
         foreach (var face in patch)
         {
+            SupportGenerationMonitor.Check();
             mesh.GetTriangle(face, out var a, out var b, out var c);
             min = MathF.Min(min, MathF.Min(a.Z, MathF.Min(b.Z, c.Z)));
             max = MathF.Max(max, MathF.Max(a.Z, MathF.Max(b.Z, c.Z)));
@@ -130,6 +135,7 @@ public static class RegionGridSampler
         var last = (int)MathF.Floor((maxZ - options.AnchorZ) / vertical - 0.5f);
         for (var row = first; row <= last; row++)
         {
+            SupportGenerationMonitor.Check();
             var z = options.AnchorZ + (row + 0.5f) * vertical;
             if (z <= minZ || z >= maxZ) continue;
             foreach (var contour in Contours(mesh, patch, z, horizontal))
@@ -152,6 +158,7 @@ public static class RegionGridSampler
         var segments = new List<BandSegment>();
         foreach (var face in patch)
         {
+            SupportGenerationMonitor.Check();
             mesh.GetTriangle(face, out var a, out var b, out var c);
             if (TryCrossTriangle(a, b, c, z, out var p, out var q))
                 segments.Add(new BandSegment(p, q, face));
@@ -162,6 +169,7 @@ public static class RegionGridSampler
         var ends = new Dictionary<(long, long), List<(int Segment, int End)>>();
         for (var i = 0; i < segments.Count; i++)
         {
+            SupportGenerationMonitor.Check();
             Register(ends, Key(segments[i].A, tolerance), i, 0);
             Register(ends, Key(segments[i].B, tolerance), i, 1);
         }
@@ -173,8 +181,10 @@ public static class RegionGridSampler
         // whatever is left is a closed loop and can start anywhere.
         for (var pass = 0; pass < 2; pass++)
         {
+            SupportGenerationMonitor.Check();
             for (var i = 0; i < segments.Count; i++)
             {
+                SupportGenerationMonitor.Check();
                 if (used[i]) continue;
                 var start = -1;
                 if (pass == 0)
@@ -200,6 +210,7 @@ public static class RegionGridSampler
         contour.Points.Add(from == 0 ? segments[current].A : segments[current].B);
         while (true)
         {
+            SupportGenerationMonitor.Check();
             used[current] = true;
             var to = from == 0 ? segments[current].B : segments[current].A;
             contour.Points.Add(to);
@@ -211,6 +222,7 @@ public static class RegionGridSampler
             {
                 foreach (var (candidate, candidateEnd) in touching)
                 {
+                    SupportGenerationMonitor.Check();
                     if (candidate == current || used[candidate]) continue;
                     next = candidate;
                     nextEnd = candidateEnd;
@@ -235,6 +247,7 @@ public static class RegionGridSampler
         var total = 0f;
         for (var i = 0; i < contour.Faces.Count; i++)
         {
+            SupportGenerationMonitor.Check();
             lengths[i] = Vector3.Distance(contour.Points[i], contour.Points[i + 1]);
             total += lengths[i];
         }
@@ -258,6 +271,7 @@ public static class RegionGridSampler
 
         for (var i = 0; i < count; i++)
         {
+            SupportGenerationMonitor.Check();
             var distance = start + i * horizontal;
             if (!TryPointAt(contour, lengths, distance, out var point, out var face)) continue;
             Emit(mesh, parameters, point, face, placed, dedup, results);
@@ -270,6 +284,7 @@ public static class RegionGridSampler
         var walked = 0f;
         for (var i = 0; i < lengths.Length; i++)
         {
+            SupportGenerationMonitor.Check();
             if (distance <= walked + lengths[i] || i == lengths.Length - 1)
             {
                 var t = lengths[i] <= 1e-9f ? 0f : Math.Clamp((distance - walked) / lengths[i], 0f, 1f);
@@ -294,6 +309,7 @@ public static class RegionGridSampler
     {
         foreach (var face in patch)
         {
+            SupportGenerationMonitor.Check();
             mesh.GetTriangle(face, out var a, out var b, out var c);
             var area2 = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
             if (MathF.Abs(area2) < 1e-9f) continue;
@@ -309,8 +325,10 @@ public static class RegionGridSampler
 
             for (var i = firstI; i <= lastI; i++)
             {
+                SupportGenerationMonitor.Check();
                 for (var j = firstJ; j <= lastJ; j++)
                 {
+                    SupportGenerationMonitor.Check();
                     var x = (i + 0.5f) * horizontal;
                     var y = (j + 0.5f) * horizontal;
                     var u = ((x - a.X) * (c.Y - a.Y) - (y - a.Y) * (c.X - a.X)) / area2;
@@ -330,6 +348,7 @@ public static class RegionGridSampler
         var best = float.PositiveInfinity;
         foreach (var candidate in patch)
         {
+            SupportGenerationMonitor.Check();
             mesh.GetTriangle(candidate, out var a, out var b, out var c);
             var centroid = (a + b + c) / 3f;
             if (centroid.Z >= best) continue;

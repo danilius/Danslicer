@@ -316,6 +316,24 @@ public sealed class PlacementAndSupportCommandTests
     }
 
     [Fact]
+    public void IslandGenerationUsesCapturedProjectLayerHeight()
+    {
+        var doc = new Document();
+        doc.PrintSettings = doc.PrintSettings with { LayerHeight = 0.2f };
+        // Only the 0.2 mm stack intersects this thin component; the old hard-coded
+        // 0.05 mm generation stack missed it entirely.
+        var obj = new SceneObject("thin island", Box(new(-2, -2, 5.08f), new(2, 2, 5.12f)));
+        doc.AddObject(obj);
+        var detection = doc.CaptureIslandDetection(obj);
+        var generation = doc.CaptureSupportGeneration(obj, scope: SupportGenerationScope.IslandsOnly);
+        doc.PrintSettings = doc.PrintSettings with { LayerHeight = 0.05f };
+
+        Assert.Equal(detection.LayerHeightMm, generation.LayerHeightMm);
+        Assert.Single(Document.ComputeIslandDetection(detection));
+        Assert.Equal(1, Document.ComputeSupportGeneration(generation).Summary.CandidateCount);
+    }
+
+    [Fact]
     public void IslandSupportGenerationUsesOneNamedUndoStep()
     {
         var doc = new Document();

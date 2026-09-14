@@ -1,0 +1,159 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:refresh="using:Danslicer.App.Controls.Refresh"
+             xmlns:vm="using:Danslicer.App.ViewModels"
+             x:Class="Danslicer.App.Controls.StructureSettingsView"
+             x:DataType="vm:ConfigViewModel">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.label"><Setter Property="FontSize" Value="12" /><Setter Property="VerticalAlignment" Value="Center" /></Style>
+        <Style Selector="ComboBox">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="#34373A" />
+            <Setter Property="Foreground" Value="#E3E4E6" />
+            <Setter Property="BorderBrush" Value="#858B93" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style Selector="ComboBox:pointerover"><Setter Property="Background" Value="#44494F" /><Setter Property="BorderBrush" Value="#EBA548" /></Style>
+        <Style Selector="ComboBox:focus"><Setter Property="BorderBrush" Value="#EBA548" /></Style>
+        <Style Selector="Expander"><Setter Property="HorizontalAlignment" Value="Stretch" /></Style>
+    </UserControl.Styles>
+    <StackPanel Spacing="8">
+        <StackPanel IsVisible="{Binding ShowParentingSettings}" Spacing="6">
+            <TextBlock Text="Parenting" FontWeight="SemiBold" />
+            <ComboBox ItemsSource="{Binding ParentingStyles}" SelectedItem="{Binding SupportParentingStyle, Mode=TwoWay}" />
+            <Grid ColumnDefinitions="88,*" Margin="0,4">
+                <Path Data="{Binding ParentingDiagram}" Stroke="{DynamicResource AppTextPrimary}" StrokeThickness="2" Width="80" Height="76" Stretch="Uniform" />
+                <TextBlock Grid.Column="1" Text="{Binding ParentingDescription}" TextWrapping="Wrap" Classes="label" Margin="8,0,0,0" />
+            </Grid>
+            <StackPanel IsVisible="{Binding IsCandelabra}" Spacing="6">
+                <Grid ColumnDefinitions="170,*">
+                    <TextBlock Text="Arrangement" Classes="label" ToolTip.Tip="Changes group width and tip count only. Contact and member dimensions stay as set." />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding ArrangementPresets}" SelectedItem="{Binding ArrangementPreset, Mode=TwoWay}" />
+                </Grid>
+                <Grid ColumnDefinitions="170,*">
+                    <TextBlock Text="Group width" Classes="label" ToolTip.Tip="Maximum horizontal span of a group. Smaller groups use more central trunks." />
+                    <refresh:FilledNumericSlider Grid.Column="1" UnitKind="Length" Unit="mm" Minimum="1" Maximum="100" Step="1" Format="0.#" Value="{Binding SupportCandelabraGroupWidth, Mode=TwoWay}" />
+                </Grid>
+                <Grid ColumnDefinitions="170,*">
+                    <TextBlock Text="Maximum tips / trunk" Classes="label" />
+                    <refresh:FilledNumericSlider Grid.Column="1" UnitKind="Scalar" Unit="" IsInteger="True" Minimum="1" Maximum="100" Step="1" Format="0" Value="{Binding SupportCandelabraMaxTips, Mode=TwoWay}" />
+                </Grid>
+            </StackPanel>
+            <Expander Header="Advanced parenting" IsExpanded="False">
+                <StackPanel Margin="0,6">
+                <CheckBox Tag="supports parenting auto automatic after placement live"
+                          Content="Auto-parenting"
+                          ToolTip.Tip="After T, a guided tool or densify, the new supports and their neighbours within the trunk search range are parented at once, as part of the same undo step. Off: supports stay single until J."
+                          IsChecked="{Binding SupportAutoParenting, Mode=TwoWay}" Margin="0,4" />
+                <Grid Tag="supports parenting max branch length mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max branch length" Classes="label" ToolTip.Tip="How far a tip may reach to join a trunk when parented (J), mm. 0 = automatic reach in Candelabra, otherwise the Members value." />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMaxBranchLength" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="50" Step="0.5" Format="0.##"
+                                   Value="{Binding SupportParentingMaxBranchLength, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports parenting max branch angle degrees" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max branch angle °" Classes="label" ToolTip.Tip="Maximum lean from vertical. Candelabra tries steeper branches when needed to separate neighbours. 0 = the Members angle." />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMaxBranchAngle" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="0" Maximum="89" Step="1" Format="0"
+                                   Value="{Binding SupportParentingMaxBranchAngle, Mode=TwoWay}" />
+                </Grid>
+                <Grid IsVisible="{Binding !IsCandelabra}" Tag="supports parenting trunk search range mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Trunk search range" Classes="label" ToolTip.Tip="How far around a tip parenting looks for a trunk to join before raising its own, mm. 0 = the Members existing trunk range." />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingTrunkRange" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="50" Step="0.5" Format="0.##"
+                                   Value="{Binding SupportParentingTrunkRange, Mode=TwoWay}" />
+                </Grid>
+                <Grid IsVisible="{Binding !IsCandelabra}" Tag="supports parenting minimum tips per trunk" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Min tips per trunk" Classes="label"
+                               ToolTip.Tip="A new trunk carrying fewer tips than this gets one more try with double range" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMinTipsPerTrunk" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="1" Maximum="20" Step="1" Format="0"
+                                   Value="{Binding SupportParentingMinTipsPerTrunk, Mode=TwoWay}" />
+                </Grid>
+                <Grid IsVisible="{Binding !IsCandelabra}" Tag="supports parenting rounds seeds" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Rounds" Classes="label"
+                               ToolTip.Tip="Re-route this many times with different seeds; the round with the fewest trunks wins" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingRounds" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="1" Maximum="10" Step="1" Format="0"
+                                   Value="{Binding SupportParentingRounds, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports parenting max cone bend degrees lateral join" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max cone bend °" Classes="label"
+                               ToolTip.Tip="How far the branch leaving a cone may bend from the cone's axis. 0 = the member angle. A cone on a leaning wall points outward, so joining a trunk sideways along the edge needs 60–90." />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMaxConeBend" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="0" Maximum="180" Step="5" Format="0"
+                                   Value="{Binding SupportParentingMaxConeBend, Mode=TwoWay}" />
+                </Grid>
+                <Grid IsVisible="{Binding !IsCandelabra}" Tag="supports parenting max branches per trunk" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max branches per trunk" Classes="label"
+                               ToolTip.Tip="How many branches one trunk may carry when parented. 0 = the growth rule's default (6)." />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportParentingMaxBranchesPerTrunk" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="0" Maximum="30" Step="1" Format="0"
+                                   Value="{Binding SupportParentingMaxBranchesPerTrunk, Mode=TwoWay}" />
+                </Grid>
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowBracingSettings}" Spacing="6">
+            <TextBlock Text="Bracing" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="170,*">
+                <TextBlock Text="Density" Classes="label" ToolTip.Tip="Sparse: 20 mm pitch. Standard: 10 mm. Dense: continuous. Angle and clearance can limit the actual number of braces." />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding BracingDensities}" SelectedItem="{Binding BracingDensity, Mode=TwoWay}" />
+            </Grid>
+                <Grid Tag="supports bracing pattern zigzag diagonal" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Pattern" Classes="label"
+                               ToolTip.Tip="Zigzag: each brace leaves the trunk the previous one arrived at. Diagonal: every brace leans the same way." />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding BracingPatterns}"
+                              SelectedItem="{Binding SupportBracingPattern, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing brace diameter mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Brace diameter" Classes="label" />
+                    <refresh:FilledNumericSlider UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.05" Maximum="10" Step="0.1" Format="0.##"
+                                   IsEnabled="{Binding !UseBranchDiameterForBracing}" Value="{Binding EffectiveBracingDiameter, Mode=TwoWay}" />
+                </Grid>
+                <CheckBox Content="Use branch diameter" IsChecked="{Binding UseBranchDiameterForBracing, Mode=TwoWay}" />
+<Expander Header="Advanced bracing" IsExpanded="False"><StackPanel Margin="0,6">                <CheckBox Tag="supports bracing auto automatic after generation parenting"
+                          Content="Auto-bracing"
+                          ToolTip.Tip="Brace after Generate Supports and automatic parenting during placement, as part of that command's undo step. Parent Supports (J) never adds braces. Off: add braces with K."
+                          IsChecked="{Binding SupportAutoBracing, Mode=TwoWay}" Margin="0,4" />
+                <Grid Tag="supports bracing angle degrees" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max brace angle °" Classes="label" ToolTip.Tip="The most a brace may lean from vertical. A rung that cannot fit at this angle is left out rather than laid flatter" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingAngleDegrees" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="1" Maximum="89" Step="5" Format="0"
+                                   Value="{Binding SupportBracingAngleDegrees, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing spacing vertical pitch mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Brace spacing" Classes="label" ToolTip.Tip="Vertical pitch between the braces of one pair of trunks. 0 = continuous: each brace starts where the last one ended" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
+                                   Value="{Binding SupportBracingSpacingMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing lowest brace height mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Lowest brace height" Classes="label" ToolTip.Tip="No brace foot below this height above the plate. 0 = the min branch height" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingLowestHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
+                                   Value="{Binding SupportBracingLowestHeightMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing min support height mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Min support height" Classes="label" ToolTip.Tip="Only trunks rising at least this far above the plate are braced" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingMinSupportHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
+                                   Value="{Binding SupportBracingMinSupportHeightMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing neighbour distance mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Neighbour distance" Classes="label" ToolTip.Tip="Largest horizontal gap between two trunks that a brace may span" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingNeighbourDistanceMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.5" Maximum="100" Step="0.5" Format="0.##"
+                                   Value="{Binding SupportBracingNeighbourDistanceMm, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing max brace partners per trunk" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max brace partners" Classes="label" ToolTip.Tip="How many other trunks one trunk may be braced to" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingMaxPartners" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="1" Maximum="20" Step="1" Format="0"
+                                   Value="{Binding SupportBracingMaxPartners, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing max stem lean degrees branch continues trunk" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Max stem lean °" Classes="label"
+                               ToolTip.Tip="A branch continuing a trunk upward within this lean from vertical is braced as part of the trunk" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingMaxStemLeanDegrees" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="0" Maximum="89" Step="5" Format="0"
+                                   Value="{Binding SupportBracingMaxStemLeanDegrees, Mode=TwoWay}" />
+                </Grid>
+                <Grid Tag="supports bracing cluster gap bundle mm" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Cluster gap" Classes="label"
+                               ToolTip.Tip="Trunks whose surfaces are closer than this are braced as one bundle: no braces inside the cluster, the row ties to its outer trunk. 0 = never" />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingClusterGapMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="50" Step="0.5" Format="0.##"
+                                   Value="{Binding SupportBracingClusterGapMm, Mode=TwoWay}" />
+                </Grid>
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

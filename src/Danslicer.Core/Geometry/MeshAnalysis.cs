@@ -54,6 +54,7 @@ public sealed class MeshAnalysis
         _facesOf = new List<int>[n];
         for (int i = 0; i < n; i++)
         {
+            SupportGenerationMonitor.Check();
             _neighbors[i] = new HashSet<int>();
             _facesOf[i] = new List<int>(6);
         }
@@ -61,6 +62,8 @@ public sealed class MeshAnalysis
         _edgeFaces = new Dictionary<(int A, int B), List<int>>(Math.Max(1, mesh.TriangleCount * 2));
         for (int t = 0; t < mesh.TriangleCount; t++)
         {
+            SupportGenerationMonitor.Check();
+            SupportGenerationMonitor.Report(0.02 + 0.04 * t / Math.Max(1, mesh.TriangleCount), "Analysing mesh faces", t, mesh.TriangleCount);
             int ia = mesh.Indices[t * 3], ib = mesh.Indices[t * 3 + 1], ic = mesh.Indices[t * 3 + 2];
             _facesOf[ia].Add(t);
             _facesOf[ib].Add(t);
@@ -112,6 +115,7 @@ public sealed class MeshAnalysis
         var count = 0;
         foreach (var n in _neighbors[vertex])
         {
+            SupportGenerationMonitor.Check();
             var key = vertex < n ? (vertex, n) : (n, vertex);
             if (sharp.Contains(key)) count++;
         }
@@ -135,6 +139,7 @@ public sealed class MeshAnalysis
         var sharpCount = new int[mesh.VertexCount];
         foreach (var (edge, faces) in edgeFaces)
         {
+            SupportGenerationMonitor.Check();
             bool isSharp;
             if (faces.Count < 2)
             {
@@ -169,6 +174,7 @@ public sealed class MeshAnalysis
 
         for (int seed = 0; seed < mesh.TriangleCount; seed++)
         {
+            SupportGenerationMonitor.Check();
             if (patchId[seed] >= 0) continue;
             members.Clear();
             stack.Push(seed);
@@ -178,6 +184,7 @@ public sealed class MeshAnalysis
             float area = 0;
             while (stack.Count > 0)
             {
+                SupportGenerationMonitor.Check();
                 var t = stack.Pop();
                 members.Add(t);
                 mesh.GetTriangle(t, out var a, out var b, out var c);
@@ -196,6 +203,7 @@ public sealed class MeshAnalysis
                     if (!edgeFaces.TryGetValue(key, out var faces)) return;
                     foreach (var next in faces)
                     {
+                        SupportGenerationMonitor.Check();
                         if (patchId[next] >= 0) continue;
                         var dot = Vector3.Dot(mesh.FaceNormals[t], mesh.FaceNormals[next]);
                         if (dot < minDot) continue;
@@ -225,6 +233,7 @@ public sealed class MeshAnalysis
         var angleSum = new float[n];
         for (int t = 0; t < mesh.TriangleCount; t++)
         {
+            SupportGenerationMonitor.Check();
             int ia = mesh.Indices[t * 3], ib = mesh.Indices[t * 3 + 1], ic = mesh.Indices[t * 3 + 2];
             var a = mesh.Positions[ia];
             var b = mesh.Positions[ib];
@@ -238,6 +247,7 @@ public sealed class MeshAnalysis
         const float cubeCornerDefect = MathF.PI / 2f;
         for (int v = 0; v < n; v++)
         {
+            SupportGenerationMonitor.Check();
             if (facesOf[v].Count == 0) continue;
             var defect = MathF.Abs(MathF.PI * 2f - angleSum[v]);
             curvature[v] = MathF.Min(1f, defect / cubeCornerDefect);
@@ -245,6 +255,7 @@ public sealed class MeshAnalysis
 
         foreach (var (edge, faces) in edgeFaces)
         {
+            SupportGenerationMonitor.Check();
             if (faces.Count < 2) continue;
             var dot = Vector3.Dot(mesh.FaceNormals[faces[0]], mesh.FaceNormals[faces[1]]);
             var dihedral = MathF.Acos(Math.Clamp(dot, -1f, 1f));

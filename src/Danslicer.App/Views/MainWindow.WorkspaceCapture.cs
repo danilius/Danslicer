@@ -38,6 +38,15 @@ public partial class MainWindow
                     File.WriteAllText(System.IO.Path.Combine(directory, "toolbar-restart-ok.txt"), $"Fresh MAIN process restored toolbar labels={expected} from compatible workspace JSON.");
                     return;
                 }
+                if (args.Contains("--guided-selector-check"))
+                {
+                    ViewModel!.ViewMode = WorkspaceMode.Support;
+                    await Task.Delay(160);
+                    UpdateLayout();
+                    await CheckGuidedSelector(directory);
+                    File.WriteAllText(System.IO.Path.Combine(directory, "guided-selector-ok.txt"), "Hold, release, selection, mode persistence, corner, exclusive tool switching, keyboard switching, active highlights, completion, one-shot actions and Escape checks passed.");
+                    return;
+                }
                 await CheckWorkspace(directory);
                 File.WriteAllText(System.IO.Path.Combine(directory, "workspace-ok.txt"),
                     "Real MainWindow/VM: STL import, selected object transform expression/undo, duplicate/undo, toolbar labels, mode scoping, all 12 popouts and persistent panel-free Support isolation rail with cube clearance/centered Reset/Cap label, handle-hover layer/mm editing, pointer drag commit/cancel and delayed dismissal, real print/settings bindings, editor Escape, viewport Escape, invoking-button focus, resize bounds, section reorder and expansion, durable project open/save history, failed-open status, narrow 640x480 layout and 100/150/200 density captures passed. Offscreen rendering omits the native OpenGL composition surface; no physical input, monitor transition or screen-reader claim.");
@@ -132,8 +141,9 @@ public partial class MainWindow
         vm.Document.Select(vm.Objects[0]);
         vm.ViewMode = WorkspaceMode.Support; await Layout();
         await CheckIsolationEditor(directory);
+        await CheckGuidedSelector(directory);
         Require(!TransformToolButton.IsVisible && SupportsToolButton.IsVisible && !_printTool.IsVisible, "Support tool scoping failed");
-        foreach (var popup in new[] { ObjectsToolPopup, SupportsToolPopup, StructureToolPopup, GuidedToolPopup, RegionToolPopup, VisibilityToolPopup, RaftsToolPopup, ViewSettingsPopup })
+        foreach (var popup in new[] { ObjectsToolPopup, SupportsToolPopup, StructureToolPopup, RegionToolPopup, VisibilityToolPopup, RaftsToolPopup, ViewSettingsPopup })
         {
             Click((Button)popup.PlacementTarget!); await Layout();
             Require(popup.IsOpen && popup.Shell.Bounds.Height > 28, $"Cannot open {popup.Title}");

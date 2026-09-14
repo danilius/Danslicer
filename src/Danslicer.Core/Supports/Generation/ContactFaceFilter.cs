@@ -88,6 +88,7 @@ public static class ContactFaceFilter
 
         foreach (var candidate in candidates)
         {
+            SupportGenerationMonitor.Check();
             // A painted region already says which faces the user wants supported; a global angle
             // rule must not overrule that, or painting a shallow face would silently do nothing.
             if (candidate.Strategy == TipStrategy.RegionGrid)

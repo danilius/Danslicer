@@ -33,8 +33,9 @@ public static class SupportGenerator
         IReadOnlySet<int>? keepCleanFaces = null,
         int seed = 0,
         IProgress<SupportGenerationProgress>? progress = null,
-        SupportGenerationScope scope = SupportGenerationScope.Full)
+        SupportGenerationScope scope = SupportGenerationScope.Full, CancellationToken cancellationToken = default)
     {
+        using var work = SupportGenerationMonitor.Begin(cancellationToken, progress);
         // Grid routing expects tips on lattice verticals. When the caller has not already
         // opted into (or out of) grid projection, pass the lattice into placement so Poisson
         // overhang sampling is replaced by grid hits. Islands and minima still run.
@@ -45,7 +46,7 @@ public static class SupportGenerator
             ScopeCandidates(TipPlacer.Place(mesh, regionFaces, effectivePlacement,
                 existingGraph, keepCleanFaces, seed), scope),
             mesh, effectivePlacement);
-        progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
+        SupportGenerationMonitor.Report(0.5, "Tips placed", candidates.Count, candidates.Count);
 
         // Both sides of this mapping speak the inward (penetration) normal, so it passes through;
         // the router flips to the graph's outward convention when it creates the tip node.
@@ -62,8 +63,7 @@ public static class SupportGenerator
 
         var router = new GridSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed }, existingGraph);
-        progress?.Report(new SupportGenerationProgress(1, "Tips routed",
-            candidates.Count - result.UnroutedTips.Count, candidates.Count));
+        SupportGenerationMonitor.Report(1, "Tips routed", candidates.Count, candidates.Count);
         return new GenerationResult(candidates, result);
     }
 
@@ -83,13 +83,17 @@ public static class SupportGenerator
         IReadOnlySet<int>? keepCleanFaces = null,
         int seed = 0,
         IProgress<SupportGenerationProgress>? progress = null,
-        SupportGenerationScope scope = SupportGenerationScope.Full)
+        SupportGenerationScope scope = SupportGenerationScope.Full,
+        IReadOnlyList<DetectedIsland>? detectedIslands = null, CancellationToken cancellationToken = default)
     {
-        var candidates = ContactFaceFilter.Apply(
+        using var work = SupportGenerationMonitor.Begin(cancellationToken, progress);
+        var candidates = detectedIslands is not null
+            ? TipPlacer.PlaceDetectedIslands(mesh, detectedIslands, placement)
+            : ContactFaceFilter.Apply(
             ScopeCandidates(TipPlacer.Place(mesh, regionFaces, placement,
                 existingGraph, keepCleanFaces, seed), scope),
             mesh, placement);
-        progress?.Report(new SupportGenerationProgress(0.5, "Tips placed", candidates.Count, candidates.Count));
+        SupportGenerationMonitor.Report(0.5, "Tips placed", candidates.Count, candidates.Count);
 
         var lowestRegion = candidates.OrderBy(candidate => candidate.Point.Z)
             .ThenBy(candidate => candidate.Point.X).ThenBy(candidate => candidate.Point.Y)
@@ -106,8 +110,7 @@ public static class SupportGenerator
 
         var router = new TreeSupportRouter(obstacles, rules);
         var result = router.Route(tips, routing with { Seed = seed });
-        progress?.Report(new SupportGenerationProgress(1, "Tips routed",
-            candidates.Count - result.UnroutedTips.Count, candidates.Count));
+        SupportGenerationMonitor.Report(1, "Tips routed", candidates.Count, candidates.Count);
         return new GenerationResult(candidates, result);
     }
 

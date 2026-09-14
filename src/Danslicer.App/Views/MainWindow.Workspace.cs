@@ -79,22 +79,24 @@ public partial class MainWindow
 
     private static string ToolLabel(string? name) => name switch
     {
+        "SliceToolButton" => "Slice",
         "UvtoolsCheckButton" => "Check with UVtools", "ObjectsToolButton" => "Objects",
         "AddObjectToolButton" => "Add object", "SupportsToolButton" => "Support settings",
         "GenerateToolButton" => "Generate supports", "StructureToolButton" => "Structure",
         "TransformToolButton" => "Transform", "GuidedToolButton" => "Place supports",
-        "RegionToolButton" => "Regions", "IslandSupportToolButton" => "Island supports",
+        "RegionToolButton" => "Regions",
         "IslandDetectionToolButton" => "Detect islands", "VisibilityToolButton" => "Visibility",
         "RaftsToolButton" => "Rafts", "ViewSettingsButton" => "View settings",
         _ => name?.Replace("ToolButton", "").Replace("Button", "") ?? "Tool"
     };
     private static string ToolIcon(string? name) => name switch
     {
+        "SliceToolButton" => "slice",
         "ObjectsToolButton" => "objects", "AddObjectToolButton" => "add",
         "UvtoolsCheckButton" => "check", "ViewSettingsButton" => "settings",
         "GenerateToolButton" => "generate", "GuidedToolButton" => "place",
         "StructureToolButton" => "structure", "RegionToolButton" => "region",
-        "IslandSupportToolButton" => "island", "IslandDetectionToolButton" => "detect",
+        "IslandDetectionToolButton" => "detect",
         "TransformToolButton" => "move", "RaftsToolButton" => "rafts",
         "VisibilityToolButton" => "visibility",
         _ => "supports"
@@ -116,6 +118,8 @@ public partial class MainWindow
     }
     private void ApplyWorkspaceMode()
     {
+        CancelGuidedHold();
+        _guidedSelector.Hide();
         _workspaceToolbar.CancelResize();
         if (_printTool is null) return;
         _printTool.IsVisible = ViewModel?.IsLayersView == true;
@@ -143,11 +147,12 @@ public partial class MainWindow
     private void PositionWorkspacePopouts()
     {
         UpdateIsolationPlacement();
+        PositionStructurePreview();
         var bounds = ViewportSurface.Bounds;
         var narrow = bounds.Width < 1100;
         Grid.SetRow(MachineSummary, narrow ? 1 : 0);
         Grid.SetColumn(MachineSummary, 0);
-        MachineSummary.Margin = narrow ? new Thickness(0, 3, 0, 0) : new Thickness(96, 0, 8, 0);
+        MachineSummary.Margin = narrow ? new Thickness(0, 3, 0, 0) : new Thickness(124, 0, 8, 0);
         Grid.SetColumnSpan(MachineSummary, narrow ? 3 : 1);
         _workspaceToolbar.MaxWidth = Math.Max(FloatingToolbar.IconWidth, bounds.Width - 24);
         _workspaceToolbar.MaxHeight = Math.Max(40, bounds.Height - 24);

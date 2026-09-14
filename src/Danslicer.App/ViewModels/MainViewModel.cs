@@ -152,7 +152,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsModelView), nameof(IsLayoutView), nameof(IsSupportView), nameof(IsLayersView),
         nameof(ViewportTools), nameof(IsObjectListSelectionEnabled), nameof(IsObjectsToolVisible),
-        nameof(IsSupportsToolVisible), nameof(IsIslandSupportToolVisible),
+        nameof(IsSupportsToolVisible),
         nameof(IsIslandDetectionToolVisible), nameof(IsVisibilityToolVisible), nameof(IsRaftsToolVisible),
         nameof(IsUvtoolsCheckToolVisible), nameof(IsTransformToolVisible), nameof(IsGuidedToolVisible),
         nameof(IsGenerateToolVisible), nameof(IsStructureToolVisible), nameof(IsRegionToolVisible),
@@ -163,7 +163,6 @@ public partial class MainViewModel : ViewModelBase
 
     public bool IsObjectsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Objects, ViewMode);
     public bool IsSupportsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Supports, ViewMode);
-    public bool IsIslandSupportToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.IslandSupport, ViewMode);
     public bool IsIslandDetectionToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.IslandDetection, ViewMode);
     public bool IsVisibilityToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Visibility, ViewMode);
     public bool IsRaftsToolVisible => ViewportToolbarPolicy.IsAvailable(ViewportTool.Rafts, ViewMode);
@@ -544,9 +543,11 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDetectedIslands))]
+    [NotifyCanExecuteChangedFor(nameof(GenerateIslandSupportsCommand))]
     public partial IReadOnlyList<DetectedIsland> DetectedIslands { get; set; } = [];
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GenerateIslandSupportsCommand))]
     public partial bool IsDetectingIslands { get; set; }
 
     public bool HasDetectedIslands => DetectedIslands.Count > 0;
@@ -720,6 +721,7 @@ public partial class MainViewModel : ViewModelBase
             HideCommand.NotifyCanExecuteChanged();
         };
         Document.Changed += OnDocumentChanged;
+        Document.StructurePreviewChanged += RefreshHistoryStatus;
         RefreshPrinterOptions(notifyDocument: false);
         OnDocumentChanged();
     }
@@ -894,11 +896,7 @@ public partial class MainViewModel : ViewModelBase
             if (DetectedIslands.Count > 0) DetectedIslands = [];
         }
         RefreshFields();
-        var undo = Document.History.UndoName;
-        var redo = Document.History.RedoName;
-        HistoryStatus = (undo is null ? "" : $"Undo: {undo}") + (redo is null ? "" : $"   Redo: {redo}");
-        UndoCommand.NotifyCanExecuteChanged();
-        RedoCommand.NotifyCanExecuteChanged();
+        RefreshHistoryStatus();
         SliceCommand.NotifyCanExecuteChanged();
         // Layer height first: the clip boxes read in layer numbers, so a print-settings change
         // has to reach them before the bounds do.
@@ -1061,11 +1059,20 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(CanUndo))]
     private void Undo() => Document.Undo();
-    private bool CanUndo() => Document.History.CanUndo;
+    private bool CanUndo() => Document.HasPendingStructurePreview || Document.History.CanUndo;
+
+    private void RefreshHistoryStatus()
+    {
+        var undo = Document.PendingStructureOperation ?? Document.History.UndoName;
+        var redo = Document.History.RedoName;
+        HistoryStatus = (undo is null ? "" : $"Undo: {undo}") + (redo is null ? "" : $"   Redo: {redo}");
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand(CanExecute = nameof(CanRedo))]
     private void Redo() => Document.Redo();
-    private bool CanRedo() => Document.History.CanRedo;
+    private bool CanRedo() => !Document.HasPendingStructurePreview && Document.History.CanRedo;
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private void Delete()
@@ -1167,15 +1174,25 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanGenerateSupports))]
     private Task GenerateSupports() => GenerateSupportsCore(SupportGenerationScope.Full);
 
-    [RelayCommand(CanExecute = nameof(CanGenerateSupports))]
-    private Task GenerateIslandSupports() => GenerateSupportsCore(SupportGenerationScope.IslandsOnly);
+    [RelayCommand(CanExecute = nameof(CanSupportDetectedIslands))]
+    private Task GenerateIslandSupports() => CanSupportDetectedIslands()
+        ? GenerateSupportsCore(SupportGenerationScope.IslandsOnly, DetectedIslands.ToArray())
+        : Task.CompletedTask;
 
-    private async Task GenerateSupportsCore(SupportGenerationScope scope)
+    private bool CanSupportDetectedIslands() => CanGenerateSupports() && !IsDetectingIslands &&
+        HasDetectedIslands && IslandDetectionTargetIsCurrent() &&
+        ReferenceEquals(SelectedObject, _islandDetectionObject);
+
+    private async Task GenerateSupportsCore(SupportGenerationScope scope,
+        IReadOnlyList<DetectedIsland>? detectedIslands = null)
     {
         if (IsGeneratingSupports) return;
         var obj = SelectedObject;
         if (obj is null) return;
-        var request = Document.CaptureSupportGeneration(obj, seed: 0, scope);
+        var request = Document.CaptureSupportGeneration(obj, seed: 0, scope) with
+        {
+            DetectedIslands = detectedIslands,
+        };
         _generationCancellation = new CancellationTokenSource();
         var token = _generationCancellation.Token;
         SupportGenerationBatch? batch = null;
@@ -1189,8 +1206,9 @@ public partial class MainViewModel : ViewModelBase
         {
             var generationProgress = new Progress<SupportGenerationProgress>(p =>
             {
-                GenerationProgress = p.Fraction * 0.8;
-                ViewportStatus = $"{p.Stage}: {p.Completed} / {p.Total}";
+                if (!IsGeneratingSupports || token.IsCancellationRequested || _generationCancellation?.Token != token) return;
+                GenerationProgress = Math.Max(GenerationProgress, p.Fraction * 0.8);
+                ViewportStatus = p.Total > 0 ? $"{p.Stage}: {p.Completed} / {p.Total}" : p.Stage + "...";
             });
             var prepared = await Task.Run(
                 () => Document.ComputeSupportGeneration(request, token, generationProgress), token);
@@ -1213,7 +1231,9 @@ public partial class MainViewModel : ViewModelBase
             var bracing = Document.AutoBraceAfterGeneration(obj, prepared);
             var braced = bracing is null ? "" : $" {bracing.Braces} braces.";
             var result = prepared.Summary;
-            ViewportStatus = result.CandidateCount == 0
+            ViewportStatus = detectedIslands is not null
+                ? $"Detected islands: {result.GeneratedTipCount} supports added, {result.UnroutedTipCount} unrouted, {result.UnplacedIslandCount} contacts could not be placed.{braced}"
+                : result.CandidateCount == 0
                 ? $"Generate {label}: no support tips were needed."
                 : $"Generate {label}: {result.GeneratedTipCount} tips added, {result.UnroutedTipCount} unrouted.{braced}";
         }

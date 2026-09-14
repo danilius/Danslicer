@@ -43,6 +43,7 @@ public static class MeshSlicer
             var minZ = double.PositiveInfinity; var maxZ = double.NegativeInfinity;
             for (int i = 0; i < n; i++)
             {
+                SupportGenerationMonitor.Check();
                 var p = Vector3.Transform(mesh.Positions[i], world);
                 X[i] = p.X;
                 Y[i] = p.Y;
@@ -70,6 +71,7 @@ public static class MeshSlicer
             // linear part suffices. Non-uniform scale is handled by recomputing from world vertices.
             for (int tri = 0; tri < t; tri++)
             {
+                SupportGenerationMonitor.Check();
                 int ia = Indices[tri * 3], ib = Indices[tri * 3 + 1], ic = Indices[tri * 3 + 2];
                 TriMinZ[tri] = Math.Min(Z[ia], Math.Min(Z[ib], Z[ic]));
                 TriMaxZ[tri] = Math.Max(Z[ia], Math.Max(Z[ib], Z[ic]));
@@ -92,6 +94,7 @@ public static class MeshSlicer
         var buckets = new List<int>[layerCount];
         for (int t = 0; t < mesh.TriangleCount; t++)
         {
+            SupportGenerationMonitor.Check();
             var minZ = mesh.TriMinZ[t];
             var maxZ = mesh.TriMaxZ[t];
             if (maxZ - minZ < 1e-12) continue; // horizontal triangle never produces a segment
@@ -114,6 +117,7 @@ public static class MeshSlicer
         Span<(double x, double y)> pts = stackalloc (double, double)[3];
         foreach (var t in triangles)
         {
+            SupportGenerationMonitor.Check();
             if (z <= mesh.TriMinZ[t] || z >= mesh.TriMaxZ[t]) continue;
             int ia = mesh.Indices[t * 3], ib = mesh.Indices[t * 3 + 1], ic = mesh.Indices[t * 3 + 2];
 
@@ -173,6 +177,7 @@ public static class MeshSlicer
         var byStart = new Dictionary<(long, long), List<int>>(segments.Count);
         for (int i = 0; i < segments.Count; i++)
         {
+            SupportGenerationMonitor.Check();
             var key = Key(segments[i].A, q);
             if (!byStart.TryGetValue(key, out var list)) byStart[key] = list = new List<int>(2);
             list.Add(i);
@@ -182,6 +187,7 @@ public static class MeshSlicer
         var path = new Path64();
         for (int start = 0; start < segments.Count; start++)
         {
+            SupportGenerationMonitor.Check();
             if (used[start]) continue;
             path.Clear();
             used[start] = true;
@@ -192,6 +198,7 @@ public static class MeshSlicer
 
             while (true)
             {
+                SupportGenerationMonitor.Check();
                 if (Near(current, startPoint, q) && path.Count >= 3)
                 {
                     closed = true;
@@ -228,9 +235,11 @@ public static class MeshSlicer
         for (long dx = -1; dx <= 1; dx++)
         for (long dy = -1; dy <= 1; dy++)
         {
+            SupportGenerationMonitor.Check();
             if (!byStart.TryGetValue((kx + dx, ky + dy), out var list)) continue;
             foreach (var i in list)
             {
+                SupportGenerationMonitor.Check();
                 if (used[i] || !Near(segments[i].A, from, q)) continue;
                 var deltaX = (double)segments[i].A.X - from.X;
                 var deltaY = (double)segments[i].A.Y - from.Y;
@@ -256,9 +265,11 @@ public static class MeshSlicer
         for (long dx = -cells; dx <= cells; dx++)
         for (long dy = -cells; dy <= cells; dy++)
         {
+            SupportGenerationMonitor.Check();
             if (!byStart.TryGetValue((kx + dx, ky + dy), out var list)) continue;
             foreach (var i in list)
             {
+                SupportGenerationMonitor.Check();
                 if (used[i]) continue;
                 var a = segments[i].A;
                 var d = Math.Max(Math.Abs(a.X - from.X), Math.Abs(a.Y - from.Y));
@@ -306,6 +317,7 @@ public static class MeshSlicer
         Span<(double x, double y)> points = stackalloc (double, double)[3];
         for (int triangle = 0; triangle < mesh.TriangleCount; triangle++)
         {
+            SupportGenerationMonitor.Check();
             if (z <= mesh.TriMinZ[triangle] || z >= mesh.TriMaxZ[triangle]) continue;
             int ia = mesh.Indices[triangle * 3], ib = mesh.Indices[triangle * 3 + 1],
                 ic = mesh.Indices[triangle * 3 + 2];
@@ -353,6 +365,7 @@ public static class MeshSlicer
         var segments = new List<Segment>();
         for (int i = 0; i < layerCount; i++)
         {
+            SupportGenerationMonitor.Report(0.1 + 0.2 * i / Math.Max(1, layerCount), "Slicing support layers", i, layerCount);
             var z = (i + 0.5) * layerHeight;
             segments.Clear();
             CollectSegments(mesh, buckets[i], z, segments);
@@ -375,6 +388,7 @@ public static class MeshSlicer
         Paths64? previous = null;
         foreach (var polygons in layers)
         {
+            SupportGenerationMonitor.Check();
             Paths64 newborn;
             if (previous is null || previous.Count == 0)
             {

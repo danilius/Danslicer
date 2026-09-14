@@ -41,13 +41,16 @@ public partial class MainWindow : Window
             WorkspaceMode.Slicing);
         _viewportPopups = new ViewportPopupGroup(
             _objectsPopupState, _supportsPopupState, _islandDetectionPopupState,
-            _visibilityPopupState, _raftsPopupState, _transformPopupState, _guidedPopupState,
+            _visibilityPopupState, _raftsPopupState, _transformPopupState,
             _structurePopupState, _regionPopupState);
         InitializeComponent();
+        Viewport.StructurePreviewRequested += OpenStructurePreview;
         InitializeWorkspace();
+        InitializeGuidedSelector();
         if (!Environment.GetCommandLineArgs().Contains("--workspace-capture"))
             Configuration.WindowStatePersistence.Track(this, "main");
         ConfigureWorkspaceCapture();
+        ConfigureStructureCapture();
         DataContextChanged += OnMainDataContextChanged;
         AttachPanelLayoutViewModel();
         RefreshWindowKeymap();
@@ -83,6 +86,7 @@ public partial class MainWindow : Window
             if (ViewModel is { } vm)
                 vm.SupportSettings.EditSupportPresetRequested -= OpenSupportPresetEditor;
             _presetEditorWindow?.Close();
+            _structurePreviewPanel?.Close();
         };
     }
 
@@ -90,6 +94,42 @@ public partial class MainWindow : Window
     private PrinterPresetEditorWindow? _printerEditorWindow;
     private ConfigWindow? _configWindow;
     private SupportPresetEditorWindow? _presetEditorWindow;
+    private StructurePreviewPanel? _structurePreviewPanel;
+
+    private void OpenStructurePreview(bool bracing)
+    {
+        if (ViewModel is not { } vm || vm.Document.SupportTarget is null) return;
+        if (_structurePreviewPanel is { } previous)
+        {
+            if (previous.Bracing == bracing) { previous.Focus(); return; }
+            if (!previous.CommitForNextOperation()) return;
+        }
+        var window = new StructurePreviewPanel(vm.Document, Viewport, vm.SupportSettings, bracing);
+        _structurePreviewPanel = window;
+        window.ZIndex = 40;
+        window.Closed += () =>
+        {
+            ViewportSurface.Children.Remove(window);
+            if (_structurePreviewPanel == window) _structurePreviewPanel = null;
+            Viewport.Focus();
+        };
+        PositionStructurePreview();
+        ViewportSurface.Children.Add(window);
+        window.Focus();
+    }
+
+    private void PositionStructurePreview()
+    {
+        if (_structurePreviewPanel is not { } panel) return;
+        var right = InspectionContent.Width + 24;
+        panel.Margin = new Avalonia.Thickness(0, 12, right, 12);
+        panel.Width = Math.Min(420, Math.Max(280, ViewportSurface.Bounds.Width - right - 24));
+    }
+
+    private void OnDropNowClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { IsLayoutView: true } vm) vm.Document.DropSelectionToHeight(vm.Document.PlacementHeightMm);
+    }
     private readonly List<KeyBinding> _windowKeyBindings = [];
     private MainViewModel? _panelLayoutViewModel;
     private readonly ViewportPopupState _objectsPopupState = new(ViewportTool.Objects);
@@ -98,7 +138,6 @@ public partial class MainWindow : Window
     private readonly ViewportPopupState _visibilityPopupState = new(ViewportTool.Visibility);
     private readonly ViewportPopupState _raftsPopupState = new(ViewportTool.Rafts);
     private readonly ViewportPopupState _transformPopupState = new(ViewportTool.Transform);
-    private readonly ViewportPopupState _guidedPopupState = new(ViewportTool.Guided);
     private readonly ViewportPopupState _structurePopupState = new(ViewportTool.Structure);
     private readonly ViewportPopupState _regionPopupState = new(ViewportTool.Region);
     // Declared after the states it groups: field initializers run in declaration order.
@@ -167,9 +206,6 @@ public partial class MainWindow : Window
     private void OnTransformToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_transformPopupState);
 
-    private void OnGuidedToolClick(object? sender, RoutedEventArgs e) =>
-        ToggleViewportPopup(_guidedPopupState);
-
     private void OnStructureToolClick(object? sender, RoutedEventArgs e) =>
         ToggleViewportPopup(_structurePopupState);
 
@@ -181,18 +217,6 @@ public partial class MainWindow : Window
     {
         if (ViewModel?.GenerateSupportsScopedCommand.CanExecute(null) == true)
             ViewModel.GenerateSupportsScopedCommand.Execute(null);
-    }
-
-    /// <summary>
-    /// A guided-tool button (user rule 2026-09-08: every key has a button). The button's Tag
-    /// names the tool; the pop-out stays open so the next tool is one click away, and the
-    /// viewport takes focus so the gesture's clicks and keys land there.
-    /// </summary>
-    private void OnGuidedToolButtonClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string name } ||
-            !Enum.TryParse<ViewportControl.GuidedTool>(name, out var tool)) return;
-        Viewport.StartGuidedTool(tool);
     }
 
     private void OnViewSettingsClick(object? sender, RoutedEventArgs e)
@@ -214,6 +238,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void ToggleViewportPopup(ViewportPopupState state)
     {
+        _guidedSelector.Hide();
         CloseExtraPopouts();
         _viewportPopups.Toggle(state);
         ViewSettingsPopup.IsOpen = false;
@@ -234,7 +259,6 @@ public partial class MainWindow : Window
         ApplyViewportPopupState(_visibilityPopupState, VisibilityToolPopup);
         ApplyViewportPopupState(_raftsPopupState, RaftsToolPopup);
         ApplyViewportPopupState(_transformPopupState, TransformToolPopup);
-        ApplyViewportPopupState(_guidedPopupState, GuidedToolPopup);
         ApplyViewportPopupState(_structurePopupState, StructureToolPopup);
         ApplyViewportPopupState(_regionPopupState, RegionToolPopup);
     }
@@ -252,7 +276,6 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(sender, VisibilityToolPopup) => VisibilityPopupContent,
             _ when ReferenceEquals(sender, RaftsToolPopup) => RaftsPopupContent,
             _ when ReferenceEquals(sender, TransformToolPopup) => TransformPopupContent,
-            _ when ReferenceEquals(sender, GuidedToolPopup) => GuidedPopupContent,
             _ when ReferenceEquals(sender, ViewSettingsPopup) => ViewSettingsPopupContent,
             _ => null,
         };
@@ -275,7 +298,6 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(sender, VisibilityPopupContent) => VisibilityToolPopup,
             _ when ReferenceEquals(sender, RaftsPopupContent) => RaftsToolPopup,
             _ when ReferenceEquals(sender, TransformPopupContent) => TransformToolPopup,
-            _ when ReferenceEquals(sender, GuidedPopupContent) => GuidedToolPopup,
             _ when ReferenceEquals(sender, ViewSettingsPopupContent) => ViewSettingsPopup,
             _ => null,
         };
@@ -309,9 +331,6 @@ public partial class MainWindow : Window
     private void OnTransformPopupCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(_transformPopupState, TransformToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
-    private void OnGuidedPopupCloseClick(object? sender, RoutedEventArgs e) =>
-        CloseViewportPopup(_guidedPopupState, GuidedToolPopup, ViewportPopupCloseTrigger.HeaderButton);
-
     private void OnStructurePopupCloseClick(object? sender, RoutedEventArgs e) =>
         CloseViewportPopup(_structurePopupState, StructureToolPopup, ViewportPopupCloseTrigger.HeaderButton);
 
@@ -335,7 +354,6 @@ public partial class MainWindow : Window
             _ when ReferenceEquals(popup, VisibilityToolPopup) => _visibilityPopupState,
             _ when ReferenceEquals(popup, RaftsToolPopup) => _raftsPopupState,
             _ when ReferenceEquals(popup, TransformToolPopup) => _transformPopupState,
-            _ when ReferenceEquals(popup, GuidedToolPopup) => _guidedPopupState,
             _ when ReferenceEquals(popup, StructureToolPopup) => _structurePopupState,
             _ when ReferenceEquals(popup, RegionToolPopup) => _regionPopupState,
             _ => null,

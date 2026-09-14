@@ -39,6 +39,41 @@ public class TipPlacementTests
         TipPlacer.Place(mesh, faces ?? AllFaces(mesh), parameters ?? P(), graph, keepClean, seed);
 
     [Fact]
+    public void ExplicitDetectionsAreNotRedetectedOrSuppressedBySpacing()
+    {
+        var mesh = Meshes.Merge(Meshes.FloatingBox(10, 10, 1, z: 5),
+            Meshes.FloatingBox(4, 4, 1, z: 10));
+        var detected = IslandDetection.FindUnsupported(mesh, null, 0.05f, 0.1f, 0, 45);
+        var parameters = P() with
+        {
+            MinIslandAreaMm2 = 1000, MinSpacingMm = 100, IslandSpacingMm = 100,
+        };
+
+        var tips = TipPlacer.PlaceDetectedIslands(mesh, detected, parameters);
+        Assert.Equal(2, tips.Count);
+        Assert.Equal(new[] { 5f, 10f }, tips.Select(t => t.Point.Z));
+        var selected = TipPlacer.PlaceDetectedIslands(mesh, [detected[1]], parameters);
+        Assert.Equal(10f, Assert.Single(selected).Point.Z);
+    }
+
+    [Fact]
+    public void StackedIslandsGetContactsOnTheirOwnUndersides()
+    {
+        var mesh = Meshes.Merge(Meshes.FloatingBox(10, 10, 1, z: 5),
+            Meshes.FloatingBox(4, 4, 1, z: 10));
+        var parameters = P();
+        var detected = IslandDetection.FindUnsupported(mesh, null, parameters.LayerHeightMm,
+            parameters.MinIslandAreaMm2, 0, parameters.OverhangAngleDegrees);
+        var tips = Place(mesh, parameters).Where(t => t.Strategy == TipStrategy.Island)
+            .OrderBy(t => t.Point.Z).ToList();
+
+        Assert.Equal(2, detected.Count);
+        Assert.Equal(detected.Count, tips.Count);
+        Assert.Equal(5f, tips[0].Point.Z, 4);
+        Assert.Equal(10f, tips[1].Point.Z, 4);
+    }
+
+    [Fact]
     public void SameInputsAndSeedAreBitIdentical()
     {
         var mesh = Meshes.FloatingBox(10, 10, 10, z: 5);

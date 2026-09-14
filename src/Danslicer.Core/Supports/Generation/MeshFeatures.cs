@@ -34,6 +34,7 @@ internal sealed class MeshFeatures
         var sharpCount = new int[mesh.VertexCount];
         foreach (var (a, b) in sharp)
         {
+            SupportGenerationMonitor.Check();
             sharpCount[a]++;
             sharpCount[b]++;
         }
@@ -81,6 +82,7 @@ internal sealed class MeshFeatures
         var cutoff = plateZ + layerHeight + 1e-4f;
         for (int v = 0; v < _mesh.VertexCount; v++)
         {
+            SupportGenerationMonitor.Check();
             var p = _mesh.Positions[v];
             if (p.Z <= cutoff) continue;
 
@@ -88,6 +90,7 @@ internal sealed class MeshFeatures
             var bestDown = 0f;
             foreach (var t in _analysis.FacesOfVertex[v])
             {
+                SupportGenerationMonitor.Check();
                 if (!region.Contains(t)) continue;
                 var down = -_mesh.FaceNormals[t].Z;
                 if (down > bestDown)
@@ -103,6 +106,7 @@ internal sealed class MeshFeatures
             var isMin = true;
             foreach (var n in _analysis.VertexNeighbors[v])
             {
+                SupportGenerationMonitor.Check();
                 var nz = _mesh.Positions[n].Z;
                 if (nz < z - 1e-5f) { isMin = false; break; }
                 if (nz > z + 1e-5f) hasHigher = true;
@@ -123,6 +127,7 @@ internal sealed class MeshFeatures
 
         foreach (var seed in region)
         {
+            SupportGenerationMonitor.Check();
             if (seed < 0 || seed >= _mesh.TriangleCount || visited[seed]) continue;
             if (!parameters.IsOverhang(_mesh.FaceNormals[seed])) continue;
 
@@ -132,6 +137,7 @@ internal sealed class MeshFeatures
             float sum = 0;
             while (stack.Count > 0)
             {
+                SupportGenerationMonitor.Check();
                 var t = stack.Pop();
                 patch.Add(t);
                 sum += TriangleArea(t);
@@ -144,9 +150,11 @@ internal sealed class MeshFeatures
 
             void PushAdj(int a, int b)
             {
+                SupportGenerationMonitor.Check();
                 if (!TryGetEdgeFaces(a, b, out var faces)) return;
                 foreach (var next in faces)
                 {
+                    SupportGenerationMonitor.Check();
                     if (visited[next] || !region.Contains(next)) continue;
                     if (!parameters.IsOverhang(_mesh.FaceNormals[next])) continue;
                     visited[next] = true;

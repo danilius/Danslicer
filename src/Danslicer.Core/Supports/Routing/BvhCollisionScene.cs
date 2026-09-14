@@ -27,6 +27,7 @@ public sealed class BvhCollisionScene : ICollisionScene
     {
         for (var i = 0; i < mesh.TriangleCount; i++)
         {
+            SupportGenerationMonitor.Check();
             mesh.GetTriangle(i, out var a, out var b, out var c);
             AddTriangle(Vector3.Transform(a, transform), Vector3.Transform(b, transform),
                 Vector3.Transform(c, transform), tag);
@@ -60,6 +61,7 @@ public sealed class BvhCollisionScene : ICollisionScene
     {
         foreach (var segment in graph.Segments.Where(segment => !segment.Disabled))
         {
+            SupportGenerationMonitor.Check();
             var a = graph.GetNode(segment.NodeA);
             var b = graph.GetNode(segment.NodeB);
             if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
@@ -89,6 +91,7 @@ public sealed class BvhCollisionScene : ICollisionScene
         stack.Push(_root);
         while (stack.Count > 0)
         {
+            SupportGenerationMonitor.Check();
             var node = stack.Pop();
             if (!Overlaps(queryBounds, node.Bounds)) continue;
             if (node.IsLeaf)
@@ -114,6 +117,7 @@ public sealed class BvhCollisionScene : ICollisionScene
         stack.Push(_root);
         while (stack.Count > 0)
         {
+            SupportGenerationMonitor.Check();
             var node = stack.Pop();
             if (nearest is not null && DistanceSquared(point, node.Bounds) >
                 nearest.Value.Distance * nearest.Value.Distance) continue;
@@ -159,6 +163,7 @@ public sealed class BvhCollisionScene : ICollisionScene
         stack.Push(_root);
         while (stack.Count > 0)
         {
+            SupportGenerationMonitor.Check();
             var node = stack.Pop();
             if (!node.Bounds.IntersectsRay(ray, out var enter, out _) || enter > nearestDistance) continue;
             if (!node.IsLeaf)
@@ -170,6 +175,7 @@ public sealed class BvhCollisionScene : ICollisionScene
 
             for (var i = node.Start; i < node.Start + node.Count; i++)
             {
+                SupportGenerationMonitor.Check();
                 var primitive = _ordered[i];
                 if (primitive.Kind != PrimitiveKind.Triangle) continue;
                 var triangle = _triangles[primitive.Index];
@@ -208,6 +214,7 @@ public sealed class BvhCollisionScene : ICollisionScene
         var centroidMax = centroidMin;
         for (var i = start + 1; i < start + count; i++)
         {
+            SupportGenerationMonitor.Check();
             bounds = Union(bounds, _ordered[i].Bounds);
             centroidMin = Vector3.Min(centroidMin, _ordered[i].Centroid);
             centroidMax = Vector3.Max(centroidMax, _ordered[i].Centroid);

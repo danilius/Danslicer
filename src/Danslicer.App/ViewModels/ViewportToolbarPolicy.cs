@@ -6,7 +6,6 @@ public enum ViewportTool
 {
     Objects,
     Supports,
-    IslandSupport,
     IslandDetection,
     Visibility,
     Rafts,
@@ -45,12 +44,11 @@ public static class ViewportToolbarPolicy
     private static readonly IReadOnlyList<ViewportTool> SupportTools =
     [
         ViewportTool.Objects,
+        ViewportTool.Guided,
         ViewportTool.Supports,
         ViewportTool.Generate,
-        ViewportTool.Guided,
         ViewportTool.Structure,
         ViewportTool.Region,
-        ViewportTool.IslandSupport,
         ViewportTool.IslandDetection,
         ViewportTool.Visibility,
         ViewportTool.Rafts,

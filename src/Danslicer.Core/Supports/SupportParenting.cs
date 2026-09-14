@@ -6,7 +6,11 @@ using Danslicer.Core.Supports.Routing;
 namespace Danslicer.Core.Supports;
 
 /// <summary>What one parenting run did, for the status line.</summary>
-public sealed record ParentingOutcome(int Operands, int TrunksBefore, int TrunksAfter, int Refused);
+public sealed record ParentingOutcome(int Operands, int TrunksBefore, int TrunksAfter, int Refused)
+{
+    public IReadOnlyList<string> Constraints { get; init; } = [];
+    public IReadOnlyDictionary<Vector3, string> TipConstraints { get; init; } = new Dictionary<Vector3, string>();
+}
 
 /// <summary>
 /// What auto-parenting did after a placement, for the status line ("12 placed → 3 trunks"):
@@ -38,17 +42,19 @@ public static class SupportParenting
     /// <paramref name="meshes"/> is the model obstacle scene.
     /// </summary>
     public static (IReadOnlyList<ParentingPlan> Plans, ParentingOutcome Outcome)? Plan(SupportGraph graph, Guid targetId,
-        IReadOnlyList<Guid> operandTipIds, SupportConfig settings, ICollisionScene meshes)
+        IReadOnlyList<Guid> operandTipIds, SupportConfig settings, ICollisionScene meshes, Vector2? trunkCentre = null)
     {
         var components = Components(graph, operandTipIds);
-        if (components.Count < 2) return null;
+        if (components.Count == 0) return null;
         var trunksBefore = BaseCount(graph, targetId);
-        var rounds = Math.Max(1, settings.ParentingRounds);
+        var rounds = settings.ParentingStyle == ParentingStyle.Candelabra ? 1 : Math.Max(1, settings.ParentingRounds);
 
+        var constraints = new HashSet<string>();
+        var tipConstraints = new Dictionary<Vector3, string>();
         Step? best = null;
         for (var round = 0; round < rounds; round++)
         {
-            var step = Attempt(graph, targetId, components, settings, meshes, seed: round + 1, rangeFactor: 1f);
+            var step = Attempt(graph, targetId, components, settings, meshes, seed: round + 1, rangeFactor: 1f, trunkCentre, reason => constraints.Add(reason), (tip, reason) => tipConstraints[tip.SurfacePoint] = reason);
             if (best is null || step.Bases < best.Bases || (step.Bases == best.Bases && step.Refused < best.Refused))
                 best = step;
         }
@@ -57,7 +63,7 @@ public static class SupportParenting
         var bases = best.Bases;
 
         // Min tips per trunk: a new trunk left nearly alone gets one more try with double range.
-        if (settings.ParentingMinTipsPerTrunk > 1)
+        if (settings.ParentingStyle != ParentingStyle.Candelabra && settings.ParentingMinTipsPerTrunk > 1)
         {
             var after = Apply(graph, best);
             var lonely = LonelyTrunkTips(after, best.Edit, settings.ParentingMinTipsPerTrunk);
@@ -76,7 +82,7 @@ public static class SupportParenting
                 }
             }
         }
-        return (plans, new ParentingOutcome(components.Count, trunksBefore, bases, refused));
+        return (plans, new ParentingOutcome(components.Count, trunksBefore, bases, refused) { Constraints = constraints.ToList(), TipConstraints = tipConstraints });
     }
 
     /// <summary>The commands that carry out a plan on <paramref name="graph"/>, in order.</summary>
@@ -119,7 +125,7 @@ public static class SupportParenting
 
     private static Step Attempt(SupportGraph graph, Guid targetId,
         List<(HashSet<Guid> Nodes, HashSet<Guid> Segments)> components, SupportConfig settings,
-        ICollisionScene meshes, int seed, float rangeFactor)
+        ICollisionScene meshes, int seed, float rangeFactor, Vector2? trunkCentre = null, Action<string>? reportConstraint = null, Action<RoutingTip, string>? reportTipConstraint = null)
     {
         var kept = new HashSet<int>();
         while (true)
@@ -133,6 +139,7 @@ public static class SupportParenting
                 foreach (var n in components[i].Nodes) if (working.TryGetNode(n, out _)) working.RemoveNode(n);
             }
             var tips = new List<(RoutingTip Tip, int Component)>();
+            var contactEnds = new Dictionary<Vector3, Vector3>();
             for (var i = 0; i < components.Count; i++)
             {
                 if (kept.Contains(i)) continue;
@@ -140,6 +147,11 @@ public static class SupportParenting
                 {
                     var node = graph.GetNode(id);
                     if (node.Type != SupportNodeType.Tip) continue;
+                    var contactSegment = components[i].Segments.Select(graph.GetSegment).FirstOrDefault(s =>
+                        s.Type == SupportSegmentType.Tip && (s.NodeA == id || s.NodeB == id));
+                    if (contactSegment is not null)
+                        contactEnds[node.Position] = graph.GetNode(contactSegment.NodeA == id
+                            ? contactSegment.NodeB : contactSegment.NodeA).Position;
                     tips.Add((new RoutingTip(node.Position, -node.SurfaceNormal, node.TipDiameter,
                         node.ContactObjectId ?? targetId, TipShape: node.TipShape, ConeLength: node.ConeLength,
                         BallDiameter: node.BallDiameter, PenetrationDepth: node.PenetrationDepth,
@@ -153,12 +165,14 @@ public static class SupportParenting
             // a route that shares trunks must see the other supports as obstacles.
             ICollisionScene obstacles = new CompositeCollisionScene(meshes, SupportScene(working));
 
-            if (settings.ParentingHierarchical)
+            if (settings.ParentingStyle != ParentingStyle.Simple)
             {
                 // Tips pair into junctions, junctions pair again, one trunk carries the lot.
                 // The supports left standing offer their trunks: a junction joins one within
                 // range before dropping a trunk of its own.
-                var (edit, refusedTips) = HierarchicalParenting.Build(tips.Select(t => t.Tip).ToList(),
+                var (edit, refusedTips) = settings.ParentingStyle == ParentingStyle.Candelabra
+                    ? CandelabraParenting.Build(tips.Select(t => t.Tip).ToList(), settings, obstacles, SupportOrigin.ManualFor(targetId), trunkCentre, reportConstraint, contactEnds, reportTipConstraint)
+                    : HierarchicalParenting.Build(tips.Select(t => t.Tip).ToList(),
                     settings, obstacles, SupportOrigin.ManualFor(targetId), seed, rangeFactor,
                     HierarchicalParenting.ExistingTrunks(working, targetId));
                 if (refusedTips.Count > 0)

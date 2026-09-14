@@ -104,6 +104,7 @@ public sealed class GridSupportRouter
 
         foreach (var candidate in candidates)
         {
+            SupportGenerationMonitor.Check();
             var routed = false;
             foreach (var target in attachTargets
                          .Where(target => target.Node.Position.Z < candidate.Tip.SurfacePoint.Z)
@@ -111,6 +112,7 @@ public sealed class GridSupportRouter
                              target.Node.Position))
                          .ThenBy(target => target.Node.Id))
             {
+                SupportGenerationMonitor.Check();
                 if (!TryExistingProposal(candidate.Tip, target, options, clearance,
                         out var junction, out var neckDiameter)) continue;
                 attachments.Add(new ExistingAssignment(candidate.Tip, candidate.Index, junction,
@@ -122,6 +124,7 @@ public sealed class GridSupportRouter
 
             foreach (var basePosition in candidate.Bases)
             {
+                SupportGenerationMonitor.Check();
                 branchCounts.TryGetValue(basePosition, out var branchCount);
                 if (!TryProposal(candidate.Tip, basePosition, branchCount, options, clearance,
                     out var junction, out var neckDiameter)) continue;
@@ -144,6 +147,7 @@ public sealed class GridSupportRouter
             EmitAttachment(graph, attachment, options, ids, ref maxLean);
         foreach (var group in assignments.GroupBy(a => a.Base).OrderBy(g => g.Key.X).ThenBy(g => g.Key.Y))
         {
+            SupportGenerationMonitor.Check();
             EmitGroup(graph, group.OrderBy(a => a.Junction.Z).ThenBy(a => a.Index).ToList(),
                 options, ids, bases, ref maxLean);
         }
@@ -329,6 +333,7 @@ public sealed class GridSupportRouter
 
         foreach (var route in group)
         {
+            SupportGenerationMonitor.Check();
             SupportNode junction;
             if (Vector3.DistanceSquared(previous.Position, route.Junction) < 1e-8f)
             {

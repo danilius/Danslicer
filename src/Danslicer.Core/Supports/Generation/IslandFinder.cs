@@ -36,6 +36,8 @@ internal static class IslandFinder
         var previous = new Paths64();
         for (int i = 0; i < layers.Count; i++)
         {
+            SupportGenerationMonitor.Check();
+            SupportGenerationMonitor.Report(0.3 + 0.08 * i / Math.Max(1, layers.Count), "Finding islands", i, layers.Count);
             // Only the layer straddling the plate can obtain support from it.
             if (layers[i].Z - layerHeight / 2 <= plateZ + 1e-4 &&
                 meshMinZ <= plateZ + 1e-4)
@@ -47,6 +49,7 @@ internal static class IslandFinder
             var regions = PolygonComponents.Split(newborn is null ? layers[i].Polygons : newborn[i]);
             foreach (var region in regions)
             {
+                SupportGenerationMonitor.Check();
                 if (newborn is null && i > 0 && MeshSlicer.AreaMm2(
                     Clipper.Intersect(region, previous, FillRule.NonZero)) > 0)
                 {
@@ -76,6 +79,7 @@ internal static class IslandFinder
         foreach (var path in region)
         for (int i = 0, j = path.Count - 1; i < path.Count; j = i++)
         {
+            SupportGenerationMonitor.Check();
             double cross = (double)path[j].X * path[i].Y - (double)path[i].X * path[j].Y;
             crossSum += cross;
             x += (path[j].X + path[i].X) * cross;

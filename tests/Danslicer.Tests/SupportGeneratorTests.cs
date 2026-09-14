@@ -10,6 +10,66 @@ namespace Danslicer.Tests;
 /// <summary>End-to-end: tip placement into grid routing, the seam between the two stages.</summary>
 public sealed class SupportGeneratorTests
 {
+    private sealed class ImmediateProgress(Action<SupportGenerationProgress> report) : IProgress<SupportGenerationProgress>
+    {
+        public void Report(SupportGenerationProgress value) => report(value);
+    }
+
+    [Fact]
+    public void GenerationReportsMonotonicWorkStagesAndPreservesOutput()
+    {
+        var mesh = Box(new(-5, -5, 5), new(5, 5, 15));
+        var reports = new List<SupportGenerationProgress>();
+        var result = SupportGenerator.GenerateTree(mesh, AllFaces(mesh), new TipPlacementParameters(),
+            new TreeRoutingOptions(), GrowthRuleSet.Default, new LinearCollisionScene(),
+            progress: new ImmediateProgress(reports.Add));
+        Assert.Contains(reports, p => p.Stage == "Slicing support layers" && p.Total > 1);
+        Assert.Contains(reports, p => p.Stage == "Finding islands");
+        Assert.Contains(reports, p => p.Stage == "Sampling support faces");
+        Assert.Contains(reports, p => p.Stage == "Routing tips" && p.Total == result.Candidates.Count);
+        Assert.True(reports.Count > 5);
+        Assert.Equal(1, reports[^1].Fraction);
+        Assert.True(reports.Zip(reports.Skip(1)).All(p => p.First.Fraction <= p.Second.Fraction));
+        var again = SupportGenerator.GenerateTree(mesh, AllFaces(mesh), new TipPlacementParameters(),
+            new TreeRoutingOptions(), GrowthRuleSet.Default, new LinearCollisionScene());
+        Assert.Equal(result.Routing.Graph.Nodes.Select(n => n.Id), again.Routing.Graph.Nodes.Select(n => n.Id));
+    }
+
+    [Theory]
+    [InlineData("Slicing support layers")]
+    [InlineData("Finding islands")]
+    [InlineData("Routing tips")]
+    public void CancellationDuringGenerationStopsWithoutCompleting(string stage)
+    {
+        var mesh = Box(new(-5, -5, 5), new(5, 5, 15));
+        using var cancellation = new CancellationTokenSource();
+        var completed = false;
+        var progress = new ImmediateProgress(p =>
+        {
+            if (p.Stage == stage) cancellation.Cancel();
+            completed |= p.Fraction == 1;
+        });
+        Assert.Throws<OperationCanceledException>(() => SupportGenerator.GenerateTree(mesh, AllFaces(mesh),
+            new TipPlacementParameters(), new TreeRoutingOptions(), GrowthRuleSet.Default,
+            new LinearCollisionScene(), progress: progress, cancellationToken: cancellation.Token));
+        Assert.False(completed);
+        // The execution-local scope is restored, including after cancellation during a nested stage.
+        Danslicer.Core.SupportGenerationMonitor.Check();
+    }
+
+    [Fact]
+    public void MeshAnalysisChecksCancellationInsideGeometryAndCanBeRetried()
+    {
+        var mesh = Box(new(-5, -5, 5), new(5, 5, 15));
+        using var cancellation = new CancellationTokenSource();
+        using (Danslicer.Core.SupportGenerationMonitor.Begin(cancellation.Token, null))
+        {
+            cancellation.Cancel();
+            Assert.Throws<OperationCanceledException>(() => MeshAnalysis.For(mesh));
+        }
+        Assert.NotNull(MeshAnalysis.For(mesh));
+    }
+
     [Fact]
     public void PenetrationDepthRoundTripsThroughThePlacementSchema()
     {

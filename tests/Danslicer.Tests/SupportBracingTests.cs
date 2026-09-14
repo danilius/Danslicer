@@ -419,6 +419,30 @@ public sealed class SupportBracingTests
     }
 
     [Fact]
+    public void ExplicitParentingDoesNotAutoBrace()
+    {
+        var (document, _) = SlabWithSingles(3, 6);
+        document.SelectSupportElements(document.Supports.Nodes
+            .Where(n => n.Type == SupportNodeType.Tip).OrderBy(n => n.Position.X)
+            .Take(2).Select(n => n.Id));
+        document.SupportSettings = document.SupportSettings with
+        {
+            IndependentManualSupports = false,
+            AutoBracing = true,
+            ParentingMaxBranchLength = 8f,
+            BracingNeighbourDistanceMm = 20f,
+        };
+
+        var outcome = document.ParentSupports();
+
+        Assert.NotNull(outcome);
+        Assert.Equal("Parent supports", document.History.UndoName);
+        Assert.Equal(0, Braces(document));
+        Assert.NotNull(document.BraceSupports());
+        Assert.True(Braces(document) > 0, "explicit bracing should still work on the parented supports");
+    }
+
+    [Fact]
     public void AutoBracingFollowsGenerationInsideItsUndoStep()
     {
         var document = new Document();

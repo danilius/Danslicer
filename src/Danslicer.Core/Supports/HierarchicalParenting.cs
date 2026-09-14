@@ -430,7 +430,7 @@ public static class HierarchicalParenting
     }
 
     /// <summary>The cone axis along the outward normal clamped to 45° from vertical, then straight down.</summary>
-    private static IEnumerable<Vector3> ConeDirections(RoutingTip tip)
+    internal static IEnumerable<Vector3> ConeDirections(RoutingTip tip)
     {
         var outward = -tip.InwardSurfaceNormal;
         if (outward.LengthSquared() > Epsilon * Epsilon)

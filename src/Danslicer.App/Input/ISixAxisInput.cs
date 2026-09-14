@@ -5,8 +5,8 @@ namespace Danslicer.App.Input;
 /// <summary>
 /// One reading from a six-axis device. Axes follow the 3Dconnexion convention seen from the user:
 /// translation X right, Y up, Z toward the user; rotation is the axis-angle product, so tilting the
-/// cap forward is +X, twisting it is +Y, rolling it sideways is +Z. Units are driver-scaled and
-/// roughly -1..1 per axis at full deflection; zero means the cap is at rest.
+/// cap forward is +X, twisting it is +Y, rolling it sideways is +Z. The Raw Input backend uses
+/// nominal -1..1 deflection (driver profiles may exceed this); zero means the cap is at rest.
 /// </summary>
 public readonly record struct SixAxisMotion(Vector3 Translation, Vector3 Rotation)
 {

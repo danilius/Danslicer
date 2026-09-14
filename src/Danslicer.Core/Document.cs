@@ -17,6 +17,7 @@ namespace Danslicer.Core;
 public sealed record SupportGenerationSummary(int CandidateCount, int GeneratedTipCount,
     int UnroutedTipCount)
 {
+    public int UnplacedIslandCount { get; init; }
     /// <summary>Honest routing refusal buckets for diagnostics and live preview feedback.</summary>
     public IReadOnlyDictionary<RoutingFailureReason, int> RefusalReasons { get; init; } =
         new Dictionary<RoutingFailureReason, int>();
@@ -32,6 +33,9 @@ public sealed record SupportGenerationRequest(Guid ObjectId, SceneMeshSnapshot T
     /// background generation is not affected by painting that happens while it runs. Empty means
     /// every face, which is what an unpainted object has always done.</summary>
     public ObjectSupportRegions Regions { get; init; } = ObjectSupportRegions.Empty;
+    public float LayerHeightMm { get; init; } = 0.05f;
+    /// <summary>Explicit detection results to support; null uses automatic placement.</summary>
+    public IReadOnlyList<DetectedIsland>? DetectedIslands { get; init; }
 }
 
 public sealed record IslandDetectionRequest(SceneMeshSnapshot Target,
@@ -103,7 +107,13 @@ public sealed class Document
     }
 
     public void Execute(IDocumentCommand command) => History.Execute(command);
-    public bool Undo() => History.Undo();
+    internal StructurePreview? ActiveStructurePreview { get; set; }
+    public bool HasPendingStructurePreview => ActiveStructurePreview is { IsValid: true };
+    public string? PendingStructureOperation => HasPendingStructurePreview
+        ? ActiveStructurePreview!.Bracing ? "Brace supports" : "Parent supports" : null;
+    public event Action? StructurePreviewChanged;
+    internal void NotifyStructurePreviewChanged() => StructurePreviewChanged?.Invoke();
+    public bool Undo() => HasPendingStructurePreview ? ActiveStructurePreview!.UndoPending() : History.Undo();
     public bool Redo() => History.Redo();
 
     /// <summary>
@@ -644,17 +654,21 @@ public sealed class Document
 
     /// <summary>Moves each selected object so its lowest point sits on the plate.</summary>
     public void DropSelectionToPlate()
+        => DropSelectionToHeight(0);
+
+    public void DropSelectionToHeight(float height)
     {
+        height = float.IsFinite(height) ? MathF.Max(0, height) : 0;
         var transforms = new List<(SceneObject Object, Transform Before, Transform Requested)>();
         foreach (var o in _selection)
         {
             var minZ = o.WorldBounds.Min.Z;
-            if (MathF.Abs(minZ) < 1e-6f) continue;
+            if (MathF.Abs(minZ - height) < 1e-6f) continue;
             var before = o.Transform;
-            var after = before with { Translation = before.Translation with { Z = before.Translation.Z - minZ } };
+            var after = before with { Translation = before.Translation with { Z = before.Translation.Z - minZ + height } };
             transforms.Add((o, before, after));
         }
-        if (transforms.Count > 0) CommitTransforms(transforms, "Drop to plate", applyPlacement: false);
+        if (transforms.Count > 0) CommitTransforms(transforms, height == 0 ? "Drop to plate" : "Drop to height", applyPlacement: false);
     }
 
     /// <summary>
@@ -1256,6 +1270,20 @@ public sealed class Document
     /// </summary>
     public ParentingOutcome? ParentSupports()
     {
+        var planned = PlanParentSupports();
+        if (planned is not { } result) return null;
+        var (plans, outcome) = result;
+        var commands = SupportParenting.Commands(Supports, plans, "Parent supports");
+        if (commands.Count == 0) return outcome;
+        _supportSelection.Clear();
+        SupportSelectionChanged?.Invoke();
+        Execute(new CompositeCommand("Parent supports", commands));
+        return outcome;
+    }
+
+    public (IReadOnlyList<SupportParenting.ParentingPlan> Plans, ParentingOutcome Outcome)? PlanParentSupports(
+        SupportConfig? settings = null, Vector2? trunkCentre = null)
+    {
         if (SupportTarget is not { } target) return null;
         var tips = _supportSelection.Count > 0
             ? _supportSelection.SelectMany(id => Supports.TryGetNode(id, out _) || Supports.TryGetSegment(id, out _)
@@ -1268,17 +1296,17 @@ public sealed class Document
         tips = tips.Where(id => (Supports.GetNode(id).ContactObjectId ?? Supports.GetNode(id).Origin.ObjectId) == target.Id).ToList();
         if (tips.Count < 2) return null;
 
-        var planned = SupportParenting.Plan(Supports, target.Id, tips, SettingsFor(target), MeshObstacles());
-        if (planned is not { } result) return null;
-        var (plans, outcome) = result;
-        var commands = SupportParenting.Commands(Supports, plans, "Parent supports");
-        if (commands.Count == 0) return outcome;
-        _supportSelection.Clear();
-        SupportSelectionChanged?.Invoke();
-        Execute(new CompositeCommand("Parent supports", commands));
-        AutoBraceAfter(target, ParentedElements(plans, tips), "Parent supports");
-        return outcome;
+        var effective = settings ?? SettingsFor(target);
+        if (target.Raft is not null) effective = effective with { BaseShape = SupportBaseShape.None };
+        return SupportParenting.Plan(Supports, target.Id, tips, effective, MeshObstacles(), trunkCentre);
     }
+
+    public (SupportGraphEdit Edit, BracingOutcome Outcome)? PlanBracing(SupportGraph graph, SupportConfig settings) =>
+        SupportTarget is { } target
+            ? SupportBracing.Plan(graph, target.Id, BracingOperands(target), settings, MeshObstacles(), chosen: _supportSelection.Count > 0)
+            : null;
+
+    public IReadOnlyList<Guid> StructureOperands() => SupportTarget is { } target ? BracingOperands(target) : [];
 
     /// <summary>What a parenting left standing under its operands: the elements it added plus the operand tips it kept.</summary>
     private List<Guid> ParentedElements(IReadOnlyList<SupportParenting.ParentingPlan> plans, IEnumerable<Guid> operandTips) =>
@@ -1340,7 +1368,8 @@ public sealed class Document
     /// <summary>
     /// Auto-bracing (SUPPORT-GEOMETRY-SPEC "Bracing"): braces the supports containing
     /// <paramref name="elementIds"/> and folds the result into the last undo step, so a
-    /// generation or parenting and its bracing are one step. Null when off or nothing was added.
+    /// generation or automatic parenting and its bracing are one step. Explicit parenting does
+    /// not add braces. Null when off or nothing was added.
     /// </summary>
     private BracingOutcome? AutoBraceAfter(SceneObject target, IReadOnlyList<Guid> elementIds, string undoName)
     {
@@ -1496,6 +1525,7 @@ public sealed class Document
             SettingsFor(obj), scope)
         {
             Regions = obj.Regions,
+            LayerHeightMm = PrintSettings.LayerHeight,
         };
     }
 
@@ -1520,6 +1550,8 @@ public sealed class Document
         CancellationToken cancellationToken = default,
         IProgress<SupportGenerationProgress>? progress = null)
     {
+        using var generationWork = SupportGenerationMonitor.Begin(cancellationToken, progress);
+        SupportGenerationMonitor.Report(0, "Preparing geometry", 0, request.SceneMeshes.Count);
         cancellationToken.ThrowIfCancellationRequested();
         var worldMesh = TransformMesh(request.Target);
         // No painted region is the same set this line has always produced — every face — so an
@@ -1544,6 +1576,7 @@ public sealed class Document
         var generated = SupportGenerator.GenerateTree(worldMesh, region,
             TipPlacementParameters.Default with
             {
+                LayerHeightMm = request.LayerHeightMm,
                 TipDiameterMm = request.Settings.TipDiameter,
                 TipShape = SupportTipShape.Cone,
                 ConeLengthMm = request.Settings.ConeLength,
@@ -1593,7 +1626,7 @@ public sealed class Document
                 ? request.Regions.KeepCleanFaces
                 : null,
             seed: request.Seed, progress: progress,
-            scope: request.Scope);
+            scope: request.Scope, detectedIslands: request.DetectedIslands, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
         // Routing ids are deterministic from the seed. Fresh graph ids allow repeated generation
@@ -1607,6 +1640,8 @@ public sealed class Document
         var summary = new SupportGenerationSummary(generated.Candidates.Count,
             nodes.Count(node => node.Type == SupportNodeType.Tip), generated.Routing.UnroutedTips.Count)
         {
+            UnplacedIslandCount = request.DetectedIslands is { } detected
+                ? detected.Count - generated.Candidates.Count : 0,
             RefusalReasons = generated.Routing.Failures
                 .GroupBy(failure => failure.Reason)
                 .ToDictionary(group => group.Key, group => group.Count()),
@@ -1617,7 +1652,7 @@ public sealed class Document
     }
 
     private static Mesh TransformMesh(SceneMeshSnapshot snapshot) => new(
-        snapshot.Mesh.Positions.Select(p => Vector3.Transform(p, snapshot.Transform)).ToArray(),
+        snapshot.Mesh.Positions.Select(p => { SupportGenerationMonitor.Check(); return Vector3.Transform(p, snapshot.Transform); }).ToArray(),
         (int[])snapshot.Mesh.Indices.Clone());
 
     private static SupportGraph CloneGraph(SupportGraph source)

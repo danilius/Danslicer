@@ -280,9 +280,23 @@
         <DockPanel Grid.Column="0">
             <Border DockPanel.Dock="Top" Background="{DynamicResource AppHeader}" BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,0,0,1" Padding="8,3">
                 <Grid x:Name="WorkspaceHeader" ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,Auto">
-                    <ToggleButton x:Name="HeaderAutoDrop" Classes="tool" Content="Auto drop" HorizontalAlignment="Left" VerticalAlignment="Center" IsChecked="{Binding AutoDropEnabled, Mode=TwoWay}" IsEnabled="{Binding IsLayoutView}" ToolTip.Tip="Re-seat the lowest mesh point at the entered offset after every transform" />
-                    <StackPanel x:Name="MachineSummary" Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" Margin="96,0,8,0">
-                        <Button x:Name="PrinterPresetButton" Click="OnPrinterPresetsClick" Padding="4,2" MinHeight="24" ToolTip.Tip="Edit printer presets"><TextBlock Text="{Binding SelectedPrinterName}" Classes="label" MaxWidth="180" TextTrimming="CharacterEllipsis" /></Button>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <ToggleButton x:Name="HeaderAutoDrop" Classes="tool" Content="Auto drop" IsChecked="{Binding AutoDropEnabled, Mode=TwoWay}" IsEnabled="{Binding IsLayoutView}" ToolTip.Tip="Re-seat the lowest mesh point at the entered offset after every transform" />
+                        <Button x:Name="AutoDropSettingsButton" Classes="tool" Content="▾" IsEnabled="{Binding IsLayoutView}" ToolTip.Tip="Auto drop placement settings">
+                            <Button.Flyout>
+                                <Flyout Placement="Bottom">
+                                    <StackPanel Width="240" Spacing="10">
+                                        <TextBlock Text="Placement" FontWeight="SemiBold" />
+                                        <TextBlock Text="Height above plate" />
+                                        <refresh:ModelScrubField Field="{Binding PlacementHeight}" ToolTip.Tip="Saved default for Auto drop. 0 mm places the model on the plate." />
+                                        <Button Content="Drop now" Click="OnDropNowClick" ToolTip.Tip="Move the selected models to this height, even when Auto drop is off." />
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
+                    <StackPanel x:Name="MachineSummary" Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" Margin="124,0,8,0">
+                        <Button x:Name="PrinterPresetButton" Click="OnPrinterPresetsClick" Padding="4,2" MinHeight="24" ToolTip.Tip="Edit printer presets"><TextBlock Text="{Binding SelectedPrinterName}" FontSize="12" VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis" /></Button>
                         <ComboBox ItemsSource="{Binding SupportSettings.Resins.DisplayNames}" SelectedIndex="{Binding SupportSettings.Resins.SelectedIndex, Mode=TwoWay}" MaxWidth="180" MinHeight="24" FontSize="12" ToolTip.Tip="Selected resin" />
                     </StackPanel>
                     <Button x:Name="ProjectDropdown" Grid.Column="2" HorizontalAlignment="Right" Content="Project ▾" Click="OnProjectDropdownClick" FontSize="12" MaxWidth="180" ToolTip.Tip="Recent projects and open another project" />
@@ -375,6 +389,10 @@
                 <!-- The GL composition surface covers ViewportControl's own 2D layer. Keep this
                      toolbar here as a sibling, after both viewport surfaces, so it stays visible. -->
                 <StackPanel x:Name="LegacyTools" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10">
+                    <Button x:Name="SliceToolButton" Classes="viewportTool" Content="Slice"
+                            IsVisible="{Binding IsLayersView}"
+                            Command="{Binding SliceScopedCommand}"
+                            ToolTip.Tip="Slice the plate and preview its layers" />
                     <Button x:Name="UvtoolsCheckButton" Classes="viewportTool" Content="UV"
                             IsVisible="{Binding IsUvtoolsCheckToolVisible}"
                             IsEnabled="{Binding CanCheckWithUvtools}"
@@ -384,6 +402,10 @@
                             IsVisible="{Binding IsObjectsToolVisible}"
                             ToolTip.Tip="Objects: the models in the scene; show or hide each, reload it from its file, pick the support target" Click="OnObjectsToolClick">
                         <PathIcon Data="{DynamicResource IconObjects}" />
+                    </Button>
+                    <Button x:Name="GuidedToolButton" Classes="viewportTool"
+                            IsVisible="{Binding IsGuidedToolVisible}" Click="OnGuidedToolClick">
+                        <PathIcon Data="{DynamicResource IconGuided}" />
                     </Button>
                     <refresh:WorkspacePopout x:Name="ObjectsToolPopup"
                            PlacementTarget="{Binding #ObjectsToolButton}"
@@ -495,17 +517,17 @@
                                         <PathIcon Data="{DynamicResource IconClose}" />
                                     </Button>
                                 </Grid>
-                                <TextBlock Text="Each works on the selected supports, or all of the target's when nothing is selected. Settings are under Support settings › Parenting and Bracing."
+                                <TextBlock Text="Preview changes on selected supports, or all of the target's when nothing is selected. Adjust settings, then Apply or Cancel."
                                            Classes="label" TextWrapping="Wrap" Margin="0,0,0,6" />
                                 <!-- Parenting (J): SUPPORT-GEOMETRY-SPEC "Parenting". -->
                                 <Button Content="Parent Supports  (J)"
                                         Click="OnParentSupportsClick"
                                         HorizontalAlignment="Stretch" Margin="0,0,0,4"
-                                        ToolTip.Tip="Re-route the selected supports together so branches share trunks." />
+                                        ToolTip.Tip="Preview parenting on the model. Choose Candelabra, Tree or Simple and adjust grouping before applying." />
                                 <!-- Bracing (K / Shift+K): SUPPORT-GEOMETRY-SPEC "Bracing". -->
                                 <Grid ColumnDefinitions="*,4,*" Margin="0,0,0,4">
                                     <Button Content="Brace  (K)" Click="OnBraceSupportsClick" HorizontalAlignment="Stretch"
-                                            ToolTip.Tip="Tie the selected supports to their neighbours with braces." />
+                                            ToolTip.Tip="Preview and adjust bracing on the model before applying." />
                                     <Button Grid.Column="2" Content="Unbrace  (Shift+K)" Click="OnUnbraceSupportsClick" HorizontalAlignment="Stretch"
                                             ToolTip.Tip="Remove every brace touching the selected supports." />
                                 </Grid>
@@ -573,56 +595,6 @@
                         </Border>
                     </refresh:WorkspacePopout>
 
-                    <!-- Guided placement (Support): one button per guided key (user rule 2026-09-08). -->
-                    <Button x:Name="GuidedToolButton" Classes="viewportTool"
-                            IsVisible="{Binding IsGuidedToolVisible}"
-                            ToolTip.Tip="Guided placement: Place (T), Line (L), Polygon (P), Edge (E), Ring (R), Contour (C), Densify (D), Thin (Shift+D)" Click="OnGuidedToolClick">
-                        <PathIcon Data="{DynamicResource IconGuided}" />
-                    </Button>
-                    <refresh:WorkspacePopout x:Name="GuidedToolPopup"
-                           PlacementTarget="{Binding #GuidedToolButton}"
-                           Opened="OnViewportPopupOpened"
-                           Closed="OnViewportPopupClosed">
-                        <Border x:Name="GuidedPopupContent" Width="240" Padding="10"
-                                Classes="viewportPopup" Focusable="True" KeyDown="OnViewportPopupKeyDown">
-                            <StackPanel>
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="Guided placement" Classes="section" Margin="0" />
-                                    <Button Grid.Column="1" Classes="popupClose"
-                                            ToolTip.Tip="Close Guided placement" Click="OnGuidedPopupCloseClick">
-                                        <PathIcon Data="{DynamicResource IconClose}" />
-                                    </Button>
-                                </Grid>
-                                <TextBlock Text="Each tool works on the support target. Settings are under Supports › Guided."
-                                           Classes="label" TextWrapping="Wrap" Margin="0,4,0,6" />
-                                <Button Tag="Place" Content="Place  (T)" Click="OnGuidedToolButtonClick" Margin="0,2,0,8"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="Placement mode: a ghost of the routed support follows the cursor, a click places it; nothing shows where none fits. T, Esc or right-click leaves." />
-                                <Button Tag="Line" Content="Line  (L)" Click="OnGuidedToolButtonClick" Margin="0,2"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="Click points along the surface; double-click or Enter places tips at pitch along the route" />
-                                <Button Tag="Polygon" Content="Polygon  (P)" Click="OnGuidedToolButtonClick" Margin="0,2"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="Click three or more corners; Enter fills the region with tips" />
-                                <Button Tag="Edge" Content="Edge  (E)" Click="OnGuidedToolButtonClick" Margin="0,2"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="Hover a sharp edge and click to lay tips along it" />
-                                <Button Tag="Ring" Content="Ring  (R)" Click="OnGuidedToolButtonClick" Margin="0,2"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="Click a centre, move to set the radius, click to place" />
-                                <Button Tag="Contour" Content="Contour  (C)" Click="OnGuidedToolButtonClick" Margin="0,2"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="Hover to choose a height and click to place tips along the contour" />
-                                <Button Tag="Densify" Content="Densify  (D)" Click="OnGuidedToolButtonClick" Margin="0,8,0,2"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="Insert tips between neighbouring selected tips (all of the model's tips when nothing is selected)" />
-                                <Button Tag="Thin" Content="Thin  (Shift+D)" Click="OnGuidedToolButtonClick" Margin="0,2"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTip.Tip="Keep one tip in N along each run of selected tips and remove the rest" />
-                            </StackPanel>
-                        </Border>
-                    </refresh:WorkspacePopout>
-
                     <Button x:Name="RegionToolButton" Classes="viewportTool"
                             IsVisible="{Binding IsRegionToolVisible}"
                             ToolTip.Tip="Region: paint where generation may place supports and where it must keep clean" Click="OnRegionToolClick">
@@ -686,11 +658,6 @@
                         </Border>
                     </refresh:WorkspacePopout>
 
-                    <Button x:Name="IslandSupportToolButton" Classes="viewportTool" Content="I+"
-                            IsVisible="{Binding IsIslandSupportToolVisible}"
-                            ToolTip.Tip="Generate island supports only: tips where printing starts off the plate"
-                            Command="{Binding GenerateIslandSupportsScopedCommand}" />
-
                     <Button x:Name="IslandDetectionToolButton" Classes="viewportTool" Content="I?"
                             IsVisible="{Binding IsIslandDetectionToolVisible}"
                             ToolTip.Tip="Detect unsupported islands: mark where printing would start in mid-air, and tune the detector" Click="OnIslandDetectionToolClick" />
@@ -715,21 +682,15 @@
                                         <Button Grid.Column="1" Content="Clear markers"
                                                 Command="{Binding ClearIslandDetectionCommand}" Margin="3,0,0,0" />
                                     </Grid>
+                                    <Button x:Name="SupportDetectedIslandsButton" Content="Support all detected islands"
+                                            Command="{Binding GenerateIslandSupportsScopedCommand}"
+                                            HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                                            ToolTip.Tip="Place a support on each currently marked island." />
                                     <TextBlock Text="Island tool tuning" Classes="label" FontWeight="SemiBold" />
                                     <Grid ColumnDefinitions="170,*" Margin="0,2">
                                         <TextBlock Text="Min island area mm²" Classes="label" ToolTip.Tip="An island smaller than this is not reported, mm²." />
                                         <refresh:FilledNumericSlider PreviewProperty="SupportMinIslandAreaMm2" UnitKind="Scalar" Unit="mm²" Grid.Column="1" Minimum="0" Maximum="100" Step="0.1"
                                                        Format="0.##" Value="{Binding SupportSettings.SupportMinIslandAreaMm2, Mode=TwoWay}" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="170,*" Margin="0,2">
-                                        <TextBlock Text="Overhang angle °" Classes="label" ToolTip.Tip="The overhang angle the detector uses when it inflates each layer to see what carries the next, degrees." />
-                                        <refresh:FilledNumericSlider PreviewProperty="SupportOverhangAngleDegrees" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="0" Maximum="90" Step="1"
-                                                       Format="0" Value="{Binding SupportSettings.SupportOverhangAngleDegrees, Mode=TwoWay}" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="170,*" Margin="0,2">
-                                        <TextBlock Text="Island spacing mm" Classes="label" ToolTip.Tip="Tip spacing the island generator uses inside an island, mm." />
-                                        <refresh:FilledNumericSlider PreviewProperty="SupportIslandSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="25" Step="0.1"
-                                                       Format="0.##" Value="{Binding SupportSettings.SupportIslandSpacingMm, Mode=TwoWay}" />
                                     </Grid>
                                     <Grid ColumnDefinitions="170,*" Margin="0,2,0,6">
                                         <TextBlock Text="Analysis layer height" Classes="label" ToolTip.Tip="Layer height the detector slices at, mm. Finer finds smaller starts and takes longer." />

@@ -204,6 +204,8 @@ public sealed class ConfigViewModel : ViewModelBase
             _saveConfig();
         }
         OnPropertyChanged(property);
+        if (property is nameof(SupportCandelabraGroupWidth) or nameof(SupportCandelabraMaxTips)) OnPropertyChanged(nameof(ArrangementPreset));
+        if (property == nameof(SupportBracingSpacingMm)) OnPropertyChanged(nameof(BracingDensity));
         if (_persistChanges) RefreshSupportPresetOptions();
         _supportChanged?.Invoke();
         Saved?.Invoke();
@@ -819,6 +821,62 @@ public sealed class ConfigViewModel : ViewModelBase
         set => Update(() => Supports.ParentingHierarchical = value);
     }
 
+    public bool ShowParentingSettings { get; init; } = true;
+    public bool ShowBracingSettings { get; init; } = true;
+    public IReadOnlyList<ParentingStyle> ParentingStyles { get; } = Enum.GetValues<ParentingStyle>();
+    public ParentingStyle SupportParentingStyle
+    {
+        get => Supports.ParentingStyle;
+        set { Update(() => Supports.ParentingStyle = value); OnPropertyChanged(nameof(IsCandelabra)); OnPropertyChanged(nameof(ParentingDescription)); OnPropertyChanged(nameof(ParentingDiagram)); }
+    }
+    public bool IsCandelabra => SupportParentingStyle == ParentingStyle.Candelabra;
+    public string ParentingDescription => SupportParentingStyle switch
+    {
+        ParentingStyle.Candelabra => "Direct branches to a central vertical trunk. Groups split when a route cannot fit.",
+        ParentingStyle.Tree => "Branches may merge into other branches before reaching the trunk.",
+        _ => "Tips join nearby trunks directly, with no requirement for a central trunk.",
+    };
+    public Avalonia.Media.Geometry ParentingDiagram => Avalonia.Media.Geometry.Parse(SupportParentingStyle switch
+    {
+        ParentingStyle.Candelabra => "M 50,80 L 50,10 M 10,10 L 50,60 L 90,10 M 25,10 L 50,45 L 75,10 M 38,10 L 50,30 L 62,10 M 35,80 L 65,80",
+        ParentingStyle.Tree => "M 50,80 L 50,55 L 25,30 L 10,10 M 25,30 L 38,10 M 50,55 L 75,30 L 62,10 M 75,30 L 90,10 M 35,80 L 65,80",
+        _ => "M 20,80 L 20,10 M 40,10 L 20,35 M 70,80 L 70,10 M 90,10 L 70,35 M 10,80 L 30,80 M 60,80 L 80,80",
+    });
+    public float SupportCandelabraGroupWidth
+    {
+        get => Supports.CandelabraGroupWidthMm;
+        set => Update(() => Supports.CandelabraGroupWidthMm = Clamp(value, 1, 200, 30));
+    }
+    public int SupportCandelabraMaxTips
+    {
+        get => Supports.CandelabraMaxTips;
+        set => Update(() => Supports.CandelabraMaxTips = Math.Clamp(value, 1, 200));
+    }
+    public IReadOnlyList<string> ArrangementPresets { get; } = ["Custom", "Compact", "Balanced", "Wide"];
+    public string ArrangementPreset
+    {
+        get => (Supports.CandelabraGroupWidthMm, Supports.CandelabraMaxTips) switch
+            { (15, 16) => "Compact", (30, 32) => "Balanced", (50, 48) => "Wide", _ => "Custom" };
+        set
+        {
+            if (value == "Custom") return;
+            Update(() => { Supports.CandelabraGroupWidthMm = value == "Compact" ? 15 : value == "Wide" ? 50 : 30;
+                Supports.CandelabraMaxTips = value == "Compact" ? 16 : value == "Wide" ? 48 : 32; });
+            OnPropertyChanged(nameof(SupportCandelabraGroupWidth)); OnPropertyChanged(nameof(SupportCandelabraMaxTips));
+        }
+    }
+    public IReadOnlyList<string> BracingDensities { get; } = ["Custom", "Sparse", "Standard", "Dense"];
+    public string BracingDensity
+    {
+        get => Supports.BracingSpacingMm switch { 20 => "Sparse", 10 => "Standard", 0 => "Dense", _ => "Custom" };
+        set
+        {
+            if (value == "Custom") return;
+            Update(() => Supports.BracingSpacingMm = value == "Sparse" ? 20 : value == "Standard" ? 10 : 0);
+            OnPropertyChanged(nameof(SupportBracingSpacingMm));
+        }
+    }
+
     public bool SupportAutoParenting
     {
         get => Supports.AutoParenting;
@@ -842,6 +900,25 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.BracingDiameter;
         set => Update(() => Supports.BracingDiameter = Clamp(value, 0f, 20f, 0f));
+    }
+
+    public bool UseBranchDiameterForBracing
+    {
+        get => Supports.BracingDiameter == 0;
+        set
+        {
+            Update(() => Supports.BracingDiameter = value ? 0 : Supports.BranchDiameter);
+            OnPropertyChanged(nameof(EffectiveBracingDiameter));
+        }
+    }
+    public float EffectiveBracingDiameter
+    {
+        get => Supports.BracingDiameter > 0 ? Supports.BracingDiameter : Supports.BranchDiameter;
+        set
+        {
+            Update(() => Supports.BracingDiameter = Clamp(value, 0.05f, 20f, 1.2f));
+            OnPropertyChanged(nameof(UseBranchDiameterForBracing));
+        }
     }
 
     public float SupportBracingAngleDegrees

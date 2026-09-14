@@ -27,5 +27,5 @@ restore assets used by the normal Debug `dotnet build` and `dotnet test` workflo
 These commands cross-publish on Windows, but that proves only that assets resolve and compile for
 each target. Run the Linux and macOS bundles on real target hardware before calling those runtime
 paths verified. The 3Dconnexion SpaceMouse integration is intentionally Windows-only: the app
-checks the operating system before creating its annotated COM backend, so other platforms omit
+checks the operating system before creating its annotated Windows Raw Input backend, so other platforms omit
 the connection and its status-bar indicator.

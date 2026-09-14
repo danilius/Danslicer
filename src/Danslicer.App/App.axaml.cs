@@ -39,7 +39,7 @@ public partial class App : Application
 
         // Main-window smoke tests must never load or save the user's real preferences.
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime captureDesktop
-            && (captureDesktop.Args ?? []).Contains("--workspace-capture"))
+            && ((captureDesktop.Args ?? []).Contains("--workspace-capture") || (captureDesktop.Args ?? []).Contains("--structure-capture")))
         {
             var isolated = Path.Combine(Path.GetTempPath(), "Danslicer-workspace-" + Guid.NewGuid().ToString("N"));
             var captureArgs = captureDesktop.Args ?? [];

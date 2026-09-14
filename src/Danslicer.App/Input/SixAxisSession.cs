@@ -1,8 +1,11 @@
 namespace Danslicer.App.Input;
 
 /// <summary>One driver connection for attached viewports; handoffs wait for a neutral cap.</summary>
-internal sealed class SixAxisSession(Func<ISixAxisInput> createDevice)
+internal sealed class SixAxisSession(Func<ISixAxisInput> createDevice, TimeProvider? timeProvider = null)
 {
+    private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
+    private long? _lastConnectionAttempt;
+    private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(2);
     private readonly HashSet<object> _viewports = [];
     private ISixAxisInput? _device;
     private object? _owner;
@@ -21,6 +24,10 @@ internal sealed class SixAxisSession(Func<ISixAxisInput> createDevice)
         }
         if (_device?.IsConnected != true)
         {
+            var now = _clock.GetTimestamp();
+            if (_lastConnectionAttempt is { } last && _clock.GetElapsedTime(last, now) < RetryInterval)
+                return null;
+            _lastConnectionAttempt = now;
             _device?.Dispose();
             _device = createDevice();
             if (!_device.TryConnect()) { _device.Dispose(); _device = null; }
@@ -58,5 +65,6 @@ internal sealed class SixAxisSession(Func<ISixAxisInput> createDevice)
         if (_viewports.Count != 0) return;
         _device?.Dispose();
         _device = null;
+        _lastConnectionAttempt = null;
     }
 }

@@ -254,6 +254,9 @@ public enum BracingPattern
     Diagonal = 1,
 }
 
+/// <summary>The topology used when rearranging existing support contacts.</summary>
+public enum ParentingStyle { Candelabra, Tree, Simple }
+
 /// <summary>Basic support generation geometry and placement settings, in millimetres/degrees.</summary>
 public sealed record SupportConfig
 {
@@ -314,7 +317,16 @@ public sealed record SupportConfig
     /// one trunk carries the lot (user direction 2026-09-08 from a reference image). Off, it
     /// joins each tip straight onto a trunk with the tree router instead.
     /// </summary>
-    public bool ParentingHierarchical { get; set; } = true;
+    public bool ParentingHierarchical
+    {
+        get => ParentingStyle == ParentingStyle.Tree;
+        set => ParentingStyle = value ? ParentingStyle.Tree : ParentingStyle.Simple;
+    }
+    // Written after the legacy flag so new files retain their explicit style on round trip.
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ParentingStyle ParentingStyle { get; set; } = ParentingStyle.Candelabra;
+    public float CandelabraGroupWidthMm { get; set; } = 30f;
+    public int CandelabraMaxTips { get; set; } = 32;
     /// <summary>
     /// Auto-parenting (user directive 2026-09-08): after any placement — T, a guided commit,
     /// densify — the new tips and the tips of existing supports within the trunk search range
@@ -324,7 +336,7 @@ public sealed record SupportConfig
     public bool AutoParenting { get; set; } = true;
     // Bracing (K): SUPPORT-GEOMETRY-SPEC "Bracing" (user-approved 2026-09-09). Zero means "use
     // the Members value" where one exists.
-    /// <summary>Brace after generation and after every parenting, inside that command's undo step.</summary>
+    /// <summary>Brace after generation and automatic parenting, inside that command's undo step. Explicit parenting does not add braces.</summary>
     public bool AutoBracing { get; set; } = true;
     /// <summary>How the braces of one pair of trunks climb: alternating sides, or all one way.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -453,6 +465,9 @@ public sealed record SupportConfig
         GuidedDensifyInsertions = Math.Clamp(GuidedDensifyInsertions, 1, 10);
         GuidedThinKeepEvery = Math.Clamp(GuidedThinKeepEvery, 2, 10);
         ParentingMaxBranchLength = NonNegative(ParentingMaxBranchLength);
+        if (!Enum.IsDefined(ParentingStyle)) ParentingStyle = ParentingStyle.Candelabra;
+        CandelabraGroupWidthMm = Positive(CandelabraGroupWidthMm, 30f);
+        CandelabraMaxTips = Math.Clamp(CandelabraMaxTips, 1, 200);
         ParentingMaxBranchAngle = float.IsFinite(ParentingMaxBranchAngle)
             ? Math.Clamp(ParentingMaxBranchAngle, 0f, 89f) : 0f;
         ParentingTrunkRange = NonNegative(ParentingTrunkRange);
