@@ -248,6 +248,8 @@ public sealed class PlacementConfig
 /// <summary>How the braces between one pair of trunks climb (SUPPORT-GEOMETRY-SPEC "Bracing").</summary>
 public enum BracingPattern
 {
+    /// <summary>Choose direction, angle and ladder placement independently for each trunk pair.</summary>
+    Automatic = 2,
     /// <summary>Each brace leaves the trunk the previous one arrived at, so the pair reads as a zigzag.</summary>
     Zigzag = 0,
     /// <summary>Every brace leaves the same trunk and leans the same way.</summary>
@@ -340,13 +342,18 @@ public sealed record SupportConfig
     public bool AutoBracing { get; set; } = true;
     /// <summary>How the braces of one pair of trunks climb: alternating sides, or all one way.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public BracingPattern BracingPattern { get; set; } = BracingPattern.Zigzag;
+    public BracingPattern BracingPattern { get; set; } = BracingPattern.Automatic;
     /// <summary>Member diameter of every brace; 0 = <see cref="BranchDiameter"/>.</summary>
     public float BracingDiameter { get; set; }
+    public float ManualBraceDiameter { get; set; } = 1.2f;
+    public bool ManualBraceAvoidModels { get; set; } = true;
+    public bool ManualBraceAvoidSupports { get; set; } = false;
     /// <summary>The most a brace may lean from vertical, degrees; every rung is laid at exactly this lean.</summary>
     public float BracingAngleDegrees { get; set; } = 45f;
     /// <summary>Vertical pitch between the braces of one pair of trunks; 0 = continuous, each brace starts where the last ended.</summary>
     public float BracingSpacingMm { get; set; }
+    /// <summary>Vertical distance between consecutive brace endpoints on their shared trunk in Automatic mode.</summary>
+    public float BracingEndpointGapMm { get; set; } = 2f;
     /// <summary>No brace foot below this height above the plate; 0 = <see cref="MinBranchAttachHeightMm"/>.</summary>
     public float BracingLowestHeightMm { get; set; }
     /// <summary>Only trunks rising at least this far above the plate are braced.</summary>
@@ -476,10 +483,15 @@ public sealed record SupportConfig
         ParentingMaxConeBend = float.IsFinite(ParentingMaxConeBend)
             ? Math.Clamp(ParentingMaxConeBend, 0f, 180f) : 0f;
         ParentingMaxBranchesPerTrunk = Math.Clamp(ParentingMaxBranchesPerTrunk, 0, 200);
-        if (!Enum.IsDefined(BracingPattern)) BracingPattern = BracingPattern.Zigzag;
+        // Old Zigzag used fixed pitch and could lose alternating rungs to collision checks.
+        // Saved zigzag preferences now use the fitted ladder and its separate endpoint gap.
+        if (!Enum.IsDefined(BracingPattern) || BracingPattern == BracingPattern.Zigzag)
+            BracingPattern = BracingPattern.Automatic;
         BracingDiameter = NonNegative(BracingDiameter);
+        ManualBraceDiameter = float.IsFinite(ManualBraceDiameter) ? Math.Clamp(ManualBraceDiameter, 0.05f, 20f) : 1.2f;
         BracingAngleDegrees = float.IsFinite(BracingAngleDegrees) ? Math.Clamp(BracingAngleDegrees, 1f, 89f) : 45f;
         BracingSpacingMm = NonNegative(BracingSpacingMm);
+        BracingEndpointGapMm = NonNegative(BracingEndpointGapMm);
         BracingLowestHeightMm = NonNegative(BracingLowestHeightMm);
         BracingMinSupportHeightMm = NonNegative(BracingMinSupportHeightMm);
         BracingNeighbourDistanceMm = Positive(BracingNeighbourDistanceMm, 10f);

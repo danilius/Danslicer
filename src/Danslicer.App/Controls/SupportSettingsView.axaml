@@ -88,7 +88,7 @@
                                    Value="{Binding SupportBranchDiameter, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members angle degrees maximum" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Member angle °" Classes="label" ToolTip.Tip="The most any angled member (branch or tip cone) may lean from vertical, degrees. 45 is what a resin print holds without sagging." />
+                    <TextBlock Text="Member angle °" Classes="label" ToolTip.Tip="Maximum lean from vertical for model-contact tips and branches. T placements on existing supports use a fixed 45� tip and outward branch." />
                     <refresh:FilledNumericSlider PreviewProperty="SupportMemberAngleDegrees" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="1" Maximum="89" Step="1" Format="0"
                                    Value="{Binding SupportMemberAngleDegrees, Mode=TwoWay}" />
                 </Grid>
@@ -98,7 +98,7 @@
                                    Value="{Binding SupportTipMemberLength, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports members maximum branch length mm" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Max branch length" Classes="label" ToolTip.Tip="The longest branch the router will lay from a tip to a trunk, mm; a tip further than this gets its own trunk." />
+                    <TextBlock Text="Max branch length" Classes="label" ToolTip.Tip="Maximum branch length, mm. Also limits the outward branch when T-placing on an existing support; placement is refused if this cannot reach a clear trunk position." />
                     <refresh:FilledNumericSlider PreviewProperty="SupportMaxBranchLength" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.01" Maximum="50" Step="0.5" Format="0.##"
                                    Value="{Binding SupportMaxBranchLength, Mode=TwoWay}" />
                 </Grid>
@@ -106,7 +106,7 @@
                           IsChecked="{Binding SupportPreferExistingTrunks, Mode=TwoWay}" Margin="0,4" />
                 <CheckBox Tag="supports manual independent ignore existing overlap intersection"
                           Content="Independent supports (ignore existing)"
-                          ToolTip.Tip="Manual T placements ignore other supports but still avoid models"
+                          ToolTip.Tip="T placements on models ignore other supports but still avoid models. Placements on existing supports always check clearance."
                           IsChecked="{Binding SupportIndependentManualSupports, Mode=TwoWay}" Margin="0,4" />
                 <Grid Tag="supports members existing trunk branch range mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Existing trunk range" Classes="label" ToolTip.Tip="How far around a new tip the router looks for a trunk already standing to branch onto, mm." />

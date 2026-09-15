@@ -27,6 +27,11 @@ public sealed record TreeRoutingOptions
     /// </summary>
     public bool IgnoreExistingSupports { get; init; }
     /// <summary>
+    /// Manual reinforcement of a support surface: a 45-degree outward tip and branch,
+    /// followed by an independent vertical trunk. Never snaps back onto the carrier.
+    /// </summary>
+    public bool SupportSurfaceContact { get; init; }
+    /// <summary>
     /// Shares trunks and sees other supports even with the base grid off. Free mode normally
     /// routes every contact blind to every other (user decision 2026-09-07); parenting is the
     /// one operation that asks for sharing there (SUPPORT-GEOMETRY-SPEC "Parenting"). Trunks
@@ -208,6 +213,8 @@ public sealed class TreeSupportRouter
     private bool RouteOne(RoutingTip tip, TreeRoutingOptions options, RouteState state,
         out RoutingFailureReason reason)
     {
+        if (options.SupportSurfaceContact)
+            return RouteSupportSurface(tip, options, state, out reason);
         var separationRejections = state.SeparationRejections;
         reason = RoutingFailureReason.NoClearStep;
         if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
@@ -260,6 +267,48 @@ public sealed class TreeSupportRouter
                     tipMemberLength, offGrid, state, out _)) return true;
         }
         reason = gridReason;
+        return false;
+    }
+
+    /// <summary>
+    /// Reinforces a carrier instead of dropping a new trunk inside it. Both the cone and
+    /// branch leave at 45 degrees; only after the branch clears the carrier may a trunk drop.
+    /// Uses the normal's azimuth and the existing branch-length limit. The base is free so
+    /// grid snapping cannot turn the branch back toward the carrier. No vertical fallback.
+    /// </summary>
+    private bool RouteSupportSurface(RoutingTip tip, TreeRoutingOptions options, RouteState state,
+        out RoutingFailureReason reason)
+    {
+        reason = RoutingFailureReason.NoClearStep;
+        if (tip.SurfacePoint.Z <= options.PlateZ + Epsilon)
+        {
+            reason = RoutingFailureReason.BelowPlate;
+            return false;
+        }
+        var outward = -RoutingUtilities.SafeInwardNormal(tip.InwardSurfaceNormal);
+        var lateral = new Vector2(outward.X, outward.Y);
+        lateral = lateral.LengthSquared() > Epsilon * Epsilon ? Vector2.Normalize(lateral) : Vector2.UnitX;
+        var direction = Vector3.Normalize(new Vector3(lateral, -1f));
+        var (diameter, tipLength) = TipMemberDimensions(tip, options.BranchDiameter, options.TipMemberLength);
+        var junction = tip.SurfacePoint + direction * tipLength;
+        var contactRadius = MathF.Max(0.025f, tip.TipDiameter * 0.5f) + state.Clearance.ModelDistance;
+        if (!ContactMemberIsClear(tip.SurfacePoint, junction, contactRadius))
+        {
+            reason = RoutingFailureReason.ContactBlocked;
+            return false;
+        }
+        // A distinct branch, long enough to move the trunk away from the cone's junction.
+        var minimum = MathF.Max(options.BranchDiameter, options.TrunkDiameter) * 2f;
+        if (options.MaxBranchLength < minimum) return false;
+        for (var step = 0; step <= options.BranchLengthSteps; step++)
+        {
+            var length = minimum + (options.MaxBranchLength - minimum) * step / options.BranchLengthSteps;
+            var top = junction + direction * length;
+            if (top.Z <= options.PlateZ + options.BaseHeight + Epsilon) break;
+            if (!BranchIsClear(junction, top, options, state) || !TrunkIsClear(top, options, state)) continue;
+            EmitSupport(tip, top, junction, tipOnly: false, options, state, diameter);
+            return true;
+        }
         return false;
     }
 

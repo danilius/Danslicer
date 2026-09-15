@@ -10,6 +10,51 @@ namespace Danslicer.Tests;
 
 public sealed class StructurePreviewTests
 {
+    [Fact]
+    public void SavedZigzagPitchUsesFittedAlternatingBracesInPreview()
+    {
+        var document = Fixture();
+        document.SupportSettings.BracingPattern = BracingPattern.Zigzag;
+        document.SupportSettings.BracingSpacingMm = 7.22f;
+        foreach (var node in document.Supports.Nodes)
+            node.Position = node.Position with { Z = node.Position.Z * (0.5f + (node.Position.X + 9) / 36f) };
+        using var preview = new StructurePreview(document, true);
+        preview.Update(document.SupportSettings);
+        Assert.True(preview.CanApply);
+        var graph = preview.Graph!;
+        var pairs = graph.Segments.Where(s => s.Type == SupportSegmentType.Bracing)
+            .Select(s => (Foot: graph.GetNode(s.NodeA).Position, Head: graph.GetNode(s.NodeB).Position))
+            .GroupBy(r => (MathF.Min(r.Foot.X, r.Head.X), MathF.Max(r.Foot.X, r.Head.X))).ToArray();
+        Assert.Equal(6, pairs.Length);
+        foreach (var pair in pairs)
+        {
+            var rungs = pair.OrderByDescending(r => r.Head.Z).ToArray();
+            Assert.True(rungs.Length >= 2);
+            for (var i = 1; i < rungs.Length; i++)
+            {
+                Assert.Equal(rungs[i - 1].Foot.X, rungs[i].Head.X);
+                Assert.Equal(2f, rungs[i - 1].Foot.Z - rungs[i].Head.Z, 3);
+            }
+        }
+    }
+
+    [Fact]
+    public void LegacyZigzagNormalizesToAutomaticAndKeepsEndpointGap()
+    {
+        var settings = new SupportConfig
+        {
+            BracingPattern = BracingPattern.Zigzag, BracingSpacingMm = 7.22f,
+            BracingEndpointGapMm = 3f,
+        };
+        settings.Normalize();
+        Assert.Equal(BracingPattern.Automatic, settings.BracingPattern);
+        Assert.Equal(3f, settings.BracingEndpointGapMm);
+        var config = new UserConfig { Supports = settings };
+        var vm = new Danslicer.App.ViewModels.ConfigViewModel(config, () => { });
+        Assert.True(vm.IsAutomaticBracing);
+        Assert.DoesNotContain(BracingPattern.Zigzag, vm.BracingPatterns);
+    }
+
     private static Document Fixture()
     {
         var d = new Document();
@@ -126,18 +171,97 @@ public sealed class StructurePreviewTests
     }
 
     [Fact]
-    public void BracingPreviewReplacesDensityAndUndoRestoresOriginalBraces()
+    public void BracingPreviewReplacesEndpointGapAndUndoRestoresOriginalBraces()
     {
         var document = Fixture();
         Assert.NotNull(document.BraceSupports());
         var before = Ids(document.Supports);
         var oldCount = document.Supports.Segments.Count(s => s.Type == SupportSegmentType.Bracing);
         using var preview = new StructurePreview(document, true);
-        preview.Update(document.SupportSettings with { BracingSpacingMm = 25 });
+        preview.Update(document.SupportSettings with { BracingEndpointGapMm = 25 });
         Assert.True(preview.CanApply);
         Assert.True(preview.Graph!.Segments.Count(s => s.Type == SupportSegmentType.Bracing) < oldCount);
         Assert.Equal(before, Ids(document.Supports));
         Assert.True(preview.Apply()); Assert.True(document.Undo()); Assert.Equal(before, Ids(document.Supports));
+    }
+
+    [Fact]
+    public void BracingSelectedPairPreservesNeighbourConnectionsThroughPreviewApplyAndUndo()
+    {
+        var document = Fixture();
+        document.BraceSupports();
+        var tips = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip).OrderBy(n => n.Position.X).ToArray();
+        document.SelectSupportElements([tips[2].Id, tips[3].Id]);
+        var before = Ids(document.Supports);
+        var internalBraces = SupportBracing.BracesBetween(document.Supports, document.SupportTarget!.Id,
+            document.StructureOperands()).Segments.ToHashSet();
+        var touching = SupportBracing.BracesOf(document.Supports, document.SupportTarget.Id,
+            document.StructureOperands()).Segments;
+        var neighbours = touching.Where(id => !internalBraces.Contains(id)).ToArray();
+        Assert.NotEmpty(internalBraces);
+        Assert.NotEmpty(neighbours);
+        var preserved = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Bracing &&
+            !internalBraces.Contains(s.Id)).Select(s => (s.Id, s.NodeA, s.NodeB, s.Diameter)).ToArray();
+        using var preview = new StructurePreview(document, true);
+        preview.Update(document.SupportSettings with { BracingEndpointGapMm = 20 });
+        AssertPreserved(preview.Graph!);
+        Assert.Equal(before, Ids(document.Supports));
+        Assert.True(preview.Apply());
+        AssertPreserved(document.Supports);
+        Assert.True(document.Undo());
+        Assert.Equal(before, Ids(document.Supports));
+        Assert.True(document.Redo());
+        AssertPreserved(document.Supports);
+
+        void AssertPreserved(SupportGraph graph)
+        {
+            foreach (var brace in preserved)
+            {
+                Assert.True(graph.TryGetSegment(brace.Id, out var segment));
+                Assert.Equal((brace.NodeA, brace.NodeB, brace.Diameter),
+                    (segment.NodeA, segment.NodeB, segment.Diameter));
+                Assert.True(graph.TryGetNode(brace.NodeA, out _));
+                Assert.True(graph.TryGetNode(brace.NodeB, out _));
+            }
+        }
+    }
+
+    [Fact]
+    public void RebuildingPairKeepsAnEndpointSharedWithANeighbourBrace()
+    {
+        var document = Fixture();
+        var tips = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip).OrderBy(n => n.Position.X).Take(3).ToArray();
+        var ends = tips.Select(tip => new SupportNode
+        {
+            Type = SupportNodeType.BraceEnd, Position = tip.Position with { Z = 30 }, Origin = tip.Origin,
+        }).ToArray();
+        foreach (var end in ends) document.Supports.AddNode(end);
+        var internalBrace = new SupportSegment { Type = SupportSegmentType.Bracing, NodeA = ends[0].Id, NodeB = ends[1].Id };
+        var neighbour = new SupportSegment { Type = SupportSegmentType.Bracing, NodeA = ends[1].Id, NodeB = ends[2].Id };
+        document.Supports.AddSegment(internalBrace); document.Supports.AddSegment(neighbour);
+        var removal = SupportBracing.BracesBetween(document.Supports, document.SupportTarget!.Id, [tips[0].Id, tips[1].Id]);
+        Assert.Equal([internalBrace.Id], removal.Segments);
+        Assert.DoesNotContain(ends[1].Id, removal.Nodes);
+        var command = new RemoveSupportElementsCommand(document.Supports, removal.Nodes, removal.Segments);
+        command.Execute();
+        Assert.True(document.Supports.TryGetSegment(neighbour.Id, out _));
+        Assert.True(document.Supports.TryGetNode(ends[1].Id, out _));
+        command.Undo();
+        Assert.True(document.Supports.TryGetSegment(internalBrace.Id, out _));
+    }
+
+    [Fact]
+    public void BracingOneSelectedSupportDoesNotDeleteItsNeighbourBraces()
+    {
+        var document = Fixture();
+        document.BraceSupports();
+        var tip = document.Supports.Nodes.First(n => n.Type == SupportNodeType.Tip);
+        document.SelectSupportElements([tip.Id]);
+        var before = Ids(document.Supports);
+        using var preview = new StructurePreview(document, true);
+        preview.Update(document.SupportSettings);
+        Assert.Equal(before, Ids(preview.Graph!));
+        Assert.False(preview.CanApply);
     }
 
     [Fact]

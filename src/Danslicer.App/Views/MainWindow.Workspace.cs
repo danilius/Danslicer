@@ -19,6 +19,7 @@ namespace Danslicer.App.Views;
 public partial class MainWindow
 {
     private readonly FloatingToolbar _workspaceToolbar = new() { ShowLabels = false, Margin = new Thickness(12) };
+    private readonly FloatingToolbar _structureToolbar = new() { ShowLabels = true, Margin = new Thickness(0) };
     private readonly List<WorkspacePopout> _workspacePopouts = [];
     private readonly List<string> _recentProjects = [];
     private Button _printTool = null!, _layoutTool = null!;
@@ -61,6 +62,7 @@ public partial class MainWindow
             popup.Closed += (_, _) => { popup.PlacementTarget?.Focus(); UpdateToolSelection(); };
             popup.ZIndex = 20;
         }
+        InitializeStructureToolbar();
         // Group real top-level sections without replacing their numeric editors or commands.
         if (PrintPopout.Shell.Body is StackPanel print) GroupSections(print);
         if (TransformPopupContent.Child is ScrollViewer { Content: StackPanel transform })
@@ -75,6 +77,65 @@ public partial class MainWindow
             if (open is null) return;
             CloseWorkspacePopout(open); e.Handled = true;
         }, RoutingStrategies.Bubble, handledEventsToo: true);
+    }
+
+    private void InitializeStructureToolbar()
+    {
+        var actions = StructurePopupContent.GetLogicalDescendants().OfType<Button>().ToArray();
+        var labels = new[] { "Parent supports", "Brace", "Unbrace", "Select braces", "Edit support" };
+        var icons = new[] { "supports", "structure", "unbrace", "select", "edit" };
+        for (var i = 0; i < actions.Length; i++)
+        {
+            var button = actions[i];
+            if (button.Parent is Panel panel) panel.Children.Remove(button);
+            _structureToolbar.AddExistingTool(button, labels[i], icons[i]);
+        }
+        var manual = new Button();
+        _structureToolbar.AddExistingTool(manual, "Manual brace", "line");
+        ToolTip.SetTip(manual, "Click two supports to add one brace. RMB or Esc leaves the tool.");
+        manual.Click += (_, _) => Viewport.ToggleManualBrace();
+        Viewport.ManualBraceModeChanged += (_, _) => manual.Background =
+            Viewport.IsManualBraceMode ? RefreshPalette.Fill : Brushes.Transparent;
+        var snap = new ToggleButton();
+        _structureToolbar.AddExistingTool(snap, "Snap brace 45°", "angle");
+        ToolTip.SetTip(snap, "Snap the second endpoint to 45° from vertical on its member.");
+        snap.IsCheckedChanged += (_, _) =>
+        {
+            Viewport.ManualBraceSnap45 = snap.IsChecked == true;
+            snap.Background = snap.IsChecked == true ? RefreshPalette.Fill : Brushes.Transparent;
+        };
+        var manualSettings = new Button();
+        _structureToolbar.AddExistingTool(manualSettings, "Manual settings", "settings");
+        var settingsBody = new StackPanel { Width = 260, Spacing = 10 };
+        // The main view model is assigned after this toolbar is initialized.
+        DataContextChanged += (_, _) => settingsBody.DataContext = ViewModel?.SupportSettings;
+        settingsBody.Children.Add(new TextBlock { Text = "Manual brace settings", FontWeight = FontWeight.SemiBold });
+        settingsBody.Children.Add(new TextBlock { Text = "Diameter (mm)" });
+        var diameter = new NumericUpDown { Minimum = 0.05m, Maximum = 20m, Increment = 0.05m, FormatString = "0.##" };
+        diameter.Bind(NumericUpDown.ValueProperty, new Binding("SupportManualBraceDiameter") { Mode = BindingMode.TwoWay });
+        settingsBody.Children.Add(diameter);
+        CheckBox CollisionOption(string label, string property)
+        {
+            var check = new CheckBox { Content = label };
+            check.Bind(ToggleButton.IsCheckedProperty, new Binding(property) { Mode = BindingMode.TwoWay });
+            check.IsCheckedChanged += (_, _) => Viewport.RefreshManualBracePreview();
+            settingsBody.Children.Add(check);
+            return check;
+        }
+        CollisionOption("Avoid models", "ManualBraceAvoidModels");
+        CollisionOption("Avoid supports and braces", "ManualBraceAvoidSupports");
+        diameter.ValueChanged += (_, _) => Viewport.RefreshManualBracePreview();
+        settingsBody.Children.Add(new TextBlock
+        {
+            Text = "Support crossings are allowed by default. These settings affect new manual braces only.",
+            TextWrapping = TextWrapping.Wrap, FontSize = 12,
+        });
+        manualSettings.Flyout = new Flyout { Content = settingsBody };
+        StructureToolPopup.Content = _structureToolbar;
+        StructureToolPopup.Closed += (_, _) => _structureToolbar.CancelResize();
+        Closing += (_, _) => _structureToolbar.CancelResize();
+        Deactivated += (_, _) => _structureToolbar.CancelResize();
+        _structureToolbar.SizeChanged += (_, _) => PositionWorkspacePopouts();
     }
 
     private static string ToolLabel(string? name) => name switch
@@ -161,6 +222,16 @@ public partial class MainWindow
             var x = _workspaceToolbar.Bounds.Right + 8;
             var reservedRight = ViewModel?.IsSupportView == true ? InspectionContent.Width + 24 : 12;
             var available = Math.Max(120, bounds.Width - x - reservedRight);
+            if (ReferenceEquals(popup, StructureToolPopup))
+            {
+                _structureToolbar.MaxWidth = Math.Max(FloatingToolbar.IconWidth, available);
+                var anchor = popup.PlacementTarget?.TranslatePoint(default, ViewportSurface);
+                var top = Math.Clamp(anchor?.Y ?? 12, 12,
+                    Math.Max(12, bounds.Height - _structureToolbar.Bounds.Height - 12));
+                popup.Margin = new Thickness(x, top, 12, 12);
+                _structureToolbar.MaxHeight = Math.Max(40, bounds.Height - top - 12);
+                continue;
+            }
             popup.Shell.MinWidth = Math.Min(240, available);
             popup.Shell.MaxWidth = available;
             var point = popup.PlacementTarget?.TranslatePoint(default, ViewportSurface);
@@ -233,7 +304,7 @@ public partial class MainWindow
     {
         RememberProject();
         var menu = new ContextMenu();
-        var open = new MenuItem { Header = "Open another project…", Command = OpenProjectCommand };
+        var open = new MenuItem { Header = "Open another projectâ€¦", Command = OpenProjectCommand };
         menu.Items.Add(open);
         menu.Items.Add(new Separator());
         if (_recentProjects.Count == 0) menu.Items.Add(new MenuItem { Header = "No recent projects", IsEnabled = false });

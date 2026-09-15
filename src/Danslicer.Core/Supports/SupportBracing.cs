@@ -89,8 +89,6 @@ public static class SupportBracing
 
     /// <summary>
     /// Plans the braces for the supports containing <paramref name="operandElementIds"/> (nodes
-    /// <summary>
-    /// Plans the braces for the supports containing <paramref name="operandElementIds"/> (nodes
     /// or segments) on the target. Braces that already tie two of those trunks are kept and that
     /// pair is left alone, so running twice adds nothing. Null when there is nothing to brace.
     /// <paramref name="meshes"/> is the model obstacle scene. With <paramref name="chosen"/> (the
@@ -108,7 +106,8 @@ public static class SupportBracing
             columns.AddRange(Columns(graph, components[i].Segments, i, settings.BracingMaxStemLeanDegrees));
         if (columns.Count < 2) return null;
 
-        var minHeight = settings.BracingMinSupportHeightMm;
+        var automatic = settings.BracingPattern == BracingPattern.Automatic;
+        var minHeight = automatic ? 0 : settings.BracingMinSupportHeightMm;
         var neighbour = settings.BracingNeighbourDistanceMm;
         var diameter = settings.BracingDiameter > 0 ? settings.BracingDiameter : settings.BranchDiameter;
         var radius = diameter * 0.5f;
@@ -147,7 +146,7 @@ public static class SupportBracing
             .Where(x => x.Bundle.Top >= minHeight).Select(x => x.Index).ToList();
         bool Neighbours(int i, int j) => !bundles[i].Supports.Overlaps(bundles[j].Supports) &&
             Vector2.Distance(bundles[i].Xy, bundles[j].Xy) > settings.TrunkDiameter &&
-            (pairOnly || Vector2.Distance(bundles[i].Xy, bundles[j].Xy) <= neighbour);
+            (automatic || pairOnly || Vector2.Distance(bundles[i].Xy, bundles[j].Xy) <= neighbour);
 
         // Chains (user drawing 2026-09-09): from an end of a row, each bundle pairs with its
         // nearest unvisited neighbour, and each pair's ladder runs opposite to the previous pair's.
@@ -172,9 +171,14 @@ public static class SupportBracing
             chains.Add(chain);
         }
 
-        // The model is the only obstacle (user, 2026-09-09): braces may run through branches,
-        // other trunks and other braces, so a row is tied wherever the geometry allows.
+        // Branch intersections remain allowed, but brace crossovers are not. Keep the committed
+        // brace geometry separate from trial ladders so rejected alternatives cannot block a pair.
         var scene = meshes;
+        var standingBraces = graph.Segments
+            .Where(s => s.Type == SupportSegmentType.Bracing && !s.Disabled &&
+                !graph.GetNode(s.NodeA).Disabled && !graph.GetNode(s.NodeB).Disabled)
+            .Select(s => (Start: graph.GetNode(s.NodeA).Position, End: graph.GetNode(s.NodeB).Position,
+                Radius: s.Diameter * 0.5f)).ToList();
         var addedNodes = new List<SupportNode>();
         var addedSegments = new List<SupportSegment>();
         var tied = new HashSet<int>();
@@ -206,74 +210,204 @@ public static class SupportBracing
         foreach (var e in extra.OrderBy(e => e.Distance).ThenBy(e => bundles[e.A].Id).ThenBy(e => bundles[e.B].Id))
             pairs.Add((e.A, e.B, bundles[e.A].Partners % 2 == 0));
 
+        var attemptedPairs = new HashSet<(int, int)>();
         foreach (var (ia, ib, startFromA) in pairs)
         {
             var a = bundles[ia];
             var b = bundles[ib];
             if (braced.Contains(ia < ib ? (ia, ib) : (ib, ia))) continue;
-            if (!pairOnly && (a.Partners >= settings.BracingMaxPartners || b.Partners >= settings.BracingMaxPartners)) continue;
+            if (!attemptedPairs.Add(ia < ib ? (ia, ib) : (ib, ia))) continue;
+            if (automatic && a.Partners > 0 && b.Partners > 0) continue;
+            if (!automatic && !pairOnly && (a.Partners >= settings.BracingMaxPartners || b.Partners >= settings.BracingMaxPartners)) continue;
 
-            var floor = MathF.Max(lowest, MathF.Max(a.Bottom, b.Bottom) + radius);
-            // Even pairs start from the earlier bundle, odd pairs from the later one, so the
-            // ladders alternate direction along the row. Laid top-down (user, 2026-09-09): the
-            // first rung reaches as high as both stems allow, the next ends where it started.
-            var fromA = startFromA;
-            var laid = 0;
-            var head = (fromA ? b : a).Top - radius;
-            var firstRung = true;
-            while (true)
+            var floor = MathF.Max(automatic ? 0 : lowest, MathF.Max(a.Bottom, b.Bottom) + radius);
+            var routes = automatic ? new List<(Vector3 Start, Vector3 End)>()
+                : Ladder(startFromA, cot, settings.BracingPattern, 0);
+            if (automatic)
             {
-                var (from, to) = fromA ? (a, b) : (b, a);
-                if (head < floor + radius * 2) break;
-                // A rung lands on the member of each bundle nearest the other bundle at its height.
-                var toStem = to.NearestAt(head, from.Xy, radius);
-                if (toStem is null) { head -= radius * 2; continue; }
-                var toXy = new Vector2(toStem.At(head).X, toStem.At(head).Y);
-                var fromStem = from.NearestAt(MathF.Min(head, from.Top - radius), toXy, radius);
-                if (fromStem is null) break;
-                var gap = Vector2.Distance(new(fromStem.At(head).X, fromStem.At(head).Y), toXy);
-                var rise = gap * cot;
-                var foot = head - rise;
-                // The first rung may not start above the stem it leaves: lower it, at its angle.
-                if (firstRung && foot > fromStem.Top - radius)
+                // Fit a whole number of alternating rungs into this pair's common height.
+                // Each pair derives its own rise; pitch from another pair is never reused.
+                var top = MathF.Min(a.Top, b.Top) - radius;
+                var endpointGap = settings.BracingEndpointGapMm;
+                var height = top - floor;
+                var distance = Vector2.Distance(a.Xy, b.Xy);
+                var maxRungs = Math.Clamp((int)MathF.Floor((MathF.Max(0, height) + endpointGap) /
+                    (MathF.Max(diameter, 0.1f) + endpointGap)), 1, 256);
+                var counts = Enumerable.Range(1, maxRungs).OrderBy(n =>
+                    MathF.Abs((height - (n - 1) * endpointGap) / n - distance)).ToArray();
+                // Preserve the chain's opposite starting direction whenever it can fit.
+                foreach (var direction in new[] { startFromA, !startFromA })
                 {
-                    foot = fromStem.Top - radius;
-                    head = foot + rise;
-                }
-                // A rung that would start under the floor cannot be laid at the angle: drop it.
-                if (foot < floor) break;
-                var startPoint = fromStem.At(foot);
-                var endPoint = toStem.At(head);
-                if (!scene.IntersectsCapsule(startPoint, endPoint, radius))
-                {
-                    var footNode = EndAt(startPoint);
-                    var headNode = EndAt(endPoint);
-                    addedSegments.Add(new SupportSegment
+                    foreach (var offset in new[] { 0f, radius, diameter })
                     {
-                        Type = SupportSegmentType.Bracing, NodeA = footNode.Id, NodeB = headNode.Id,
-                        Diameter = diameter, Origin = origin,
-                    });
-                    laid++;
+                        foreach (var count in counts)
+                        {
+                            var trial = FitZigzag(direction, top - offset, count, endpointGap);
+                            if (trial.Count == 0) continue;
+                            routes = trial;
+                            break;
+                        }
+                        if (routes.Count > 0) break;
+                    }
+                    if (routes.Count > 0) break;
                 }
-                firstRung = false;
-                // Continuous by default: the next brace ends where this one started.
-                var step = settings.BracingSpacingMm > 0 ? settings.BracingSpacingMm : rise;
-                if (step < radius * 2 + Epsilon) step = MathF.Max(rise, radius * 2 + Epsilon);
-                head -= step;
-                if (settings.BracingPattern == BracingPattern.Zigzag) fromA = !fromA;
+                // An obstruction may make a complete ladder impossible. After all complete
+                // fits fail, keep the longest uninterrupted zigzag, never scattered rungs.
+                if (routes.Count == 0)
+                {
+                    var bestSpan = 0f;
+                    foreach (var direction in new[] { startFromA, !startFromA })
+                    foreach (var count in counts)
+                    {
+                        var trial = FitZigzag(direction, top, count, endpointGap, allowPartial: true);
+                        if (trial.Count == 0) continue;
+                        var span = trial[0].End.Z - trial[^1].Start.Z;
+                        if (span <= bestSpan + Epsilon) continue;
+                        bestSpan = span;
+                        routes = trial;
+                    }
+                }
             }
-            if (laid == 0) continue;
+            foreach (var (startPoint, endPoint) in routes)
+            {
+                standingBraces.Add((startPoint, endPoint, radius));
+                var footNode = EndAt(startPoint);
+                var headNode = EndAt(endPoint);
+                addedSegments.Add(new SupportSegment
+                {
+                    Type = SupportSegmentType.Bracing, NodeA = footNode.Id, NodeB = headNode.Id,
+                    Diameter = diameter, Origin = origin,
+                });
+            }
+            if (routes.Count == 0) continue;
             a.Partners++;
             b.Partners++;
             braced.Add(ia < ib ? (ia, ib) : (ib, ia));
             tied.UnionWith(a.Supports);
             tied.UnionWith(b.Supports);
+
+            List<(Vector3 Start, Vector3 End)> FitZigzag(bool fromA, float top, int count, float endpointGap,
+                bool allowPartial = false)
+            {
+                var result = new List<(Vector3 Start, Vector3 End)>();
+                var longest = new List<(Vector3 Start, Vector3 End)>();
+                var rise = (top - floor - (count - 1) * endpointGap) / count;
+                if (rise < MathF.Max(diameter, 0.1f)) return result;
+                for (var rung = 0; rung < count; rung++)
+                {
+                    var head = top - rung * (rise + endpointGap);
+                    var foot = head - rise;
+                    var (from, to) = fromA ? (a, b) : (b, a);
+                    var fromStem = from.NearestAt(foot, to.Xy, radius);
+                    var toStem = to.NearestAt(head, from.Xy, radius);
+                    if (fromStem is null || toStem is null) return [];
+                    var start = fromStem.At(foot);
+                    var end = toStem.At(head);
+                    var horizontal = Vector2.Distance(new(start.X, start.Y), new(end.X, end.Y));
+                    if (horizontal > rise * MathF.Tan(65f * MathF.PI / 180f) + Epsilon ||
+                        scene.IntersectsCapsule(start, end, radius) ||
+                        standingBraces.Any(r => BracesConflict(start, end, radius, r.Start, r.End, r.Radius)) ||
+                        result.Any(r => BracesConflict(start, end, radius, r.Start, r.End, radius)))
+                    {
+                        if (!allowPartial) return [];
+                        if (result.Count > longest.Count) longest = result;
+                        result = [];
+                    }
+                    else result.Add((start, end));
+                    fromA = !fromA;
+                }
+                return longest.Count > result.Count ? longest : result;
+            }
+
+            List<(Vector3 Start, Vector3 End)> Ladder(bool fromA, float pairCot, BracingPattern pattern, float offset)
+            {
+                var result = new List<(Vector3 Start, Vector3 End)>();
+                // Even pairs start from the earlier bundle, odd pairs from the later one, so the
+                // ladders alternate direction along the row. Laid top-down (user, 2026-09-09): the
+                // first rung reaches as high as both stems allow, the next ends where it started.
+                var head = (fromA ? b : a).Top - radius - offset;
+                var firstRung = true;
+                for (var attempt = 0; attempt < 2048; attempt++)
+                {
+                    var (from, to) = fromA ? (a, b) : (b, a);
+                    if (head < floor + radius * 2) break;
+                    // A rung lands on the member of each bundle nearest the other bundle at its height.
+                    var toStem = to.NearestAt(head, from.Xy, radius);
+                    if (toStem is null) { head -= radius * 2; continue; }
+                    var toXy = new Vector2(toStem.At(head).X, toStem.At(head).Y);
+                    var fromStem = from.NearestAt(MathF.Min(head, from.Top - radius), toXy, radius);
+                    if (fromStem is null) break;
+                    var gap = Vector2.Distance(new(fromStem.At(head).X, fromStem.At(head).Y), toXy);
+                    var rise = gap * pairCot;
+                    var foot = head - rise;
+                    // The first rung may not start above the stem it leaves: lower it, at its angle.
+                    if (firstRung && foot > fromStem.Top - radius)
+                    {
+                        foot = fromStem.Top - radius;
+                        head = foot + rise;
+                    }
+                    // A rung that would start under the floor cannot be laid at the angle: drop it.
+                    if (foot < floor) break;
+                    var startPoint = fromStem.At(foot);
+                    var endPoint = toStem.At(head);
+                    var horizontal = Vector2.Distance(new(startPoint.X, startPoint.Y), new(endPoint.X, endPoint.Y));
+                    var withinAngleLimit = !automatic || horizontal <=
+                        (endPoint.Z - startPoint.Z) * MathF.Tan(65f * MathF.PI / 180f) + Epsilon;
+                    if (withinAngleLimit && !scene.IntersectsCapsule(startPoint, endPoint, radius) &&
+                        !standingBraces.Any(r => BracesConflict(startPoint, endPoint, radius, r.Start, r.End, r.Radius)) &&
+                        !result.Any(r => BracesConflict(startPoint, endPoint, radius, r.Start, r.End, radius)))
+                    {
+                        result.Add((startPoint, endPoint));
+                    }
+                    firstRung = false;
+                    // Continuous by default: the next brace ends where this one started.
+                    var step = settings.BracingSpacingMm > 0 ? settings.BracingSpacingMm : rise;
+                    if (step < radius * 2 + Epsilon) step = MathF.Max(rise, radius * 2 + Epsilon);
+                    head -= step;
+                    if (pattern == BracingPattern.Zigzag) fromA = !fromA;
+                }
+                return result;
+            }
         }
 
         if (addedSegments.Count == 0)
             return (new SupportGraphEdit([], [], []), new BracingOutcome(components.Count, 0, 0));
         return (new SupportGraphEdit(addedNodes, addedSegments, []),
             new BracingOutcome(components.Count, addedSegments.Count, tied.Count));
+    }
+
+    /// <summary>Shared attachment points are joints; elsewhere the brace cylinders must stay apart.</summary>
+    private static bool BracesConflict(Vector3 a, Vector3 b, float radius,
+        Vector3 c, Vector3 d, float otherRadius)
+    {
+        const float jointToleranceSquared = 0.01f * 0.01f;
+        if (Vector3.DistanceSquared(a, c) <= jointToleranceSquared ||
+            Vector3.DistanceSquared(a, d) <= jointToleranceSquared ||
+            Vector3.DistanceSquared(b, c) <= jointToleranceSquared ||
+            Vector3.DistanceSquared(b, d) <= jointToleranceSquared) return false;
+        var clearance = radius + otherRadius;
+        return GeometryDistance.SegmentSegmentSquared(a, b, c, d) < clearance * clearance;
+    }
+
+    /// <summary>
+    /// Braces entirely within the operand supports, for rebuilding their connections.
+    /// Connections to unselected neighbours and shared endpoint nodes must survive.
+    /// </summary>
+    public static (List<Guid> Nodes, List<Guid> Segments) BracesBetween(SupportGraph graph, Guid? targetId,
+        IReadOnlyList<Guid> operandElementIds)
+    {
+        var carriers = Components(graph, targetId, operandElementIds)
+            .SelectMany(component => component.Segments).ToHashSet();
+        var segments = graph.Segments.Where(segment => segment.Type == SupportSegmentType.Bracing &&
+            IsSelectedEnd(segment.NodeA) && IsSelectedEnd(segment.NodeB)).Select(segment => segment.Id).ToHashSet();
+        var nodes = segments.SelectMany(id =>
+            new[] { graph.GetSegment(id).NodeA, graph.GetSegment(id).NodeB }).Distinct()
+            .Where(id => graph.GetNode(id).Type == SupportNodeType.BraceEnd &&
+                graph.SegmentsAt(id).All(segment => segments.Contains(segment.Id))).ToList();
+        return (nodes, segments.ToList());
+
+        bool IsSelectedEnd(Guid id) => CarrierOf(graph, graph.GetNode(id)) is { } carrier &&
+            carriers.Contains(carrier.Id);
     }
 
     /// <summary>

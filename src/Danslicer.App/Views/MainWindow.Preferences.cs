@@ -14,6 +14,13 @@ public partial class MainWindow
     {
         _workspacePreferences = WorkspacePreferences.Load(AppConfig.WorkspacePath);
         _workspaceToolbar.ShowLabels = _workspacePreferences.ShowToolbarLabels;
+        if (_workspacePreferences.Expanded.TryGetValue("StructureToolbar/Labels", out var structureLabels))
+            _structureToolbar.ShowLabels = structureLabels;
+        _structureToolbar.LabelsCommitted += (_, _) =>
+        {
+            _workspacePreferences.Expanded["StructureToolbar/Labels"] = _structureToolbar.ShowLabels;
+            SaveWorkspacePreferences();
+        };
         _recentProjects.AddRange(_workspacePreferences.RecentProjects);
         _workspaceToolbar.LabelsCommitted += (_, _) =>
         {

@@ -103,7 +103,7 @@ public sealed class ConfigViewModel : ViewModelBase
         Enum.GetValues<SupportBaseShape>();
 
     public IReadOnlyList<BracingPattern> BracingPatterns { get; } =
-        Enum.GetValues<BracingPattern>();
+        [BracingPattern.Automatic, BracingPattern.Diagonal];
 
     public IReadOnlyList<RaftType> RaftTypes { get; } = Enum.GetValues<RaftType>();
 
@@ -892,8 +892,30 @@ public sealed class ConfigViewModel : ViewModelBase
 
     public BracingPattern SupportBracingPattern
     {
-        get => Supports.BracingPattern;
-        set => Update(() => Supports.BracingPattern = Enum.IsDefined(value) ? value : BracingPattern.Zigzag);
+        get => Supports.BracingPattern == BracingPattern.Zigzag ? BracingPattern.Automatic : Supports.BracingPattern;
+        set
+        {
+            Update(() => Supports.BracingPattern = value == BracingPattern.Diagonal ? value : BracingPattern.Automatic);
+            OnPropertyChanged(nameof(IsAutomaticBracing));
+        }
+    }
+
+    public bool IsAutomaticBracing => SupportBracingPattern == BracingPattern.Automatic;
+
+    public float SupportManualBraceDiameter
+    {
+        get => Supports.ManualBraceDiameter;
+        set => Update(() => Supports.ManualBraceDiameter = Clamp(value, 0.05f, 20f, 1.2f));
+    }
+    public bool ManualBraceAvoidModels
+    {
+        get => Supports.ManualBraceAvoidModels;
+        set => Update(() => Supports.ManualBraceAvoidModels = value);
+    }
+    public bool ManualBraceAvoidSupports
+    {
+        get => Supports.ManualBraceAvoidSupports;
+        set => Update(() => Supports.ManualBraceAvoidSupports = value);
     }
 
     public float SupportBracingDiameter
@@ -931,6 +953,12 @@ public sealed class ConfigViewModel : ViewModelBase
     {
         get => Supports.BracingSpacingMm;
         set => Update(() => Supports.BracingSpacingMm = Clamp(value, 0f, 500f, 0f));
+    }
+
+    public float SupportBracingEndpointGapMm
+    {
+        get => Supports.BracingEndpointGapMm;
+        set => Update(() => Supports.BracingEndpointGapMm = Clamp(value, 0f, 500f, 2f));
     }
 
     public float SupportBracingLowestHeightMm

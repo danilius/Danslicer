@@ -28,7 +28,7 @@ namespace Danslicer.App.Controls;
 /// The 3D viewport. Owns the camera, the renderer, the transform gizmo and the modal transform tool,
 /// and translates pointer and keyboard input into camera navigation, selection and transforms.
 /// </summary>
-public sealed class ViewportControl : OpenGlControlBase
+public sealed partial class ViewportControl : OpenGlControlBase
 {
     public static readonly StyledProperty<Document?> DocumentProperty =
         AvaloniaProperty.Register<ViewportControl, Document?>(nameof(Document));
@@ -353,12 +353,14 @@ public sealed class ViewportControl : OpenGlControlBase
         }
         else if (change.Property == SupportSelectionModeProperty)
         {
+            if (SupportSelectionMode && _layFlatPick) EndLayFlatPick();
             if (SupportWaterline is { } waterline)
                 waterline.SupportModeActive = SupportSelectionMode;
             // A guided gesture is Support-mode only; leaving the mode abandons it.
             if (!SupportSelectionMode && _lineGesture is not null) CancelLineGesture();
             if (!SupportSelectionMode && _editSupport is not null) EndSupportEdit();
             if (!SupportSelectionMode && _placementMode) EndPlacementMode();
+            if (!SupportSelectionMode && _manualBraceMode) EndManualBrace();
             _supportMeshesDirty = true;
             // The region overlay is Support-mode only, so a mode change rebuilds it too.
             MarkRegionOverlayDirty();
@@ -771,11 +773,13 @@ public sealed class ViewportControl : OpenGlControlBase
         base.OnPointerEntered(e);
         Log("pointer entered");
         Focus();
+        if (_layFlatPick) UpdateLayFlatHover(MouseVector(e));
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
+        ClearLayFlatHover();
         SupportWaterline?.Clear();
     }
 
@@ -786,6 +790,13 @@ public sealed class ViewportControl : OpenGlControlBase
         Focus();
         var props = e.GetCurrentPoint(this).Properties;
         _lastPointer = e.GetPosition(this);
+
+        if (_layFlatPick && props.IsRightButtonPressed)
+        {
+            EndLayFlatPick();
+            e.Handled = true;
+            return;
+        }
 
         if (props.IsMiddleButtonPressed)
         {
@@ -804,6 +815,15 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             if (props.IsLeftButtonPressed) InspectStructurePreviewAt(MouseVector(e));
             e.Handled = true; return;
+        }
+
+        if (_manualBraceMode)
+        {
+            UpdateManualBrace(MouseVector(e));
+            if (props.IsLeftButtonPressed) ClickManualBrace();
+            else if (props.IsRightButtonPressed) EndManualBrace();
+            e.Handled = true;
+            return;
         }
 
         if (_lineGesture is not null)
@@ -893,7 +913,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
             if (!SupportSelectionMode && _layFlatPick)
             {
-                _layFlatPick = false;
+                EndLayFlatPick();
                 TryLayFlat(m);
                 UpdateStatus();
                 e.Handled = true;
@@ -1103,6 +1123,10 @@ public sealed class ViewportControl : OpenGlControlBase
         {
             UpdateSupportEditDrag(MouseVector(e), e.KeyModifiers);
         }
+        else if (_manualBraceMode)
+        {
+            UpdateManualBrace(MouseVector(e));
+        }
         else if (_placementMode)
         {
             UpdatePlacementGhost(MouseVector(e));
@@ -1120,7 +1144,7 @@ public sealed class ViewportControl : OpenGlControlBase
             _modal.Update(MouseVector(e));
             UpdateStatus();
         }
-        else if (!SupportSelectionMode && Document is not null && Document.Selection.Count > 0)
+        else if (!_layFlatPick && !SupportSelectionMode && Document is not null && Document.Selection.Count > 0)
         {
             UpdateGizmo();
             var handle = _gizmo.HitTest(Camera, MouseVector(e), (float)Bounds.Width, (float)Bounds.Height);
@@ -1131,7 +1155,7 @@ public sealed class ViewportControl : OpenGlControlBase
                 Redraw();
             }
         }
-        else if (_gizmo.Hovered != GizmoHandle.None)
+        else if (!_layFlatPick && _gizmo.Hovered != GizmoHandle.None)
         {
             _gizmo.Hovered = GizmoHandle.None;
             Cursor = Cursor.Default;
@@ -1148,6 +1172,7 @@ public sealed class ViewportControl : OpenGlControlBase
             }
         }
 
+        if (_layFlatPick) UpdateLayFlatHover(MouseVector(e));
         UpdateWaterline(MouseVector(e));
     }
 
@@ -1282,6 +1307,7 @@ public sealed class ViewportControl : OpenGlControlBase
             return;
         }
         Camera.Zoom((float)e.Delta.Y);
+        if (_layFlatPick) UpdateLayFlatHover(MouseVector(e));
         Redraw();
         e.Handled = true;
     }
@@ -1352,6 +1378,9 @@ public sealed class ViewportControl : OpenGlControlBase
     // ----- Lay flat on face -----
 
     private bool _layFlatPick;
+    private SceneObject? _layFlatHoverObject;
+    private int _layFlatHoverTriangle = -1;
+    private HashSet<int>? _layFlatHoverFaces;
     /// <summary>True between a brush press and its release: every move in between is a dab.</summary>
     private bool _brushing;
     /// <summary>Where the brush ring is drawn; null when the cursor is off the model.</summary>
@@ -1361,7 +1390,41 @@ public sealed class ViewportControl : OpenGlControlBase
     public void BeginLayFlatPick()
     {
         _layFlatPick = true;
+        _gizmo.Hovered = GizmoHandle.None;
+        Cursor = new Cursor(StandardCursorType.Cross);
+        UpdateLayFlatHover(new Vector2((float)_lastPointer.X, (float)_lastPointer.Y));
         UpdateStatus();
+        Redraw();
+    }
+
+    private void EndLayFlatPick()
+    {
+        _layFlatPick = false;
+        Cursor = Cursor.Default;
+        ClearLayFlatHover();
+        UpdateStatus();
+    }
+
+    private void ClearLayFlatHover()
+    {
+        _layFlatHoverObject = null;
+        _layFlatHoverTriangle = -1;
+        _layFlatHoverFaces = null;
+        MarkRegionOverlayDirty();
+    }
+
+    private void UpdateLayFlatHover(Vector2 mouse)
+    {
+        int triangle = -1;
+        var hit = HitViewCube(new Point(mouse.X, mouse.Y)) >= 0
+            ? null : PickFace(mouse, out triangle);
+        if (hit == _layFlatHoverObject && triangle == _layFlatHoverTriangle) return;
+        _layFlatHoverObject = hit;
+        _layFlatHoverTriangle = triangle;
+        // Share the actual operation's seed-normal tolerance and edge connectivity.
+        _layFlatHoverFaces = hit is null || triangle < 0
+            ? null : LayFlat.Cluster(hit.Mesh, triangle).ToHashSet();
+        MarkRegionOverlayDirty();
     }
 
     private bool TryLayFlat(Vector2 mouse)
@@ -1383,16 +1446,60 @@ public sealed class ViewportControl : OpenGlControlBase
     private static readonly Vector4 BaseColor = new(0.8f, 0.7f, 0.5f, 0.95f);
     private static readonly Vector4 TipMarkerColor = new(1f, 0.55f, 0.25f, 1f);
 
+    private IReadOnlyList<SupportRenderPart>? _placementPickParts;
+    private (SupportGraph Graph, Guid Target, SupportDisplayConfig Display, ViewportClipRange Clip)? _placementPickKey;
+
+    // Pick the actual rendered support surface, with the same clipping and visibility as drawing.
+    // Model and support hits compete by depth so a support behind the model cannot steal a click.
+    internal SceneObject? PickPlacementSurface(Vector2 mouse, out Vector3 point,
+        out Vector3 normal, out bool contactOnSupport)
+    {
+        var model = PickSurface(mouse, out _, out point, out normal);
+        contactOnSupport = false;
+        if (Document?.SupportTarget is not { } target || target.RenderState == RenderState.Hidden)
+            return model;
+        var ray = Camera.ScreenToRay(mouse.X, mouse.Y, (float)Bounds.Width, (float)Bounds.Height);
+        var distance = model is null ? float.PositiveInfinity : Vector3.Distance(ray.Origin, point);
+        var graph = Document.Supports;
+        var key = (graph, target.Id, SupportDisplay, ClipRange);
+        if (_placementPickParts is null || _placementPickKey != key)
+        {
+            _placementPickKey = key;
+            _placementPickParts = SupportRenderMesh.Build(graph,
+            includeSegment: segment => graph.OwningObjectId(segment.Id) == target.Id &&
+                SupportDisplayPolicy.IsSegmentDisplayed(graph, segment, SupportDisplay, ClipRange),
+            includeBase: node => graph.OwningObjectId(node.Id) == target.Id &&
+                SupportDisplayPolicy.IsNodeDisplayed(graph, node, SupportDisplay, ClipRange),
+            includeHidden: SupportDisplay.ShowHiddenElements);
+        }
+        foreach (var part in _placementPickParts)
+        {
+            if (ray.IntersectMesh(part.Mesh, out var triangle, p => ClipRange.Contains(p)) is not { } t)
+                continue;
+            var hit = ray.At(t);
+            var d = Vector3.Distance(ray.Origin, hit);
+            if (d >= distance) continue;
+            part.Mesh.GetTriangle(triangle, out var a, out var b, out var c);
+            var n = Vector3.Cross(b - a, c - a);
+            normal = n.LengthSquared() > 1e-18f ? Vector3.Normalize(n) : -Vector3.UnitZ;
+            point = hit;
+            distance = d;
+            model = target;
+            contactOnSupport = true;
+        }
+        return model;
+    }
+
     private string? TryAddSupport(Vector2 mouse)
     {
         if (Document is null) return null;
-        var hit = PickSurface(mouse, out _, out var point, out var normal);
+        var hit = PickPlacementSurface(mouse, out var point, out var normal, out var contactOnSupport);
         if (hit is null) return null;
         // Only the support target takes supports; a click on any other model says so rather than
         // silently doing nothing. Document refuses it as well — this is the visible half.
         if (Danslicer.Core.Supports.SupportTargetPolicy.RefusalMessage(Document.SupportTarget, hit)
             is { } refusal) return refusal;
-        if (!Document.AddManualSupport(hit, point, normal, out var reason, out var parenting))
+        if (!Document.AddManualSupport(hit, point, normal, out var reason, out var parenting, contactOnSupport))
             return reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
                 ? "Support: contact is too tight to the surface"
                 : "Support: no clear path to the plate from here";
@@ -1437,6 +1544,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void ExitSupportTools()
     {
+        if (_manualBraceMode) EndManualBrace();
         if (_tipDrag is not null) CancelTipDrag();
         if (_editSupport is not null) EndSupportEdit();
         if (_placementMode) EndPlacementMode();
@@ -1852,7 +1960,7 @@ public sealed class ViewportControl : OpenGlControlBase
     private void UpdatePlacementGhost(Vector2 mouse)
     {
         if (Document is null) return;
-        var hit = PickSurface(mouse, out _, out var point, out var normal);
+        var hit = PickPlacementSurface(mouse, out var point, out var normal, out var contactOnSupport);
         if (hit is null)
         {
             // Off the model the mode still shows: a red tip hangs where the cursor meets the
@@ -1863,7 +1971,7 @@ public sealed class ViewportControl : OpenGlControlBase
             normal = -Vector3.UnitZ;
             if (_placementGhostPoint is { } lastOff && Vector3.Distance(lastOff, point) < PlacementGhostStepMm) return;
             _placementGhostPoint = point;
-            _placementRefusal = "no model under the cursor";
+            _placementRefusal = "no model or support under the cursor";
             ShowRefusedTip(point, normal);
             UpdateStatus();
             Redraw();
@@ -1876,7 +1984,7 @@ public sealed class ViewportControl : OpenGlControlBase
         _placementRefusal = SupportTargetPolicy.RefusalMessage(Document.SupportTarget, hit);
         if (_placementRefusal is null)
         {
-            var edit = Document.PreviewManualSupport(hit, point, normal, out var reason);
+            var edit = Document.PreviewManualSupport(hit, point, normal, out var reason, contactOnSupport);
             if (edit is null)
             {
                 _placementRefusal = reason == Danslicer.Core.Supports.Routing.RoutingFailureReason.ContactBlocked
@@ -1981,6 +2089,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void BeginSupportEdit(Guid element)
     {
+        if (_manualBraceMode) EndManualBrace();
         if (_placementMode) EndPlacementMode();
         if (_lineGesture is not null) CancelLineGesture();
         _editSupport = element;
@@ -2413,6 +2522,7 @@ public sealed class ViewportControl : OpenGlControlBase
 
     private void MarkSupportMeshesDirty()
     {
+        _placementPickParts = null;
         _supportMeshesDirty = true;
         _selectionMeshDirty = true; // selected elements may have moved or vanished
         Redraw();
@@ -2440,6 +2550,12 @@ public sealed class ViewportControl : OpenGlControlBase
         _regionOverlayDirty = false;
         _regionOverlays.Clear();
         if (Document is not { } document) return;
+        if (_layFlatPick && _layFlatHoverObject is { } target &&
+            document.Scene.Objects.Contains(target) && target.RenderState != RenderState.Hidden &&
+            _layFlatHoverFaces is { Count: > 0 } targetFaces &&
+            SupportRegionOverlay.Build(target.Mesh, target.Transform.ToMatrix(), targetFaces) is { } patch)
+            _regionOverlays.Add(new AuxMeshDraw(patch, new Vector3(0.15f, 0.65f, 1f),
+                0.55f, DepthOverlay: true));
         // Regions are a Support-mode concern. In Layout the user is arranging models, and a
         // painted tint there is noise on top of the thing they are trying to position.
         if (!SupportSelectionMode) return;
@@ -2818,6 +2934,10 @@ public sealed class ViewportControl : OpenGlControlBase
             }
         }
 
+        if (_manualBraceMode && e.Key == Key.Escape)
+        {
+            EndManualBrace(); e.Handled = true; return;
+        }
         if (_lineGesture is { } lineGesture)
         {
             switch (e.Key)
@@ -2900,7 +3020,10 @@ public sealed class ViewportControl : OpenGlControlBase
                     statusAfterUpdate = "Border select: drag a box · Shift extends · Esc cancels";
                     break;
                 // Lay flat on the face under the cursor; with nothing under it, arm a click pick.
-                case Key.F when !ctrl && !SupportSelectionMode: if (!TryLayFlat(mouse)) _layFlatPick = true; break;
+                case Key.F when !ctrl && !SupportSelectionMode:
+                    if (!TryLayFlat(mouse)) BeginLayFlatPick();
+                    else if (_layFlatPick) EndLayFlatPick();
+                    break;
                 case Key.H when e.KeyModifiers.HasFlag(KeyModifiers.Alt): Document.UnhideAll(); break;
                 case Key.H when shift && !ctrl && SupportSelectionMode: Document.HideUnselectedSupportElements(); break;
                 case Key.H when !ctrl && SupportSelectionMode: Document.HideSelectedSupportElements(); break;
@@ -2915,7 +3038,7 @@ public sealed class ViewportControl : OpenGlControlBase
                     _pendingClickSupport = null;
                     MarqueeRect = null;
                     break;
-                case Key.Escape when _layFlatPick: _layFlatPick = false; break;
+                case Key.Escape when _layFlatPick: EndLayFlatPick(); break;
                 case Key.Escape when _borderSelectArmed: _borderSelectArmed = false; break;
                 case Key.Escape when Document.SupportSelection.Count > 0: Document.ClearSupportSelection(); break;
                 case Key.Escape: ClearObjectSelection(); break;
@@ -2968,6 +3091,13 @@ public sealed class ViewportControl : OpenGlControlBase
                 lineGesture is Danslicer.Core.Supports.Guided.SurfacePolygonGesture { ClosingPathIsChord: true };
             var surface = offSurface ? " · OFF SURFACE" : "";
             StatusText = $"{lineGesture.Name}: {tips} · pitch {pitch} mm{surface}  ·  {lineGesture.Hint} · wheel/digits pitch · RMB/Esc cancel";
+            return;
+        }
+        if (_manualBraceMode)
+        {
+            StatusText = "Manual brace: " + (_manualBraceRefusal ?? (_manualBraceStart is null
+                ? "click the first support at the desired height" : "click a second support to place")) +
+                (ManualBraceSnap45 ? " � 45� snap" : " � free angle") + " � RMB/Esc leave";
             return;
         }
         if (_placementMode)
@@ -3259,7 +3389,7 @@ public sealed class ViewportControl : OpenGlControlBase
             case SixAxisButton.Escape when _modal is not null && Document is not null:
                 if (_modal.IsActive) { _modal.Cancel(); _gizmoDragging = false; }
                 else if (_tipDrag is not null) CancelTipDrag();
-                else if (_layFlatPick) _layFlatPick = false;
+                else if (_layFlatPick) EndLayFlatPick();
                 else if (Document.SupportSelection.Count > 0) Document.ClearSupportSelection();
                 else ClearObjectSelection();
                 UpdateStatus();

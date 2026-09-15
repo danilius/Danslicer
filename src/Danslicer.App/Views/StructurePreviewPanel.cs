@@ -37,6 +37,8 @@ public sealed class StructurePreviewPanel : UserControl
     {
         _document = document; _viewport = viewport; _globalConfig = globalConfig;
         _settings = document.SupportSettings with { };
+        if (bracing && _settings.BracingPattern == Core.Config.BracingPattern.Zigzag)
+            _settings.BracingPattern = Core.Config.BracingPattern.Automatic;
         _preview = new StructurePreview(document, bracing);
         _config = new ConfigViewModel(_settings, QueuePreview) { ShowParentingSettings = !bracing, ShowBracingSettings = bracing };
         var title = bracing ? "Preview bracing" : "Preview parenting";

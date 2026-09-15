@@ -90,15 +90,22 @@
         </StackPanel>
         <StackPanel IsVisible="{Binding ShowBracingSettings}" Spacing="6">
             <TextBlock Text="Bracing" FontWeight="SemiBold" />
-            <Grid ColumnDefinitions="170,*">
+            <Grid IsVisible="{Binding !IsAutomaticBracing}" ColumnDefinitions="170,*">
                 <TextBlock Text="Density" Classes="label" ToolTip.Tip="Sparse: 20 mm pitch. Standard: 10 mm. Dense: continuous. Angle and clearance can limit the actual number of braces." />
                 <ComboBox Grid.Column="1" ItemsSource="{Binding BracingDensities}" SelectedItem="{Binding BracingDensity, Mode=TwoWay}" />
             </Grid>
                 <Grid Tag="supports bracing pattern zigzag diagonal" ColumnDefinitions="170,*" Margin="0,2">
-                    <TextBlock Text="Pattern" Classes="label"
-                               ToolTip.Tip="Zigzag: each brace leaves the trunk the previous one arrived at. Diagonal: every brace leans the same way." />
+                    <TextBlock Text="Method" Classes="label"
+                               ToolTip.Tip="Automatic fits a complete zigzag independently to each neighbouring pair using the endpoint gap. Diagonal deliberately produces parallel braces using fixed settings." />
                     <ComboBox Grid.Column="1" ItemsSource="{Binding BracingPatterns}"
                               SelectedItem="{Binding SupportBracingPattern, Mode=TwoWay}" />
+                </Grid>
+                <TextBlock IsVisible="{Binding IsAutomaticBracing}" TextWrapping="Wrap"
+                           Text="Fits a top-down zigzag independently to each neighbouring pair, below the shorter trunk’s top." />
+                <Grid IsVisible="{Binding IsAutomaticBracing}" ColumnDefinitions="170,*" Margin="0,2">
+                    <TextBlock Text="Endpoint gap" Classes="label" ToolTip.Tip="Vertical gap on the shared trunk between consecutive braces. 0 joins the endpoints; default 2 mm." />
+                    <refresh:FilledNumericSlider PreviewProperty="SupportBracingEndpointGapMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="20" Step="0.5" Format="0.##"
+                        Value="{Binding SupportBracingEndpointGapMm, Mode=TwoWay}" />
                 </Grid>
                 <Grid Tag="supports bracing brace diameter mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Brace diameter" Classes="label" />
@@ -110,32 +117,32 @@
                           Content="Auto-bracing"
                           ToolTip.Tip="Brace after Generate Supports and automatic parenting during placement, as part of that command's undo step. Parent Supports (J) never adds braces. Off: add braces with K."
                           IsChecked="{Binding SupportAutoBracing, Mode=TwoWay}" Margin="0,4" />
-                <Grid Tag="supports bracing angle degrees" ColumnDefinitions="170,*" Margin="0,2">
+                <Grid IsVisible="{Binding !IsAutomaticBracing}" Tag="supports bracing angle degrees" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max brace angle °" Classes="label" ToolTip.Tip="The most a brace may lean from vertical. A rung that cannot fit at this angle is left out rather than laid flatter" />
                     <refresh:FilledNumericSlider PreviewProperty="SupportBracingAngleDegrees" UnitKind="Angle" Unit="°" Grid.Column="1" Minimum="1" Maximum="89" Step="5" Format="0"
                                    Value="{Binding SupportBracingAngleDegrees, Mode=TwoWay}" />
                 </Grid>
-                <Grid Tag="supports bracing spacing vertical pitch mm" ColumnDefinitions="170,*" Margin="0,2">
+                <Grid IsVisible="{Binding !IsAutomaticBracing}" Tag="supports bracing spacing vertical pitch mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Brace spacing" Classes="label" ToolTip.Tip="Vertical pitch between the braces of one pair of trunks. 0 = continuous: each brace starts where the last one ended" />
                     <refresh:FilledNumericSlider PreviewProperty="SupportBracingSpacingMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
                                    Value="{Binding SupportBracingSpacingMm, Mode=TwoWay}" />
                 </Grid>
-                <Grid Tag="supports bracing lowest brace height mm" ColumnDefinitions="170,*" Margin="0,2">
+                <Grid IsVisible="{Binding !IsAutomaticBracing}" Tag="supports bracing lowest brace height mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Lowest brace height" Classes="label" ToolTip.Tip="No brace foot below this height above the plate. 0 = the min branch height" />
                     <refresh:FilledNumericSlider PreviewProperty="SupportBracingLowestHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
                                    Value="{Binding SupportBracingLowestHeightMm, Mode=TwoWay}" />
                 </Grid>
-                <Grid Tag="supports bracing min support height mm" ColumnDefinitions="170,*" Margin="0,2">
+                <Grid IsVisible="{Binding !IsAutomaticBracing}" Tag="supports bracing min support height mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Min support height" Classes="label" ToolTip.Tip="Only trunks rising at least this far above the plate are braced" />
                     <refresh:FilledNumericSlider PreviewProperty="SupportBracingMinSupportHeightMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0" Maximum="100" Step="1" Format="0.##"
                                    Value="{Binding SupportBracingMinSupportHeightMm, Mode=TwoWay}" />
                 </Grid>
-                <Grid Tag="supports bracing neighbour distance mm" ColumnDefinitions="170,*" Margin="0,2">
+                <Grid IsVisible="{Binding !IsAutomaticBracing}" Tag="supports bracing neighbour distance mm" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Neighbour distance" Classes="label" ToolTip.Tip="Largest horizontal gap between two trunks that a brace may span" />
                     <refresh:FilledNumericSlider PreviewProperty="SupportBracingNeighbourDistanceMm" UnitKind="Length" Unit="mm" Grid.Column="1" Minimum="0.5" Maximum="100" Step="0.5" Format="0.##"
                                    Value="{Binding SupportBracingNeighbourDistanceMm, Mode=TwoWay}" />
                 </Grid>
-                <Grid Tag="supports bracing max brace partners per trunk" ColumnDefinitions="170,*" Margin="0,2">
+                <Grid IsVisible="{Binding !IsAutomaticBracing}" Tag="supports bracing max brace partners per trunk" ColumnDefinitions="170,*" Margin="0,2">
                     <TextBlock Text="Max brace partners" Classes="label" ToolTip.Tip="How many other trunks one trunk may be braced to" />
                     <refresh:FilledNumericSlider PreviewProperty="SupportBracingMaxPartners" UnitKind="Scalar" Unit="" IsInteger="True" Grid.Column="1" Minimum="1" Maximum="20" Step="1" Format="0"
                                    Value="{Binding SupportBracingMaxPartners, Mode=TwoWay}" />

@@ -81,8 +81,10 @@ public sealed class StructurePreview : IDisposable
         }
         else
         {
-            // Rebuild the operands' braces on the copy so reducing density actually removes old rungs.
-            var (nodes, segments) = SupportBracing.BracesOf(Graph, _document.SupportTarget?.Id, _document.StructureOperands());
+            if (settings.BracingPattern == BracingPattern.Zigzag)
+                settings = settings with { BracingPattern = BracingPattern.Automatic };
+            // Rebuild only braces between operands; preserve connections to unselected neighbours.
+            var (nodes, segments) = SupportBracing.BracesBetween(Graph, _document.SupportTarget?.Id, _document.StructureOperands());
             new RemoveSupportElementsCommand(Graph, nodes, segments).Execute();
             var plan = _document.PlanBracing(Graph, settings);
             if (plan is not { } p)

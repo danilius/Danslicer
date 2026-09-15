@@ -5,6 +5,7 @@ using Danslicer.Core.Geometry;
 using Danslicer.Core.IO;
 using Danslicer.Core.Scene;
 using Danslicer.Core.Supports;
+using Danslicer.Core.Supports.Routing;
 
 namespace Danslicer.Tests;
 
@@ -14,6 +15,174 @@ namespace Danslicer.Tests;
 /// </summary>
 public sealed class SupportBracingTests
 {
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(2f)]
+    [InlineData(4f)]
+    public void AutomaticFitsAlternatingLaddersWithExactEndpointGapBelowShorterTrunk(float gap)
+    {
+        var (document, slab) = SlabWithSingles(3, 6);
+        foreach (var node in document.Supports.Nodes)
+            node.Position = node.Position with { Z = node.Position.Z * (node.Position.X < -1 ? 0.6f : node.Position.X < 1 ? 0.8f : 1f) };
+        var tips = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip).Select(n => n.Id).ToList();
+        var settings = document.SupportSettings with
+        {
+            BracingPattern = BracingPattern.Automatic, BracingEndpointGapMm = gap,
+            BracingNeighbourDistanceMm = 1, BracingSpacingMm = 100,
+        };
+        var plan = SupportBracing.Plan(document.Supports, slab.Id, tips, settings, new LinearCollisionScene())!.Value;
+        Assert.Equal(3, plan.Outcome.SupportsTied);
+        var nodes = plan.Edit.AddedNodes.ToDictionary(n => n.Id);
+        var pairs = plan.Edit.AddedSegments.Select(s => (Foot: nodes[s.NodeA].Position, Head: nodes[s.NodeB].Position))
+            .GroupBy(r => (Left: MathF.Min(r.Foot.X, r.Head.X), Right: MathF.Max(r.Foot.X, r.Head.X)))
+            .OrderBy(g => g.Key.Left).ToArray();
+        Assert.Equal(2, pairs.Length);
+        var firstDirections = new List<float>();
+        foreach (var pair in pairs)
+        {
+            var rungs = pair.OrderByDescending(r => r.Head.Z).ToArray();
+            Assert.True(rungs.Length >= 2);
+            firstDirections.Add(MathF.Sign(rungs[0].Head.X - rungs[0].Foot.X));
+            var shorterTop = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Trunk)
+                .Select(s => new[] { document.Supports.GetNode(s.NodeA).Position, document.Supports.GetNode(s.NodeB).Position })
+                .Where(p => p[0].X == pair.Key.Left || p[0].X == pair.Key.Right)
+                .GroupBy(p => p[0].X).Min(g => g.Max(p => p.Max(v => v.Z)));
+            Assert.True(rungs[0].Head.Z <= shorterTop);
+            for (var i = 1; i < rungs.Length; i++)
+            {
+                Assert.Equal(rungs[i - 1].Foot.X, rungs[i].Head.X);
+                Assert.Equal(gap, rungs[i - 1].Foot.Z - rungs[i].Head.Z, 3);
+                Assert.Equal(-MathF.Sign(rungs[i - 1].Head.X - rungs[i - 1].Foot.X),
+                    MathF.Sign(rungs[i].Head.X - rungs[i].Foot.X));
+            }
+        }
+        Assert.Equal(-firstDirections[0], firstDirections[1]);
+    }
+
+    [Fact]
+    public void EndpointGapDefaultsToTwoAndRoundTripsIndependentlyOfLegacyPitch()
+    {
+        Assert.Equal(2f, new SupportConfig().BracingEndpointGapMm);
+        Assert.Equal(2f, System.Text.Json.JsonSerializer.Deserialize<SupportConfig>("{\"BracingSpacingMm\":10}")!.BracingEndpointGapMm);
+        var settings = new SupportConfig { BracingEndpointGapMm = 3.5f };
+        Assert.Equal(3.5f, System.Text.Json.JsonSerializer.Deserialize<SupportConfig>(
+            System.Text.Json.JsonSerializer.Serialize(settings))!.BracingEndpointGapMm);
+    }
+
+    [Theory]
+    [InlineData(BracingPattern.Automatic)]
+    [InlineData(BracingPattern.Zigzag)]
+    public void DenseLaddersAvoidCrossoversWithinAndBetweenPairs(BracingPattern pattern)
+    {
+        var (document, _) = SlabWithSingles(3, 6);
+        document.SupportSettings = document.SupportSettings with
+        {
+            BracingPattern = pattern, BracingSpacingMm = 2, BracingNeighbourDistanceMm = 15,
+        };
+        var outcome = document.BraceSupports()!;
+        Assert.Equal(3, outcome.SupportsTied);
+        Assert.True(outcome.Braces >= 2);
+        AssertNoBraceCrossovers(document.Supports);
+        AssertBraceEndsSound(document);
+    }
+
+    [Fact]
+    public void NewLaddersAvoidRetainedBraces()
+    {
+        var (document, slab) = SlabWithSingles(3, 6);
+        var a = new SupportNode { Type = SupportNodeType.BraceEnd, Position = new Vector3(-6, 0, 12) };
+        var b = new SupportNode { Type = SupportNodeType.BraceEnd, Position = new Vector3(6, 0, 30) };
+        document.Supports.AddNode(a);
+        document.Supports.AddNode(b);
+        document.Supports.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Bracing, NodeA = a.Id, NodeB = b.Id, Diameter = 1.2f,
+            Origin = SupportOrigin.ManualFor(slab.Id),
+        });
+        var tips = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip).Select(n => n.Id).ToList();
+        var plan = SupportBracing.Plan(document.Supports, slab.Id, tips,
+            document.SupportSettings with { BracingPattern = BracingPattern.Automatic }, new LinearCollisionScene())!.Value;
+        Assert.True(plan.Outcome.Braces > 0);
+        foreach (var node in plan.Edit.AddedNodes) document.Supports.AddNode(node);
+        foreach (var segment in plan.Edit.AddedSegments) document.Supports.AddSegment(segment);
+        AssertNoBraceCrossovers(document.Supports);
+        AssertBraceEndsSound(document);
+    }
+
+    private static void AssertNoBraceCrossovers(SupportGraph graph)
+    {
+        var braces = graph.Segments.Where(s => s.Type == SupportSegmentType.Bracing).ToArray();
+        for (var i = 0; i < braces.Length; i++)
+        for (var j = i + 1; j < braces.Length; j++)
+        {
+            var first = braces[i]; var second = braces[j];
+            var a = graph.GetNode(first.NodeA).Position; var b = graph.GetNode(first.NodeB).Position;
+            var c = graph.GetNode(second.NodeA).Position; var d = graph.GetNode(second.NodeB).Position;
+            if (new[] { Vector3.Distance(a, c), Vector3.Distance(a, d), Vector3.Distance(b, c), Vector3.Distance(b, d) }.Min() <= 0.01f)
+                continue; // shared attachment, including equivalent nodes from an earlier operation
+            Assert.True(GeometryDistance.SegmentSegmentSquared(a, b, c, d) >=
+                MathF.Pow((first.Diameter + second.Diameter) / 2, 2), "Brace cylinders cross or overlap away from a joint.");
+        }
+    }
+
+    [Fact]
+    public void AutomaticBracesShortPairsAndKeepsUndoAndRepeatBehaviour()
+    {
+        var (document, _) = SlabWithSingles(2, 6, height: 15);
+        document.SupportSettings = document.SupportSettings with { BracingPattern = BracingPattern.Automatic };
+        var result = document.BraceSupports();
+        Assert.NotNull(result);
+        Assert.True(result.Braces > 0);
+        Assert.Equal(2, result.SupportsTied);
+        AssertBraceEndsSound(document);
+        Assert.Equal(0, document.BraceSupports()!.Braces);
+        Assert.True(document.History.Undo());
+        Assert.Equal(0, Braces(document));
+        Assert.True(document.History.Redo());
+        Assert.Equal(result.Braces, Braces(document));
+    }
+
+    [Fact]
+    public void AutomaticRetriesAnglesAndOffsetsAroundModelObstacles()
+    {
+        var (document, slab) = SlabWithSingles(2, 6);
+        var ids = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip).Select(n => n.Id).ToList();
+        var scene = new LinearCollisionScene();
+        scene.AddSphere(new Vector3(0, 0, 25), 2);
+        var fixedSettings = document.SupportSettings with { BracingAngleDegrees = 1 };
+        var fixedPlan = SupportBracing.Plan(document.Supports, slab.Id, ids, fixedSettings, scene)!.Value;
+        Assert.Empty(fixedPlan.Edit.AddedSegments);
+        var automatic = SupportBracing.Plan(document.Supports, slab.Id, ids,
+            fixedSettings with { BracingPattern = BracingPattern.Automatic }, scene)!.Value;
+        Assert.True(automatic.Outcome.Braces >= 2);
+        var nodes = automatic.Edit.AddedNodes.ToDictionary(n => n.Id);
+        foreach (var segment in automatic.Edit.AddedSegments)
+        {
+            var a = nodes[segment.NodeA].Position;
+            var b = nodes[segment.NodeB].Position;
+            Assert.False(scene.IntersectsCapsule(a, b, segment.Diameter / 2));
+            Assert.True(MathF.Abs(b.Z - a.Z) > 0);
+        }
+    }
+
+    [Fact]
+    public void AutomaticPlansEveryNeighbourPairAtItsOwnHeight()
+    {
+        var (document, slab) = SlabWithSingles(3, 6);
+        foreach (var node in document.Supports.Nodes)
+            node.Position = node.Position with { Z = node.Position.Z * (node.Position.X < -1 ? 0.25f : node.Position.X < 1 ? 0.5f : 1f) };
+        var ids = document.Supports.Nodes.Where(n => n.Type == SupportNodeType.Tip).Select(n => n.Id).ToList();
+        var plan = SupportBracing.Plan(document.Supports, slab.Id, ids,
+            document.SupportSettings with { BracingPattern = BracingPattern.Automatic }, new LinearCollisionScene())!.Value;
+        Assert.Equal(3, plan.Outcome.SupportsTied);
+        var nodes = plan.Edit.AddedNodes.ToDictionary(n => n.Id);
+        var pairs = plan.Edit.AddedSegments.Select(s =>
+            (MathF.Min(nodes[s.NodeA].Position.X, nodes[s.NodeB].Position.X),
+             MathF.Max(nodes[s.NodeA].Position.X, nodes[s.NodeB].Position.X))).ToHashSet();
+        Assert.Contains((-6f, 0f), pairs);
+        Assert.Contains((0f, 6f), pairs);
+    }
+
     private static Mesh Box(Vector3 min, Vector3 max)
     {
         var p = new[]
@@ -43,6 +212,7 @@ public sealed class SupportBracingTests
         document.SupportSettings = new SupportConfig
         {
             UseBaseGrid = false, IndependentManualSupports = true, AutoParenting = false, AutoBracing = autoBracing,
+            BracingPattern = BracingPattern.Zigzag,
         };
         for (var i = 0; i < count; i++)
             Assert.True(document.AddManualSupport(slab, new Vector3(i * pitch - (count - 1) * pitch / 2f, 0, height), -Vector3.UnitZ));
@@ -137,7 +307,7 @@ public sealed class SupportBracingTests
     }
 
     [Fact]
-    public void ConsecutivePairsClimbInOppositeDirectionsAndCrossFreely()
+    public void ConsecutivePairsClimbInOppositeDirectionsAndMeetAtJoints()
     {
         var (document, _) = SlabWithSingles(3, 6);
         var outcome = document.BraceSupports();

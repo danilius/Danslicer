@@ -159,10 +159,17 @@ public sealed class SupportLifecycleTests
 
     // ----- Duplicate -----
 
-    [Fact]
-    public void DuplicatingAModelDuplicatesItsSupports()
+    [Theory]
+    [InlineData(PlacementMode.Off)]
+    [InlineData(PlacementMode.AutoDrop)]
+    [InlineData(PlacementMode.RaiseAbovePlate)]
+    public void DuplicatingAModelDuplicatesItsSupports(PlacementMode placementMode)
     {
         var (document, box) = SupportedBox();
+        document.PlacementMode = placementMode;
+        document.PlacementHeightMm = 20;
+        var originalTransform = box.Transform;
+        var originalPositions = document.Supports.Nodes.ToDictionary(n => n.Id, n => n.Position);
         var nodesBefore = document.Supports.Nodes.Count;
         var segmentsBefore = document.Supports.Segments.Count;
         var tipBefore = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
@@ -176,11 +183,27 @@ public sealed class SupportLifecycleTests
 
         // The copy's supports sit under the copy, shifted by the same offset the model was.
         var offset = copy.Transform.Translation - box.Transform.Translation;
+        Assert.Equal(new Vector3(5, 5, 0), offset);
+        Assert.Equal(box.WorldBounds.Min.Z, copy.WorldBounds.Min.Z);
+        Assert.Equal(originalTransform, box.Transform);
+        foreach (var node in document.Supports.Nodes.Where(n => n.Origin.ObjectId == box.Id))
+            Assert.Equal(originalPositions[node.Id], node.Position);
+        var copiedPositions = document.Supports.Nodes.Where(n => n.Origin.ObjectId == copy.Id)
+            .Select(n => n.Position).ToHashSet();
+        Assert.True(originalPositions.Values.All(p => copiedPositions.Contains(p + offset)));
         var copiedTip = document.Supports.Nodes
             .Single(n => n.Type == SupportNodeType.Tip && n.Origin.ObjectId == copy.Id);
         Assert.Equal(tipBefore.X + offset.X, copiedTip.Position.X, 4);
         Assert.Equal(tipBefore.Y + offset.Y, copiedTip.Position.Y, 4);
         Assert.Equal(tipBefore.Z + offset.Z, copiedTip.Position.Z, 4);
+        Assert.True(document.Undo());
+        Assert.Single(document.Scene.Objects);
+        Assert.Equal(nodesBefore, document.Supports.Nodes.Count);
+        Assert.True(document.Redo());
+        Assert.Equal(box.WorldBounds.Min.Z, copy.WorldBounds.Min.Z);
+        Assert.Equal(nodesBefore * 2, document.Supports.Nodes.Count);
+        Assert.True(copiedPositions.SetEquals(document.Supports.Nodes
+            .Where(n => n.Origin.ObjectId == copy.Id).Select(n => n.Position)));
     }
 
     [Fact]
@@ -298,24 +321,54 @@ public sealed class SupportLifecycleTests
         Assert.Equal(supportsBefore, document.Supports.Nodes.Count);
     }
 
-    [Fact]
-    public void TurningAboutZKeepsSupportsAndCarriesThemRound()
+    [Theory]
+    [InlineData(PlacementMode.Off)]
+    [InlineData(PlacementMode.AutoDrop)]
+    [InlineData(PlacementMode.RaiseAbovePlate)]
+    public void TurningAboutZKeepsSupportsAndCarriesThemRound(PlacementMode placementMode)
     {
         var (document, box) = SupportedBox();
+        document.PlacementMode = placementMode;
+        document.PlacementHeightMm = 20;
         var supportsBefore = document.Supports.Nodes.Count;
         var tipBefore = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
         var before = box.Transform;
+        var heightBefore = box.WorldBounds.Min.Z;
+        var supportBefore = document.CaptureAssociatedSupportPositions([box]);
         var angle = 0.7f;
-        var turned = before with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle) };
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle);
+        var offset = new Vector3(3, -2, 0);
+        var turned = before with { Rotation = rotation, Translation = before.Translation + offset };
 
-        document.CommitTransform(box, before, turned, "Rotate", applyPlacement: false);
+        box.Transform = document.ApplyPlacementForTransform(box, before, turned);
+        document.ApplyAssociatedSupportTransformsTransient([(box, before)], supportBefore);
+        Assert.Equal(turned, box.Transform);
+        Assert.Equal(heightBefore, box.WorldBounds.Min.Z, 4);
+        foreach (var node in document.Supports.Nodes)
+            Assert.Equal(supportBefore[node.Id].Position.Z, node.Position.Z, 4);
 
+        document.CommitTransforms([(box, before, turned)], "Rotate", supportBefore);
+
+        Assert.Equal(turned, box.Transform);
+        Assert.Equal(heightBefore, box.WorldBounds.Min.Z, 4);
         Assert.Equal(supportsBefore, document.Supports.Nodes.Count);
         var tipAfter = document.Supports.Nodes.Single(n => n.Type == SupportNodeType.Tip).Position;
-        var expected = Vector3.Transform(tipBefore, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle));
+        var expected = Vector3.Transform(tipBefore, rotation) + offset;
         Assert.Equal(expected.X, tipAfter.X, 4);
         Assert.Equal(expected.Y, tipAfter.Y, 4);
         Assert.Equal(expected.Z, tipAfter.Z, 4); // the turn is about the vertical: height is untouched
+        foreach (var node in document.Supports.Nodes)
+            Assert.True(Vector3.Distance(Vector3.Transform(supportBefore[node.Id].Position, rotation) + offset,
+                node.Position) < 1e-4f);
+        Assert.True(document.Undo());
+        Assert.Equal(before, box.Transform);
+        foreach (var node in document.Supports.Nodes)
+            Assert.Equal(supportBefore[node.Id].Position, node.Position);
+        Assert.True(document.Redo());
+        Assert.Equal(turned, box.Transform);
+        foreach (var node in document.Supports.Nodes)
+            Assert.True(Vector3.Distance(Vector3.Transform(supportBefore[node.Id].Position, rotation) + offset,
+                node.Position) < 1e-4f);
     }
 
     [Fact]

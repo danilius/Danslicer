@@ -13,6 +13,45 @@ public sealed class CandelabraParentingTests
             TipShape: SupportTipShape.Cone, ConeLength: 2, BallDiameter: 0.8f, PenetrationDepth: 0.2f)).ToList();
     private static SupportConfig Settings => new() { UseBaseGrid = false, CandelabraGroupWidthMm = 30, CandelabraMaxTips = 32 };
 
+    [Fact]
+    public void DenseSlopedRowAllowsFusedBranchesOnOneCentralTrunk()
+    {
+        var tips = Enumerable.Range(0, 13).Select(i =>
+        {
+            var x = (i - 6) * 0.4f;
+            return new RoutingTip(new Vector3(x, 0, 60 + x), Vector3.UnitZ, 0.4f);
+        }).ToList();
+        var result = CandelabraParenting.Build(tips, Settings, new LinearCollisionScene(), SupportOrigin.Manual);
+        Assert.Empty(result.Refused);
+        var foot = Assert.Single(result.Edit.AddedNodes, n => n.Type == SupportNodeType.Base);
+        Assert.Equal(0, foot.Position.X, 3);
+        Assert.Equal(tips.Count, result.Edit.AddedNodes.Count(n => n.Type == SupportNodeType.Tip));
+        var graph = new SupportGraph();
+        foreach (var node in result.Edit.AddedNodes) graph.AddNode(node);
+        foreach (var segment in result.Edit.AddedSegments) graph.AddSegment(segment);
+        // Dense branches are intentionally allowed to fuse rather than forcing extra trunks.
+        Assert.True(MemberSeparation.CountIntersections(graph) > 0);
+    }
+
+    [Fact]
+    public void TipLimitedGroupsCentreTrunksOnTheirOwnContacts()
+    {
+        var result = CandelabraParenting.Build(Row(), Settings with { CandelabraMaxTips = 4 },
+            new LinearCollisionScene(), SupportOrigin.Manual);
+        Assert.Empty(result.Refused);
+        var graph = new SupportGraph();
+        foreach (var node in result.Edit.AddedNodes) graph.AddNode(node);
+        foreach (var segment in result.Edit.AddedSegments) graph.AddSegment(segment);
+        foreach (var component in graph.Supports())
+        {
+            var nodes = component.Nodes.Select(graph.GetNode).ToList();
+            var tips = nodes.Where(n => n.Type == SupportNodeType.Tip).ToList();
+            var foot = Assert.Single(nodes, n => n.Type == SupportNodeType.Base);
+            Assert.Equal((tips.Min(n => n.Position.X) + tips.Max(n => n.Position.X)) / 2,
+                foot.Position.X, 3);
+        }
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(0.4f)]

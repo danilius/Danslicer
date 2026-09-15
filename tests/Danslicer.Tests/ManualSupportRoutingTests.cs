@@ -38,6 +38,111 @@ public sealed class ManualSupportRoutingTests
         return (document, obj);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SupportSurfacePlacementPreservesCarrierAndUndoesAsOneStep(bool useBaseGrid)
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig { UseBaseGrid = useBaseGrid, AutoParenting = true };
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+        var original = document.Supports.Nodes.Select(n => n.Id).Order().ToArray();
+        var contact = new Vector3(0.6f, 0, 5);
+        var preview = document.PreviewManualSupport(box, contact, Vector3.UnitX, out _, contactOnSupport: true);
+        Assert.NotNull(preview);
+        var previewGraph = preview.ToGraph(document.Supports);
+        var obstacles = new LinearCollisionScene();
+        obstacles.AddSupportGraph(document.Supports);
+        Assert.Single(preview.AddedSegments, segment => segment.Type == SupportSegmentType.Branch);
+        foreach (var segment in preview.AddedSegments)
+        {
+            var a = previewGraph.GetNode(segment.NodeA).Position;
+            var b = previewGraph.GetNode(segment.NodeB).Position;
+            if (segment.Type is SupportSegmentType.Tip or SupportSegmentType.Branch)
+            {
+                var delta = a.Z > b.Z ? b - a : a - b;
+                Assert.True(delta.X > 0, "Must leave the carrier toward the clicked side");
+                Assert.Equal(-delta.Z, new Vector2(delta.X, delta.Y).Length(), 4);
+            }
+            if (segment.Type is SupportSegmentType.Branch or SupportSegmentType.Trunk)
+                Assert.False(obstacles.IntersectsCapsule(a, b, segment.Diameter * 0.5f),
+                    "The branch and trunk must clear existing supports");
+        }
+        Assert.Equal(original, document.Supports.Nodes.Select(n => n.Id).Order());
+        Assert.True(document.AddManualSupport(box, contact, Vector3.UnitX, out _, out var parenting,
+            contactOnSupport: true));
+        Assert.Null(parenting);
+        var tip = Assert.Single(document.Supports.Nodes, n => n.Type == SupportNodeType.Tip && !original.Contains(n.Id));
+        Assert.Equal(contact, tip.Position);
+        Assert.Null(tip.ContactObjectId);
+        Assert.Equal(box.Id, tip.Origin.ObjectId);
+        var placed = document.Supports.Nodes.Select(n => n.Id).Order().ToArray();
+        Assert.True(document.Undo());
+        Assert.Equal(original, document.Supports.Nodes.Select(n => n.Id).Order());
+        Assert.True(document.Redo());
+        Assert.Equal(placed, document.Supports.Nodes.Select(n => n.Id).Order());
+    }
+
+    [Theory]
+    [InlineData(0.6f, 0f, 1f, 0f)]
+    [InlineData(-0.6f, 0f, -1f, 0f)]
+    [InlineData(0f, 0.6f, 0f, 1f)]
+    [InlineData(0f, -0.6f, 0f, -1f)]
+    public void SupportSurfaceRouteFollowsClickedSide(float x, float y, float nx, float ny)
+    {
+        var (document, box) = FloatingBoxDocument();
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+        var contact = new Vector3(x, y, 5);
+        var outward = new Vector3(nx, ny, 0);
+        var edit = document.PreviewManualSupport(box, contact, outward, out _, contactOnSupport: true);
+        Assert.NotNull(edit);
+        var tip = Assert.Single(edit.AddedNodes, n => n.Type == SupportNodeType.Tip);
+        var segment = Assert.Single(edit.AddedSegments, s => s.Type == SupportSegmentType.Tip);
+        var other = edit.AddedNodes.Single(n => n.Id == (segment.NodeA == tip.Id ? segment.NodeB : segment.NodeA));
+        var delta = Vector3.Normalize(other.Position - contact);
+        Assert.Equal(MathF.Sqrt(0.5f), Vector3.Dot(delta, outward), 4);
+        Assert.Equal(-MathF.Sqrt(0.5f), delta.Z, 4);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SupportSurfaceRouteRefusesInsteadOfFallingBackInsideCarrier(bool blockedByModel)
+    {
+        var (document, box) = FloatingBoxDocument();
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+        if (blockedByModel)
+        {
+            document.AddObject(new SceneObject("blocking wall", Box(new Vector3(1, -5, 0), new Vector3(20, 5, 7))));
+            document.Select(box);
+        }
+        else document.SupportSettings = document.SupportSettings with { MaxBranchLength = 0.1f };
+        var original = document.Supports.Nodes.Select(n => n.Id).Order().ToArray();
+        Assert.Null(document.PreviewManualSupport(box, new Vector3(0.6f, 0, 5), Vector3.UnitX,
+            out _, contactOnSupport: true));
+        Assert.False(document.AddManualSupport(box, new Vector3(0.6f, 0, 5), Vector3.UnitX,
+            out _, out _, contactOnSupport: true));
+        Assert.Equal(original, document.Supports.Nodes.Select(n => n.Id).Order());
+    }
+
+    [Fact]
+    public void SupportSurfaceRouteAvoidsOtherSupportsEvenWhenIndependent()
+    {
+        var (document, box) = FloatingBoxDocument();
+        document.SupportSettings = new SupportConfig { UseBaseGrid = false, IndependentManualSupports = true };
+        Assert.True(document.AddManualSupport(box, new Vector3(0, 0, 8), -Vector3.UnitZ));
+        var bottom = new SupportNode { Type = SupportNodeType.Base, Position = new Vector3(4, 0, 0) };
+        var top = new SupportNode { Type = SupportNodeType.Junction, Position = new Vector3(4, 0, 8) };
+        document.Supports.AddNode(bottom);
+        document.Supports.AddNode(top);
+        document.Supports.AddSegment(new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = bottom.Id, NodeB = top.Id, Diameter = 2f,
+        });
+        Assert.Null(document.PreviewManualSupport(box, new Vector3(0.6f, 0, 5), Vector3.UnitX,
+            out _, contactOnSupport: true));
+    }
+
     [Fact]
     public void UndersideSupportRoutesToThePlate()
     {

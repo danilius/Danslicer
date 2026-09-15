@@ -7,6 +7,65 @@ namespace Danslicer.Tests;
 
 public class SupportRenderMeshTests
 {
+    private static SupportGraph JointedTrunk(out SupportSegment[] trunks)
+    {
+        var graph = new SupportGraph();
+        var nodes = Enumerable.Range(0, 4).Select(i => new SupportNode
+        {
+            Type = i == 0 ? SupportNodeType.Base : SupportNodeType.Junction,
+            Position = new Vector3(0, 0, i * 10),
+        }).ToArray();
+        foreach (var node in nodes) graph.AddNode(node);
+        trunks = Enumerable.Range(0, 3).Select(i => new SupportSegment
+        {
+            Type = SupportSegmentType.Trunk, NodeA = nodes[i].Id, NodeB = nodes[i + 1].Id, Diameter = 2,
+        }).ToArray();
+        // Start in the middle to exercise merging in both directions.
+        foreach (var i in new[] { 1, 2, 0 }) graph.AddSegment(trunks[i]);
+        foreach (var node in nodes.Skip(1))
+        {
+            var branchEnd = new SupportNode { Type = SupportNodeType.Junction, Position = node.Position + new Vector3(5, 0, 5) };
+            graph.AddNode(branchEnd);
+            graph.AddSegment(new SupportSegment
+            {
+                Type = SupportSegmentType.Branch, NodeA = node.Id, NodeB = branchEnd.Id, Diameter = 1,
+            });
+        }
+        return graph;
+    }
+
+    [Fact]
+    public void TrunkWithBranchJunctionsHasOneContinuousShell()
+    {
+        var graph = JointedTrunk(out var trunks);
+        var mesh = Assert.Single(SupportRenderMesh.Build(graph), p => p.Kind == SupportRenderKind.Trunk).Mesh;
+        Assert.Equal(SupportRenderMesh.TrianglesPerCapsule, mesh.TriangleCount);
+        AssertClosed(mesh);
+        Assert.Equal(-1, mesh.Bounds.Min.Z, 4);
+        Assert.Equal(31, mesh.Bounds.Max.Z, 4);
+        Assert.DoesNotContain(mesh.Positions, p => p.Z > 0.001f && p.Z < 29.999f);
+        var ids = trunks.Select(s => s.Id).ToHashSet();
+        var selected = SupportRenderMesh.BuildSelected(graph, ids.Contains)!;
+        Assert.Equal(mesh.TriangleCount, selected.TriangleCount);
+        AssertClosed(selected);
+        Assert.Equal(3, graph.Segments.Count(s => s.Type == SupportSegmentType.Trunk));
+    }
+
+    [Fact]
+    public void ContinuousTrunksRespectHiddenAndSelectedSections()
+    {
+        var graph = JointedTrunk(out var trunks);
+        trunks[1].Hidden = true;
+        var visible = Assert.Single(SupportRenderMesh.Build(graph), p => p.Kind == SupportRenderKind.Trunk).Mesh;
+        Assert.DoesNotContain(visible.Positions, p => p.Z > 11.001f && p.Z < 18.999f);
+        var all = Assert.Single(SupportRenderMesh.Build(graph, includeHidden: true), p => p.Kind == SupportRenderKind.Trunk).Mesh;
+        Assert.Equal(SupportRenderMesh.TrianglesPerCapsule, all.TriangleCount);
+        trunks[1].Hidden = false;
+        var selected = SupportRenderMesh.BuildSelected(graph, id => id == trunks[1].Id)!;
+        Assert.InRange(selected.Bounds.Min.Z, 9, 10);
+        Assert.InRange(selected.Bounds.Max.Z, 20, 21);
+    }
+
     private static SupportGraph VerticalPillar(out SupportSegment segment, float diameter = 1.2f)
     {
         var graph = new SupportGraph();

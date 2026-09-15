@@ -564,7 +564,8 @@ public sealed class Document
             {
                 Translation = original.Transform.Translation + offset,
             };
-            copy.Transform = ApplyPlacement(copy.Mesh, requested);
+            // The supports still belong to the original until the copy command is applied.
+            copy.Transform = ApplyPlacementForTransform(original, original.Transform, requested);
             copies.Add(copy);
             commands.Add(new AddObjectCommand(Scene, copy));
             // Duplicating a supported model duplicates its supports: the copy is the same model
@@ -694,6 +695,15 @@ public sealed class Document
     public Transform ApplyPlacement(SceneObject obj, Transform requested) =>
         ApplyPlacement(obj.Mesh, requested);
 
+    /// <summary>Moves that preserve the support tree, including horizontal moves and world-Z
+    /// rotations, carry existing supports without an automatic height adjustment.</summary>
+    public Transform ApplyPlacementForTransform(SceneObject obj, Transform before, Transform requested)
+    {
+        if (SupportTransformRule.MapsContactsExactly(before, requested) && AssociatedSupportNodeIds(obj).Any())
+            return requested;
+        return ApplyPlacement(obj, requested);
+    }
+
     private Transform ApplyPlacement(Mesh mesh, Transform requested)
     {
         if (PlacementMode == PlacementMode.Off || mesh.Positions.Length == 0) return requested;
@@ -728,7 +738,7 @@ public sealed class Document
         var discardedSupportNodes = new HashSet<Guid>();
         foreach (var (obj, before, requested) in itemList)
         {
-            var after = applyPlacement ? ApplyPlacement(obj, requested) : requested;
+            var after = applyPlacement ? ApplyPlacementForTransform(obj, before, requested) : requested;
             obj.Transform = after;
             // See SupportTransformRule: a transform keeps this object's supports only if it maps
             // every contact exactly. The rule is asked about the move the user REQUESTED, not
@@ -874,25 +884,25 @@ public sealed class Document
     /// reporting what auto-parenting then did (null when it did nothing or is off).
     /// </summary>
     public bool AddManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
-        out RoutingFailureReason? failureReason, out AutoParentingOutcome? parenting)
+        out RoutingFailureReason? failureReason, out AutoParentingOutcome? parenting, bool contactOnSupport = false)
     {
         failureReason = null;
         parenting = null;
-        if (PreviewManualSupport(obj, contact, surfaceNormal, out failureReason) is not { } edit) return false;
+        if (PreviewManualSupport(obj, contact, surfaceNormal, out failureReason, contactOnSupport) is not { } edit) return false;
         var command = new ApplySupportGraphEditCommand(Supports, edit);
         Execute(command);
-        parenting = AutoParentAfterPlacement(obj, edit, command.Name);
+        parenting = contactOnSupport ? null : AutoParentAfterPlacement(obj, edit, command.Name);
         return true;
     }
 
     /// <summary>
-    /// Applies the current support settings to the selected elements (user, 2026-09-09: editing
-    /// a setting with supports selected changes those supports at once). Only what an element
-    /// carries as its own parameter changes: a tip's diameter, cone, ball and embedding; a
-    /// base's shape and sizes; a trunk's, branch's or brace's diameter. Nothing is re-routed.
+    /// Applies support settings to the whole support containing each selected base, trunk,
+    /// branch or tip. Braces do not connect neighboring supports for this edit; an explicitly
+    /// selected brace updates only itself. Nothing is re-routed.
+    /// When previous settings are supplied, only parameters changed by that edit are applied.
     /// Returns the number of elements changed; one undo step, none when nothing differs.
     /// </summary>
-    public int ApplySupportSettingsToSelection()
+    public int ApplySupportSettingsToSelection(SupportConfig? previousSettings = null)
     {
         var settings = SupportSettings;
         var entries = new List<SetSupportParametersCommand.Entry>();
@@ -903,36 +913,58 @@ public sealed class Document
         var raft = settings.ToRaftParameters();
         foreach (var obj in _selection)
         {
-            if (obj.Raft is null || obj.Raft == raft) continue;
+            if (obj.Raft is null || obj.Raft == raft ||
+                previousSettings?.ToRaftParameters() == raft) continue;
             var (before, o) = (obj.Raft, obj);
             entries.Add(new SetSupportParametersCommand.Entry(() => o.Raft = raft, () => o.Raft = before));
             changed++;
         }
 
-        void Field<T>(T current, T target, Action<T> set) where T : IEquatable<T>
+        void Field<T>(T current, T target, Action<T> set, T previous) where T : IEquatable<T>
         {
-            if (current.Equals(target)) return;
+            if (current.Equals(target) || (previousSettings is not null && previous.Equals(target))) return;
             entries.Add(new SetSupportParametersCommand.Entry(() => set(target), () => set(current)));
         }
 
+        var targets = new HashSet<Guid>();
         foreach (var id in _supportSelection)
+        {
+            if (targets.Contains(id)) continue;
+            Guid seed;
+            if (Supports.TryGetNode(id, out var selectedNode)) seed = selectedNode.Id;
+            else if (Supports.TryGetSegment(id, out var member))
+            {
+                if (member.Type == SupportSegmentType.Bracing)
+                {
+                    targets.Add(id);
+                    continue;
+                }
+                seed = member.NodeA;
+            }
+            else continue;
+
+            var component = Supports.Component(seed, includeBracing: false);
+            targets.UnionWith(component.Nodes);
+            targets.UnionWith(component.Segments);
+        }
+        foreach (var id in targets)
         {
             var before = entries.Count;
             if (Supports.TryGetNode(id, out var node))
             {
                 if (node.Type == SupportNodeType.Tip)
                 {
-                    Field(node.TipDiameter, settings.TipDiameter, v => node.TipDiameter = v);
-                    Field(node.ConeLength, settings.ConeLength, v => node.ConeLength = v);
-                    Field(node.BallDiameter, settings.BallDiameter, v => node.BallDiameter = v);
-                    Field(node.PenetrationDepth, settings.PenetrationDepth, v => node.PenetrationDepth = v);
+                    Field(node.TipDiameter, settings.TipDiameter, v => node.TipDiameter = v, previousSettings?.TipDiameter ?? default);
+                    Field(node.ConeLength, settings.ConeLength, v => node.ConeLength = v, previousSettings?.ConeLength ?? default);
+                    Field(node.BallDiameter, settings.BallDiameter, v => node.BallDiameter = v, previousSettings?.BallDiameter ?? default);
+                    Field(node.PenetrationDepth, settings.PenetrationDepth, v => node.PenetrationDepth = v, previousSettings?.PenetrationDepth ?? default);
                 }
                 else if (node.Type == SupportNodeType.Base && !StandsOnRaft(node))
                 {
-                    Field((int)node.BaseShape, (int)settings.BaseShape, v => node.BaseShape = (SupportBaseShape)v);
-                    Field(node.BaseDiameter, settings.BaseDiameter, v => node.BaseDiameter = v);
-                    Field(node.BaseHeight, settings.BaseHeight, v => node.BaseHeight = v);
-                    Field(node.BaseConeHeight, settings.BaseConeHeight, v => node.BaseConeHeight = v);
+                    Field((int)node.BaseShape, (int)settings.BaseShape, v => node.BaseShape = (SupportBaseShape)v, (int)(previousSettings?.BaseShape ?? default));
+                    Field(node.BaseDiameter, settings.BaseDiameter, v => node.BaseDiameter = v, previousSettings?.BaseDiameter ?? default);
+                    Field(node.BaseHeight, settings.BaseHeight, v => node.BaseHeight = v, previousSettings?.BaseHeight ?? default);
+                    Field(node.BaseConeHeight, settings.BaseConeHeight, v => node.BaseConeHeight = v, previousSettings?.BaseConeHeight ?? default);
                 }
             }
             else if (Supports.TryGetSegment(id, out var segment))
@@ -944,7 +976,15 @@ public sealed class Document
                     SupportSegmentType.Bracing => settings.BracingDiameter > 0 ? settings.BracingDiameter : settings.BranchDiameter,
                     _ => (float?)null, // a tip segment takes its section from the cone, not its own diameter
                 };
-                if (diameter is { } d) Field(segment.Diameter, d, v => segment.Diameter = v);
+                var previousDiameter = segment.Type switch
+                {
+                    SupportSegmentType.Trunk => previousSettings?.TrunkDiameter,
+                    SupportSegmentType.Branch => previousSettings?.BranchDiameter,
+                    SupportSegmentType.Bracing => previousSettings is null ? null :
+                        previousSettings.BracingDiameter > 0 ? previousSettings.BracingDiameter : previousSettings.BranchDiameter,
+                    _ => null,
+                };
+                if (diameter is { } d) Field(segment.Diameter, d, v => segment.Diameter = v, previousDiameter ?? default);
             }
             if (entries.Count > before) changed++;
         }
@@ -1064,7 +1104,7 @@ public sealed class Document
     /// <see cref="AddManualSupport(SceneObject, Vector3, Vector3)"/> places.
     /// </summary>
     public SupportGraphEdit? PreviewManualSupport(SceneObject obj, Vector3 contact, Vector3 surfaceNormal,
-        out RoutingFailureReason? failureReason)
+        out RoutingFailureReason? failureReason, bool contactOnSupport = false)
     {
         failureReason = null;
         // A click on a model that is not the support target is refused before any routing work:
@@ -1073,7 +1113,16 @@ public sealed class Document
         if (!SupportTargetPolicy.CanSupport(SupportTarget, obj)) return null;
         var settings = SettingsFor(obj);
         var (router, options) = ManualRouting(obj, settings,
-            HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount));
+            HashCode.Combine(contact.X, contact.Y, contact.Z, Supports.NodeCount),
+            ignoreExisting: contactOnSupport);
+        if (contactOnSupport)
+        {
+            // Keep the carrier as an obstacle even in free/independent mode. Exclude it only
+            // from attachment candidates: the new trunk must stand clear of existing supports.
+            router = new TreeSupportRouter(new CompositeCollisionScene(MeshObstacles(), SupportObstacles()),
+                GrowthRuleSet.FromConfig(settings));
+            options = options with { SupportSurfaceContact = true, UseBaseGrid = false };
+        }
         var tip = new RoutingTip(contact, -surfaceNormal, settings.TipDiameter, obj.Id,
             TipShape: SupportTipShape.Cone, ConeLength: settings.ConeLength,
             BallDiameter: settings.BallDiameter, PenetrationDepth: settings.PenetrationDepth,
@@ -1085,6 +1134,10 @@ public sealed class Document
             failureReason = result.Failures.Single().Reason;
             return null;
         }
+        // A support-surface contact belongs to this model but is not a contact on its mesh.
+        if (contactOnSupport)
+            foreach (var node in result.Edit.AddedNodes.Where(n => n.Type == SupportNodeType.Tip))
+                node.ContactObjectId = null;
         return result.Edit;
     }
 
@@ -1305,6 +1358,23 @@ public sealed class Document
         SupportTarget is { } target
             ? SupportBracing.Plan(graph, target.Id, BracingOperands(target), settings, MeshObstacles(), chosen: _supportSelection.Count > 0)
             : null;
+
+    public SupportGraphEdit? PreviewManualBrace(Guid first, Vector3 start, Guid second, Vector3 end,
+        out string? refusal)
+    {
+        refusal = "Choose a support target";
+        return SupportTarget is { } target
+            ? ManualBrace.Plan(Supports, target.Id, first, start, second, end, SettingsFor(target), MeshObstacles(), out refusal)
+            : null;
+    }
+
+    public bool AddManualBrace(Guid first, Vector3 start, Guid second, Vector3 end, out string? refusal)
+    {
+        var edit = PreviewManualBrace(first, start, second, end, out refusal);
+        if (edit is null) return false;
+        Execute(new ApplySupportGraphEditCommand(Supports, edit, "Add manual brace"));
+        return true;
+    }
 
     public IReadOnlyList<Guid> StructureOperands() => SupportTarget is { } target ? BracingOperands(target) : [];
 

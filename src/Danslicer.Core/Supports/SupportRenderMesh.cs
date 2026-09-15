@@ -125,14 +125,9 @@ public static class SupportRenderMesh
     {
         var builders = new Dictionary<(SupportRenderKind Kind, bool Selected, bool Disabled), MeshBuilder>();
 
-        var capOwners = CapOwners(graph);
-        foreach (var segment in graph.Segments)
+        foreach (var member in RenderMembers(graph, isSelected, includeSegment, includeHidden))
         {
-            if (segment.Hidden && !includeHidden) continue;
-            if (!(includeSegment?.Invoke(segment) ?? true)) continue;
-            var a = graph.GetNode(segment.NodeA);
-            var b = graph.GetNode(segment.NodeB);
-            if (!includeHidden && (a.Hidden || b.Hidden)) continue;
+            var (segment, a, b, tuckA, tuckB) = member;
 
             var kind = segment.Type switch
             {
@@ -141,7 +136,7 @@ public static class SupportRenderMesh
                 SupportSegmentType.Bracing => SupportRenderKind.Bracing,
                 _ => SupportRenderKind.Branch,
             };
-            var disabled = segment.Disabled || a.Disabled || b.Disabled;
+            var disabled = segment.Disabled || graph.GetNode(segment.NodeA).Disabled || graph.GetNode(segment.NodeB).Disabled;
             var key = (kind, isSelected?.Invoke(segment.Id) ?? false, disabled);
             if (!builders.TryGetValue(key, out var builder))
                 builders[key] = builder = new MeshBuilder();
@@ -151,8 +146,7 @@ public static class SupportRenderMesh
                     SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f);
             else
                 AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f,
-                    tuckCapA: capOwners.GetValueOrDefault(a.Id) != segment.Id,
-                    tuckCapB: capOwners.GetValueOrDefault(b.Id) != segment.Id);
+                    tuckCapA: tuckA, tuckCapB: tuckB);
         }
 
         foreach (var node in graph.Nodes)
@@ -184,21 +178,16 @@ public static class SupportRenderMesh
     {
         var builder = new MeshBuilder();
         var any = false;
-        var capOwners = CapOwners(graph);
-        foreach (var segment in graph.Segments)
+        foreach (var member in RenderMembers(graph, isSelected,
+                     s => isSelected(s.Id) && (includeSegment?.Invoke(s) ?? true), false))
         {
-            if (segment.Hidden || !isSelected(segment.Id) ||
-                !(includeSegment?.Invoke(segment) ?? true)) continue;
-            var a = graph.GetNode(segment.NodeA);
-            var b = graph.GetNode(segment.NodeB);
-            if (a.Hidden || b.Hidden) continue;
+            var (segment, a, b, tuckA, tuckB) = member;
             if (SupportSliceGeometry.TryConeTip(a, b, out var tip, out var other))
                 AppendConeTip(builder, tip, other,
                     SupportSliceGeometry.TipJunctionDiameter(graph, segment) * 0.5f);
             else
                 AppendCapsule(builder, a.Position, b.Position, segment.Diameter * 0.5f,
-                    tuckCapA: capOwners.GetValueOrDefault(a.Id) != segment.Id,
-                    tuckCapB: capOwners.GetValueOrDefault(b.Id) != segment.Id);
+                    tuckCapA: tuckA, tuckCapB: tuckB);
             any = true;
         }
         foreach (var node in graph.Nodes)
@@ -210,6 +199,67 @@ public static class SupportRenderMesh
             any = true;
         }
         return any ? builder.ToMesh() : null;
+    }
+
+    /// <summary>
+    /// Straight, equal-diameter trunk runs have one cylindrical shell. Interior graph nodes still
+    /// attach branches and support editing, but must not introduce tucked caps or seams in that shell.
+    /// State boundaries remain separate so hiding, disabling and selecting a member still work.
+    /// </summary>
+    private static IEnumerable<(SupportSegment Segment, SupportNode A, SupportNode B, bool TuckA, bool TuckB)>
+        RenderMembers(SupportGraph graph, Func<Guid, bool>? isSelected,
+            Func<SupportSegment, bool>? includeSegment, bool includeHidden)
+    {
+        var owners = CapOwners(graph);
+        var eligible = graph.Segments.Where(s =>
+            (includeHidden || !s.Hidden && !graph.GetNode(s.NodeA).Hidden && !graph.GetNode(s.NodeB).Hidden) &&
+            (includeSegment?.Invoke(s) ?? true)).ToDictionary(s => s.Id);
+        var visited = new HashSet<Guid>();
+        foreach (var segment in eligible.Values)
+        {
+            if (!visited.Add(segment.Id)) continue;
+            var a = graph.GetNode(segment.NodeA);
+            var b = graph.GetNode(segment.NodeB);
+            var ownerA = segment.Id;
+            var ownerB = segment.Id;
+            if (segment.Type == SupportSegmentType.Trunk && Vector3.DistanceSquared(a.Position, b.Position) > 1e-12f)
+            {
+                var axis = Vector3.Normalize(b.Position - a.Position);
+                Extend(ref a, -axis, ref ownerA);
+                Extend(ref b, axis, ref ownerB);
+            }
+            yield return (segment, a, b, owners.GetValueOrDefault(a.Id) != ownerA,
+                owners.GetValueOrDefault(b.Id) != ownerB);
+
+            void Extend(ref SupportNode end, Vector3 direction, ref Guid owner)
+            {
+                while (true)
+                {
+                    SupportSegment? next = null;
+                    SupportNode? nextEnd = null;
+                    foreach (var candidate in graph.SegmentsAt(end.Id))
+                    {
+                        if (visited.Contains(candidate.Id) || !eligible.ContainsKey(candidate.Id) ||
+                            candidate.Type != SupportSegmentType.Trunk || candidate.Diameter != segment.Diameter ||
+                            (isSelected?.Invoke(candidate.Id) ?? false) != (isSelected?.Invoke(segment.Id) ?? false) ||
+                            Disabled(candidate) != Disabled(segment)) continue;
+                        var other = graph.GetNode(candidate.NodeA == end.Id ? candidate.NodeB : candidate.NodeA);
+                        var delta = other.Position - end.Position;
+                        var along = Vector3.Dot(delta, direction);
+                        if (along <= 1e-6f || (delta - direction * along).LengthSquared() > 1e-10f) continue;
+                        // An ambiguous fork is not a single run.
+                        if (next is not null) return;
+                        next = candidate; nextEnd = other;
+                    }
+                    if (next is null) return;
+                    visited.Add(next.Id);
+                    owner = next.Id;
+                    end = nextEnd!;
+                }
+            }
+        }
+
+        bool Disabled(SupportSegment s) => s.Disabled || graph.GetNode(s.NodeA).Disabled || graph.GetNode(s.NodeB).Disabled;
     }
 
     /// <summary>The widest visible member meeting a node; the top radius of a DiscCone base's cone.</summary>

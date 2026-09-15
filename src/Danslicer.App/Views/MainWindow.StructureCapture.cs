@@ -44,6 +44,62 @@ public partial class MainWindow
                 }
                 vm.IsSupportView = true;
                 Viewport.FrameAll();
+                await Task.Delay(200);
+                OnStructureToolClick(StructureToolButton, new RoutedEventArgs());
+                await Task.Delay(150);
+                Require(ReferenceEquals(StructureToolPopup.Content, _structureToolbar), "Structure is not a toolbar");
+                Require(_structureToolbar.GetLogicalDescendants().OfType<Button>().Count() == 8, "Structure actions missing");
+                _structureToolbar.ShowLabels = true;
+                await Task.Delay(100);
+                Save(_structureToolbar, "structure-toolbar-expanded.png");
+                var manualSettingsButton = _structureToolbar.GetLogicalDescendants().OfType<Button>().Single(b => b.Flyout is Flyout);
+                manualSettingsButton.Flyout!.ShowAt(manualSettingsButton);
+                await Task.Delay(100);
+                var manualSettingsBody = (StackPanel)((Flyout)manualSettingsButton.Flyout).Content!;
+                var manualDiameter = manualSettingsBody.Children.OfType<NumericUpDown>().Single();
+                manualDiameter.Value = 0.9m;
+                await Task.Delay(100);
+                Require(Math.Abs(document.SupportSettings.ManualBraceDiameter - 0.9f) < 0.001,
+                    "Manual diameter settings binding failed");
+                Save(manualSettingsBody, "manual-settings.png");
+                manualDiameter.Value = 1.2m;
+                manualSettingsButton.Flyout.Hide();
+                _structureToolbar.ShowLabels = false;
+                await Task.Delay(100);
+                Save(_structureToolbar, "structure-toolbar-collapsed.png");
+                Require(Math.Abs(_structureToolbar.Bounds.Width - Controls.Refresh.FloatingToolbar.IconWidth) < 1,
+                    "Structure toolbar did not collapse");
+                _structureToolbar.ShowLabels = true;
+                OnStructureToolClick(StructureToolButton, new RoutedEventArgs());
+                var manualBefore = document.Supports.Segments.Select(s => s.Id).Order().ToArray();
+                var manualTrunks = document.Supports.Segments.Where(s => s.Type == SupportSegmentType.Trunk)
+                    .OrderBy(s => document.Supports.GetNode(s.NodeA).Position.X).Take(2).ToArray();
+                Vector2 ManualScreen(int index, float z)
+                {
+                    var world = document.Supports.GetNode(manualTrunks[index].NodeA).Position with { Z = z };
+                    return Viewport.Camera.WorldToScreen(world, (float)Viewport.Bounds.Width, (float)Viewport.Bounds.Height)!.Value;
+                }
+                Viewport.ToggleManualBrace();
+                Viewport.ManualBraceSnap45 = true;
+                Viewport.UpdateManualBrace(ManualScreen(0, 20));
+                Viewport.ClickManualBrace();
+                Viewport.UpdateManualBrace(ManualScreen(1, 18));
+                Viewport.ClickManualBrace();
+                Require(document.Supports.Segments.Count(s => s.Type == SupportSegmentType.Bracing) == 1,
+                    "Manual brace two-click placement failed: " + Viewport.StatusText);
+                Viewport.ToggleManualBrace();
+                document.Undo();
+                Require(manualBefore.SequenceEqual(document.Supports.Segments.Select(s => s.Id).Order()),
+                    "Manual brace undo changed existing supports");
+                var trunk = document.Supports.Segments.First(s => s.Type == SupportSegmentType.Trunk);
+                var centre = Vector3.Lerp(document.Supports.GetNode(trunk.NodeA).Position,
+                    document.Supports.GetNode(trunk.NodeB).Position, 0.5f);
+                var supportScreen = Viewport.Camera.WorldToScreen(centre, (float)Viewport.Bounds.Width, (float)Viewport.Bounds.Height)!.Value;
+                var picked = Viewport.PickPlacementSurface(supportScreen, out var contact, out var normal, out var onSupport);
+                Require(picked == model && onSupport, "T placement did not pick the support surface");
+                Require(document.AddManualSupport(model, contact, normal, out _, out _, contactOnSupport: true),
+                    "T placement on the picked support failed");
+                document.Undo();
                 var before = document.Supports.Nodes.Select(n => n.Id).Order().ToArray();
                 Viewport.ParentSupports();
                 await Task.Delay(1500);
@@ -134,7 +190,7 @@ public partial class MainWindow
                 var flyout = (Flyout)AutoDropSettingsButton.Flyout;
                 Save((Control)flyout.Content!, "auto-drop.png");
                 flyout.Hide();
-                File.WriteAllText(Path.Combine(directory, "structure-ok.txt"), "Actual Parent and Brace entry points, Candelabra default, settings refresh, provisional graph, Apply, single Undo, Cancel, viewport cleanup and Auto Drop flyout passed. PNGs capture controls; native OpenGL is not included.");
+                File.WriteAllText(Path.Combine(directory, "structure-ok.txt"), "Structure toolbar expanded/collapsed, support surface picking and placement, actual Parent and Brace entry points, Candelabra default, settings refresh, provisional graph, Apply, single Undo, Cancel, viewport cleanup and Auto Drop flyout passed. PNGs capture controls; native OpenGL is not included.");
             }
             catch (Exception ex)
             {

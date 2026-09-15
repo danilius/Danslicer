@@ -47,6 +47,62 @@ public sealed class PlacementAndSupportCommandTests
         Assert.Equal(before, obj.Transform);
     }
 
+    [Theory]
+    [InlineData(PlacementMode.AutoDrop, 0f, 8f, 0f)]
+    [InlineData(PlacementMode.AutoDrop, 0f, 0f, -6f)]
+    [InlineData(PlacementMode.RaiseAbovePlate, 15f, 8f, -6f)]
+    public void HorizontalMovePreservesSupportedHeightInPreviewCommitAndUndo(
+        PlacementMode mode, float height, float x, float y)
+    {
+        var doc = new Document { PlacementMode = mode, PlacementHeightMm = height };
+        var obj = new SceneObject("supported", Box(new(-1, -1, 0), new(1, 1, 2)))
+        {
+            Transform = Transform.Identity with { Translation = new(0, 0, 5) },
+        };
+        var other = new SceneObject("unsupported", obj.Mesh) { Transform = obj.Transform };
+        doc.AddObject(obj);
+        doc.AddObject(other);
+        var tip = new SupportNode
+        {
+            Type = SupportNodeType.Tip, Position = new(0, 0, 5),
+            Origin = SupportOrigin.ManualFor(obj.Id),
+        };
+        var foot = new SupportNode
+        {
+            Type = SupportNodeType.Base, Position = Vector3.Zero,
+            Origin = SupportOrigin.ManualFor(obj.Id),
+        };
+        doc.Supports.AddNode(tip);
+        doc.Supports.AddNode(foot);
+        var before = obj.Transform;
+        var delta = new Vector3(x, y, 0);
+        var requested = before with { Translation = before.Translation + delta };
+        var supportBefore = doc.CaptureAssociatedSupportPositions([obj]);
+
+        obj.Transform = doc.ApplyPlacementForTransform(obj, before, requested);
+        doc.ApplyAssociatedSupportTransformsTransient([(obj, before)], supportBefore);
+        Assert.Equal(requested, obj.Transform);
+        Assert.Equal(delta, foot.Position);
+        Assert.Equal(new Vector3(x, y, 5), tip.Position);
+
+        // Commit with the preview already applied, as both modal and numeric edits do.
+        doc.CommitTransforms([(obj, before, requested), (other, before, requested)],
+            "Move", supportBefore);
+        Assert.Equal(requested, obj.Transform);
+        Assert.Equal(height, other.WorldBounds.Min.Z, 5);
+        Assert.Equal(delta, foot.Position);
+        Assert.Equal(new Vector3(x, y, 5), tip.Position);
+        Assert.Equal(2, doc.Supports.Nodes.Count());
+        Assert.True(doc.Undo());
+        Assert.Equal(before, obj.Transform);
+        Assert.Equal(before, other.Transform);
+        Assert.Equal(Vector3.Zero, foot.Position);
+        Assert.Equal(new Vector3(0, 0, 5), tip.Position);
+        Assert.True(doc.Redo());
+        Assert.Equal(requested, obj.Transform);
+        Assert.Equal(delta, foot.Position);
+    }
+
     /// <summary>
     /// Renamed and re-pointed 2026-09-06 for the support lifecycle rule (task 03, user decision
     /// D13). It used to assert that a rotate-and-scale CARRIED its supports to transformed

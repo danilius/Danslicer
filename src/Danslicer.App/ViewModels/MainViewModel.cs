@@ -598,7 +598,7 @@ public partial class MainViewModel : ViewModelBase
     public MainViewModel()
     {
         // Keep the document pointed at the live persisted settings. Each support operation takes
-        // its own value snapshot, so edits affect the next generation/manual placement only.
+        // its own value snapshot; settings edits also update the selected supports below.
         Document.SupportSettings = AppConfig.Current.Supports;
         Document.ApplyResinPreset(AppConfig.Current.FindResinPreset(ResinPreset.DefaultId) ??
                                   AppConfig.Current.ResinPresets.FirstOrDefault() ?? ResinPreset.Default);
@@ -612,14 +612,16 @@ public partial class MainViewModel : ViewModelBase
             if (e.PropertyName is nameof(ConfigViewModel.SupportDisplay) or null)
                 OnPropertyChanged(nameof(EffectiveSupportDisplay));
         };
+        var previousSupportSettings = Document.SupportSettings with { };
         SupportSettings.Saved += () =>
         {
             Document.SupportSettings = AppConfig.Current.Supports;
             RefreshPrinterOptions();
             SupportSettings.Resins.Refresh();
             // With supports selected, the edit lands on them at once (user, 2026-09-09).
-            var applied = Document.ApplySupportSettingsToSelection();
-            if (applied > 0) ViewportStatus = applied == 1 ? "Settings applied to 1 selected element" : $"Settings applied to {applied} selected elements";
+            var applied = Document.ApplySupportSettingsToSelection(previousSupportSettings);
+            previousSupportSettings = Document.SupportSettings with { };
+            if (applied > 0) ViewportStatus = applied == 1 ? "Settings applied to 1 support element" : $"Settings applied to {applied} support elements";
             // The viewport draws from these settings too (base lattice markers): repaint now.
             Document.NotifySettingsChanged();
         };
@@ -765,7 +767,7 @@ public partial class MainViewModel : ViewModelBase
                     // Position uses the original anchor, rotation/scale the original transform.
                     obj.Transform = before;
                     requested = edit(obj, before, a, value);
-                    obj.Transform = Document.ApplyPlacement(obj, requested);
+                    obj.Transform = Document.ApplyPlacementForTransform(obj, before, requested);
                     Document.ApplyAssociatedSupportTransformsTransient([(obj, before)], supportBefore);
                     Document.NotifyTransientChange();
                 }, () =>

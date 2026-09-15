@@ -114,6 +114,27 @@ public static class CandelabraParenting
                 }
                 if (best.Count >= 2)
                 {
+                    // The accepted tips can cover only part of the original neighbourhood (for
+                    // example when the tip limit is reached). Centre their spine on that actual
+                    // group, retaining the proven route only if the centred alternatives fail.
+                    var groupCentre = (best.Select(c => Xy(c.End)).Aggregate(Vector2.Min) +
+                        best.Select(c => Xy(c.End)).Aggregate(Vector2.Max)) / 2;
+                    var centredCandidates = settings.UseBaseGrid
+                        ? BaseLattice.NearestSquarePoints(groupCentre, settings.BaseGridPitch,
+                            MathF.Min(width / 2, maxLength)).Take(12)
+                        : new[] { groupCentre };
+                    var centred = false;
+                    foreach (var candidate in centredCandidates)
+                    {
+                        foreach (var fraction in new[] { 1f, 0.7f, 0.4f })
+                        {
+                            if (!TryGroup(best, candidate, angle * fraction, out _, out _, false)) continue;
+                            bestCentre = candidate; bestAngle = angle * fraction;
+                            centred = true;
+                            break;
+                        }
+                        if (centred) break;
+                    }
                     TryGroup(best, bestCentre, bestAngle, out _, out _, true);
                     var points = best.Select(c => c.Tip.SurfacePoint).ToHashSet();
                     remaining.RemoveAll(c => points.Contains(c.Tip.SurfacePoint));
@@ -231,21 +252,8 @@ public static class CandelabraParenting
                 routes.Add((c, result.Attach)); progress++;
             }
 
-            // Check proposed members too. Trim the common spine junction neighbourhood so legitimate
-            // converging members may fuse, while crossing branches away from the spine are rejected.
-            var local = new LinearCollisionScene();
-            for (var i = 0; i < routes.Count; i++)
-            {
-                var (c, attach) = routes[i];
-                var d = attach - c.End;
-                var length = d.Length();
-                if (length < 0.001f) continue;
-                var trim = MathF.Min(length, (trunkRadius + radius) / MathF.Max(0.1f, MathF.Sin(routeAngle)));
-                var end = attach - Vector3.Normalize(d) * trim;
-                if (length > trim && local.IntersectsCapsule(c.End, end, radius + clearance / 2))
-                { failure = "Neighbouring branches overlap at the current diameter and clearance, even after trying steeper branches."; return false; }
-                if (length > trim) local.AddCapsule(c.End, end, radius + clearance / 2, i);
-            }
+            // Branches on the same candelabra may intersect and fuse. They still connect directly
+            // to the spine; ContactRoute checks model/other-support clearance and route limits.
 
             if (!commit) return true;
             var localNodes = new List<SupportNode>();
