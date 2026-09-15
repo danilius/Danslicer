@@ -65,7 +65,7 @@ Apply is unavailable while the preview is updating or cannot be applied. A scene
 
 ## Manual braces
 
-The September 15 development version adds **Manual brace** in Structure. Click a trunk or branch for the first endpoint, then a second member for the other endpoint. Review the preview; right click or `Esc` leaves the tool.
+Release v1.0.0 Build 1 includes **Manual brace** in Structure. Click a trunk or branch for the first endpoint, then a second member for the other endpoint. Review the preview; right click or `Esc` leaves the tool.
 
 | Setting | Effect |
 | --- | --- |

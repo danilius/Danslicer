@@ -2,9 +2,9 @@
 
 **Prepare, support, and slice models for resin 3D printing.**
 
-Danslicer is a desktop resin slicer with a 3D workspace, automatic and hand-placed supports, editable support structures, and native printer-file export. It also includes a command-line tool for slicing and mesh analysis.
+Danslicer is a desktop resin slicer with a 3D workspace, automatic and hand-placed supports, editable support structures, and native printer-file export. It also includes a command-line tool for slicing and mesh analysis. **[Download the latest release](https://github.com/danilius/Danslicer/releases/latest)** to get started without building from source.
 
-[User guide](docs/wiki/Home.md) · [GitHub Wiki](https://github.com/danilius/Danslicer/wiki) · [Keyboard shortcuts](docs/wiki/Keyboard-shortcuts.md) · [Report an issue](https://github.com/danilius/Danslicer/issues)
+[Download](https://github.com/danilius/Danslicer/releases/latest) · [User guide](docs/wiki/Home.md) · [GitHub Wiki](https://github.com/danilius/Danslicer/wiki) · [Keyboard shortcuts](docs/wiki/Keyboard-shortcuts.md) · [Report an issue](https://github.com/danilius/Danslicer/issues)
 
 ![Danslicer rendering a supported sample with a clipped cross-section](docs/wiki/images/viewport.png)
 
@@ -19,14 +19,20 @@ Projects save as `.danslicer` files so you can return to your scene and settings
 
 ## Start here
 
-- [Getting started](docs/wiki/Getting-started.md): build, launch, and make your first slice.
+- [Getting started](docs/wiki/Getting-started.md): download, launch, and make your first slice.
 - [Layout and projects](docs/wiki/Layout-and-projects.md): object editing and project files.
 - [Support settings](docs/wiki/Support-settings.md): what each contact, member, base, and placement setting does.
 - [Manual and guided supports](docs/wiki/Manual-and-guided-supports.md): hands-on placement and editing.
 - [Printers, resins, and slicing](docs/wiki/Printers-resins-and-slicing.md): profiles, exposure, peel motion, preview, and export.
 - [Complete guide](docs/wiki/Home.md): all topics, including regions, islands, structure, rafts, preferences, and CLI usage.
 
-## Build and run
+## Download and run
+
+**[v1.0.0 — Build 1](https://github.com/danilius/Danslicer/releases/tag/v1.0.0)** is a portable Windows x64 release. Download `Danslicer-build-1-win-x64.zip`, extract the entire archive, and run **Danslicer.App.exe**. Keep the extracted files together. No installer or separate .NET installation is required.
+
+Use the Windows ZIP under **Assets**; GitHub's **Source code** archives are for developers. The release also includes SHA-256 checksums.
+
+## Build from source
 
 Install the .NET 10 SDK, then run these commands from the repository root:
 

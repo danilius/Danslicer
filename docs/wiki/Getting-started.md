@@ -1,6 +1,18 @@
 # Getting started
 
-## Build and launch
+## Download and launch
+
+**[Download the latest release](https://github.com/danilius/Danslicer/releases/latest)** for a ready-to-run app. The current release is **[v1.0.0 — Build 1](https://github.com/danilius/Danslicer/releases/tag/v1.0.0)** for Windows x64.
+
+1. Download **[Danslicer-build-1-win-x64.zip](https://github.com/danilius/Danslicer/releases/download/v1.0.0/Danslicer-build-1-win-x64.zip)** from the release's Assets section.
+2. Extract the **entire archive** into a folder.
+3. Run **Danslicer.App.exe** from that folder. Keep all extracted files together.
+
+No installer or separate .NET installation is required. GitHub's automatically generated **Source code** archives are for developers; choose the Windows ZIP to run the app. A `SHA256SUMS.txt` file is available on the release page for verifying the download.
+
+Once the app opens, continue with **Your first project** below.
+
+## Build from source (optional)
 
 From the repository root, with the .NET 10 SDK installed:
 

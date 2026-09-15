@@ -1,6 +1,6 @@
 # Danslicer user guide
 
-Danslicer prepares models for resin printing in three workspaces: **Layout**, **Support**, and **Slicing**. Start with a model, arrange it on the plate, add supports, then inspect and export its layers.
+Danslicer prepares models for resin printing in three workspaces: **Layout**, **Support**, and **Slicing**. Start with a model, arrange it on the plate, add supports, then inspect and export its layers. **[Download the latest release](https://github.com/danilius/Danslicer/releases/latest)** to get started: **[v1.0.0 — Build 1](https://github.com/danilius/Danslicer/releases/tag/v1.0.0)** provides a portable Windows x64 app with no installer or separate .NET installation required. See [Getting started](Getting-started.md) for download and launch instructions.
 
 ![Supported sample and clipped cross-section in the 3D renderer](images/viewport.png)
 
@@ -8,7 +8,7 @@ Danslicer prepares models for resin printing in three workspaces: **Layout**, **
 
 | Page | What you will find |
 | --- | --- |
-| [Getting started](Getting-started.md) | Build and launch; first model-to-print workflow |
+| [Getting started](Getting-started.md) | Download or build, launch, and follow the first model-to-print workflow |
 | [Layout and projects](Layout-and-projects.md) | Import, save, reload, select, transform, duplicate, mirror, and place objects |
 | [Navigation and visibility](Navigation-and-visibility.md) | Camera, view cube, support display, isolation, and selection through models |
 | [Support settings](Support-settings.md) | Presets and every exposed contact, member, base, grid, reinforcement, and generation setting |
@@ -29,6 +29,6 @@ Danslicer prepares models for resin printing in three workspaces: **Layout**, **
 - A **tip/contact** touches the model; a **branch** connects it to a **trunk**; a **base** anchors a trunk to the plate. **Parenting** reorganizes those connections. **Bracing** joins neighbouring support members.
 - Shortcuts assume the default keymap and focus in the viewport. Text editors and active tools consume keys differently.
 - Screenshots are existing September 2026 UI/renderer captures. They illustrate controls and sample geometry; example values are not calibrated print recipes. Some UI captures omit the GPU-rendered model.
-- The guide describes the September 15 development checkout. The new manual-brace controls and current Candelabra/automatic-bracing refinements may be newer than your build.
+- The guide describes the September 15 source. Release v1.0.0 Build 1 includes manual braces and structure previews; older builds may differ.
 
 The Markdown source and images also live in the main repository under `docs/wiki`.

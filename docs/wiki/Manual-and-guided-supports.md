@@ -4,7 +4,7 @@ Choose a model in **Support → Objects**. Placement tools belong to that target
 
 ## Single contacts and editing
 
-**Place supports** (`T`) toggles placement. Hover the model, inspect the preview, and left-click to add a contact. Repeat for more contacts; `T`, right click, or `Esc` leaves the tool. The development version also allows placement on existing support members, using a fixed 45° tip and outward branch with clearance checks.
+**Place supports** (`T`) toggles placement. Hover the model, inspect the preview, and left-click to add a contact. Repeat for more contacts; `T`, right click, or `Esc` leaves the tool. Release v1.0.0 Build 1 also allows placement on existing support members, using a fixed 45° tip and outward branch with clearance checks.
 
 Select a contact and press **G** to move the tip along the surface. Left click or `Enter` confirms; right click or `Esc` cancels. **Space** toggles support editing with draggable handles; `Esc` cancels an active edit. **Delete** removes selected support elements and prunes dependent support geometry as required.
 
