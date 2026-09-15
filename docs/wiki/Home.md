@@ -2,7 +2,9 @@
 
 Danslicer prepares models for resin printing in three workspaces: **Layout**, **Support**, and **Slicing**. Start with a model, arrange it on the plate, add supports, then inspect and export its layers. **[Download the latest release](https://github.com/danilius/Danslicer/releases/latest)** to get started: **[v1.0.0 — Build 1](https://github.com/danilius/Danslicer/releases/tag/v1.0.0)** provides a portable Windows x64 app with no installer or separate .NET installation required. See [Getting started](Getting-started.md) for download and launch instructions.
 
-![Supported sample and clipped cross-section in the 3D renderer](images/viewport.png)
+![Horse bust with supports in Danslicer's Support workspace](images/horse-bust.png)
+
+Horse model: [Horse Bust 2 by Ninomalbinho](https://www.printables.com/model/1529173-horse-bust-2).
 
 ## Learn the workflow
 

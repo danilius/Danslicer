@@ -6,7 +6,9 @@ Danslicer is a desktop resin slicer with a 3D workspace, automatic and hand-plac
 
 [Download](https://github.com/danilius/Danslicer/releases/latest) · [User guide](docs/wiki/Home.md) · [GitHub Wiki](https://github.com/danilius/Danslicer/wiki) · [Keyboard shortcuts](docs/wiki/Keyboard-shortcuts.md) · [Report an issue](https://github.com/danilius/Danslicer/issues)
 
-![Danslicer rendering a supported sample with a clipped cross-section](docs/wiki/images/viewport.png)
+![Horse bust with supports in Danslicer's Support workspace](docs/wiki/images/horse-bust.png)
+
+Horse model: [Horse Bust 2 by Ninomalbinho](https://www.printables.com/model/1529173-horse-bust-2).
 
 ## From model to print
 

@@ -29,7 +29,7 @@ The guide uses unchanged existing repository captures:
 
 | Guide image | Original capture |
 | --- | --- |
-| `viewport.png` | `docs/ui-refresh/evidence/task-05-gl/Deferred-supports-isolation.png` |
+| `horse-bust.png` | User-supplied `screenshots/Screenshot 2026-09-15 132743.png`; horse model: [Horse Bust 2 by Ninomalbinho](https://www.printables.com/model/1529173-horse-bust-2) |
 | `support-settings.png` | `docs/ui-refresh/evidence/task-10/workspace-support.png` |
 | `rafts.png` | `docs/ui-refresh/evidence/task-05-ui-final/settings-raft.png` |
 | `printers.png` | `docs/ui-refresh/evidence/task-09/settings-printers.png` |

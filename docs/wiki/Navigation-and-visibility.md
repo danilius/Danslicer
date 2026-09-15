@@ -43,6 +43,4 @@ The vertical range control in Support mode clips geometry to a height interval. 
 
 **Hover waterline** draws the layer line at the height beneath the cursor across the model. It is useful when choosing a contour or comparing nearby contacts.
 
-![Example of a capped horizontal cut in the renderer](images/viewport.png)
-
 See [Preferences](Preferences.md) for shading, overhang tint, wireframe, shadows, and renderer choices.
